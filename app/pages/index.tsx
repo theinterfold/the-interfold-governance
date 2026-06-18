@@ -9,7 +9,7 @@ export default function StandardHome() {
   const { isConnected } = useAccount();
   const { open } = useWeb3Modal();
 
-  const proposalsHref = `/plugins/${plugins[0]?.id ?? "crisp-token-voting"}/#/`;
+  const proposalsHref = `/plugins/${plugins[0]?.id ?? "proposals"}/#/`;
 
   return (
     <section className="mint-slab">
@@ -20,20 +20,20 @@ export default function StandardHome() {
             <span className="num">№ 01</span>
             <span className="vline" />
             <span className="label">
-              Secret
+              Public &
               <br />
-              ballots
+              private
             </span>
           </div>
           <h1>
-            Secret ballots <span className="ital">without</span> the{" "}
+            Govern in the <span className="ital">open</span>, or by{" "}
             <span className="strike">
-              trusted
+              traceable
               <svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
                 <path d="M2,16 Q60,4 120,10 T198,6" />
               </svg>
             </span>{" "}
-            third party.
+            secret ballot.
           </h1>
         </div>
 
@@ -41,15 +41,16 @@ export default function StandardHome() {
         <div className="hero-body-grid">
           <div />
           <p className="lede">
-            <span className="dropcap">C</span>RISP is a secret ballot protocol for digital decision-making, built on the
-            Interfold and the Aragon OSx stack. Participants submit encrypted votes, and a committee of independent
-            ciphernodes coordinates a verifiable tally without exposing individual ballots.
+            <span className="dropcap">T</span>he Interfold is the governance home of the FOLD DAO, built on the Aragon
+            OSx stack. Open a public proposal and let the community vote transparently on-chain, or open a private one —
+            ballots are encrypted in your browser and a committee of independent ciphernodes tallies them with CRISP,
+            without ever exposing an individual vote.
           </p>
           <ul className="em-list self-center">
-            <li>Client-side encryption</li>
+            <li>Public, on-chain tallies</li>
+            <li>Private, encrypted ballots</li>
             <li>No trusted tallier</li>
-            <li>Coercion resistance</li>
-            <li>Verifiable public result</li>
+            <li>Voting power in FOLD</li>
           </ul>
         </div>
 
@@ -66,7 +67,7 @@ export default function StandardHome() {
             </Button>
           </Link>
           <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="hero-text-link">
-            Learn how CRISP works →
+            Learn how private voting works →
           </a>
         </div>
       </div>

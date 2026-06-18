@@ -1,85 +1,73 @@
-# CRISP Aragon Plugin Frontend
+# The Interfold Governance App
 
-> This project is built on top of Aragon's Governance App Template https://github.com/aragon/gov-app-template - credits to Aragon for the original codebase!
+> Built on top of Aragon's [Governance App Template](https://github.com/aragon/gov-app-template) — credits to Aragon for the original codebase.
 
-## Overview
+The frontend for the Interfold DAO governance. It presents a single, unified experience over **two** Aragon OSx plugins that share the **FOLD** ERC20Votes token:
 
-This project is a frontend to demo a governance plugin built using [Aragon OSx](https://www.aragon.org/osx) and [Enclave](enclave.gg).
+| Plugin           | Privacy | What it does                                                          |
+| ---------------- | ------- | -------------------------------------------------------------------- |
+| CrispVoting      | Private | Encrypted ballots tallied by an Enclave ciphernode committee (CRISP). |
+| TokenVoting v1.4 | Public  | Transparent on-chain Yes/No/Abstain voting weighted by FOLD.          |
 
-The CRISP on Aragon plugin provides private and coercion resistent voting to DAO using the Aragon OSx stack.
+Both plugins are installed on the same DAO with `EXECUTE_PERMISSION`, so either can execute governance actions through the DAO.
 
-### Proposal section
+> This is the `app/` package of the [`the-interfold-governance`](../README.md) monorepo. The deploy scripts that create the DAO and install both plugins live in [`../contracts`](../contracts/README.md).
 
-This section displays all the proposals which need to be ratified by the community of token holders. Proposals allow anyone with a certain token balance to vote, and all votes are always kept private.
+## What's in the app
 
-The Enclave network will tally the votes when a proposal ends and report the result back to the smart contracts which will then allow proposals to be executed if they pass.
+- **Unified proposal list** — proposals from both plugins in one feed, each tagged **Private** or **Public**, with an All / Public / Private filter.
+- **Single create page** — one form with a **Private (CRISP) / Public (Token)** toggle that routes to the right plugin.
+- **Per-plugin detail/voting** — encrypted CRISP voting for private proposals, on-chain Yes/No/Abstain for public ones.
 
-## Getting Started with the UI
+The folder-based plugin system lives in `plugins/`: `governance/` is the unified shell (the single registry entry), with `crispVoting/` and `tokenVoting/` as the private and public feature modules.
 
-Before you start, make sure you have Bun installed on your machine. If not, hop over to [Bun's official documentation](https://bun.sh/) for installation instructions.
+## Getting started
 
-The plugin itself can be deployed from the following repository:
-
-- `https://github.com/gnosisguild/crisp-aragon-plugin`
-
-Please head there for instructions on how to setup and deploy the plugin smart contracts.
-
-Once you're done with the steps above, clone this repository to your local machine:
-
-```bash
-git clone https://github.com/gnosisguild/crisp-aragon-plugin-app.git
-cd crisp-aragon-plugin-app
-```
-
-To get the development server running, simply execute:
+Requires [Bun](https://bun.sh/).
 
 ```bash
 bun install
 bun dev
 ```
 
-Make sure you have configured the necessary environment variables:
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in the values.
 
 ```bash
-# PUBLIC ENV VARS
+# Core
+NEXT_PUBLIC_DAO_ADDRESS=                  # the Interfold DAO
+NEXT_PUBLIC_TOKEN_ADDRESS=                # FOLD (ERC20Votes / IVotes) — shared voting token
+NEXT_PUBLIC_ENCLAVE_FEE_TOKEN_ADDRESS=    # token used to pay Enclave fees (CRISP)
 
-# General
-NEXT_PUBLIC_DAO_ADDRESS=0xd9A924bF3FaE756417b9B9DCC94C24681534b8F7
-NEXT_PUBLIC_TOKEN_ADDRESS=0x9A3218197C77F54BB2510FBBcc7Da3A4D2bE0DeE
-NEXT_PUBLIC_ENCLAVE_FEE_TOKEN_ADDRESS=0x8a72996faa56747354a0D9fE817974857055Bd77
-# Plugin addresses
-NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS=0x89ECeD004714779C7b6B3bD72634D2B7A132E1C0
+# Plugins
+NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS=  # PRIVATE proposals
+NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS=  # PUBLIC proposals
 
+# Indexing / network
+NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK=      # block to start event queries from (speeds up loading)
 NEXT_PUBLIC_SECONDS_PER_BLOCK=12
-
-# The block number where the plugin was deployed (used to speed up event queries)
-NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK=0
-
-# Enclave
-NEXT_PUBLIC_CRISP_SERVER_URL="http://127.0.0.1:4000"
-
-# Network and services
 NEXT_PUBLIC_CHAIN_NAME=sepolia
-NEXT_PUBLIC_WEB3_ENDPOINT=https://eth-sepolia.g.alchemy.com/v2/
+NEXT_PUBLIC_WEB3_ENDPOINT=
 
-NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID="YOUR WALLET CONNECT PROJECT ID"
+# Enclave / CRISP
+NEXT_PUBLIC_CRISP_SERVER_URL=
 
-NEXT_PUBLIC_IPFS_ENDPOINTS="https://domain1/api,https://domain2/api/v0"
-NEXT_PUBLIC_PINATA_JWT="..."
+# Services
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=
+NEXT_PUBLIC_IPFS_ENDPOINTS=
+NEXT_PUBLIC_PINATA_JWT=
 ```
 
-- `NEXT_PUBLIC_DAO_ADDRESS` - The address of the DAO where the CRISP Voting plugin is installed.
-- `NEXT_PUBLIC_TOKEN_ADDRESS` - The address of the ERC20 token used for voting power in the DAO.
-- `NEXT_PUBLIC_ENCLAVE_FEE_TOKEN_ADDRESS` - The address of the ERC20 token used to pay fees to the Enclave network.
-- `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS` - The address of the CRISP Voting plugin contract.
-- `NEXT_PUBLIC_SECONDS_PER_BLOCK` - Average number of seconds per block for the specified network. (Ethereum and Sepolia have 12 seconds)
-- `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` - The block number where the CRISP Voting plugin was deployed. This helps speed up event queries.
-- `NEXT_PUBLIC_CRISP_SERVER_URL` - The URL of the Enclave server to manage CRISP and Enclave data such as round details, encryption public key and more.
-- `NEXT_PUBLIC_CHAIN_NAME` - The name of the Ethereum network you are using (e.g., mainnet, sepolia, goerli).
-- `NEXT_PUBLIC_WEB3_ENDPOINT` - An Ethereum node endpoint for the specified network. You can use services like [Alchemy](https://www.alchemy.com/) or [Infura](https://infura.io/) to get a free endpoint. This helps speed up the loading of blockchain data such as proposal details.
-- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` can be obtained by signing up at [WalletConnect](https://walletconnect.com/) and creating a new project.
-- `NEXT_PUBLIC_IPFS_ENDPOINTS` and `NEXT_PUBLIC_PINATA_JWT` are needed to ensure we can save proposal details on IPFS
+Field notes:
+
+- `NEXT_PUBLIC_TOKEN_ADDRESS` — FOLD, the ERC20Votes token both plugins read voting power from.
+- `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS` / `NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS` — the two installed plugins. Either may be empty if only one is deployed; the list/create UI adapts.
+- `NEXT_PUBLIC_ENCLAVE_FEE_TOKEN_ADDRESS` / `NEXT_PUBLIC_CRISP_SERVER_URL` — only used by the private (CRISP) flow.
+- `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` — set to the DAO/plugin deployment block to avoid scanning from genesis.
+- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — from [WalletConnect](https://walletconnect.com/).
+- `NEXT_PUBLIC_IPFS_ENDPOINTS` / `NEXT_PUBLIC_PINATA_JWT` — for pinning proposal metadata to IPFS.
 
 ## License 📜
 
-The Governance App Template is released under the AGPL v3 License.
+Released under the AGPL v3 License.

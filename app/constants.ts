@@ -34,7 +34,8 @@ export const PUB_PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT ?? "";
 // General
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);
 export const PUB_APP_NAME = "The Interfold";
-export const PUB_APP_DESCRIPTION = "DAO Voting on Enclave using CRISP";
+export const PUB_APP_DESCRIPTION =
+  "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
 export const PUB_TOKEN_SYMBOL = "FOLD";
 
 export const PUB_PROJECT_LOGO = "/theinterfold-logo.png";

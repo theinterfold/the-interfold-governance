@@ -7,7 +7,7 @@ export const Footer = () => {
     <footer className="w-full border-t border-t-neutral-800 bg-neutral-50">
       <div className="mx-auto grid w-full max-w-screen-xl grid-cols-1 items-end gap-8 px-6 pb-8 pt-12 md:grid-cols-2">
         <div className="font-mono-label text-[11px] uppercase leading-relaxed tracking-[0.18em] text-neutral-500">
-          CRISP secret ballots for Aragon OSx, built on the Interfold.
+          Public &amp; private governance for the Interfold, on Aragon OSx.
         </div>
         <ul className="em-list flex flex-col gap-1 md:items-end">
           <li>
