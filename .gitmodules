@@ -1,0 +1,3 @@
+[submodule "contracts/lib/crisp-aragon-plugin"]
+	path = contracts/lib/crisp-aragon-plugin
+	url = https://github.com/gnosisguild/crisp-aragon-plugin

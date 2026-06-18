@@ -1,0 +1,9 @@
+.DS_Store
+node_modules/
+
+# Secrets — never commit any .env anywhere (private keys, JWTs, RPC keys).
+# Only the *.example templates are allowed.
+.env
+.env.*
+!.env.example
+!**/.env.example

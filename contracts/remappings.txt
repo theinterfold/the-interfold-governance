@@ -1,0 +1,10 @@
+forge-std/=lib/crisp-aragon-plugin/lib/forge-std/src/
+@aragon/osx/=lib/crisp-aragon-plugin/lib/osx/packages/contracts/src/
+@aragon/osx-commons-contracts/=lib/crisp-aragon-plugin/lib/osx-commons/contracts/
+@openzeppelin/contracts/=lib/crisp-aragon-plugin/lib/openzeppelin-contracts/contracts/
+@openzeppelin/contracts-upgradeable/=lib/crisp-aragon-plugin/lib/openzeppelin-contracts-upgradeable/contracts/
+@ensdomains/ens-contracts/=lib/crisp-aragon-plugin/lib/ens-contracts/
+@ensdomains/buffer/=lib/crisp-aragon-plugin/lib/buffer
+@enclave-e3/contracts=lib/crisp-aragon-plugin/node_modules/@enclave-e3/contracts
+@aragon/token-voting-plugin/=lib/crisp-aragon-plugin/node_modules/@aragon/token-voting-plugin/src/
+@crisp-aragon-plugin/=lib/crisp-aragon-plugin/
