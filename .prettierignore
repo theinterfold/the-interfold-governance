@@ -1,0 +1,7 @@
+# Root Prettier only formats top-level docs/config. app/ and contracts/ are
+# formatted by their own tooling (app: prettier+tailwind, contracts: forge fmt).
+node_modules
+app
+contracts
+*.lock
+bun.lock

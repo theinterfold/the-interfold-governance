@@ -1,0 +1,17 @@
+{
+  "name": "the-interfold-governance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Interfold governance monorepo — app (frontend) + contracts (Foundry).",
+  "scripts": {
+    "format": "prettier --write \"./*.{md,json,yml,yaml}\" && (cd app && bun run format:fix) && (cd contracts && forge fmt)",
+    "lint": "prettier --check \"./*.{md,json,yml,yaml}\" && (cd app && bun run lint) && (cd contracts && forge fmt --check)",
+    "format:contracts": "cd contracts && forge fmt",
+    "lint:contracts": "cd contracts && forge fmt --check",
+    "format:app": "cd app && bun run format:fix",
+    "lint:app": "cd app && bun run lint"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  }
+}

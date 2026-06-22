@@ -7,6 +7,7 @@ import { getSimpleRelativeTimeFromDate } from "@/utils/dates";
 import { HeaderSection } from "@/components/layout/header-section";
 import { getTagVariantFromStatus } from "@/utils/ui-variants";
 import { capitalizeFirstLetter } from "@/utils/text";
+import { shortProposalId } from "@/utils/proposalId";
 import dayjs from "dayjs";
 
 const DEFAULT_PROPOSAL_TITLE = "(No proposal title)";
@@ -21,7 +22,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }
   const proposalStatus = useProposalStatus(proposal);
   const tagVariant = getTagVariantFromStatus(proposalStatus);
 
-  const breadcrumbs: IBreadcrumbsLink[] = [{ label: "Proposals", href: "#/" }, { label: proposalIdx.toString() }];
+  const breadcrumbs: IBreadcrumbsLink[] = [{ label: "Proposals", href: "#/" }, { label: shortProposalId(proposalIdx) }];
   const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
 
   return (

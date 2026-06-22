@@ -1,3 +1,18 @@
-[submodule "contracts/lib/crisp-aragon-plugin"]
-	path = contracts/lib/crisp-aragon-plugin
-	url = https://github.com/gnosisguild/crisp-aragon-plugin
+[submodule "contracts/lib/forge-std"]
+	path = contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "contracts/lib/openzeppelin-contracts"]
+	path = contracts/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = contracts/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+[submodule "contracts/lib/ens-contracts"]
+	path = contracts/lib/ens-contracts
+	url = https://github.com/ensdomains/ens-contracts
+[submodule "contracts/lib/osx-commons"]
+	path = contracts/lib/osx-commons
+	url = https://github.com/aragon/osx-commons
+[submodule "contracts/lib/osx"]
+	path = contracts/lib/osx
+	url = https://github.com/aragon/osx

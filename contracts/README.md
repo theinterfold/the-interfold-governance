@@ -3,10 +3,21 @@
 `DeployInterfoldDao.s.sol` creates the Interfold DAO and installs **both** governance plugins
 in one atomic `createDao` call, sharing a single **FOLD** token:
 
-| Plugin           | Privacy | Source                          |
-| ---------------- | ------- | ------------------------------- |
-| CrispVoting      | Private | submodule `lib/crisp-aragon-plugin` (published fresh) |
+| Plugin           | Privacy | Source                                                |
+| ---------------- | ------- | ----------------------------------------------------- |
+| CrispVoting      | Private | **forked** into `src/crisp/` (governance variant), published fresh |
 | TokenVoting v1.4 | Public  | Aragon canonical PluginRepo (referenced by address)   |
+
+The CRISP plugin is a **fork** of `crisp-aragon-plugin` vendored under `src/crisp/` (only
+`CrispVoting.sol` + `CrispVotingSetup.sol` are modified; the interfaces are unchanged copies).
+Changes: `createProposal` always uses a **3-option (Yes/No/Abstain) ballot weighted by token +
+delegate voting power (`CUSTOM`)**, and `execute` is gated by `EXECUTE_PROPOSAL_PERMISSION`
+granted to a **foundation** address (veto power).
+
+Dependencies are declared directly by this project — git submodules under `lib/` (OSx,
+OpenZeppelin, forge-std, ENS) pinned to the same commits the plugin used, plus npm packages
+(`@enclave-e3/contracts`, `@aragon/token-voting-plugin`) in `package.json`. Run `make setup`
+(`git submodule update --init --recursive` + `pnpm install`) to fetch everything.
 
 Aragon's `DAOFactory` grants each installed plugin `EXECUTE_PERMISSION` on the DAO, so both
 plugins execute governance actions through the DAO (each plugin's `targetConfig.target` is
@@ -43,6 +54,24 @@ make deploy            # broadcast
 
 The script logs the DAO, the shared FOLD token, the CRISP `PluginRepo`, and both installed
 plugin addresses (index 0 = CRISP/private, index 1 = TokenVoting/public).
+
+### Foundation veto
+
+- **Private (CRISP):** baked in at install — `execute` requires `EXECUTE_PROPOSAL_PERMISSION`,
+  granted to `FOUNDATION_ADDRESS` by the forked setup.
+- **Public (TokenVoting):** the canonical plugin gates `execute` the same way but grants the
+  permission to `ANY_ADDR` (anyone can execute). To match CRISP, run a one-time bootstrap after
+  deploy — it creates a governance proposal that revokes `EXECUTE_PROPOSAL` from `ANY_ADDR` and
+  grants it to the foundation:
+
+  ```bash
+  # set DAO_ADDRESS + TOKEN_VOTING_PLUGIN_ADDRESS (from the deploy output) in .env, then:
+  make lock-public-execution
+  ```
+
+  The caller needs FOLD voting power; the proposal is created with a Yes vote + early execution,
+  so a passing majority locks it down in one step. Reversible later via governance (the DAO is
+  ROOT on the permission).
 
 ## Wire outputs into `app/.env`
 

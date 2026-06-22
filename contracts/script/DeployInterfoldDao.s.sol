@@ -15,11 +15,12 @@ import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20
 import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/GovernanceWrappedERC20.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 
-import {CrispVoting} from "@crisp-aragon-plugin/src/CrispVoting.sol";
-import {CrispVotingSetup} from "@crisp-aragon-plugin/src/setup/CrispVotingSetup.sol";
-import {ICrispVoting} from "@crisp-aragon-plugin/src/ICrispVoting.sol";
-import {Utils} from "@crisp-aragon-plugin/script/Utils.sol";
-import {IDAOFactory} from "@crisp-aragon-plugin/src/IDAOFactory.sol";
+// Forked CRISP plugin (governance variant: createProposal defaults to 3 options + CUSTOM credits).
+import {CrispVoting} from "../src/crisp/CrispVoting.sol";
+import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
+import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
+import {Utils} from "./Utils.sol";
+import {IDAOFactory} from "../src/crisp/IDAOFactory.sol";
 
 import {TokenVotingInstall} from "./TokenVotingInstall.sol";
 
@@ -122,9 +123,8 @@ contract DeployInterfoldDaoScript is Script {
     }
 
     function deployCrispRepo(address pluginSetup) public returns (PluginRepo pluginRepo) {
-        pluginRepo = PluginRepoFactory(pluginRepoFactory).createPluginRepoWithFirstVersion(
-            nameWithEntropy, pluginSetup, msg.sender, "1", "1"
-        );
+        pluginRepo = PluginRepoFactory(pluginRepoFactory)
+            .createPluginRepoWithFirstVersion(nameWithEntropy, pluginSetup, msg.sender, "1", "1");
     }
 
     function crispPluginSettings(PluginRepo crispRepo, address fold)
@@ -151,7 +151,11 @@ contract DeployInterfoldDaoScript is Script {
         GovernanceERC20.MintSettings memory mintSettings =
             GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)});
 
-        bytes memory data = abi.encode(params, tokenSettings, mintSettings);
+        // Foundation that holds EXECUTE_PROPOSAL_PERMISSION (veto power over execution).
+        address foundation = vm.envAddress("FOUNDATION_ADDRESS");
+        require(foundation != address(0), "FOUNDATION_ADDRESS not set");
+
+        bytes memory data = abi.encode(params, tokenSettings, mintSettings, foundation);
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(1, 1), crispRepo), data);
     }
 

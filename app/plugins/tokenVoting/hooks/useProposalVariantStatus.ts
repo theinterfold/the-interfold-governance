@@ -20,8 +20,7 @@ function computeOutcome(proposal: Proposal): {
   const yesNo = yes + no;
 
   const lowTurnout = totalVotes < proposal.parameters.minVotingPower;
-  const supportReached =
-    yesNo > 0n && BigInt(RATIO_BASE) * yes > BigInt(proposal.parameters.supportThreshold) * yesNo;
+  const supportReached = yesNo > 0n && BigInt(RATIO_BASE) * yes > BigInt(proposal.parameters.supportThreshold) * yesNo;
 
   return { passed: supportReached && !lowTurnout, lowTurnout };
 }

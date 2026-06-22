@@ -11,6 +11,7 @@ import { useProposalStatus } from "../hooks/useProposalVariantStatus";
 import dayjs from "dayjs";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { CardResources } from "@/components/proposal/cardResources";
+import { VotingPower } from "../components/votingPower";
 import { Address, formatEther } from "viem";
 import { useToken } from "../hooks/useToken";
 import { ElseIf, If, Then } from "@/components/if";
@@ -19,7 +20,7 @@ import { useAccount } from "wagmi";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { AddressText } from "@/components/text/address";
-import Link from "next/link";
+import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
@@ -43,8 +44,7 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
 
   const startDate = dayjs(Number(proposal?.parameters.startDate) * 1000).toString();
   const endDate = dayjs(Number(proposal?.parameters.endDate) * 1000).toString();
-  const totalVotes =
-    (proposal?.tally.yes || ZERO) + (proposal?.tally.no || ZERO) + (proposal?.tally.abstain || ZERO);
+  const totalVotes = (proposal?.tally.yes || ZERO) + (proposal?.tally.no || ZERO) + (proposal?.tally.abstain || ZERO);
 
   const onVote = (voteOption: number | null) => {
     switch (voteOption) {
@@ -167,6 +167,7 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
             <ProposalActions actions={proposal.actions} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
+            <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
             <CardResources resources={proposal.resources} title="Resources" />
           </div>
         </div>
@@ -202,11 +203,8 @@ const NoVotePowerWarning = ({
               future proposals,
             </ElseIf>
           </If>
-          &nbsp;make sure that{" "}
-          <Link href={"/plugins/members/#/delegates/" + address} className="!text-sm text-primary-400 hover:underline">
-            your voting power is self delegated
-          </Link>
-          .
+          &nbsp;
+          <SelfDelegateLink />.
         </span>
       }
       message={

@@ -12,7 +12,7 @@ import { useAccount } from "wagmi";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { AddressText } from "@/components/text/address";
-import Link from "next/link";
+import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
 import { VoteCard } from "../components/vote/voteCard";
 import { useCrispServer } from "../hooks/useCrispServer";
@@ -161,11 +161,8 @@ const NoVotePowerWarning = ({
               future proposals,
             </ElseIf>
           </If>
-          &nbsp;make sure that{" "}
-          <Link href={`/plugins/members/#/delegates/${address}`} className="!text-sm text-primary-400 hover:underline">
-            your voting power is self delegated
-          </Link>
-          .
+          &nbsp;
+          <SelfDelegateLink />.
         </span>
       }
       message={

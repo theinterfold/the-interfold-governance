@@ -7,10 +7,12 @@ import { uploadToPinata } from "@/utils/ipfs";
 import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { URL_PATTERN } from "@/utils/input-values";
 import { toHex } from "viem";
+import { useReadContract } from "wagmi";
 import { VoteOption } from "../utils/types";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 
 const UrlRegex = new RegExp(URL_PATTERN);
+const DEFAULT_DURATION_SECONDS = 60 * 60 * 24; // 1 day
 
 export function useCreateProposal() {
   const { push } = useRouter();
@@ -20,9 +22,19 @@ export function useCreateProposal() {
   const [summary, setSummary] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [actions, setActions] = useState<RawAction[]>([]);
+  const [durationSeconds, setDurationSeconds] = useState<number>(DEFAULT_DURATION_SECONDS);
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
+
+  // Plugin-enforced minimum voting period (seconds).
+  const { data: minDurationRaw } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
+    abi: TokenVotingAbi,
+    functionName: "minDuration",
+  });
+  const minDuration = minDurationRaw ? Number(minDurationRaw) : 0;
 
   const { writeContractAsync: createProposalWrite, isConfirming } = useTransactionManager({
     onSuccessMessage: "Proposal created",
@@ -66,6 +78,13 @@ export function useCreateProposal() {
       }
     }
 
+    if (minDuration && durationSeconds < minDuration) {
+      return addAlert("Voting period too short", {
+        description: `The minimum voting period is ${Math.ceil(minDuration / 3600)} hour(s).`,
+        type: "error",
+      });
+    }
+
     try {
       setIsCreating(true);
       const proposalMetadataJsonObject: ProposalMetadata = {
@@ -79,10 +98,12 @@ export function useCreateProposal() {
 
       const ipfsPin = await uploadToPinata(JSON.stringify(proposalMetadataJsonObject));
 
-      // 0/0 dates => the contract uses `now` as start and `start + minDuration` as end.
+      // startDate 0 => the contract uses `now` (block.timestamp) as the start.
+      // endDate is now + chosen duration; a small buffer absorbs the mining delay so the
+      // effective period still clears minDuration.
       const allowFailureMap = BigInt(0);
       const startDate = BigInt(0);
-      const endDate = BigInt(0);
+      const endDate = BigInt(Math.floor(Date.now() / 1000) + durationSeconds + 60);
       const tryEarlyExecution = false;
 
       await createProposalWrite({
@@ -111,5 +132,8 @@ export function useCreateProposal() {
     setActions,
     setResources,
     submitProposal,
+    durationSeconds,
+    setDurationSeconds,
+    minDuration,
   };
 }

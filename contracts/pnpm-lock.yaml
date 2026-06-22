@@ -1,0 +1,77 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@aragon/token-voting-plugin':
+        specifier: github:aragon/token-voting-plugin#v1.3
+        version: https://codeload.github.com/aragon/token-voting-plugin/tar.gz/30b1218de64c29c78932f95f29a0e1863779372c
+      '@enclave-e3/contracts':
+        specifier: 0.0.10-test
+        version: 0.0.10-test
+
+packages:
+
+  '@aragon/token-voting-plugin@https://codeload.github.com/aragon/token-voting-plugin/tar.gz/30b1218de64c29c78932f95f29a0e1863779372c':
+    resolution: {gitHosted: true, integrity: sha512-okGICga6T92mNEs/pLwrI1Gc2OrzcbWW4a2ikwFtgsbdslRDWcSbhl7YbDV7+GIVOyqzNDgD2cY0CaUr1lI1/Q==, tarball: https://codeload.github.com/aragon/token-voting-plugin/tar.gz/30b1218de64c29c78932f95f29a0e1863779372c}
+    version: 0.0.0
+
+  '@enclave-e3/contracts@0.0.10-test':
+    resolution: {integrity: sha512-NAwFyd82Tz5l14RMyT1++uqbhjuJWiDIHVKJKiSPGUOZt5Ee07/4ZWrUZvrIaIsmfQWuCFeqUjeI3RsPW0xUTA==}
+
+  '@excubiae/contracts@0.4.0':
+    resolution: {integrity: sha512-jrR+IpelmoRW9adg6Dq+KlPMJfBr0dWPKjjuAIeZae883twnfk5+MWHGBBxFL7Rykx7URuQHpMvhYYamExL3Ow==}
+
+  '@openzeppelin/contracts@5.6.1':
+    resolution: {integrity: sha512-Ly6SlsVJ3mj+b18W3R8gNufB7dTICT105fJhodGAGgyC2oqnBAhqSiNDJ8V8DLY05cCz81GLI0CU5vNYA1EC/w==}
+
+  '@semaphore-protocol/contracts@4.14.2':
+    resolution: {integrity: sha512-QvZ6rW5R/zfxCk3xSgCjit4G5NerAl2WCB7tCMQGucyHnFwppRRrovDofskv0D7tM1CVsy8p5du63y5nrVvXiw==}
+
+  '@zk-kit/lean-imt.sol@2.0.1':
+    resolution: {integrity: sha512-2dy/wfzch2vy5QtDCFmQwN7E4GZP0xBcucTb2mfZoJP5V69cjPRdy6KcbS0YOcBMH/Lb7BgXLsekRYjh9JNKEw==}
+
+  poseidon-solidity@0.0.5:
+    resolution: {integrity: sha512-NzrvSwHzvZgT4hvg2GyGqeR+UOU/eLSEt4wAoXEua+VaR7NTKKwx1X9bPlh1VMBEVEno+IWvkRBbidFGzTeAqQ==}
+
+  solady@0.1.26:
+    resolution: {integrity: sha512-dhGr/ptJFdea/1KE6xgqgwEdbMhUiSfRc6A+jLeltPe16zyt9qtED3PElIBVRnzEmUO5aZTjKVAr6SlqXBBcIw==}
+
+  solady@0.1.4:
+    resolution: {integrity: sha512-BQKpX9Ezdp6WpUcT3H7cWdZKH31Ih7yZiUOQ6SUYzJ6gYjCB0KXPg77bS+pzmeQEtdMNK56gjlaqtn6ptFPSXQ==}
+
+snapshots:
+
+  '@aragon/token-voting-plugin@https://codeload.github.com/aragon/token-voting-plugin/tar.gz/30b1218de64c29c78932f95f29a0e1863779372c': {}
+
+  '@enclave-e3/contracts@0.0.10-test':
+    dependencies:
+      '@excubiae/contracts': 0.4.0
+      solady: 0.1.26
+
+  '@excubiae/contracts@0.4.0':
+    dependencies:
+      '@openzeppelin/contracts': 5.6.1
+      '@semaphore-protocol/contracts': 4.14.2
+      solady: 0.1.4
+
+  '@openzeppelin/contracts@5.6.1': {}
+
+  '@semaphore-protocol/contracts@4.14.2':
+    dependencies:
+      '@zk-kit/lean-imt.sol': 2.0.1
+
+  '@zk-kit/lean-imt.sol@2.0.1':
+    dependencies:
+      poseidon-solidity: 0.0.5
+
+  poseidon-solidity@0.0.5: {}
+
+  solady@0.1.26: {}
+
+  solady@0.1.4: {}

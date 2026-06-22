@@ -8,7 +8,6 @@ import {
   InputTime,
   DropdownContainer,
   DropdownItem,
-  InputNumber,
 } from "@aragon/ods";
 import React, { type ReactNode, useState } from "react";
 import type { RawAction } from "@/utils/types";
@@ -56,10 +55,6 @@ export default function Create() {
     setCredits,
     creditsMode,
     setCreditsMode,
-    numOptions,
-    setNumOptions,
-    optionLabels,
-    setOptionLabels,
   } = useCreateProposal();
 
   const inputWrapperClassName =
@@ -214,7 +209,7 @@ export default function Create() {
           </div>
 
           {/* Dates */}
-          <div className="mb-6 flex flex-row gap-x-5">
+          <div className="mb-6 flex flex-row gap-x-5 rounded-xl border border-neutral-100 bg-neutral-0 p-4">
             <div className="flex flex-1 flex-col">
               <InputDate
                 wrapperClassName={inputWrapperClassName}
@@ -304,67 +299,17 @@ export default function Create() {
                 </div>
               )}
 
-              {/* Number of Options */}
+              {/* Voting options — fixed Yes / No / Abstain for governance */}
               <div className="flex flex-col gap-y-2">
-                <InputNumber
-                  label="Number of Options"
-                  value={numOptions}
-                  min={2}
-                  max={10}
-                  step={1}
-                  onChange={(value) => {
-                    const newNum = Number.parseInt(value, 10) ?? 2;
-                    setNumOptions(newNum);
-
-                    // Adjust options array based on number
-                    if (newNum === 2) {
-                      setOptionLabels(["Yes", "No"]);
-                    } else if (newNum === 3) {
-                      setOptionLabels(["Yes", "No", "Abstain"]);
-                    } else {
-                      setOptionLabels((prev) => {
-                        const newLabels = [...prev];
-                        while (newLabels.length < newNum) {
-                          newLabels.push(`Option ${newLabels.length + 1}`);
-                        }
-                        return newLabels.slice(0, newNum);
-                      });
-                    }
-                  }}
-                  placeholder="e.g. 2"
-                  disabled={isCreating}
-                />
+                <label className="text-base font-normal leading-tight text-neutral-800">Voting options</label>
                 <p className="text-sm font-normal leading-normal text-neutral-500">
-                  Number of voting options (2-10). Two options enforces single-choice voting.
+                  Proposals use a standard Yes / No / Abstain ballot.
                 </p>
-              </div>
-
-              {/* Option Labels */}
-              <div className="flex flex-col gap-y-2">
-                <label className="text-base font-normal leading-tight text-neutral-800">Option Labels</label>
-                <p className="text-sm font-normal leading-normal text-neutral-500">
-                  {numOptions === 2
-                    ? "Binary vote with Yes/No options."
-                    : numOptions === 3
-                      ? "Standard vote with Yes/No/Abstain options."
-                      : "Customize the label for each voting option."}
-                </p>
-                <div className="flex flex-col gap-y-3 pt-2">
-                  {optionLabels.map((label, idx) => (
-                    <div key={idx} className="flex items-center gap-x-3">
-                      <span className="font-medium w-8 text-sm text-neutral-500">{idx + 1}.</span>
-                      <InputText
-                        className="flex-1"
-                        value={label}
-                        onChange={(e) => {
-                          const newLabels = [...optionLabels];
-                          newLabels[idx] = e.target.value;
-                          setOptionLabels(newLabels);
-                        }}
-                        placeholder={`Option ${idx + 1}`}
-                        readOnly={isCreating || numOptions <= 3}
-                      />
-                    </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {["Yes", "No", "Abstain"].map((o) => (
+                    <span key={o} className="rounded-full border border-neutral-100 px-3 py-1 text-sm text-neutral-800">
+                      {o}
+                    </span>
                   ))}
                 </div>
               </div>

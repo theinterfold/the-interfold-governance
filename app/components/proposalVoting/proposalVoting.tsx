@@ -16,14 +16,14 @@ interface IProposalVotingProps {
 
 export const ProposalVoting: React.FC<IProposalVotingProps> = ({ stages, description }) => {
   return (
-    <Card className="overflow-hidden rounded-xl bg-neutral-0 shadow-neutral">
+    <Card className="overflow-hidden !rounded-none !border !border-neutral-800 bg-neutral-0 !shadow-none">
       {/* Header */}
       <div className="flex flex-col gap-y-2 p-6">
         <Heading size="h2">Voting</Heading>
         <p className="text-lg leading-normal text-neutral-500">{description}</p>
       </div>
       {/* Stages */}
-      <AccordionContainer isMulti={false} defaultValue="Stage 1" className="border-t border-t-neutral-100">
+      <AccordionContainer isMulti={false} defaultValue="Stage 1" className="border-t border-t-neutral-800">
         {stages.map((stage, index) => (
           <VotingStage key={stage.id} {...({ ...stage, number: index + 1 } as IVotingStageProps)} />
         ))}

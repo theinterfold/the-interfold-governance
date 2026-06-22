@@ -37,10 +37,11 @@ export function useCreateProposal() {
   const [endDate, setEndDate] = useState<string>("");
   const [endTime, setEndTime] = useState<string>("");
 
-  const [numOptions, setNumOptions] = useState<number>(2);
+  // Governance ballots are fixed Yes / No / Abstain (matches the public TokenVoting plugin).
+  const [numOptions, setNumOptions] = useState<number>(3);
   const [creditsMode, setCreditsMode] = useState<CreditsMode>(CreditsMode.CUSTOM);
   const [credits, setCredits] = useState<number>(0);
-  const [optionLabels, setOptionLabels] = useState<string[]>(["Yes", "No"]);
+  const [optionLabels, setOptionLabels] = useState<string[]>(["Yes", "No", "Abstain"]);
 
   const client = usePublicClient();
 

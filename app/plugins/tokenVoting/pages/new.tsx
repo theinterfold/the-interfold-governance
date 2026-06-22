@@ -1,4 +1,4 @@
-import { Button, IconType, InputText, TextAreaRichText, Tag } from "@aragon/ods";
+import { Button, IconType, InputNumber, InputText, TextAreaRichText, Tag } from "@aragon/ods";
 import React, { ReactNode, useState } from "react";
 import { RawAction } from "@/utils/types";
 import { Else, ElseIf, If, Then } from "@/components/if";
@@ -32,6 +32,9 @@ export default function Create() {
     setResources,
     isCreating,
     submitProposal,
+    durationSeconds,
+    setDurationSeconds,
+    minDuration,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,6 +115,25 @@ export default function Create() {
               value={description}
               onChange={setDescription}
               placeholder="A description of what the proposal is all about"
+            />
+          </div>
+
+          <div className="mb-6">
+            <InputNumber
+              label="Voting duration"
+              suffix="hours"
+              min={minDuration ? Math.ceil(minDuration / 3600) : 1}
+              step={1}
+              value={Math.round(durationSeconds / 3600)}
+              onChange={(value) => {
+                const hours = Number.parseInt(value, 10);
+                if (!Number.isNaN(hours) && hours > 0) setDurationSeconds(hours * 3600);
+              }}
+              helpText={
+                minDuration
+                  ? `How long voting stays open. Minimum ${Math.ceil(minDuration / 3600)} hour(s).`
+                  : "How long voting stays open after the proposal is created."
+              }
             />
           </div>
 

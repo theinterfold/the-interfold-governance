@@ -5,7 +5,7 @@
 The frontend for the Interfold DAO governance. It presents a single, unified experience over **two** Aragon OSx plugins that share the **FOLD** ERC20Votes token:
 
 | Plugin           | Privacy | What it does                                                          |
-| ---------------- | ------- | -------------------------------------------------------------------- |
+| ---------------- | ------- | --------------------------------------------------------------------- |
 | CrispVoting      | Private | Encrypted ballots tallied by an Enclave ciphernode committee (CRISP). |
 | TokenVoting v1.4 | Public  | Transparent on-chain Yes/No/Abstain voting weighted by FOLD.          |
 
