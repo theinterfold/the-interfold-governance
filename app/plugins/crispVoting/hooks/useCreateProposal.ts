@@ -11,39 +11,39 @@ import {
 } from "@/constants";
 import { uploadToPinata } from "@/utils/ipfs";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { maxUint256 } from "viem";
+import { maxUint256, encodeAbiParameters, parseAbiParameters, toHex } from "viem";
 import { URL_PATTERN } from "@/utils/input-values";
-import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { usePublicClient } from "wagmi";
+import { usePublicClient, useReadContract } from "wagmi";
 import { CreditsMode } from "../utils/types";
 
 const UrlRegex = new RegExp(URL_PATTERN);
+const DEFAULT_DURATION_SECONDS = 60 * 60 * 24; // 1 day
 
 export function useCreateProposal() {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
-  const [title, setTitle] = useState<string>("A new proposal");
-  const [summary, setSummary] = useState<string>("The summary");
-  const [description, setDescription] = useState<string>("The description");
+  const [title, setTitle] = useState<string>("");
+  const [summary, setSummary] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
   const [actions, setActions] = useState<RawAction[]>([]);
+  const [durationSeconds, setDurationSeconds] = useState<number>(DEFAULT_DURATION_SECONDS);
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
-  const [startDate, setStartDate] = useState<string>("");
-  const [startTime, setStartTime] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [endTime, setEndTime] = useState<string>("");
-
-  // Governance ballots are fixed Yes / No / Abstain (matches the public TokenVoting plugin).
-  const [numOptions, setNumOptions] = useState<number>(3);
-  const [creditsMode, setCreditsMode] = useState<CreditsMode>(CreditsMode.CUSTOM);
-  const [credits, setCredits] = useState<number>(0);
-  const [optionLabels, setOptionLabels] = useState<string[]>(["Yes", "No", "Abstain"]);
 
   const client = usePublicClient();
+
+  // Plugin-enforced minimum voting period (seconds).
+  const { data: minDurationRaw } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    abi: CrispVotingAbi,
+    functionName: "minDuration",
+  });
+  const minDuration = minDurationRaw ? Number(minDurationRaw) : 0;
 
   const { writeContractAsync: createProposalWrite } = useTransactionManager({
     onSuccessMessage: "Proposal created",
@@ -64,21 +64,15 @@ export function useCreateProposal() {
   });
 
   const submitProposal = async () => {
-    // Check metadata
     if (!title.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a title",
-        type: "error",
-      });
+      return addAlert("Invalid proposal details", { description: "Please enter a title", type: "error" });
     }
-
     if (!summary.trim()) {
       return addAlert("Invalid proposal details", {
         description: "Please enter a summary of what the proposal is about",
         type: "error",
       });
     }
-
     for (const item of resources) {
       if (!item.name.trim()) {
         return addAlert("Invalid resource name", {
@@ -92,6 +86,12 @@ export function useCreateProposal() {
         });
       }
     }
+    if (minDuration && durationSeconds < minDuration) {
+      return addAlert("Voting period too short", {
+        description: `The minimum voting period is ${Math.ceil(minDuration / 3600)} hour(s).`,
+        type: "error",
+      });
+    }
 
     try {
       setIsCreating(true);
@@ -100,22 +100,26 @@ export function useCreateProposal() {
         summary,
         description,
         resources,
-        options: optionLabels,
+        // Governance ballots are fixed Yes / No / Abstain.
+        options: ["Yes", "No", "Abstain"],
       };
 
       const ipfsPin = await uploadToPinata(JSON.stringify(proposalMetadataJsonObject));
 
-      const startDateTime = Math.floor(new Date(`${startDate}T${startTime ? startTime : "00:00:00"}`).getTime() / 1000);
-
-      const endDateTime = Math.floor(new Date(`${endDate}T${endTime ? endTime : "00:00:00"}`).getTime() / 1000);
-
+      // The plugin always uses a 3-option, CUSTOM (token-weighted) ballot regardless of `_data`;
+      // these are encoded only to satisfy the (allowFailureMap, numOptions, creditMode, credits) layout.
       const allowFailureMap = 0n;
       const data = encodeAbiParameters(parseAbiParameters("uint256, uint256, uint256, uint256"), [
         allowFailureMap,
-        BigInt(numOptions),
-        BigInt(creditsMode.toString()),
-        BigInt(credits),
+        3n,
+        BigInt(CreditsMode.CUSTOM),
+        0n,
       ]);
+
+      // start = 0 => the contract uses `now` (so it can never be in the past); end = now + duration
+      // (+60s buffer so the mining delay doesn't drop it below minDuration).
+      const startDate = 0;
+      const endDate = Math.floor(Date.now() / 1000) + durationSeconds + 60;
 
       const tx = await approveTokens({
         chainId: PUB_CHAIN.id,
@@ -128,13 +132,12 @@ export function useCreateProposal() {
 
       await client?.waitForTransactionReceipt({ hash: tx });
 
-      // create proposal once we have approved the contract to spend our tokens
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
         abi: CrispVotingAbi,
         address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
         functionName: "createProposal",
-        args: [toHex(ipfsPin), actions, startDateTime, endDateTime, data],
+        args: [toHex(ipfsPin), actions, startDate, endDate, data],
       });
     } catch (err) {
       console.error("ERR", err);
@@ -155,21 +158,8 @@ export function useCreateProposal() {
     setActions,
     setResources,
     submitProposal,
-    startDate,
-    startTime,
-    endDate,
-    endTime,
-    setStartDate,
-    setStartTime,
-    setEndDate,
-    setEndTime,
-    credits,
-    setCredits,
-    creditsMode,
-    setCreditsMode,
-    numOptions,
-    setNumOptions,
-    optionLabels,
-    setOptionLabels,
+    durationSeconds,
+    setDurationSeconds,
+    minDuration,
   };
 }

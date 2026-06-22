@@ -1,14 +1,5 @@
-import {
-  Button,
-  IconType,
-  InputText,
-  TextAreaRichText,
-  Tag,
-  InputDate,
-  InputTime,
-  DropdownContainer,
-  DropdownItem,
-} from "@aragon/ods";
+import { Button, IconType, InputText, TextAreaRichText, Tag } from "@aragon/ods";
+import { DurationInput } from "@/components/input/durationInput";
 import React, { type ReactNode, useState } from "react";
 import type { RawAction } from "@/utils/types";
 import { Else, ElseIf, If, Then } from "@/components/if";
@@ -24,7 +15,6 @@ import { AddActionCard } from "@/components/cards/AddActionCard";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { downloadAsFile } from "@/utils/download-as-file";
 import { encodeActionsAsJson } from "@/utils/json-actions";
-import { CreditsMode } from "../utils/types";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
@@ -43,22 +33,10 @@ export default function Create() {
     setResources,
     isCreating,
     submitProposal,
-    startDate,
-    startTime,
-    endDate,
-    endTime,
-    setStartDate,
-    setStartTime,
-    setEndDate,
-    setEndTime,
-    credits,
-    setCredits,
-    creditsMode,
-    setCreditsMode,
+    durationSeconds,
+    setDurationSeconds,
+    minDuration,
   } = useCreateProposal();
-
-  const inputWrapperClassName =
-    "focus-within:!outline-none focus-within:!ring-0 focus-within:!border-transparent focus-within:!shadow-none focus-within:!ring-0 focus:border-[#000]";
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(event?.target?.value);
@@ -208,112 +186,14 @@ export default function Create() {
             </span>
           </div>
 
-          {/* Dates */}
-          <div className="mb-6 flex flex-row gap-x-5 rounded-xl border border-neutral-100 bg-neutral-0 p-4">
-            <div className="flex flex-1 flex-col">
-              <InputDate
-                wrapperClassName={inputWrapperClassName}
-                className="w-full"
-                label="Start date *"
-                variant="default"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <InputTime
-                wrapperClassName={inputWrapperClassName}
-                className="w-full"
-                variant="default"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-1 flex-col">
-              <InputDate
-                wrapperClassName={inputWrapperClassName}
-                className="w-full"
-                label="End date *"
-                variant="default"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-              <InputTime
-                wrapperClassName={inputWrapperClassName}
-                className="w-full"
-                variant="default"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/** CRISP Configuration */}
-          <div className="mb-6 flex flex-col gap-y-2 md:gap-y-3">
-            <div className="flex flex-col gap-0.5 md:gap-1">
-              <div className="flex gap-x-3">
-                <p className="field-section-label">Configuration</p>
-              </div>
-              <p className="text-sm font-normal leading-normal text-neutral-500 md:text-base">Configure the proposal</p>
-            </div>
-
-            <div className="flex flex-col gap-y-4 rounded-xl border border-neutral-100 bg-neutral-0 p-4">
-              {/* Credit Mode */}
-              <div className="flex flex-col gap-y-2">
-                <label className="text-base font-normal leading-tight text-neutral-800">Credit Mode</label>
-                <DropdownContainer
-                  label={creditsMode === CreditsMode.CONSTANT ? "Constant Credits" : "Custom Credits"}
-                  disabled={isCreating}
-                >
-                  <DropdownItem
-                    selected={creditsMode === CreditsMode.CONSTANT}
-                    onSelect={() => setCreditsMode(CreditsMode.CONSTANT)}
-                  >
-                    Constant Credits
-                  </DropdownItem>
-                  <DropdownItem
-                    selected={creditsMode === CreditsMode.CUSTOM}
-                    onSelect={() => setCreditsMode(CreditsMode.CUSTOM)}
-                  >
-                    Custom Credits
-                  </DropdownItem>
-                </DropdownContainer>
-                <p className="text-sm font-normal leading-normal text-neutral-500">
-                  {creditsMode === CreditsMode.CONSTANT
-                    ? "All eligible voters receive the same number of credits."
-                    : "Credits are based on each voter's token balance."}
-                </p>
-              </div>
-
-              {/* Credits Amount (only for constant mode) */}
-              {creditsMode === CreditsMode.CONSTANT && (
-                <div className="flex flex-col gap-y-2">
-                  <InputText
-                    label="Credits per Voter"
-                    value={credits.toString()}
-                    onChange={(e) => setCredits(Number(e.target.value))}
-                    placeholder="e.g. 100"
-                    readOnly={isCreating}
-                  />
-                  <p className="text-sm font-normal leading-normal text-neutral-500">
-                    Number of voting credits each eligible voter receives.
-                  </p>
-                </div>
-              )}
-
-              {/* Voting options — fixed Yes / No / Abstain for governance */}
-              <div className="flex flex-col gap-y-2">
-                <label className="text-base font-normal leading-tight text-neutral-800">Voting options</label>
-                <p className="text-sm font-normal leading-normal text-neutral-500">
-                  Proposals use a standard Yes / No / Abstain ballot.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {["Yes", "No", "Abstain"].map((o) => (
-                    <span key={o} className="rounded-full border border-neutral-100 px-3 py-1 text-sm text-neutral-800">
-                      {o}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
+          {/* Voting duration — starts immediately, fixed Yes/No/Abstain token-weighted ballot */}
+          <div className="mb-6">
+            <DurationInput
+              durationSeconds={durationSeconds}
+              setDurationSeconds={setDurationSeconds}
+              minSeconds={minDuration}
+              disabled={isCreating}
+            />
           </div>
 
           {/* Actions */}

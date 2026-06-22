@@ -1,4 +1,5 @@
-import { Button, IconType, InputNumber, InputText, TextAreaRichText, Tag } from "@aragon/ods";
+import { Button, IconType, InputText, TextAreaRichText, Tag } from "@aragon/ods";
+import { DurationInput } from "@/components/input/durationInput";
 import React, { ReactNode, useState } from "react";
 import { RawAction } from "@/utils/types";
 import { Else, ElseIf, If, Then } from "@/components/if";
@@ -119,21 +120,11 @@ export default function Create() {
           </div>
 
           <div className="mb-6">
-            <InputNumber
-              label="Voting duration"
-              suffix="hours"
-              min={minDuration ? Math.ceil(minDuration / 3600) : 1}
-              step={1}
-              value={Math.round(durationSeconds / 3600)}
-              onChange={(value) => {
-                const hours = Number.parseInt(value, 10);
-                if (!Number.isNaN(hours) && hours > 0) setDurationSeconds(hours * 3600);
-              }}
-              helpText={
-                minDuration
-                  ? `How long voting stays open. Minimum ${Math.ceil(minDuration / 3600)} hour(s).`
-                  : "How long voting stays open after the proposal is created."
-              }
+            <DurationInput
+              durationSeconds={durationSeconds}
+              setDurationSeconds={setDurationSeconds}
+              minSeconds={minDuration}
+              disabled={isCreating}
             />
           </div>
 
