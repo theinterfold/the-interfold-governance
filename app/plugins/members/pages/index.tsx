@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { useWeb3Modal } from "@web3modal/wagmi/react";
 import { Button, InputText } from "@aragon/ods";
 import { formatEther, isAddress, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
@@ -15,7 +14,6 @@ import { DelegateList } from "../components/delegateList";
 
 export default function Delegation() {
   const { address, isConnected } = useAccount();
-  const { open } = useWeb3Modal();
   const { balance, votingPower, delegatesTo, refetch } = useTokenVotes(address);
   const { delegate, delegateToSelf, isConfirming } = useDelegate(() => setTimeout(() => refetch(), 1000 * 2));
   const [target, setTarget] = useState("");
@@ -35,8 +33,8 @@ export default function Delegation() {
       </div>
 
       {!isConnected || !address ? (
-        <MissingContentView callToAction="Connect wallet" onClick={() => open()}>
-          Connect your wallet to view and manage your {PUB_TOKEN_SYMBOL} voting power.
+        <MissingContentView>
+          Connect your wallet (top right) to view and manage your {PUB_TOKEN_SYMBOL} voting power.
         </MissingContentView>
       ) : (
         <div className="flex flex-col gap-y-6">

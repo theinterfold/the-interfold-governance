@@ -12,14 +12,14 @@ import {IProposal} from "@aragon/osx-commons-contracts/src/plugin/extensions/pro
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IEnclave} from "./IEnclave.sol";
+import {IInterfold} from "./IInterfold.sol";
 import {E3, IE3Program} from "./IE3.sol";
 import {ICrispVoting} from "./ICrispVoting.sol";
 import {ICRISP} from "./ICRISP.sol";
 
 /// @title CrispVoting
-/// @notice An Aragon OSx governance plugin that runs private, encrypted votes through Enclave's
-/// CRISP E3 program. Proposal creation registers an E3 request with Enclave; once the tally is
+/// @notice An Aragon OSx governance plugin that runs private, encrypted votes through Interfold's
+/// CRISP E3 program. Proposal creation registers an E3 request with Interfold; once the tally is
 /// decrypted and published by the CRISP program, the proposal can be executed if it meets the
 /// quorum and winning-option criteria.
 /// @dev In order for executed actions to run, the plugin needs to hold EXECUTE_PERMISSION_ID on the DAO.
@@ -44,11 +44,11 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         ^ this.totalVotingPower.selector ^ this.getVotingToken.selector ^ this.minParticipation.selector
         ^ this.minDuration.selector ^ this.getProposal.selector;
 
-    /// @notice The enclave contract reference
-    IEnclave public enclave;
+    /// @notice The interfold contract reference
+    IInterfold public interfold;
 
-    /// @notice The token used to pay for Enclave fees
-    IERC20 public enclaveFeeToken;
+    /// @notice The token used to pay for Interfold fees
+    IERC20 public interfoldFeeToken;
 
     /// @notice An
     /// [OpenZeppelin `Votes`](https://docs.openzeppelin.com/contracts/4.x/api/governance#Votes)
@@ -62,7 +62,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     mapping(uint256 => Proposal) internal proposals;
 
     /// @notice The ciphernode threshold
-    IEnclave.CommitteeSize private committeeSize;
+    IInterfold.CommitteeSize private committeeSize;
     /// @notice The parameter set to use
     uint8 private paramSet;
     /// @notice The address of the E3 Program
@@ -82,12 +82,12 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     function initialize(PluginInitParams calldata _params) external initializer {
         __PluginUUPSUpgradeable_init(_params.dao);
 
-        if (_params.enclave == address(0)) {
+        if (_params.interfold == address(0)) {
             revert ZeroAddress();
         }
-        enclave = IEnclave(_params.enclave);
+        interfold = IInterfold(_params.interfold);
         votingToken = IVotesUpgradeable(_params.token);
-        enclaveFeeToken = IERC20(enclave.feeToken());
+        interfoldFeeToken = IERC20(interfold.feeToken());
         committeeSize = _params.committeeSize;
         paramSet = _params.paramSet;
         crispProgramAddress = _params.crispProgramAddress;
@@ -101,15 +101,15 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         _updateVotingSettings(_votingSettings);
     }
 
-    /// @notice Creates a new E3 request in Enclave
+    /// @notice Creates a new E3 request in Interfold
     /// @dev This is a wrapper around the createProposal function as we need it to be payable
-    /// as there will be charges for the E3 request in Enclave.
+    /// as there will be charges for the E3 request in Interfold.
     /// @param _metadata The metadata of the proposal
     /// @param _actions The actions that will be executed if the proposal passes
     /// @param _startDate The start date of the proposal
     /// @param _endDate The end date of the proposal
     /// @param _data The additional abi-encoded data to include more necessary fields
-    /// This includes whether to allow failures, and the enclave request start window details
+    /// This includes whether to allow failures, and the interfold request start window details
     /// @return proposalId The id of the proposal
     function createProposal(
         bytes memory _metadata,
@@ -140,7 +140,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         }
 
         /// @notice Validate and normalise the dates, enforcing the configured minimum duration.
-        /// The validated values feed both the Enclave input window and the stored parameters.
+        /// The validated values feed both the Interfold input window and the stored parameters.
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
 
         {
@@ -157,7 +157,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
                 address(votingToken), votingSettings.minProposerVotingPower, numOptions, creditMode, credits
             );
 
-            IEnclave.E3RequestParams memory requestParams = IEnclave.E3RequestParams({
+            IInterfold.E3RequestParams memory requestParams = IInterfold.E3RequestParams({
                 committeeSize: committeeSize,
                 inputWindow: [uint256(_startDate), uint256(_endDate)],
                 e3Program: IE3Program(crispProgramAddress),
@@ -168,14 +168,14 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             });
 
             // calculate the E3 fee
-            uint256 fee = enclave.getE3Quote(requestParams);
+            uint256 fee = interfold.getE3Quote(requestParams);
             // take it from the caller
-            enclaveFeeToken.safeTransferFrom(_msgSender(), address(this), fee);
-            // approve the enclave contract to take the fee
-            enclaveFeeToken.forceApprove(address(enclave), fee);
+            interfoldFeeToken.safeTransferFrom(_msgSender(), address(this), fee);
+            // approve the interfold contract to take the fee
+            interfoldFeeToken.forceApprove(address(interfold), fee);
 
-            // send the request to Enclave
-            (uint256 e3Id,) = enclave.request(requestParams);
+            // send the request to Interfold
+            (uint256 e3Id,) = interfold.request(requestParams);
 
             /// @notice Store the data
             proposal.tally.counts = new uint256[](numOptions);

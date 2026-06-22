@@ -9,7 +9,7 @@ import { AvatarIcon, Button, IconType, Spinner } from "@aragon/ods";
 import {
   PUB_APP_NAME,
   PUB_CHAIN,
-  PUB_ENCLAVE_FEE_TOKEN_ADDRESS,
+  PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
   PUB_PROJECT_LOGO,
   PUB_TOKEN_ADDRESS,
 } from "@/constants";
@@ -45,7 +45,7 @@ export const Navbar: React.FC = () => {
   const { data: balanceEnclaveFee } = useReadContract({
     chainId: PUB_CHAIN.id,
     abi: iVotesAbi,
-    address: PUB_ENCLAVE_FEE_TOKEN_ADDRESS,
+    address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
     functionName: "balanceOf",
     args: [address!],
   });
@@ -81,7 +81,7 @@ export const Navbar: React.FC = () => {
       writeContract({
         chainId: PUB_CHAIN.id,
         abi: iVotesAbi,
-        address: PUB_ENCLAVE_FEE_TOKEN_ADDRESS,
+        address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
         functionName: "mint",
         args: [address, BigInt(10000e18)],
       });

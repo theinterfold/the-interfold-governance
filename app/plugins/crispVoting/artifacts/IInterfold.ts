@@ -1,4 +1,4 @@
-export const IEnclaveAbi = [
+export const IInterfoldAbi = [
   {
     inputs: [],
     stateMutability: "nonpayable",

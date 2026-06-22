@@ -6,7 +6,7 @@ import {
   PUB_APP_NAME,
   PUB_CHAIN,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_ENCLAVE_FEE_TOKEN_ADDRESS,
+  PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
   PUB_PROJECT_URL,
 } from "@/constants";
 import { uploadToPinata } from "@/utils/ipfs";
@@ -120,7 +120,7 @@ export function useCreateProposal() {
       const tx = await approveTokens({
         chainId: PUB_CHAIN.id,
         abi: iVotesAbi,
-        address: PUB_ENCLAVE_FEE_TOKEN_ADDRESS,
+        address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
         functionName: "approve",
         // for now we just max approve
         args: [PUB_CRISP_VOTING_PLUGIN_ADDRESS, maxUint256],

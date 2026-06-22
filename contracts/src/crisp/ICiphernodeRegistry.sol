@@ -5,7 +5,7 @@
 // or FITNESS FOR A PARTICULAR PURPOSE.
 pragma solidity >=0.8.27;
 
-import {IEnclave} from "./IEnclave.sol";
+import {IInterfold} from "./IInterfold.sol";
 import {IBondingRegistry} from "./IBondingRegistry.sol";
 
 /**
@@ -81,9 +81,9 @@ interface ICiphernodeRegistry {
     /// @param active True if committee is now active, false if completed.
     event CommitteeActivationChanged(uint256 indexed e3Id, bool active);
 
-    /// @notice This event MUST be emitted when `enclave` is set.
-    /// @param enclave Address of the enclave contract.
-    event EnclaveSet(address indexed enclave);
+    /// @notice This event MUST be emitted when `interfold` is set.
+    /// @param interfold Address of the interfold contract.
+    event EnclaveSet(address indexed interfold);
 
     /// @notice This event MUST be emitted when a ciphernode is added to the registry.
     /// @param node Address of the ciphernode.
@@ -124,7 +124,7 @@ interface ICiphernodeRegistry {
     function removeCiphernode(address node, uint256[] calldata siblingNodes) external;
 
     /// @notice Initiates the committee selection process for a specified E3.
-    /// @dev This function MUST revert when not called by the Enclave contract.
+    /// @dev This function MUST revert when not called by the Interfold contract.
     /// @param e3Id ID of the E3 for which to select the committee.
     /// @param seed Random seed for score computation.
     /// @param threshold The M/N threshold for the committee.
@@ -140,14 +140,14 @@ interface ICiphernodeRegistry {
     function publishCommittee(uint256 e3Id, address[] calldata nodes, bytes calldata publicKey, bytes32 publicKeyHash)
         external;
 
-    /// @notice This function should be called by the Enclave contract to get the public key of a committee.
+    /// @notice This function should be called by the Interfold contract to get the public key of a committee.
     /// @dev This function MUST revert if no committee has been requested for the given E3.
     /// @dev This function MUST revert if the committee has not yet published a public key.
     /// @param e3Id ID of the E3 for which to get the committee public key.
     /// @return publicKeyHash The hash of the public key of the given committee.
     function committeePublicKey(uint256 e3Id) external view returns (bytes32 publicKeyHash);
 
-    /// @notice This function should be called by the Enclave contract to get the committee for a given E3.
+    /// @notice This function should be called by the Interfold contract to get the committee for a given E3.
     /// @dev This function MUST revert if no committee has been requested for the given E3.
     /// @param e3Id ID of the E3 for which to get the committee.
     /// @return committeeNodes The nodes in the committee for the given E3.
@@ -170,10 +170,10 @@ interface ICiphernodeRegistry {
     /// @return Address of the bonding registry contract
     function getBondingRegistry() external view returns (address);
 
-    /// @notice Sets the Enclave contract address
+    /// @notice Sets the Interfold contract address
     /// @dev Only callable by owner
-    /// @param _enclave Address of the Enclave contract
-    function setEnclave(IEnclave _enclave) external;
+    /// @param _enclave Address of the Interfold contract
+    function setEnclave(IInterfold _enclave) external;
 
     /// @notice Sets the bonding registry contract address
     /// @dev Only callable by owner

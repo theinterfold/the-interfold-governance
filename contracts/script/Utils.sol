@@ -8,7 +8,7 @@ import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
 
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
-import {IEnclave} from "../src/crisp/IEnclave.sol";
+import {IInterfold} from "../src/crisp/IInterfold.sol";
 import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
 
 library Utils {
@@ -16,11 +16,11 @@ library Utils {
     Vm public constant VM = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     struct CrispEnvVariables {
-        address enclave;
+        address interfold;
         address crispProgramAddress;
         ICrispVoting.VotingSettings votingSettings;
         IPlugin.TargetConfig targetConfig;
-        IEnclave.CommitteeSize committeeSize;
+        IInterfold.CommitteeSize committeeSize;
         uint8 paramSet;
         bytes computeProviderParams;
     }
@@ -29,7 +29,7 @@ library Utils {
         IPlugin.TargetConfig memory defaultTargetConfig =
             IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
 
-        crispEnvVariables.enclave = VM.envAddress("ENCLAVE_ADDRESS");
+        crispEnvVariables.interfold = VM.envAddress("INTERFOLD_ADDRESS");
         crispEnvVariables.crispProgramAddress = VM.envAddress("CRISP_PROGRAM_ADDRESS");
         crispEnvVariables.votingSettings = ICrispVoting.VotingSettings({
             minProposerVotingPower: VM.envUint("MINIMUM_PROPOSER_VOTING_POWER"),
@@ -37,7 +37,7 @@ library Utils {
             minParticipation: uint32(VM.envUint("MINIMUM_PARTICIPATION"))
         });
         crispEnvVariables.targetConfig = defaultTargetConfig;
-        crispEnvVariables.committeeSize = IEnclave.CommitteeSize(uint8(VM.envUint("COMMITTEE_SIZE")));
+        crispEnvVariables.committeeSize = IInterfold.CommitteeSize(uint8(VM.envUint("COMMITTEE_SIZE")));
         crispEnvVariables.computeProviderParams = VM.envBytes("COMPUTE_PROVIDER_PARAMS");
         crispEnvVariables.paramSet = uint8(VM.envUint("PARAM_SET"));
     }

@@ -1,6 +1,6 @@
 # The Interfold Governance
 
-Monorepo for **The Interfold** DAO governance — a governance app on the [Aragon OSx](https://www.aragon.org/osx) stack where proposals can be **public** (transparent on-chain token voting) or **private** (encrypted ballots tallied by [Enclave](https://enclave.gg)'s CRISP protocol). Both modes share one **FOLD** ERC20Votes token and execute through the same DAO.
+Monorepo for **The Interfold** DAO governance — a governance app on the [Aragon OSx](https://www.aragon.org/osx) stack where proposals can be **public** (transparent on-chain token voting) or **private** (encrypted ballots tallied by the Interfold's [CRISP](https://blog.theinterfold.com/crisp-private-voting-secret-ballot-fhe-zkp-mpc/) protocol). Both modes share one **FOLD** ERC20Votes token and execute through the same DAO.
 
 ```
 the-interfold-governance/
@@ -76,7 +76,7 @@ Per-area subsets are also available: `format:app`, `lint:app`, `format:contracts
 ## License
 
 Interfold-authored code in this repo is **LGPL-3.0-only** (see [LICENSE](LICENSE)), matching the
-Interfold / Enclave contracts.
+Interfold contracts.
 
 Some components retain their upstream licenses and are **not** relicensed:
 

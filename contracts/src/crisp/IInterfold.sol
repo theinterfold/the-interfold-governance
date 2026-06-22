@@ -10,7 +10,7 @@ import {ICiphernodeRegistry} from "./ICiphernodeRegistry.sol";
 import {IBondingRegistry} from "./IBondingRegistry.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IEnclave {
+interface IInterfold {
     ////////////////////////////////////////////////////////////
     //                                                        //
     //                         Enums                          //
@@ -198,7 +198,7 @@ interface IEnclave {
     //                                                        //
     ////////////////////////////////////////////////////////////
 
-    /// @notice This struct contains the parameters to submit a request to Enclave.
+    /// @notice This struct contains the parameters to submit a request to Interfold.
     /// @param committeeSize The M/N threshold and honest parties for the committee.
     /// @param inputWindow When the program will start and stop accepting inputs.
     /// @param e3Program The address of the E3 Program.

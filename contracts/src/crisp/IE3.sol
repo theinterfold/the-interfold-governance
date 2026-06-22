@@ -5,7 +5,7 @@
 // or FITNESS FOR A PARTICULAR PURPOSE.
 pragma solidity >=0.8.27;
 
-import {IEnclave} from "./IEnclave.sol";
+import {IInterfold} from "./IInterfold.sol";
 import {IPkVerifier} from "./IPkVerifier.sol";
 
 /**
@@ -15,7 +15,7 @@ import {IPkVerifier} from "./IPkVerifier.sol";
  */
 interface IE3Program {
     /// @notice Validate E3 computation parameters and return encryption scheme and input validator
-    /// @dev This function is called by the Enclave contract during E3 request to configure the computation
+    /// @dev This function is called by the Interfold contract during E3 request to configure the computation
     /// @param e3Id ID of the E3 computation
     /// @param seed Random seed for the computation
     /// @param e3ProgramParams ABI encoded E3 program parameters
@@ -31,7 +31,7 @@ interface IE3Program {
     ) external returns (bytes32 encryptionSchemeId);
 
     /// @notice Verify the ciphertext output of an E3 computation
-    /// @dev This function is called by the Enclave contract when ciphertext output is published
+    /// @dev This function is called by the Interfold contract when ciphertext output is published
     /// @param e3Id ID of the E3 computation
     /// @param ciphertextOutputHash The keccak256 hash of output data to be verified
     /// @param proof ABI encoded data to verify the ciphertextOutputHash
@@ -39,7 +39,7 @@ interface IE3Program {
     function verify(uint256 e3Id, bytes32 ciphertextOutputHash, bytes memory proof) external returns (bool success);
 
     /// @notice Validate and process input data for a computation
-    /// @dev This function is called by the Enclave contract when input is published
+    /// @dev This function is called by the Interfold contract when input is published
     /// @param e3Id ID of the E3 computation
     /// @param sender The account that is submitting the input
     /// @param data The input data to be validated
@@ -47,7 +47,7 @@ interface IE3Program {
 }
 
 interface IDecryptionVerifier {
-    /// @notice This function should be called by the Enclave contract to verify the
+    /// @notice This function should be called by the Interfold contract to verify the
     /// decryption of output of a computation.
     /// @param e3Id ID of the E3.
     /// @param plaintextOutputHash The keccak256 hash of the plaintext output to be verified.
@@ -77,7 +77,7 @@ interface IDecryptionVerifier {
  */
 struct E3 {
     uint256 seed;
-    IEnclave.CommitteeSize committeeSize;
+    IInterfold.CommitteeSize committeeSize;
     uint256 requestBlock;
     uint256[2] inputWindow;
     bytes32 encryptionSchemeId;

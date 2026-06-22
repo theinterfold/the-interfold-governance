@@ -5,7 +5,7 @@ import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
-import {IEnclave} from "./IEnclave.sol";
+import {IInterfold} from "./IInterfold.sol";
 import {ICRISP} from "./ICRISP.sol";
 
 /// @notice Interface for the Crisp Voting plugin
@@ -79,7 +79,7 @@ interface ICrispVoting {
     /// @notice The parameters for initializing the plugin
     /// @param dao The DAO contract address
     /// @param token The token contract address
-    /// @param enclave The enclave contract address
+    /// @param interfold The interfold contract address
     /// @param committeeSize The size of the committee.
     /// @param paramSet The parameter set to use.
     /// @param e3Program The address of the E3 Program.
@@ -88,8 +88,8 @@ interface ICrispVoting {
     struct PluginInitParams {
         IDAO dao;
         address token;
-        address enclave;
-        IEnclave.CommitteeSize committeeSize;
+        address interfold;
+        IInterfold.CommitteeSize committeeSize;
         uint8 paramSet;
         address crispProgramAddress;
         bytes computeProviderParams;

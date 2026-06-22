@@ -35,7 +35,7 @@ export default function CreateProposal() {
         </div>
         <p className="mt-3 text-sm leading-normal text-neutral-500">
           {kind === "private"
-            ? "Private proposals use CRISP: ballots are encrypted client-side and tallied by the Enclave committee without revealing individual votes."
+            ? "Private proposals use CRISP: ballots are encrypted client-side and tallied by the Interfold committee without revealing individual votes."
             : "Public proposals use on-chain TokenVoting: every vote and the running tally are visible on-chain, weighted by FOLD voting power."}
         </p>
       </div>

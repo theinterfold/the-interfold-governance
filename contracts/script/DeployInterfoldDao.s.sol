@@ -137,7 +137,7 @@ contract DeployInterfoldDaoScript is Script {
         ICrispVoting.PluginInitParams memory params = ICrispVoting.PluginInitParams({
             dao: IDAO(address(0)),
             token: address(0),
-            enclave: crispEnv.enclave,
+            interfold: crispEnv.interfold,
             committeeSize: crispEnv.committeeSize,
             paramSet: crispEnv.paramSet,
             crispProgramAddress: crispEnv.crispProgramAddress,
