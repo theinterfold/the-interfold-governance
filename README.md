@@ -26,7 +26,7 @@ See [`app/README.md`](app/README.md) and [`contracts/README.md`](contracts/READM
 
 - [Bun](https://bun.sh) — the frontend
 - [Foundry](https://getfoundry.sh) (`forge`, `cast`) — the contracts
-- [pnpm](https://pnpm.io) — fetched by the contracts submodule's `make setup`
+- [pnpm](https://pnpm.io) — installs the contracts' npm Solidity deps (`make setup`)
 - An RPC endpoint (Alchemy/Infura) and a funded deployer key for the target network (Sepolia)
 
 ## Frontend (`app/`)
@@ -44,7 +44,7 @@ The app shows proposals from both plugins in one list (tagged **Private** / **Pu
 
 ```bash
 cd contracts
-make setup             # fetch the crisp-aragon-plugin submodule (dependency tree) + pnpm install
+make setup             # fetch Solidity deps (git submodules under lib/ + pnpm packages)
 make build
 make test
 ```
@@ -73,10 +73,13 @@ bun run lint           # check: app (next lint) + contracts (forge fmt --check) 
 
 Per-area subsets are also available: `format:app`, `lint:app`, `format:contracts`, `lint:contracts`.
 
-## Security note
-
-Never commit secrets. `.env` files are git-ignored repo-wide (only `.env.example` templates are tracked); deployer keys, RPC keys, and JWTs belong in your local `.env` only.
-
 ## License
 
-AGPL-3.0.
+Interfold-authored code in this repo is **LGPL-3.0-only** (see [LICENSE](LICENSE)), matching the
+Interfold / Enclave contracts.
+
+Some components retain their upstream licenses and are **not** relicensed:
+
+- `contracts/src/crisp/CrispVoting.sol` and `setup/CrispVotingSetup.sol` — **AGPL-3.0** (forked
+  from gnosisguild's `crisp-aragon-plugin`).
+- `app/` — **AGPL-3.0** (built on Aragon's gov-app-template).
