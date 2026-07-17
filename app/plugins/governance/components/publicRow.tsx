@@ -2,16 +2,53 @@ import { ProposalStatus } from "@aragon/ods";
 import { useProposal } from "@/plugins/tokenVoting/hooks/useProposal";
 import { useProposalStatus } from "@/plugins/tokenVoting/hooks/useProposalVariantStatus";
 import { unixTimestampToDate } from "@/plugins/crispVoting/utils/formatProposalDate";
+import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
+import { getSppStatusOverride } from "@/plugins/spp/utils/status";
 import { ProposalRow, capitalize } from "./proposalRow";
 
 const YES_COLOR = "#2f8a4f";
 const NO_COLOR = "#a84932";
 const ABSTAIN_COLOR = "#7a7d77";
 
+/** `proposalId` is the SPP (staged process) proposal id; the TokenVoting sub-proposal id is resolved on-chain. */
 export function PublicRow({ proposalId }: { proposalId: bigint }) {
-  const { proposal, status } = useProposal(proposalId);
-  const proposalStatus = useProposalStatus(proposal!);
+  const spp = useSppProposal("public", proposalId);
   const href = `#/proposals/public/${proposalId}`;
+
+  if (spp.subProposalFailed) {
+    return <ProposalRow href={href} kindLabel="Public" loading loadingMessage="Sub-proposal creation failed" />;
+  }
+  if (spp.subProposalId === undefined) {
+    return <ProposalRow href={href} kindLabel="Public" loading loadingMessage="Loading proposal…" />;
+  }
+
+  return (
+    <PublicRowBody
+      href={href}
+      subProposalId={spp.subProposalId}
+      metadataUri={spp.metadataUri}
+      creator={spp.creator}
+      spp={spp}
+    />
+  );
+}
+
+function PublicRowBody({
+  href,
+  subProposalId,
+  metadataUri,
+  creator,
+  spp,
+}: {
+  href: string;
+  subProposalId: bigint;
+  metadataUri?: string;
+  creator?: string;
+  spp: ReturnType<typeof useSppProposal>;
+}) {
+  const { proposal, status } = useProposal(subProposalId, false, { metadataUri, creator });
+  const proposalStatus = useProposalStatus(proposal!);
+  const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
   const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
   if (loading) {
@@ -20,12 +57,12 @@ export function PublicRow({ proposalId }: { proposalId: bigint }) {
 
   const { yes, no, abstain } = proposal.tally;
   const total = yes + no + abstain;
-  const isActive = proposalStatus === ProposalStatus.ACTIVE;
+  const isActive = !sppOverride && proposalStatus === ProposalStatus.ACTIVE;
   const endDate = Number(proposal.parameters.endDate) * 1000;
+  const statusLabel = sppOverride?.label ?? capitalize(proposalStatus);
+  const statusClass = sppOverride?.className ?? (proposalStatus ?? "").toString().toLowerCase();
   const rightLabel =
-    isActive && endDate > Date.now()
-      ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}`
-      : capitalize(proposalStatus);
+    isActive && endDate > Date.now() ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}` : statusLabel;
 
   const bars =
     total > 0n
@@ -43,8 +80,8 @@ export function PublicRow({ proposalId }: { proposalId: bigint }) {
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
-      statusLabel={capitalize(proposalStatus)}
-      statusClass={(proposalStatus ?? "").toString().toLowerCase()}
+      statusLabel={statusLabel}
+      statusClass={statusClass}
       rightLabel={rightLabel}
       bars={bars}
     />

@@ -44,7 +44,9 @@ export function ProposalRow(props: ProposalRowProps) {
         <p className="summary line-clamp-2">{props.summary}</p>
         <div className="author">
           <em>By</em>
-          <AddressText bold={false}>{props.creator}</AddressText>
+          <AddressText bold={false} asLink={false}>
+            {props.creator}
+          </AddressText>
         </div>
       </div>
       <div className="right">

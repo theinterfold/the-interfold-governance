@@ -7,9 +7,8 @@ import { isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
-import { ProposalCreatedEvent as CrispProposalCreatedEvent } from "@/plugins/crispVoting/hooks/useProposal";
-import { ProposalCreatedEvent as TokenProposalCreatedEvent } from "@/plugins/tokenVoting/hooks/useProposal";
+import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
+import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 import { PrivateRow } from "../components/privateRow";
@@ -27,7 +26,7 @@ const FILTERS: { label: string; value: "all" | Kind }[] = [
 
 export default function Proposals() {
   const { isConnected } = useAccount();
-  const canCreatePrivate = useCanCreatePrivate();
+  const { canCreate: canCreatePrivate } = useCanCreatePrivate();
   const canCreatePublic = useCanCreatePublic();
   const canCreate = canCreatePrivate || canCreatePublic;
   const { data: blockNumber } = useBlockNumber({ watch: true });
@@ -44,11 +43,12 @@ export default function Proposals() {
     const fromBlock = lastFetchedBlock.current ? lastFetchedBlock.current + 1n : BigInt(PUB_DEPLOYMENT_BLOCK);
     if (lastFetchedBlock.current && fromBlock > blockNumber) return;
 
-    const sources: { kind: Kind; address: `0x${string}`; event: typeof CrispProposalCreatedEvent }[] = [];
-    if (isAddress(PUB_CRISP_VOTING_PLUGIN_ADDRESS))
-      sources.push({ kind: "private", address: PUB_CRISP_VOTING_PLUGIN_ADDRESS, event: CrispProposalCreatedEvent });
-    if (isAddress(PUB_TOKEN_VOTING_PLUGIN_ADDRESS))
-      sources.push({ kind: "public", address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS, event: TokenProposalCreatedEvent });
+    // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals).
+    const sources: { kind: Kind; address: `0x${string}`; event: typeof SppProposalCreatedEvent }[] = [];
+    if (isAddress(PUB_SPP_PRIVATE_ADDRESS))
+      sources.push({ kind: "private", address: PUB_SPP_PRIVATE_ADDRESS, event: SppProposalCreatedEvent });
+    if (isAddress(PUB_SPP_PUBLIC_ADDRESS))
+      sources.push({ kind: "public", address: PUB_SPP_PUBLIC_ADDRESS, event: SppProposalCreatedEvent });
 
     try {
       setIsLoading(true);

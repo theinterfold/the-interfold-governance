@@ -4,7 +4,16 @@ import { type ReactNode, useState, useEffect } from "react";
 import { usePublicClient } from "wagmi";
 // import { Link } from '@aragon/ods'
 
-export const AddressText = ({ children, bold }: { children: ReactNode; bold?: boolean }) => {
+export const AddressText = ({
+  children,
+  bold,
+  asLink = true,
+}: {
+  children: ReactNode;
+  bold?: boolean;
+  /** Set false when rendered inside another <a> to avoid invalid nesting. */
+  asLink?: boolean;
+}) => {
   const address = getChildrenText(children);
   const client = usePublicClient();
   const [link, setLink] = useState<string>();
@@ -18,7 +27,7 @@ export const AddressText = ({ children, bold }: { children: ReactNode; bold?: bo
   }, [address, client]);
 
   const formattedAddress = formatHexString(address.trim());
-  if (!link) {
+  if (!link || !asLink) {
     return <span className={(useBold ? "font-semibold" : "") + " text-primary-400 underline"}>{formattedAddress}</span>;
   }
   return (

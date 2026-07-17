@@ -1,5 +1,5 @@
 import { Button, IconType, InputText, TextAreaRichText, Tag } from "@aragon/ods";
-import { DurationInput } from "@/components/input/durationInput";
+import { StageDurationNote } from "@/plugins/spp/components/stageDurationNote";
 import React, { ReactNode, useState } from "react";
 import { RawAction } from "@/utils/types";
 import { Else, ElseIf, If, Then } from "@/components/if";
@@ -33,9 +33,7 @@ export default function Create() {
     setResources,
     isCreating,
     submitProposal,
-    durationSeconds,
-    setDurationSeconds,
-    minDuration,
+    stageDurationSeconds,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,14 +117,8 @@ export default function Create() {
             />
           </div>
 
-          <div className="mb-6">
-            <DurationInput
-              durationSeconds={durationSeconds}
-              setDurationSeconds={setDurationSeconds}
-              minSeconds={minDuration}
-              disabled={isCreating}
-            />
-          </div>
+          {/* Voting duration — governed by the SPP stage configuration (display only) */}
+          <StageDurationNote durationSeconds={stageDurationSeconds} />
 
           <div className="mb-6 flex flex-col gap-y-2 md:gap-y-3">
             <div className="flex flex-col gap-0.5 md:gap-1">

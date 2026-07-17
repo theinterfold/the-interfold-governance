@@ -24,16 +24,52 @@ import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
+import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
+import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
+import { MissingContentView } from "@/components/MissingContentView";
 
 const ZERO = BigInt(0);
 const ABSTAIN_VALUE = 1;
 const VOTE_YES_VALUE = 2;
 const VOTE_NO_VALUE = 3;
 
-export default function ProposalDetail({ index: proposalIdx }: { index: bigint }) {
+/** `index` is the SPP (staged process) proposal id; the TokenVoting sub-proposal id is resolved on-chain. */
+export default function ProposalDetail({ index: sppProposalId }: { index: bigint }) {
+  const spp = useSppProposal("public", sppProposalId);
+
+  if (spp.subProposalFailed) {
+    return (
+      <MissingContentView>
+        The voting sub-proposal could not be created on the TokenVoting plugin for this proposal.
+      </MissingContentView>
+    );
+  }
+  if (spp.subProposalId === undefined) {
+    return (
+      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+        <PleaseWaitSpinner />
+      </section>
+    );
+  }
+
+  return <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} />;
+}
+
+function ProposalDetailBody({
+  proposalIdx,
+  sppProposalId,
+  spp,
+}: {
+  proposalIdx: bigint;
+  sppProposalId: bigint;
+  spp: ReturnType<typeof useSppProposal>;
+}) {
   const { address } = useAccount();
   const { voteProposal, isConfirming: isConfirmingVote } = useProposalVoting(proposalIdx);
-  const { proposal, status: proposalFetchStatus } = useProposal(proposalIdx, true);
+  const { proposal, status: proposalFetchStatus } = useProposal(proposalIdx, true, {
+    metadataUri: spp.metadataUri,
+    creator: spp.creator,
+  });
   const canVote = useCanVote(proposalIdx);
   const votes = useProposalVoteList(proposalIdx, proposal);
   const { symbol: tokenSymbol } = useToken();
@@ -61,13 +97,14 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
   if (proposal?.executed) {
     cta = {
       disabled: true,
-      label: "Executed",
+      label: "Result submitted",
     };
   } else if (proposalStatus === ProposalStatus.ACCEPTED || proposalStatus === ProposalStatus.EXECUTABLE) {
+    // Executing the sub-proposal reports the approval to the SPP and advances to the veto stage.
     cta = {
-      disabled: !canExecute || !proposal?.actions.length,
+      disabled: !canExecute,
       isLoading: isConfirmingExecution,
-      label: proposal?.actions.length ? "Execute" : "No actions to execute",
+      label: "Submit result & advance to veto stage",
       onClick: executeProposal,
     };
   } else if (proposalStatus === ProposalStatus.ACTIVE) {
@@ -162,12 +199,22 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
             </If>
             <ProposalVoting
               stages={proposalStage}
-              description="Public proposals become executable when the support ratio is above the threshold and the minimum participation is met."
+              description="Public proposals advance to the foundation veto stage when the support ratio is above the threshold and the minimum participation is met."
             />
-            <ProposalActions actions={proposal.actions} />
+            {/* The actions to be executed on the DAO live on the SPP proposal; the body
+                sub-proposal only carries the internal reportProposalResult callback. */}
+            <ProposalActions actions={[...(spp.proposal?.actions ?? [])]} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
             <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
+            <VetoStageCard
+              kind="public"
+              proposalId={sppProposalId}
+              proposal={spp.proposal}
+              state={spp.state}
+              vetoStage={spp.vetoStage}
+              vetoTally={spp.vetoTally}
+            />
             <CardResources resources={proposal.resources} title="Resources" />
           </div>
         </div>

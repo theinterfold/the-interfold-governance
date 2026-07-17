@@ -162,11 +162,17 @@ export function useCrispServer(): CrispServerState {
     if (roundState.credit_mode === CreditsMode.CONSTANT && roundState.credits) {
       adjustedBalance = BigInt(roundState.credits);
     } else {
+      // The voting token is timestamp-clocked (EIP-6372, CLOCK_MODE=timestamp), so
+      // getPastVotes expects a *timestamp*, not a block number. The CRISP server snapshots
+      // voting power at `start_time - 1`; we must query the exact same point or our leaf
+      // won't match the server's merkle tree. `blockNumber` (on-chain snapshotBlock) is unused here.
+      const snapshotTimestamp = BigInt(roundState.start_time) - 1n;
+
       const balance = await publicClient.readContract({
         address: PUB_TOKEN_ADDRESS,
         abi: iVotesAbi,
         functionName: "getPastVotes",
-        args: [address as `0x${string}`, blockNumber],
+        args: [address as `0x${string}`, snapshotTimestamp],
       });
 
       const decimals = await publicClient.readContract({

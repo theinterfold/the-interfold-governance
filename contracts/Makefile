@@ -1,4 +1,4 @@
-.PHONY: setup build test predeploy deploy
+.PHONY: setup build test predeploy deploy sync-env wire-spp lock-public-execution
 
 setup: ## Fetch Solidity deps (git submodules under lib/ + npm packages)
 	git submodule update --init --recursive
@@ -19,11 +19,20 @@ predeploy: ## Simulate the dual-plugin DAO deployment (no broadcast)
 	set -a; . ./.env; set +a; \
 	forge script script/DeployInterfoldDao.s.sol:DeployInterfoldDaoScript --rpc-url $$RPC_URL -vvvv
 
-deploy: ## Deploy: create the Interfold DAO with both plugins
+deploy: ## Deploy: create the Interfold DAO with both plugins (tees output to deploy.log)
 	set -a; . ./.env; set +a; \
 	forge script script/DeployInterfoldDao.s.sol:DeployInterfoldDaoScript \
+		--rpc-url $$RPC_URL --broadcast --slow -vvvv | tee deploy.log
+
+sync-env: ## Patch app/.env + contracts/.env from the last deploy.log
+	./script/sync-env.sh deploy.log
+
+wire-spp: ## Bootstrap: proposal wiring SPP stages + permissions (run after deploy + sync-env)
+	set -a; . ./.env; set +a; \
+	forge script script/WireSpp.s.sol:WireSppScript \
 		--rpc-url $$RPC_URL --broadcast --slow -vvvv
 
+# DEPRECATED: superseded by the SPP veto stage (wire-spp). Kept for reference only.
 lock-public-execution: ## Bootstrap: create a proposal locking public execution to the foundation
 	set -a; . ./.env; set +a; \
 	forge script script/LockPublicExecution.s.sol:LockPublicExecutionScript \

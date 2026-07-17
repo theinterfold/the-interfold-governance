@@ -133,7 +133,7 @@ export const VoteResultCard = ({ results, proposalId, isSignalling, isTallied = 
             disabled={isConfirmingExecution}
             onClick={executeProposal}
           >
-            Execute proposal
+            Submit result & advance to veto stage
           </Button>
         )}
       </div>

@@ -45,7 +45,7 @@ interface ProposalCreatedLog {
 
 export default function Proposals() {
   const { isConnected } = useAccount();
-  const canCreate = useCanCreateProposal();
+  const { canCreate } = useCanCreateProposal();
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const [proposalIds, setProposalIds] = useState<bigint[]>([]);

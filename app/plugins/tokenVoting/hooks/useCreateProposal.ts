@@ -2,17 +2,16 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import type { ProposalMetadata, RawAction } from "@/utils/types";
 import { useAlerts } from "@/context/Alerts";
-import { PUB_APP_NAME, PUB_CHAIN, PUB_TOKEN_VOTING_PLUGIN_ADDRESS, PUB_PROJECT_URL } from "@/constants";
+import { PUB_APP_NAME, PUB_CHAIN, PUB_PROJECT_URL, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
 import { uploadToPinata } from "@/utils/ipfs";
-import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { URL_PATTERN } from "@/utils/input-values";
-import { toHex } from "viem";
-import { useReadContract } from "wagmi";
+import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
 import { VoteOption } from "../utils/types";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
+import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
+import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
 
 const UrlRegex = new RegExp(URL_PATTERN);
-const DEFAULT_DURATION_SECONDS = 60 * 60 * 24; // 1 day
 
 export function useCreateProposal() {
   const { push } = useRouter();
@@ -22,19 +21,13 @@ export function useCreateProposal() {
   const [summary, setSummary] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [actions, setActions] = useState<RawAction[]>([]);
-  const [durationSeconds, setDurationSeconds] = useState<number>(DEFAULT_DURATION_SECONDS);
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
 
-  // Plugin-enforced minimum voting period (seconds).
-  const { data: minDurationRaw } = useReadContract({
-    chainId: PUB_CHAIN.id,
-    address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
-    abi: TokenVotingAbi,
-    functionName: "minDuration",
-  });
-  const minDuration = minDurationRaw ? Number(minDurationRaw) : 0;
+  // The voting window is governed by the SPP stage config, not the form.
+  const { votingStage } = useSppStages("public");
+  const stageDurationSeconds = votingStage ? Number(votingStage.voteDuration) : undefined;
 
   const { writeContractAsync: createProposalWrite, isConfirming } = useTransactionManager({
     onSuccessMessage: "Proposal created",
@@ -78,13 +71,6 @@ export function useCreateProposal() {
       }
     }
 
-    if (minDuration && durationSeconds < minDuration) {
-      return addAlert("Voting period too short", {
-        description: `The minimum voting period is ${Math.ceil(minDuration / 3600)} hour(s).`,
-        type: "error",
-      });
-    }
-
     try {
       setIsCreating(true);
       const proposalMetadataJsonObject: ProposalMetadata = {
@@ -98,20 +84,25 @@ export function useCreateProposal() {
 
       const ipfsPin = await uploadToPinata(JSON.stringify(proposalMetadataJsonObject));
 
-      // startDate 0 => the contract uses `now` (block.timestamp) as the start.
-      // endDate is now + chosen duration; a small buffer absorbs the mining delay so the
-      // effective period still clears minDuration.
-      const allowFailureMap = BigInt(0);
-      const startDate = BigInt(0);
-      const endDate = BigInt(Math.floor(Date.now() / 1000) + durationSeconds + 60);
-      const tryEarlyExecution = false;
+      // Custom params the SPP forwards to TokenVoting.createProposal, encoded per
+      // its customProposalParamsABI(): (uint256 allowFailureMap, uint8 voteOption, bool tryEarlyExecution).
+      const tokenVotingData = encodeAbiParameters(parseAbiParameters("uint256, uint8, bool"), [
+        0n,
+        VoteOption.None,
+        false,
+      ]);
+
+      // Proposals are created on the SPP: it creates the stage-0 sub-proposal on the
+      // TokenVoting body itself (endDate = start + stage voteDuration; no endDate param here).
+      // _proposalParams is indexed [stageIdx][bodyIdx]; stage 1 (veto) is manual.
+      const proposalParams: `0x${string}`[][] = [[tokenVotingData], []];
 
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
-        abi: TokenVotingAbi,
-        address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
+        abi: StagedProposalProcessorAbi,
+        address: PUB_SPP_PUBLIC_ADDRESS,
         functionName: "createProposal",
-        args: [toHex(ipfsPin), actions, allowFailureMap, startDate, endDate, VoteOption.None, tryEarlyExecution],
+        args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
       });
     } catch (err) {
       console.error("ERR", err);
@@ -132,8 +123,7 @@ export function useCreateProposal() {
     setActions,
     setResources,
     submitProposal,
-    durationSeconds,
-    setDurationSeconds,
-    minDuration,
+    /** Voting window, governed by the SPP stage config (display only). */
+    stageDurationSeconds,
   };
 }

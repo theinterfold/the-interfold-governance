@@ -13,6 +13,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IInterfold} from "./IInterfold.sol";
+import {IE3RefundManager} from "./IE3RefundManager.sol";
+import {IStagedProposalProcessor} from "./IStagedProposalProcessor.sol";
 import {E3, IE3Program} from "./IE3.sol";
 import {ICrispVoting} from "./ICrispVoting.sol";
 import {ICRISP} from "./ICRISP.sol";
@@ -31,18 +33,19 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     /// @notice The manager permission id
     bytes32 public constant MANAGER_PERMISSION_ID = keccak256("MANAGER_PERMISSION");
 
-    /// @notice Permission required to execute a passed proposal. Held by the Interfold
-    /// foundation so it retains veto power (a passed proposal only runs once the foundation
-    /// executes it). The DAO is ROOT on this permission and can grant/revoke it via governance.
-    bytes32 public constant EXECUTE_PROPOSAL_PERMISSION_ID = keccak256("EXECUTE_PROPOSAL_PERMISSION");
+    /// @notice Permission required to create a proposal. Under the staged-governance setup this
+    /// is granted to the Staged Proposal Processor (SPP) only: proposals are created on the SPP,
+    /// which spawns the CRISP sub-proposal. Creation eligibility for end users is enforced at the
+    /// SPP layer (its rule condition), not here. The DAO is ROOT and can grant/revoke via governance.
+    bytes32 public constant CREATE_PROPOSAL_PERMISSION_ID = keccak256("CREATE_PROPOSAL_PERMISSION");
 
     /// @notice The denominator for ratio calculations.
     uint256 internal constant RATIO_BASE = 100;
 
     /// @notice The interface id for the Crisp Voting plugin
     bytes4 internal constant CRISP_VOTING_INTERFACE_ID = this.initialize.selector ^ this.minProposerVotingPower.selector
-        ^ this.totalVotingPower.selector ^ this.getVotingToken.selector ^ this.minParticipation.selector
-        ^ this.minDuration.selector ^ this.getProposal.selector;
+        ^ this.minVoterVotingPower.selector ^ this.totalVotingPower.selector ^ this.getVotingToken.selector
+        ^ this.minParticipation.selector ^ this.minDuration.selector ^ this.getProposal.selector;
 
     /// @notice The interfold contract reference
     IInterfold public interfold;
@@ -60,6 +63,14 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
 
     /// @notice A mapping between proposal IDs and proposal information.
     mapping(uint256 => Proposal) internal proposals;
+
+    /// @notice Escrowed fee-token credit per creator. Creators `deposit` before creating a
+    /// proposal through the SPP; `createProposal` debits the SPP proposal creator's credit.
+    mapping(address => uint256) public feeCredits;
+
+    /// @notice The fee payer recorded for each proposal (the SPP proposal creator), used to
+    /// route failed-E3 refunds back to whoever paid.
+    mapping(uint256 => address) public proposalPayer;
 
     /// @notice The ciphernode threshold
     IInterfold.CommitteeSize private committeeSize;
@@ -117,7 +128,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         uint64 _startDate,
         uint64 _endDate,
         bytes memory _data
-    ) external returns (uint256 proposalId) {
+    ) external auth(CREATE_PROPOSAL_PERMISSION_ID) returns (uint256 proposalId) {
         /// @notice Create a deterministic proposal id
         proposalId = _createProposalId(keccak256(abi.encode(_actions, _metadata)));
 
@@ -130,12 +141,33 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
                 revert ProposalAlreadyExists(proposalId);
             }
 
-            /// @notice Check if the sender has enough voting power
-            uint256 _minProposerVotingPower = minProposerVotingPower();
-            if (_minProposerVotingPower != 0) {
-                if (votingToken.getVotes(_msgSender()) < _minProposerVotingPower) {
-                    revert ProposalCreationForbidden(_msgSender());
-                }
+            /// @notice Proposer eligibility (e.g. minimum voting power) is enforced at the SPP
+            /// layer via its rule condition: the direct caller here is the SPP, which holds no
+            /// voting power, so the previous `minProposerVotingPower` check would always fail.
+
+            /// @notice Resolve and record the fee payer (the SPP proposal creator) up front;
+            /// the fee itself is charged once quoted below.
+            proposalPayer[proposalId] = _resolvePayer(_metadata);
+        }
+
+        /// @notice Decode the creator params. Governance ballots are fixed to Yes/No/Abstain
+        /// (3 options, CUSTOM token-weighted credits), so only `allowFailureMap`,
+        /// `votingDuration` and `credits` are meaningful.
+        ///
+        /// The Staged Proposal Processor calls this with `_endDate = startDate +
+        /// stage.voteDuration`, but the CRISP voting window is chosen per-proposal: a non-zero
+        /// `votingDuration` overrides `_endDate`. The SPP advances stage 0 off this proposal's
+        /// tally (`hasSucceeded`), not the stage clock, so the per-proposal window is honoured
+        /// (bounded above by the stage's `maxAdvance` expiry, enforced by the UI).
+        uint256 credits;
+        {
+            uint256 votingDuration;
+            uint256 allowFailureMap;
+            (allowFailureMap, votingDuration, credits) = abi.decode(_data, (uint256, uint256, uint256));
+            proposal.allowFailureMap = allowFailureMap;
+
+            if (votingDuration != 0) {
+                _endDate = (_startDate == 0 ? uint64(block.timestamp) : _startDate) + uint64(votingDuration);
             }
         }
 
@@ -144,33 +176,16 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
 
         {
-            /// @notice Decode the data. Governance proposals are fixed to a standard
-            /// Yes/No/Abstain ballot weighted by token voting power, so the per-proposal
-            /// option count and credit mode from `_data` are ignored: we always use
-            /// 3 options and CUSTOM (token + delegate weighted) credits.
-            (uint256 _allowFailureMap,,, uint256 credits) = abi.decode(_data, (uint256, uint256, uint256, uint256));
-
             uint256 numOptions = 3;
             ICRISP.CreditMode creditMode = ICRISP.CreditMode.CUSTOM;
 
-            bytes memory customParams = abi.encode(
-                address(votingToken), votingSettings.minProposerVotingPower, numOptions, creditMode, credits
-            );
-
-            IInterfold.E3RequestParams memory requestParams = IInterfold.E3RequestParams({
-                committeeSize: committeeSize,
-                inputWindow: [uint256(_startDate), uint256(_endDate)],
-                e3Program: IE3Program(crispProgramAddress),
-                computeProviderParams: computeProviderParams,
-                customParams: customParams,
-                proofAggregationEnabled: false,
-                paramSet: paramSet
-            });
+            IInterfold.E3RequestParams memory requestParams = _buildRequestParams(_startDate, _endDate, credits);
 
             // calculate the E3 fee
             uint256 fee = interfold.getE3Quote(requestParams);
-            // take it from the caller
-            interfoldFeeToken.safeTransferFrom(_msgSender(), address(this), fee);
+            // Charge the SPP proposal creator's escrowed credit (creator-pays: junk
+            // proposals burn the junk-creator's own deposit, never a shared pot).
+            _chargeFee(proposalId, fee);
             // approve the interfold contract to take the fee
             interfoldFeeToken.forceApprove(address(interfold), fee);
 
@@ -185,11 +200,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
                 endDate: _endDate,
                 // snapshot the previous block so voting power is read from a finalized block
                 snapshotBlock: block.number - 1,
-                minVotingPower: votingSettings.minProposerVotingPower,
+                minVotingPower: votingSettings.minVoterVotingPower,
                 minParticipation: votingSettings.minParticipation,
                 creditMode: creditMode
             });
-            proposal.allowFailureMap = _allowFailureMap;
             proposal.targetConfig = getTargetConfig();
             proposal.e3Id = e3Id;
         }
@@ -207,9 +221,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     }
 
     /// @inheritdoc IProposal
-    /// @dev Gated by EXECUTE_PROPOSAL_PERMISSION_ID so only the foundation can execute a passed
-    /// proposal (i.e. it can veto by declining to execute).
-    function execute(uint256 _proposalId) external auth(EXECUTE_PROPOSAL_PERMISSION_ID) {
+    /// @dev Permissionless: the foundation's veto power now lives in the SPP's veto stage
+    /// (stage 1) rather than as an execution gate here. Executing a passed sub-proposal only
+    /// reports the result back to the SPP; the DAO actions run when the SPP itself executes.
+    function execute(uint256 _proposalId) external {
         if (!_proposalExists(_proposalId)) {
             revert NonexistentProposal(_proposalId);
         }
@@ -305,6 +320,11 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     }
 
     /// @inheritdoc ICrispVoting
+    function minVoterVotingPower() public view returns (uint256) {
+        return votingSettings.minVoterVotingPower;
+    }
+
+    /// @inheritdoc ICrispVoting
     function totalVotingPower(uint256 _blockNumber) public view returns (uint256) {
         return votingToken.getPastTotalSupply(_blockNumber);
     }
@@ -321,7 +341,48 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     /// @notice Get the custom proposal parameters ABI.
     /// @dev Mirrors the `_data` payload decoded in `createProposal`.
     function customProposalParamsABI() external pure returns (string memory) {
-        return "(uint256 allowFailureMap, uint256 numOptions, uint256 creditMode, uint256 credits)";
+        return "(uint256 allowFailureMap, uint256 votingDuration, uint256 credits)";
+    }
+
+    /// @notice Deposits fee-token credit for `msg.sender`, to be consumed by proposals they
+    /// create through the SPP. Requires a prior ERC20 approval to this plugin.
+    /// @param _amount The fee-token amount to deposit.
+    function deposit(uint256 _amount) external {
+        interfoldFeeToken.safeTransferFrom(_msgSender(), address(this), _amount);
+        feeCredits[_msgSender()] += _amount;
+
+        emit FeeDeposited(_msgSender(), _amount);
+    }
+
+    /// @notice Withdraws unused fee-token credit back to `msg.sender`.
+    /// @param _amount The fee-token amount to withdraw.
+    function withdraw(uint256 _amount) external {
+        // checked arithmetic reverts on over-withdrawal
+        feeCredits[_msgSender()] -= _amount;
+        interfoldFeeToken.safeTransfer(_msgSender(), _amount);
+
+        emit FeeWithdrawn(_msgSender(), _amount);
+    }
+
+    /// @notice Claims the requester refund for a proposal whose E3 failed, crediting it back
+    /// to the recorded fee payer (the SPP proposal creator who paid for the E3).
+    /// @dev Permissionless: the refund manager only ever pays the requester (this plugin),
+    /// and the credit always goes to the recorded payer — the caller gets nothing. The
+    /// refund manager itself enforces that the E3 actually failed, that a refund was
+    /// calculated, and that it is not double-claimed.
+    /// @param _proposalId The id of the proposal whose E3 failed.
+    /// @return amount The refunded fee-token amount.
+    function claimRefund(uint256 _proposalId) external returns (uint256 amount) {
+        if (!_proposalExists(_proposalId)) {
+            revert NonexistentProposal(_proposalId);
+        }
+
+        uint256 e3Id = proposals[_proposalId].e3Id;
+        address payer = proposalPayer[_proposalId];
+        amount = IE3RefundManager(interfold.e3RefundManager()).claimRequesterRefund(e3Id);
+        feeCredits[payer] += amount;
+
+        emit RefundClaimed(_proposalId, e3Id, payer, amount);
     }
 
     /// @notice Get the tally result
@@ -376,7 +437,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         votingSettings = _votingSettings;
 
         emit VotingSettingsUpdated(
-            _votingSettings.minProposerVotingPower, _votingSettings.minParticipation, _votingSettings.minDuration
+            _votingSettings.minProposerVotingPower,
+            _votingSettings.minVoterVotingPower,
+            _votingSettings.minParticipation,
+            _votingSettings.minDuration
         );
     }
 
@@ -473,8 +537,83 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         return proposals[_proposalId].parameters.snapshotBlock != 0;
     }
 
+    /// @notice Builds the Interfold E3 request params for a governance proposal (fixed
+    /// 3-option Yes/No/Abstain, CUSTOM token-weighted credits).
+    /// @param _startDate The input window start.
+    /// @param _endDate The input window end.
+    /// @param _credits The custom credits value from the proposal `_data`.
+    function _buildRequestParams(uint64 _startDate, uint64 _endDate, uint256 _credits)
+        internal
+        view
+        returns (IInterfold.E3RequestParams memory)
+    {
+        bytes memory customParams = abi.encode(
+            address(votingToken), votingSettings.minVoterVotingPower, uint256(3), ICRISP.CreditMode.CUSTOM, _credits
+        );
+
+        return IInterfold.E3RequestParams({
+            committeeSize: committeeSize,
+            inputWindow: [uint256(_startDate), uint256(_endDate)],
+            e3Program: IE3Program(crispProgramAddress),
+            computeProviderParams: computeProviderParams,
+            customParams: customParams,
+            proofAggregationEnabled: false,
+            paramSet: paramSet
+        });
+    }
+
+    /// @notice Quotes the Interfold E3 fee a creator must have escrowed (see `deposit`) for a
+    /// proposal with the given voting window. UIs should preflight `feeCredits[creator] >=
+    /// quoteProposalFee(...)` before creating the SPP proposal — otherwise the SPP treats the
+    /// failed sub-proposal creation as non-fatal and the CRISP stage is silently dead.
+    /// @param _startDate The start date of the proposal (0 means "now", like `createProposal`).
+    /// @param _endDate The end date of the proposal (0 means start + minDuration).
+    /// @return The fee-token amount Interfold will charge.
+    function quoteProposalFee(uint64 _startDate, uint64 _endDate) external view returns (uint256) {
+        (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
+        return interfold.getE3Quote(_buildRequestParams(_startDate, _endDate, 0));
+    }
+
+    /// @notice Resolves the fee payer from the SPP-encoded metadata.
+    /// @dev The SPP always calls sub-bodies with `metadata = abi.encode(spp, sppProposalId,
+    /// stageId)`. The payer is the SPP proposal's CREATOR as attested by the SPP itself —
+    /// there is no caller-controlled payer field, so nobody can spend someone else's credit.
+    /// @param _metadata The metadata passed by the SPP.
+    /// @return payer The fee payer (the SPP proposal creator).
+    function _resolvePayer(bytes memory _metadata) internal view returns (address payer) {
+        if (_metadata.length != 96) {
+            revert InvalidSppMetadata();
+        }
+
+        (address spp, uint256 sppProposalId,) = abi.decode(_metadata, (address, uint256, uint16));
+        if (spp != _msgSender()) {
+            revert InvalidSppMetadata();
+        }
+
+        payer = IStagedProposalProcessor(spp).getProposal(sppProposalId).creator;
+        if (payer == address(0)) {
+            revert InvalidSppMetadata();
+        }
+    }
+
+    /// @notice Debits the recorded payer's escrowed credit for the Interfold E3 fee.
+    /// @param _proposalId The (sub-)proposal id whose payer was recorded by `createProposal`.
+    /// @param _fee The Interfold E3 fee to charge.
+    function _chargeFee(uint256 _proposalId, uint256 _fee) internal {
+        address payer = proposalPayer[_proposalId];
+
+        uint256 credit = feeCredits[payer];
+        if (credit < _fee) {
+            revert InsufficientFeeCredit(payer, _fee, credit);
+        }
+
+        unchecked {
+            feeCredits[payer] = credit - _fee;
+        }
+    }
+
     /// @notice This empty reserved space is put in place to allow future versions to add new variables
     ///         without shifting down storage in the inheritance chain
     ///         (see [OpenZeppelin's guide about storage gaps](https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps)).
-    uint256[49] private __gap;
+    uint256[47] private __gap;
 }

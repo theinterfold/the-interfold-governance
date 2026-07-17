@@ -27,7 +27,17 @@ export const ProposalCreatedEvent = getAbiItem({
   name: "ProposalCreated",
 }) as AbiEvent;
 
-export function useProposal(proposalId: bigint, autoRefresh = false) {
+/**
+ * When the proposal was created by an SPP, its metadata + creator live on the SPP's
+ * ProposalCreated event (the body sub-proposal's metadata is an abi-encoded SPP
+ * reference) — pass them via `override` to skip the body event lookup.
+ */
+export type ProposalSourceOverride = {
+  metadataUri?: string;
+  creator?: string;
+};
+
+export function useProposal(proposalId: bigint, autoRefresh = false, override?: ProposalSourceOverride) {
   const [creationEvent, setCreationEvent] = useState<ProposalCreatedLogResponse["args"]>();
   const [metadataUri, setMetadataUri] = useState<string>();
   const { data: blockNumber } = useBlockNumber({ watch: autoRefresh });
@@ -53,6 +63,7 @@ export function useProposal(proposalId: bigint, autoRefresh = false) {
 
   // Fetch the creation event once we have on-chain data (for creator + metadata uri)
   useEffect(() => {
+    if (override?.metadataUri) return;
     if (!proposalData || !publicClient || creationEvent) return;
 
     publicClient
@@ -72,16 +83,16 @@ export function useProposal(proposalId: bigint, autoRefresh = false) {
       .catch((err) => {
         console.error("Could not fetch the proposal creation event", err);
       });
-  }, [proposalId, !!proposalData, creationEvent]);
+  }, [proposalId, !!proposalData, creationEvent, override?.metadataUri]);
 
   // JSON metadata
   const {
     data: metadata,
     isLoading: metadataLoading,
     error: metadataError,
-  } = useMetadata<ProposalMetadata>(metadataUri);
+  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri);
 
-  const proposal = arrangeProposalData(proposalData, creationEvent, metadata);
+  const proposal = arrangeProposalData(proposalData, creationEvent, metadata, override?.creator);
 
   return {
     proposal,
@@ -115,7 +126,8 @@ function decodeProposalResultData(data?: unknown[]) {
 function arrangeProposalData(
   proposalData?: ReturnType<typeof decodeProposalResultData>,
   creationEvent?: ProposalCreatedLogResponse["args"],
-  metadata?: ProposalMetadata
+  metadata?: ProposalMetadata,
+  creatorOverride?: string
 ): Proposal | null {
   if (!proposalData) return null;
 
@@ -126,7 +138,7 @@ function arrangeProposalData(
     parameters: proposalData.parameters,
     tally: proposalData.tally,
     allowFailureMap: proposalData.allowFailureMap,
-    creator: creationEvent?.creator ?? "",
+    creator: creatorOverride ?? creationEvent?.creator ?? "",
     title: metadata?.title ?? "",
     summary: metadata?.summary ?? "",
     description: metadata?.description ?? "",
