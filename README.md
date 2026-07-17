@@ -10,17 +10,34 @@ the-interfold-governance/
 
 ## How it works
 
-The DAO is governed by **two Aragon OSx plugins**, both installed with `EXECUTE_PERMISSION` so either can execute actions through the DAO. They share the same **FOLD** (`ERC20Votes` / `IVotes`) token, so voting power — including delegation — is identical across both.
+The DAO uses **staged governance**. Proposals aren't created directly on a voting plugin — they
+run through a **Staged Proposal Processor (SPP)** with two stages:
 
-| Plugin          | Privacy | Ballot                                | Source                                                  |
-| --------------- | ------- | ------------------------------------- | ------------------------------------------------------- |
-| CrispVoting     | Private | Yes / No / Abstain, encrypted (CRISP) | forked into `contracts/src/crisp/` (governance variant) |
-| TokenVoting 1.4 | Public  | Yes / No / Abstain, on-chain          | Aragon canonical PluginRepo (referenced by address)     |
+```
+stage 0  — voting body approves      (CRISP encrypted vote / TokenVoting public vote)
+stage 1  — foundation veto window    (optimistic: passes unless the foundation vetoes)
+           → SPP executes on the DAO
+```
 
-- **Token-weighted, delegated voting.** Both plugins weight votes by FOLD voting power at the proposal snapshot. The CRISP fork is hard-wired to a 3-option (Yes/No/Abstain), token-weighted (`CUSTOM`) ballot.
-- **Foundation veto.** The CRISP plugin's `execute` is gated by `EXECUTE_PROPOSAL_PERMISSION`, held by the foundation — a passed private proposal only runs once the foundation executes it. The DAO is ROOT on that permission and can grant/revoke it via governance.
+There are **two SPP processes** — one wrapping the private (CRISP) body, one wrapping the public
+(TokenVoting) body — sharing the same **FOLD** (`ERC20Votes` / `IVotes`) token, so voting power
+(including delegation) is identical across both.
 
-See [`app/README.md`](app/README.md) and [`contracts/README.md`](contracts/README.md) for component detail.
+| Plugin          | Privacy | Ballot                                | Role                                |
+| --------------- | ------- | ------------------------------------- | ----------------------------------- |
+| CrispVoting     | Private | Yes / No / Abstain, encrypted (CRISP) | stage-0 body of the private process |
+| TokenVoting 1.4 | Public  | Yes / No / Abstain, on-chain          | stage-0 body of the public process  |
+
+- **Token-weighted, delegated voting.** Votes are weighted by FOLD voting power at the proposal
+  snapshot. The CRISP fork is a fixed 3-option (Yes/No/Abstain), token-weighted (`CUSTOM`) ballot.
+- **Optimistic foundation veto.** Stage 1 gives the foundation a veto window; a passed proposal
+  executes unless the foundation vetoes it (a veto lets it expire). The bodies can no longer
+  execute on the DAO directly — only the SPPs do — which is what makes the veto non-bypassable.
+- **Creator-pays private proposals.** CRISP proposals charge an Interfold E3 fee to the creator's
+  prepaid escrow on the plugin, with a per-proposal voting duration. Public proposals are free.
+
+**→ Full mechanism: [`docs/architecture.md`](docs/architecture.md).** Component detail in
+[`app/README.md`](app/README.md) and [`contracts/README.md`](contracts/README.md).
 
 ## Prerequisites
 
@@ -38,7 +55,10 @@ cp .env.example .env   # fill in DAO + plugin addresses, FOLD, RPC, WalletConnec
 bun dev                # http://localhost:3000
 ```
 
-The app shows proposals from both plugins in one list (tagged **Private** / **Public**), a single create form with a privacy toggle, per-plugin voting/detail pages, and a **Delegation** page (delegate to yourself or others, browse delegates by voting power).
+The app shows proposals from both SPP processes in one list (tagged **Private** / **Public**), a
+create form with a privacy toggle (the private form has a fee-credit widget and a per-proposal
+voting-duration picker), staged detail pages (stage-0 voting + a stage-1 veto panel), and a
+**Delegation** page (delegate to yourself or others, browse delegates by voting power).
 
 ## Contracts (`contracts/`)
 
@@ -51,15 +71,22 @@ make test
 
 ### Deploy
 
-`DeployInterfoldDao` creates the Interfold DAO and installs **both** plugins in one atomic `createDao`, sharing the existing FOLD token.
+`DeployInterfoldDao` creates the Interfold DAO and installs **five** plugins in one atomic
+`createDao` (two voting bodies, two SPP processes, and an Admin bootstrap plugin), sharing the
+existing FOLD token. `wire-spp` then configures the stages and permissions **with no vote** by
+executing through the Admin plugin, which disarms itself as the last step.
 
 ```bash
 cp .env.example .env   # Sepolia framework + Interfold addresses are prefilled; add your key/RPC + FOUNDATION_ADDRESS
 make predeploy         # simulate (no broadcast)
-make deploy            # broadcast
+make deploy            # broadcast: 5-plugin DAO + Executor
+make sync-env          # write deployed addresses into contracts/.env + app/.env
+make wire-spp          # Admin executes the SPP wiring in one tx, then disarms — no vote
 ```
 
-The script logs the DAO, the CRISP plugin, the TokenVoting plugin, and the deployment block — copy those into `app/.env`. Full prerequisites and the output → env mapping are in [`contracts/README.md`](contracts/README.md).
+`sync-env` copies every address into `app/.env` for you. The wiring and permission model are
+explained in [`docs/architecture.md`](docs/architecture.md); the env reference is in
+[`contracts/README.md`](contracts/README.md).
 
 ## Linting & formatting
 
