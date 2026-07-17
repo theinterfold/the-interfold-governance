@@ -1,20 +1,18 @@
 import type { Address } from "viem";
-import { useState, useEffect } from "react";
-import { useBalance, useAccount, useReadContracts } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
+import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
 import { PUB_CHAIN, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 
-export function useCanCreateProposal() {
+/**
+ * Mirrors the on-chain gate in TokenVoting.createProposal, which checks
+ * `getVotes(sender)` — i.e. *delegated* voting power, NOT raw token balance.
+ * A holder who never delegated has `getVotes == 0` and is rejected.
+ */
+export function useCanCreateProposal(): boolean {
   const { address } = useAccount();
-  const [minProposerVotingPower, setMinProposerVotingPower] = useState<bigint>();
-  const [votingToken, setVotingToken] = useState<Address>();
-  const { data: balance } = useBalance({
-    address,
-    token: votingToken,
-    chainId: PUB_CHAIN.id,
-  });
 
-  const { data: contractReads } = useReadContracts({
+  const { data: pluginReads } = useReadContracts({
     contracts: [
       {
         chainId: PUB_CHAIN.id,
@@ -31,17 +29,26 @@ export function useCanCreateProposal() {
     ],
   });
 
-  useEffect(() => {
-    if (!contractReads?.length || contractReads?.length < 2) return;
+  const minProposerVotingPower = pluginReads?.[0]?.result as bigint | undefined;
+  const votingToken = pluginReads?.[1]?.result as Address | undefined;
 
-    setMinProposerVotingPower(contractReads[0].result as bigint);
-    setVotingToken(contractReads[1].result as Address);
-  }, [contractReads]);
+  const { data: votesRead } = useReadContracts({
+    query: { enabled: Boolean(address && votingToken) },
+    contracts: [
+      {
+        chainId: PUB_CHAIN.id,
+        address: votingToken,
+        abi: iVotesAbi,
+        functionName: "getVotes",
+        args: [address as Address],
+      },
+    ],
+  });
+
+  const votes = votesRead?.[0]?.result as bigint | undefined;
 
   if (!address) return false;
-  else if (!minProposerVotingPower) return true;
-  else if (!balance) return false;
-  else if (balance?.value >= minProposerVotingPower) return true;
-
-  return false;
+  else if (minProposerVotingPower === 0n) return true;
+  else if (votes === undefined || minProposerVotingPower === undefined) return false;
+  else return votes >= minProposerVotingPower;
 }

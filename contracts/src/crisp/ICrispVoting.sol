@@ -32,19 +32,53 @@ interface ICrispVoting {
     /// @param limit The maximum allowed value.
     /// @param actual The provided value.
     error RatioOutOfBounds(uint256 limit, uint256 actual);
+    /// @notice Thrown when the proposal creator's escrowed fee credit cannot cover the
+    /// Interfold E3 fee. Creators must `deposit` fee tokens before creating a proposal
+    /// through the SPP; the creator is resolved from the SPP's parent proposal, so junk
+    /// proposals always burn the junk-creator's own credit.
+    /// @param payer The resolved fee payer (the SPP proposal creator).
+    /// @param required The fee required by Interfold.
+    /// @param available The payer's current fee credit.
+    error InsufficientFeeCredit(address payer, uint256 required, uint256 available);
+    /// @notice Thrown when `createProposal` is called with metadata that does not carry the
+    /// SPP's `(spp, proposalId, stageId)` encoding, or by a caller that does not match the
+    /// SPP address inside it.
+    error InvalidSppMetadata();
+
+    /// @notice Emitted when a creator deposits fee-token credit.
+    /// @param depositor The account credited.
+    /// @param amount The deposited fee-token amount.
+    event FeeDeposited(address indexed depositor, uint256 amount);
+    /// @notice Emitted when a creator withdraws unused fee-token credit.
+    /// @param depositor The account debited.
+    /// @param amount The withdrawn fee-token amount.
+    event FeeWithdrawn(address indexed depositor, uint256 amount);
+    /// @notice Emitted when the requester refund for a failed E3 is claimed and credited
+    /// back to the proposal's fee payer.
+    /// @param proposalId The proposal whose E3 failed.
+    /// @param e3Id The failed E3 id.
+    /// @param payer The fee payer whose credit is restored.
+    /// @param amount The refunded fee-token amount.
+    event RefundClaimed(uint256 indexed proposalId, uint256 indexed e3Id, address indexed payer, uint256 amount);
 
     /// @notice Emitted when the voting settings are updated.
     /// @param minProposerVotingPower The minimum voting power needed to create a proposal.
+    /// @param minVoterVotingPower The minimum voting power needed to be an eligible voter.
     /// @param minParticipation The minimum participation required for quorum.
     /// @param minDuration The minimum duration of a vote.
-    event VotingSettingsUpdated(uint256 minProposerVotingPower, uint32 minParticipation, uint64 minDuration);
+    event VotingSettingsUpdated(
+        uint256 minProposerVotingPower, uint256 minVoterVotingPower, uint32 minParticipation, uint64 minDuration
+    );
 
     /// @notice A struct for the voting settings.
     /// @param minProposerVotingPower The minimum voting power needed to propose a vote.
+    /// @param minVoterVotingPower The minimum voting power needed to be an eligible voter. Passed to
+    /// Interfold as the per-voter eligibility threshold; holders below it are excluded from the vote.
     /// @param minParticipation The minimum participation needed to vote.
     /// @param minDuration The minimum duration of the vote.
     struct VotingSettings {
         uint256 minProposerVotingPower;
+        uint256 minVoterVotingPower;
         uint32 minParticipation;
         uint64 minDuration;
     }
@@ -121,6 +155,10 @@ interface ICrispVoting {
     /// @notice Returns the minimum voting power needed to propose a vote.
     /// @return The minimum voting power needed to propose a vote.
     function minProposerVotingPower() external view returns (uint256);
+
+    /// @notice Returns the minimum voting power needed to be an eligible voter.
+    /// @return The minimum voting power needed to be an eligible voter.
+    function minVoterVotingPower() external view returns (uint256);
 
     /// @notice Returns the total voting power of the DAO at a given block number.
     /// @param _blockNumber The block number to get the total voting power at.

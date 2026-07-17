@@ -22,13 +22,16 @@ export function useProposalExecute(proposalId: bigint) {
     args: [proposalId],
   });
 
+  // Executing the sub-proposal on the body reports the approval to the SPP
+  // (tryAdvance) — it advances the staged proposal to the veto stage rather
+  // than executing anything on the DAO.
   const { writeContract, isConfirming, isConfirmed } = useTransactionManager({
-    onSuccessMessage: "Proposal executed",
+    onSuccessMessage: "Result submitted — proposal advanced to the veto stage",
     onSuccess() {
       setTimeout(() => reload(), 1000 * 2);
     },
-    onErrorMessage: "Could not execute the proposal",
-    onErrorDescription: "The proposal may contain actions with invalid operations",
+    onErrorMessage: "Could not submit the voting result",
+    onErrorDescription: "The result may have already been reported to the staged process",
     onError() {
       setIsExecuting(false);
     },

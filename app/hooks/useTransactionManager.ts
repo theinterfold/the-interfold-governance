@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useAlerts } from "@/context/Alerts";
 import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { decodeTxError } from "@/utils/tx-errors";
 
 export type TxLifecycleParams = {
   onSuccessMessage?: string;
@@ -21,23 +22,17 @@ export function useTransactionManager(params: TxLifecycleParams) {
     if (status === "idle" || status === "pending") {
       return;
     } else if (status === "error") {
-      if (error?.message?.startsWith("User rejected the request")) {
+      const friendly = decodeTxError(error, params.onErrorMessage || "Could not fulfill the transaction");
+      if (friendly.isUserRejection) {
         addAlert("The transaction signature was declined", {
-          description: "Nothing has been sent to the network",
+          description: friendly.description,
           timeout: 4 * 1000,
         });
       } else {
         console.error("ERROR", error);
-        let description = "The proposal may contain actions with invalid operations";
-        if (error?.toString()) {
-          const found = error.toString().match(/ror: ActionFailed\(uint256 index\)\n\s+\(([0-9]+)\)/);
-          if (found && found[1] && typeof parseInt(found[1]) === "number") {
-            description = `Action ${parseInt(found[1]) + 1} failed to complete successfully`;
-          }
-        }
-        addAlert(params.onErrorMessage || "Could not fulfill the transaction", {
+        addAlert(friendly.title, {
           type: "error",
-          description,
+          description: params.onErrorDescription || friendly.description,
         });
       }
 

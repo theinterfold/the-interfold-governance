@@ -1,25 +1,28 @@
 import { useRouter } from "next/router";
-import { useState } from "react";
-import type { ProposalMetadata, RawAction } from "@/utils/types";
-import { useAlerts } from "@/context/Alerts";
+import { useEffect, useMemo, useState } from "react";
+import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
+import { useReadContract } from "wagmi";
 import {
   PUB_APP_NAME,
   PUB_CHAIN,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
   PUB_PROJECT_URL,
+  PUB_SPP_PRIVATE_ADDRESS,
 } from "@/constants";
-import { uploadToPinata } from "@/utils/ipfs";
-import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { maxUint256, encodeAbiParameters, parseAbiParameters, toHex } from "viem";
-import { URL_PATTERN } from "@/utils/input-values";
+import { useAlerts } from "@/context/Alerts";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
-import { iVotesAbi } from "../artifacts/iVotes";
-import { usePublicClient, useReadContract } from "wagmi";
-import { CreditsMode } from "../utils/types";
+import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
+import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
+import { URL_PATTERN } from "@/utils/input-values";
+import { uploadToPinata } from "@/utils/ipfs";
+import type { ProposalMetadata, RawAction } from "@/utils/types";
+import { CrispVotingAbi } from "../artifacts/CrispVoting";
+import { applyFeeBuffer, useFeeCredits } from "./useFeeCredits";
 
 const UrlRegex = new RegExp(URL_PATTERN);
-const DEFAULT_DURATION_SECONDS = 60 * 60 * 24; // 1 day
+
+/** Buffer left below the stage-0 maxAdvance so the tally can be published before the proposal expires. */
+const MAX_ADVANCE_BUFFER_SECONDS = 3600;
 
 export function useCreateProposal() {
   const { push } = useRouter();
@@ -29,21 +32,57 @@ export function useCreateProposal() {
   const [summary, setSummary] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [actions, setActions] = useState<RawAction[]>([]);
-  const [durationSeconds, setDurationSeconds] = useState<number>(DEFAULT_DURATION_SECONDS);
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
 
-  const client = usePublicClient();
+  // Voting-window bounds. The creator picks a per-proposal window; the plugin enforces a
+  // minimum (minDuration) and the proposal expires past the stage-0 maxAdvance, so we cap
+  // the window at maxAdvance minus a buffer that leaves room to publish the tally.
+  const { votingStage } = useSppStages("private");
+  const stageDurationSeconds = votingStage ? Number(votingStage.voteDuration) : undefined;
 
-  // Plugin-enforced minimum voting period (seconds).
-  const { data: minDurationRaw } = useReadContract({
+  const { data: minDurationData } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
     functionName: "minDuration",
   });
-  const minDuration = minDurationRaw ? Number(minDurationRaw) : 0;
+  const minDurationSeconds = minDurationData !== undefined ? Number(minDurationData) : undefined;
+
+  const maxDurationSeconds = votingStage
+    ? Math.max(0, Number(votingStage.maxAdvance) - MAX_ADVANCE_BUFFER_SECONDS)
+    : undefined;
+
+  // Chosen voting window (seconds). Defaults to the larger of the stage window and the plugin
+  // minimum once both are known.
+  const [durationSeconds, setDurationSeconds] = useState<number | undefined>(undefined);
+  const [durationTouched, setDurationTouched] = useState(false);
+
+  useEffect(() => {
+    if (durationTouched || durationSeconds !== undefined) return;
+    if (stageDurationSeconds === undefined && minDurationSeconds === undefined) return;
+    setDurationSeconds(Math.max(stageDurationSeconds ?? 0, minDurationSeconds ?? 0));
+  }, [durationTouched, durationSeconds, stageDurationSeconds, minDurationSeconds]);
+
+  const setDuration = (seconds: number) => {
+    setDurationTouched(true);
+    setDurationSeconds(seconds);
+  };
+
+  const durationError = useMemo(() => {
+    if (durationSeconds === undefined) return undefined;
+    if (minDurationSeconds !== undefined && durationSeconds < minDurationSeconds) {
+      return `The voting window must be at least ${minDurationSeconds} seconds.`;
+    }
+    if (maxDurationSeconds !== undefined && durationSeconds > maxDurationSeconds) {
+      return `The voting window must be at most ${maxDurationSeconds} seconds so the tally can be published before the proposal expires.`;
+    }
+    return undefined;
+  }, [durationSeconds, minDurationSeconds, maxDurationSeconds]);
+
+  // Creator-pays E3 fee escrow on the CRISP plugin — quoted against the chosen window.
+  const { quote, credit, deposit, refetchCredit } = useFeeCredits(durationSeconds);
 
   const { writeContractAsync: createProposalWrite } = useTransactionManager({
     onSuccessMessage: "Proposal created",
@@ -57,15 +96,12 @@ export function useCreateProposal() {
     onError: () => setIsCreating(false),
   });
 
-  const { writeContractAsync: approveTokens } = useTransactionManager({
-    onSuccessMessage: "Tokens approved",
-    onErrorMessage: "Could not approve tokens to the plugin contract",
-    onError: () => setIsCreating(false),
-  });
-
   const submitProposal = async () => {
     if (!title.trim()) {
-      return addAlert("Invalid proposal details", { description: "Please enter a title", type: "error" });
+      return addAlert("Invalid proposal details", {
+        description: "Please enter a title",
+        type: "error",
+      });
     }
     if (!summary.trim()) {
       return addAlert("Invalid proposal details", {
@@ -86,9 +122,21 @@ export function useCreateProposal() {
         });
       }
     }
-    if (minDuration && durationSeconds < minDuration) {
-      return addAlert("Voting period too short", {
-        description: `The minimum voting period is ${Math.ceil(minDuration / 3600)} hour(s).`,
+    if (durationSeconds === undefined) {
+      return addAlert("Voting window unavailable", {
+        description: "Could not determine the voting window bounds. Please try again.",
+        type: "error",
+      });
+    }
+    if (durationError) {
+      return addAlert("Invalid voting window", {
+        description: durationError,
+        type: "error",
+      });
+    }
+    if (quote === undefined || credit === undefined) {
+      return addAlert("Fee quote unavailable", {
+        description: "Could not read the proposal fee from the plugin. Please try again.",
         type: "error",
       });
     }
@@ -106,38 +154,37 @@ export function useCreateProposal() {
 
       const ipfsPin = await uploadToPinata(JSON.stringify(proposalMetadataJsonObject));
 
-      // The plugin always uses a 3-option, CUSTOM (token-weighted) ballot regardless of `_data`;
-      // these are encoded only to satisfy the (allowFailureMap, numOptions, creditMode, credits) layout.
-      const allowFailureMap = 0n;
-      const data = encodeAbiParameters(parseAbiParameters("uint256, uint256, uint256, uint256"), [
-        allowFailureMap,
-        3n,
-        BigInt(CreditsMode.CUSTOM),
+      // Top up the fee escrow if the current credit doesn't cover the quote.
+      // Approves exactly the shortfall (+10% buffer) — no unlimited approvals.
+      if (credit < quote) {
+        const deposited = await deposit(applyFeeBuffer(quote - credit));
+        if (!deposited) {
+          setIsCreating(false);
+          return;
+        }
+        refetchCredit();
+      }
+
+      // CRISP proposal `_data` is (allowFailureMap, votingDuration, credits). votingDuration is
+      // the creator-chosen window in seconds (0 would fall back to the SPP stage window); credits
+      // stays 0 for the default token-weighted ballot.
+      const crispData = encodeAbiParameters(parseAbiParameters("uint256, uint256, uint256"), [
+        0n,
+        BigInt(durationSeconds),
         0n,
       ]);
 
-      // start = 0 => the contract uses `now` (so it can never be in the past); end = now + duration
-      // (+60s buffer so the mining delay doesn't drop it below minDuration).
-      const startDate = 0;
-      const endDate = Math.floor(Date.now() / 1000) + durationSeconds + 60;
-
-      const tx = await approveTokens({
-        chainId: PUB_CHAIN.id,
-        abi: iVotesAbi,
-        address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
-        functionName: "approve",
-        // for now we just max approve
-        args: [PUB_CRISP_VOTING_PLUGIN_ADDRESS, maxUint256],
-      });
-
-      await client?.waitForTransactionReceipt({ hash: tx });
+      // Proposals are created on the SPP: it creates the stage-0 sub-proposal on the
+      // CRISP body itself (endDate = start + stage voteDuration; no endDate param here).
+      // _proposalParams is indexed [stageIdx][bodyIdx]; stage 1 (veto) is manual.
+      const proposalParams: `0x${string}`[][] = [[crispData], []];
 
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
-        abi: CrispVotingAbi,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        abi: StagedProposalProcessorAbi,
+        address: PUB_SPP_PRIVATE_ADDRESS,
         functionName: "createProposal",
-        args: [toHex(ipfsPin), actions, startDate, endDate, data],
+        args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
       });
     } catch (err) {
       console.error("ERR", err);
@@ -158,8 +205,14 @@ export function useCreateProposal() {
     setActions,
     setResources,
     submitProposal,
+    /** Creator-chosen voting window (seconds); undefined until the bounds load. */
     durationSeconds,
-    setDurationSeconds,
-    minDuration,
+    setDuration,
+    /** Minimum voting window enforced by the plugin (seconds). */
+    minDurationSeconds,
+    /** Maximum voting window (stage-0 maxAdvance minus the tally buffer, seconds). */
+    maxDurationSeconds,
+    /** Inline validation message when the chosen window is out of range. */
+    durationError,
   };
 }

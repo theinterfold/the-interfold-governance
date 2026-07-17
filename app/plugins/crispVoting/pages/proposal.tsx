@@ -18,13 +18,51 @@ import { VoteCard } from "../components/vote/voteCard";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
 import { useMemo } from "react";
+import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
+import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
+import { MissingContentView } from "@/components/MissingContentView";
 
 const ZERO = BigInt(0);
 
-export default function ProposalDetail({ index: proposalIdx }: { index: bigint }) {
+/** `index` is the SPP (staged process) proposal id; the CRISP sub-proposal id is resolved on-chain. */
+export default function ProposalDetail({ index: sppProposalId }: { index: bigint }) {
+  const spp = useSppProposal("private", sppProposalId);
+
+  if (spp.subProposalFailed) {
+    return (
+      <MissingContentView>
+        The voting sub-proposal could not be created on the CRISP plugin for this proposal.
+      </MissingContentView>
+    );
+  }
+  if (spp.subProposalId === undefined) {
+    return (
+      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+        <PleaseWaitSpinner />
+      </section>
+    );
+  }
+
+  return <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} />;
+}
+
+function ProposalDetailBody({
+  proposalIdx,
+  sppProposalId,
+  spp,
+}: {
+  proposalIdx: bigint;
+  sppProposalId: bigint;
+  spp: ReturnType<typeof useSppProposal>;
+}) {
   const { address } = useAccount();
   const { isLoading, error, postVote, votingStep, lastActiveStep, stepMessage, txHash } = useCrispServer();
-  const { proposal, isCommitteeReady, totalVotingPower, status: proposalFetchStatus } = useProposal(proposalIdx);
+  const {
+    proposal,
+    isCommitteeReady,
+    totalVotingPower,
+    status: proposalFetchStatus,
+  } = useProposal(proposalIdx, { metadataUri: spp.metadataUri, creator: spp.creator });
   const canVote = useCanVote(proposalIdx);
   const { balance, delegatesTo } = useTokenVotes(address);
 
@@ -62,6 +100,10 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
   const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
   const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
 
+  // The actions to be executed on the DAO live on the SPP proposal; the body
+  // sub-proposal only carries the internal reportProposalResult callback.
+  const sppActions = [...(spp.proposal?.actions ?? [])];
+
   if (!proposal || showProposalLoading) {
     return (
       <section className="justify-left items-left flex w-screen min-w-full max-w-full">
@@ -87,7 +129,7 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
                 canVote={!!canVote}
               />
             </If>
-            <ProposalActions actions={proposal.actions} />
+            <ProposalActions actions={sppActions} />
           </div>
           <div className="flex flex-col gap-y-6 md:sticky md:top-24 md:w-[33%] md:self-start">
             {proposalStatus === ProposalStatus.ACTIVE && (
@@ -120,12 +162,20 @@ export default function ProposalDetail({ index: proposalIdx }: { index: bigint }
             )}
             {proposalStatus !== ProposalStatus.ACTIVE && (
               <VoteResultCard
-                isSignalling={proposal.actions && proposal.actions.length === 0}
+                isSignalling={false}
                 proposalId={proposalIdx}
                 results={results}
                 isTallied={proposal.isTallied}
               />
             )}
+            <VetoStageCard
+              kind="private"
+              proposalId={sppProposalId}
+              proposal={spp.proposal}
+              state={spp.state}
+              vetoStage={spp.vetoStage}
+              vetoTally={spp.vetoTally}
+            />
             <CardResources resources={proposal.resources} title="Resources" />
           </div>
         </div>

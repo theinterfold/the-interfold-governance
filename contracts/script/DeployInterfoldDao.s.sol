@@ -23,6 +23,8 @@ import {Utils} from "./Utils.sol";
 import {IDAOFactory} from "../src/crisp/IDAOFactory.sol";
 
 import {TokenVotingInstall} from "./TokenVotingInstall.sol";
+import {SppInstall} from "./SppInstall.sol";
+import {Executor} from "@aragon/osx-commons-contracts/src/executors/Executor.sol";
 
 /**
  * @title DeployInterfoldDao
@@ -65,14 +67,25 @@ contract DeployInterfoldDaoScript is Script {
 
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
-        // 1. Deploy + publish the CRISP plugin as a new PluginRepo.
+        // 1. Deploy + publish the CRISP plugin as a new PluginRepo, plus the stateless
+        //    Executor that SPP bodies delegatecall into (keeps `msg.sender` == body when
+        //    a sub-proposal reports its result back to the SPP).
         CrispVotingSetup crispSetup = deployCrispSetup();
         PluginRepo crispRepo = deployCrispRepo(address(crispSetup));
+        Executor executor = new Executor();
 
-        // 2. Assemble both installations, both pointed at the existing FOLD token.
-        IDAOFactory.PluginSettings[] memory pluginSettings = new IDAOFactory.PluginSettings[](2);
-        pluginSettings[0] = crispPluginSettings(crispRepo, fold); // index 0 -> PRIVATE
-        pluginSettings[1] = tokenVotingPluginSettings(fold); // index 1 -> PUBLIC
+        // 2. Assemble all installations. Bodies (CRISP + TokenVoting) point at the existing
+        //    FOLD token; the two SPP instances (one per process: PRIVATE and PUBLIC) install
+        //    with EMPTY stages — bodies are only known post-deploy, so stages + permissions
+        //    are wired by the follow-up bootstrap step (make wire-spp). The Admin plugin gives
+        //    the deployer direct execute-on-DAO power so wire-spp needs NO governance vote; the
+        //    wiring's final action revokes that power, disarming the bootstrap.
+        IDAOFactory.PluginSettings[] memory pluginSettings = new IDAOFactory.PluginSettings[](5);
+        pluginSettings[0] = crispPluginSettings(crispRepo, fold); // index 0 -> PRIVATE body
+        pluginSettings[1] = tokenVotingPluginSettings(fold); // index 1 -> PUBLIC body
+        pluginSettings[2] = sppPluginSettings(); // index 2 -> SPP (PRIVATE process)
+        pluginSettings[3] = sppPluginSettings(); // index 3 -> SPP (PUBLIC process)
+        pluginSettings[4] = adminPluginSettings(); // index 4 -> Admin (bootstrap, disarmed by wire-spp)
 
         // 3. Create the DAO with both plugins installed atomically.
         vm.recordLogs();
@@ -91,15 +104,20 @@ contract DeployInterfoldDaoScript is Script {
 
         vm.stopBroadcast();
 
-        // 6. Log everything needed for the frontend .env.
+        // 6. Log everything needed for the frontend .env and the wire-spp step.
         console2.log("=== The Interfold DAO ===");
         console2.log("DAO:                 ", createdDAO);
         console2.log("FOLD token (shared): ", fold);
         console2.log("CRISP PluginRepo:    ", address(crispRepo));
         console2.log("CRISP setup:         ", address(crispSetup));
-        if (installedPlugins.length == 2) {
-            console2.log("CRISP plugin (PRIVATE):       ", installedPlugins[0]);
-            console2.log("TokenVoting plugin (PUBLIC):  ", installedPlugins[1]);
+        console2.log("Executor (delegatecall target): ", address(executor));
+        if (installedPlugins.length == 5) {
+            console2.log("CRISP plugin (PRIVATE body):  ", installedPlugins[0]);
+            console2.log("TokenVoting plugin (PUBLIC body): ", installedPlugins[1]);
+            console2.log("SPP plugin (PRIVATE process): ", installedPlugins[2]);
+            console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[3]);
+            console2.log("Admin plugin (bootstrap):     ", installedPlugins[4]);
+            console2.log("NEXT STEP: run `make sync-env` then `make wire-spp` (no vote needed)");
         } else {
             for (uint256 i = 0; i < installedPlugins.length; i++) {
                 console2.log("Installed plugin:    ", installedPlugins[i]);
@@ -151,12 +169,44 @@ contract DeployInterfoldDaoScript is Script {
         GovernanceERC20.MintSettings memory mintSettings =
             GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)});
 
-        // Foundation that holds EXECUTE_PROPOSAL_PERMISSION (veto power over execution).
-        address foundation = vm.envAddress("FOUNDATION_ADDRESS");
-        require(foundation != address(0), "FOUNDATION_ADDRESS not set");
-
-        bytes memory data = abi.encode(params, tokenSettings, mintSettings, foundation);
+        // NOTE: no foundation param anymore — the foundation's veto power moved from an
+        // execute-gate on the plugin to the SPP's veto stage (configured in wire-spp).
+        bytes memory data = abi.encode(params, tokenSettings, mintSettings);
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(1, 1), crispRepo), data);
+    }
+
+    // --- Staged Proposal Processor v1.1 — Aragon canonical repo, referenced by address ---
+
+    /// @dev Installed with EMPTY stages; `make wire-spp` configures stages + permissions once
+    ///      the body plugin addresses are known. Rules are empty too (anyone can create SPP
+    ///      proposals) until the DAO sets them via the SPPRuleCondition.
+    function sppPluginSettings() public view returns (IDAOFactory.PluginSettings memory) {
+        PluginRepo sppRepo = PluginRepo(vm.envAddress("SPP_PLUGIN_REPO"));
+        uint8 release = uint8(vm.envOr("SPP_RELEASE", uint256(1)));
+        uint16 build = uint16(vm.envOr("SPP_BUILD", uint256(1)));
+
+        return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(release, build), sppRepo), SppInstall.encode());
+    }
+
+    // --- Admin plugin — Aragon canonical repo, referenced by address (bootstrap) ---
+
+    /// @dev Grants the deployer (or ADMIN_ADDRESS) direct execute-on-DAO power via the Admin
+    ///      plugin, so `make wire-spp` can apply the staged-governance wiring in a single tx
+    ///      with no vote. The wiring's final action revokes the Admin plugin's EXECUTE on the
+    ///      DAO, leaving it installed-but-powerless (Admin's own uninstall can only revoke
+    ///      that same permission, so this is the equivalent disarm).
+    function adminPluginSettings() public view returns (IDAOFactory.PluginSettings memory) {
+        PluginRepo adminRepo = PluginRepo(vm.envAddress("ADMIN_PLUGIN_REPO"));
+        uint8 release = uint8(vm.envOr("ADMIN_RELEASE", uint256(1)));
+        uint16 build = uint16(vm.envOr("ADMIN_BUILD", uint256(2)));
+        address admin = vm.envOr("ADMIN_ADDRESS", vm.addr(vm.envUint("PRIVATE_KEY")));
+
+        // target == address(0) resolves to the DAO in OSx 1.4 (Admin executes on the DAO).
+        IPlugin.TargetConfig memory targetConfig =
+            IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
+
+        bytes memory data = abi.encode(admin, targetConfig);
+        return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(release, build), adminRepo), data);
     }
 
     // --- TokenVoting v1.4 (public) — Aragon canonical repo, referenced by address ---

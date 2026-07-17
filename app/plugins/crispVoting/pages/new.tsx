@@ -1,24 +1,26 @@
-import { Button, IconType, InputText, TextAreaRichText, Tag } from "@aragon/ods";
-import { DurationInput } from "@/components/input/durationInput";
-import React, { type ReactNode, useState } from "react";
-import type { RawAction } from "@/utils/types";
-import { Else, ElseIf, If, Then } from "@/components/if";
-import { MainSection } from "@/components/layout/main-section";
-import { useCreateProposal } from "../hooks/useCreateProposal";
-import { useAccount } from "wagmi";
-import { useCanCreateProposal } from "../hooks/useCanCreateProposal";
-import { MissingContentView } from "@/components/MissingContentView";
+import { AlertInline, Button, IconType, InputText, Tag, TextAreaRichText } from "@aragon/ods";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
+import React, { type ReactNode, useState } from "react";
 import type { Address } from "viem";
-import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewActionDialog";
+import { useAccount } from "wagmi";
 import { AddActionCard } from "@/components/cards/AddActionCard";
+import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewActionDialog";
+import { Else, ElseIf, If, Then } from "@/components/if";
+import { DurationInput } from "@/components/input/durationInput";
+import { MainSection } from "@/components/layout/main-section";
+import { MissingContentView } from "@/components/MissingContentView";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { downloadAsFile } from "@/utils/download-as-file";
 import { encodeActionsAsJson } from "@/utils/json-actions";
+import type { RawAction } from "@/utils/types";
+import { FeeCreditCard } from "../components/feeCreditCard";
+import { type CanCreateProposal, useCanCreateProposal } from "../hooks/useCanCreateProposal";
+import { useCreateProposal } from "../hooks/useCreateProposal";
+import { useDelegate } from "../hooks/useDelegate";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
-  const canCreate = useCanCreateProposal();
+  const canCreateState = useCanCreateProposal();
   const [addActionType, setAddActionType] = useState<NewActionType>("");
   const {
     title,
@@ -34,8 +36,10 @@ export default function Create() {
     isCreating,
     submitProposal,
     durationSeconds,
-    setDurationSeconds,
-    minDuration,
+    setDuration,
+    minDurationSeconds,
+    maxDurationSeconds,
+    durationError,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,10 +91,11 @@ export default function Create() {
           </div>
         </div>
 
-        <PlaceHolderOr selfAddress={selfAddress} canCreate={canCreate} isConnected={isConnected}>
+        <PlaceHolderOr selfAddress={selfAddress} state={canCreateState} isConnected={isConnected}>
           <p className="form-intro">
-            A proposal becomes <em>active</em> the moment it is mined. Voters then have the window you set to cast
-            encrypted ballots — tallies decrypt only once that window closes.
+            A proposal becomes <em>active</em> the moment it is mined. Voters then have the stage-configured window to
+            cast encrypted ballots — tallies decrypt only once that window closes. A passed proposal is then held for
+            the foundation veto window before it can be executed.
           </p>
           <div className="mb-6">
             <InputText
@@ -186,15 +191,28 @@ export default function Create() {
             </span>
           </div>
 
-          {/* Voting duration — starts immediately, fixed Yes/No/Abstain token-weighted ballot */}
-          <div className="mb-6">
+          {/* Voting duration — creator-chosen per proposal, bounded by the plugin minimum
+              and the stage-0 maxAdvance (minus the tally buffer). */}
+          <div className="mb-6 flex flex-col gap-y-2">
             <DurationInput
-              durationSeconds={durationSeconds}
-              setDurationSeconds={setDurationSeconds}
-              minSeconds={minDuration}
+              durationSeconds={durationSeconds ?? 0}
+              setDurationSeconds={setDuration}
+              minSeconds={minDurationSeconds ?? 0}
               disabled={isCreating}
             />
+            {maxDurationSeconds !== undefined ? (
+              <p className="text-sm font-normal leading-normal text-neutral-500">
+                Maximum {Math.floor(maxDurationSeconds / 86400)}d {Math.floor((maxDurationSeconds % 86400) / 3600)}h —
+                the tally must be published before the proposal expires.
+              </p>
+            ) : null}
+            <If true={!!durationError}>
+              <AlertInline message={durationError ?? ""} variant="critical" />
+            </If>
           </div>
+
+          {/* Creator-pays E3 fee escrow */}
+          <FeeCreditCard disabled={isCreating} durationSeconds={durationSeconds} />
 
           {/* Actions */}
           <ProposalActions
@@ -270,15 +288,17 @@ export default function Create() {
 const PlaceHolderOr = ({
   selfAddress,
   isConnected,
-  canCreate,
+  state,
   children,
 }: {
   selfAddress: Address | undefined;
   isConnected: boolean;
-  canCreate: boolean | undefined;
+  state: CanCreateProposal;
   children: ReactNode;
 }) => {
   const { open } = useWeb3Modal();
+  const { selfDelegate, isDelegating } = useDelegate(state.votingToken, state.refetch);
+
   return (
     <If true={!selfAddress || !isConnected}>
       <Then>
@@ -287,11 +307,26 @@ const PlaceHolderOr = ({
           Please connect your wallet to continue.
         </MissingContentView>
       </Then>
-      <ElseIf true={!canCreate}>
-        {/* Not a member */}
-        <MissingContentView>
-          You cannot create proposals on the multisig because you are not currently defined as a member.
+      <ElseIf true={state.isLoading}>
+        {/* Reading on-chain voting power */}
+        <MissingContentView>Checking your voting power…</MissingContentView>
+      </ElseIf>
+      <ElseIf true={state.needsDelegation}>
+        {/* Holds tokens but hasn't delegated — self-delegation activates voting power */}
+        <MissingContentView callToAction="Delegate to myself" isLoading={isDelegating} onClick={() => selfDelegate()}>
+          You hold voting tokens, but they aren&apos;t delegated yet — so your voting power reads as zero on-chain and
+          you can&apos;t create a proposal. Delegate to yourself once to activate it. This is a one-time transaction.
         </MissingContentView>
+      </ElseIf>
+      <ElseIf true={state.hasNoTokens}>
+        {/* No tokens at all */}
+        <MissingContentView>
+          You cannot create a proposal because your account holds no FOLD voting tokens.
+        </MissingContentView>
+      </ElseIf>
+      <ElseIf true={!state.canCreate}>
+        {/* Below threshold for another reason */}
+        <MissingContentView>You don&apos;t have enough voting power to create a proposal.</MissingContentView>
       </ElseIf>
       <Else>{children}</Else>
     </If>

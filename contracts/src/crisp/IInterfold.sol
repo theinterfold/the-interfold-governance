@@ -400,6 +400,10 @@ interface IInterfold {
     /// @return requester The requester address
     function getRequester(uint256 e3Id) external view returns (address requester);
 
+    /// @notice The E3RefundManager contract (public state variable getter). Requesters claim
+    /// refunds for failed E3s from it; see `CrispVoting.claimRefund`.
+    function e3RefundManager() external view returns (address);
+
     /// @notice Get deadlines for an E3
     /// @param e3Id The E3 ID
     /// @return deadlines The E3 deadlines
