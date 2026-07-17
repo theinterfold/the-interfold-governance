@@ -3,3 +3,4 @@ cache/
 broadcast/
 node_modules/
 .env
+contract.log
