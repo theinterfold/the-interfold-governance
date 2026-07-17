@@ -8,3 +8,8 @@ optimizer = true
 optimizer-runs = 200
 solc = "0.8.29"
 via_ir = false
+
+[fmt]
+# Never reformat vendored dependency source — `forge fmt` would otherwise walk lib/ and
+# leave every submodule with a dirty working tree (whitespace-only edits, no SHA change).
+ignore = ["lib/**"]
