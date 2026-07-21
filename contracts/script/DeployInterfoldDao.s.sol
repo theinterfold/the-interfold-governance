@@ -210,6 +210,9 @@ contract DeployInterfoldDaoScript is Script {
     }
 
     // --- TokenVoting v1.4 (public) — Aragon canonical repo, referenced by address ---
+    //     NOTE: the deployed build 4 IS clock-aware (checks the token's ERC-6372 CLOCK_MODE and
+    //     snapshots block.timestamp - 1 for timestamp-mode tokens like FOLD), even though older
+    //     npm source snapshots block.number only. Verified against the on-chain implementation.
 
     function tokenVotingPluginSettings(address fold) public view returns (IDAOFactory.PluginSettings memory) {
         PluginRepo tvRepo = PluginRepo(vm.envAddress("TOKEN_VOTING_PLUGIN_REPO"));

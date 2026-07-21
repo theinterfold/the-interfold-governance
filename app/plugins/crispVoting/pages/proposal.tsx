@@ -166,6 +166,11 @@ function ProposalDetailBody({
                 proposalId={proposalIdx}
                 results={results}
                 isTallied={proposal.isTallied}
+                proposalStatus={proposalStatus}
+                minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
+                snapshotBlock={proposal.parameters.snapshotBlock}
+                numOptions={proposal.numOptions}
+                creditMode={proposal.parameters.creditMode}
               />
             )}
             <VetoStageCard

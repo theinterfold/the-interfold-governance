@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@aragon/ods";
+import { Button, ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
+import { useToken } from "../../hooks/useToken";
+import { usePastSupply } from "../../hooks/usePastSupply";
+import { computeQuorum, isSignalingOnly, tallyCountToTokens } from "../../utils/quorum";
+import { CreditsMode } from "../../utils/types";
 
 interface IResult {
   option: string;
@@ -14,6 +18,16 @@ interface VoteResultCardProps {
   proposalId: bigint;
   isSignalling?: boolean;
   isTallied?: boolean;
+  /** Authoritative status from useProposalStatus (already factors in quorum). */
+  proposalStatus?: ProposalStatus;
+  /** Quorum requirement (minParticipation) as a percentage (0-100) of total voting power. */
+  minParticipation?: number;
+  /** Snapshot timepoint — used to read the total voting power the quorum is measured against. */
+  snapshotBlock?: bigint;
+  /** Number of options — together with creditMode determines whether this is a signaling-only poll. */
+  numOptions?: number;
+  /** Credit mode — controls whether the tally is scaled (token mode) or raw (CONSTANT). */
+  creditMode?: CreditsMode;
 }
 
 // Interfold earth-tone palette — matches the vote card option colors
@@ -23,16 +37,94 @@ function getColor(index: number): string {
   return OPTION_COLORS[index % OPTION_COLORS.length];
 }
 
-export const VoteResultCard = ({ results, proposalId, isSignalling, isTallied = true }: VoteResultCardProps) => {
+interface OutcomeArgs {
+  total: number;
+  winner: { option: string; index: number } | null;
+  resultsWithPercentage: { index: number; percentage: number }[];
+  proposalStatus?: ProposalStatus;
+  quorum: { reached: boolean } | null;
+}
+
+/** Footer message that reflects the authoritative status, not just the raw vote leader. */
+function getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum }: OutcomeArgs) {
+  if (total === 0) return "No votes were cast";
+
+  const winnerPct = winner ? resultsWithPercentage.find((r) => r.index === winner.index)?.percentage.toFixed(1) : null;
+
+  // Quorum failed: the leading option may have 100% of votes cast, but turnout
+  // was too low for the proposal to pass.
+  if (quorum && !quorum.reached) {
+    return winner ? (
+      <span style={{ color: "var(--muted-ink, #9a9a9a)" }}>
+        Rejected — quorum not reached ({winner.option} led with {winnerPct}% of votes cast)
+      </span>
+    ) : (
+      "Rejected — quorum not reached"
+    );
+  }
+
+  if (proposalStatus === ProposalStatus.REJECTED) {
+    return <span style={{ color: "var(--muted-ink, #9a9a9a)" }}>Rejected</span>;
+  }
+
+  if (!winner) return "Tied — no clear winner";
+
+  return (
+    <span style={{ color: getColor(winner.index) }}>
+      {winner.option} won with {winnerPct}%
+    </span>
+  );
+}
+
+/** Compact human-friendly amount: trims trailing zeros, keeps up to 4 decimals. */
+function formatAmount(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  if (value === 0) return "0";
+  if (value >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+export const VoteResultCard = ({
+  results,
+  proposalId,
+  isSignalling,
+  isTallied = true,
+  proposalStatus,
+  minParticipation,
+  snapshotBlock,
+  numOptions,
+  creditMode,
+}: VoteResultCardProps) => {
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalId);
+  const { decimals, symbol } = useToken();
+  const pastSupply = usePastSupply(snapshotBlock);
   const [isVisible, setIsVisible] = useState(false);
+
+  const tokenDecimals = Number(decimals ?? 18);
+  const unitLabel = creditMode === CreditsMode.CONSTANT ? "credits" : symbol && symbol.length > 0 ? symbol : "tokens";
 
   const parsedResults = useMemo(() => {
     if (!results) return [];
-    return results.map((r, idx) => ({ option: r.option, value: Number(r.value), index: idx }));
-  }, [results]);
+    return results.map((r, idx) => ({
+      option: r.option,
+      value: Number(r.value),
+      tokens: tallyCountToTokens(BigInt(r.value || "0"), creditMode, tokenDecimals),
+      index: idx,
+    }));
+  }, [results, creditMode, tokenDecimals]);
 
   const total = useMemo(() => parsedResults.reduce((sum, r) => sum + r.value, 0), [parsedResults]);
+  const totalTokens = useMemo(() => parsedResults.reduce((sum, r) => sum + r.tokens, 0), [parsedResults]);
+
+  // Quorum mirrors the contract: turnout (scaled votes) vs. minParticipation% of
+  // the total voting power at the snapshot timepoint. Signaling-only polls have none.
+  const quorum = useMemo(() => {
+    const signaling = isSignalingOnly(numOptions ?? results?.length ?? 0, creditMode);
+    if (signaling || minParticipation == null || !pastSupply || !results) return null;
+
+    const totalVotes = results.reduce((sum, r) => sum + BigInt(r.value || "0"), 0n);
+    return computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);
+  }, [numOptions, minParticipation, pastSupply, results, creditMode, tokenDecimals]);
 
   const resultsWithPercentage = useMemo(() => {
     return parsedResults
@@ -87,7 +179,9 @@ export const VoteResultCard = ({ results, proposalId, isSignalling, isTallied = 
     <div className="vote-panel" style={{ opacity: isVisible ? 1 : 0, transition: "opacity 500ms" }}>
       <div className="vp-head">
         <h3>Result</h3>
-        <span className="vp-meta">{total.toLocaleString()} votes</span>
+        <span className="vp-meta">
+          {formatAmount(totalTokens)} {unitLabel}
+        </span>
       </div>
 
       <div className="vp-body" style={{ gap: 0 }}>
@@ -104,25 +198,37 @@ export const VoteResultCard = ({ results, proposalId, isSignalling, isTallied = 
               <span className="bar">
                 <span style={{ width: `${Math.max(result.percentage, 0)}%`, background: getColor(result.index) }} />
               </span>
-              <span className="pct">{result.percentage.toFixed(1)}%</span>
+              <span className="pct" title={`${formatAmount(result.tokens)} ${unitLabel}`}>
+                {result.percentage.toFixed(1)}%
+              </span>
             </div>
           );
         })}
+
+        {quorum && (
+          <div className="tally-row" style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--rule)" }}>
+            <span className="key">
+              <span className="truncate">Quorum {quorum.reached ? "✓" : ""}</span>
+            </span>
+            <span className="bar">
+              <span
+                style={{
+                  width: `${Math.min(quorum.requiredPct > 0 ? (quorum.turnoutPct / quorum.requiredPct) * 100 : 0, 100)}%`,
+                  background: quorum.reached ? "var(--accent)" : "var(--muted-ink, #9a9a9a)",
+                }}
+              />
+            </span>
+            <span className="pct">
+              {quorum.turnoutPct.toFixed(1)}% / {quorum.requiredPct}%
+            </span>
+          </div>
+        )}
 
         <div
           className="vp-foot-note"
           style={{ textAlign: "left", marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--rule)" }}
         >
-          {total === 0 ? (
-            "No votes were cast"
-          ) : winner ? (
-            <span style={{ color: getColor(winner.index) }}>
-              {winner.option} won with{" "}
-              {resultsWithPercentage.find((r) => r.index === winner.index)?.percentage.toFixed(1)}%
-            </span>
-          ) : (
-            "Tied — no clear winner"
-          )}
+          {getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum })}
         </div>
 
         {canExecute && !isSignalling && (

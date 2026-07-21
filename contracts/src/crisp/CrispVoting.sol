@@ -8,9 +8,11 @@ import {
     ProposalUpgradeable
 } from "@aragon/osx-commons-contracts/src/plugin/extensions/proposal/ProposalUpgradeable.sol";
 import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/utils/IVotesUpgradeable.sol";
+import {IERC6372Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC6372Upgradeable.sol";
 import {IProposal} from "@aragon/osx-commons-contracts/src/plugin/extensions/proposal/IProposal.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {IInterfold} from "./IInterfold.sol";
 import {IE3RefundManager} from "./IE3RefundManager.sol";
@@ -198,8 +200,9 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
                 numOptions: numOptions,
                 startDate: _startDate,
                 endDate: _endDate,
-                // snapshot the previous block so voting power is read from a finalized block
-                snapshotBlock: block.number - 1,
+                // snapshot the previous timepoint (token ERC-6372 clock units: block number or
+                // timestamp) so voting power is read from a finalized checkpoint
+                snapshotBlock: _tokenClock() - 1,
                 minVotingPower: votingSettings.minVoterVotingPower,
                 minParticipation: votingSettings.minParticipation,
                 creditMode: creditMode
@@ -327,6 +330,29 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     /// @inheritdoc ICrispVoting
     function totalVotingPower(uint256 _blockNumber) public view returns (uint256) {
         return votingToken.getPastTotalSupply(_blockNumber);
+    }
+
+    /// @notice Divisor aligning raw token voting power with the CRISP tally units. The CRISP
+    ///         server keeps 1 decimal of precision (balance / 10^(decimals-1)) when encoding
+    ///         ballots, so tallies come back in those units. Tokens without `decimals()` (or
+    ///         with 0/1 decimals) are unscaled.
+    function _tallyScale() internal view returns (uint256) {
+        try IERC20Metadata(address(votingToken)).decimals() returns (uint8 dec) {
+            return dec > 1 ? 10 ** (uint256(dec) - 1) : 1;
+        } catch {
+            return 1;
+        }
+    }
+
+    /// @notice Current timepoint in the voting token's ERC-6372 clock units, so snapshots work
+    ///         for both block-number (OZ default) and timestamp (`mode=timestamp`) tokens.
+    ///         Tokens predating ERC-6372 have no `clock()` — fall back to `block.number`.
+    function _tokenClock() internal view returns (uint256) {
+        try IERC6372Upgradeable(address(votingToken)).clock() returns (uint48 timepoint) {
+            return timepoint;
+        } catch {
+            return block.number;
+        }
     }
 
     /// @inheritdoc IProposal
@@ -515,13 +541,18 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             }
         }
 
-        // Check quorum: totalVotes * RATIO_BASE >= minParticipation * totalSupply
+        // Check quorum: totalVotes * RATIO_BASE >= minParticipation * totalSupply.
+        // The CRISP server (and app) scale each voter's balance to 1 decimal of precision
+        // (balance / 10^(decimals-1)) before encrypting, so the decrypted tally counts are in
+        // those units — scale them back up to raw token units to compare like with like
+        // (multiplying the votes rather than dividing the supply avoids truncation).
         uint256 _totalVotingPower = totalVotingPower(proposal.parameters.snapshotBlock);
         if (_totalVotingPower == 0) {
             return false;
         }
 
-        bool quorumReached = totalVotes * RATIO_BASE >= uint256(votingSettings.minParticipation) * _totalVotingPower;
+        bool quorumReached =
+            totalVotes * _tallyScale() * RATIO_BASE >= uint256(votingSettings.minParticipation) * _totalVotingPower;
         if (!quorumReached) {
             return false;
         }

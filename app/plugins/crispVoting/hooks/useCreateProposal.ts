@@ -24,6 +24,14 @@ const UrlRegex = new RegExp(URL_PATTERN);
 /** Buffer left below the stage-0 maxAdvance so the tally can be published before the proposal expires. */
 const MAX_ADVANCE_BUFFER_SECONDS = 3600;
 
+/**
+ * Explicit gas limit for SPP createProposal. The SPP wraps the body's sub-proposal creation in
+ * try/catch, so eth_estimateGas converges on a limit where the CRISP sub-proposal (E3 request
+ * included) runs out of gas, gets swallowed, and the outer tx still "succeeds". Over-provision
+ * instead of trusting the estimate; unused gas is refunded.
+ */
+const CREATE_PROPOSAL_GAS_LIMIT = 5_000_000n;
+
 export function useCreateProposal() {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
@@ -185,6 +193,7 @@ export function useCreateProposal() {
         address: PUB_SPP_PRIVATE_ADDRESS,
         functionName: "createProposal",
         args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
+        gas: CREATE_PROPOSAL_GAS_LIMIT,
       });
     } catch (err) {
       console.error("ERR", err);

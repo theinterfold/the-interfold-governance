@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
 import { useToken } from "./useToken";
+import { usePastSupply } from "./usePastSupply";
+import { computeQuorum, isSignalingOnly } from "../utils/quorum";
 
 import type { Proposal } from "../utils/types";
 
@@ -16,7 +18,7 @@ function getTotalVotes(tally: bigint[]): bigint {
 }
 
 /**
- * Mirrors the contract's _canExecute logic:
+ * Mirrors the contract's _hasSucceeded logic:
  * - 2-3 options: quorum + counts[0] > counts[1]
  * - 4+ options: quorum only
  */
@@ -45,17 +47,31 @@ function isRejected(tally: bigint[], numOptions: number): boolean {
 export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint) => {
   const [status, setStatus] = useState<ProposalStatus>(ProposalStatus.PENDING);
 
-  const { tokenSupply: totalSupply } = useToken();
-
-  const effectiveTotalSupply = totalVotingPowerOverride ?? totalSupply;
+  const { decimals } = useToken();
+  // Quorum uses the total voting power at the snapshot timepoint, mirroring the
+  // contract's `totalVotingPower(snapshotBlock)` (= getPastTotalSupply).
+  const pastSupply = usePastSupply(proposal?.parameters?.snapshotBlock);
+  const effectiveTotalSupply = totalVotingPowerOverride ?? pastSupply;
 
   useEffect(() => {
-    if (!proposal || !proposal?.parameters || !effectiveTotalSupply) return;
+    if (!proposal || !proposal?.parameters) return;
 
     const tally = proposal.tally ?? [];
     const numOptions = proposal.numOptions ?? tally.length;
     const totalVotes = getTotalVotes(tally);
-    const minVotingPower = (effectiveTotalSupply * BigInt(proposal.parameters.minVotingPower)) / BigInt(100);
+
+    // Signaling-only proposals (polls) have no quorum / pass-fail concept; their
+    // tally is informational only. Quorum gating applies to executable proposals.
+    const signaling = isSignalingOnly(numOptions, proposal.parameters.creditMode);
+    const quorum = signaling
+      ? null
+      : computeQuorum(
+          totalVotes,
+          effectiveTotalSupply,
+          Number(proposal.parameters.minParticipation ?? 0n),
+          proposal.parameters.creditMode,
+          Number(decimals ?? 18)
+        );
 
     if (proposal?.active) {
       setStatus(ProposalStatus.ACTIVE);
@@ -64,9 +80,9 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
     } else if (!proposal?.isTallied) {
       setStatus(ProposalStatus.PENDING);
     } else if (totalVotes === 0n) {
-      setStatus(ProposalStatus.FAILED);
-    } else if (totalVotes < minVotingPower) {
-      setStatus(ProposalStatus.FAILED);
+      setStatus(ProposalStatus.REJECTED);
+    } else if (quorum && !quorum.reached) {
+      setStatus(ProposalStatus.REJECTED);
     } else if (hasPassed(tally, numOptions) && proposal.actions.length > 0) {
       setStatus(ProposalStatus.EXECUTABLE);
     } else if (hasPassed(tally, numOptions) && proposal.actions.length === 0) {
@@ -76,7 +92,7 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
     } else {
       setStatus(ProposalStatus.PENDING);
     }
-  }, [proposal, effectiveTotalSupply]);
+  }, [proposal, effectiveTotalSupply, decimals]);
 
   return status;
 };

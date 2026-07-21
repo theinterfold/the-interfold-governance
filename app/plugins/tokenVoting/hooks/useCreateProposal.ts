@@ -13,6 +13,14 @@ import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
 
 const UrlRegex = new RegExp(URL_PATTERN);
 
+/**
+ * Explicit gas limit for SPP createProposal. The SPP wraps the body's sub-proposal creation in
+ * try/catch, so eth_estimateGas can converge on a limit where the TokenVoting sub-proposal runs
+ * out of gas, gets swallowed, and the outer tx still "succeeds". Over-provision instead of
+ * trusting the estimate; unused gas is refunded.
+ */
+const CREATE_PROPOSAL_GAS_LIMIT = 3_000_000n;
+
 export function useCreateProposal() {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
@@ -103,6 +111,7 @@ export function useCreateProposal() {
         address: PUB_SPP_PUBLIC_ADDRESS,
         functionName: "createProposal",
         args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
+        gas: CREATE_PROPOSAL_GAS_LIMIT,
       });
     } catch (err) {
       console.error("ERR", err);

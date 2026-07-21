@@ -181,7 +181,10 @@ export function useCrispServer(): CrispServerState {
         functionName: "decimals",
       });
 
-      adjustedBalance = balance / 10n ** BigInt(decimals / 2);
+      // Must mirror the CRISP server's scaling exactly (it keeps 1 decimal of precision:
+      // balance / 10^(decimals-1)) or our vote won't match the server's merkle leaf. It also
+      // keeps votes within the BFV per-choice encoding cap (2^33 - 1 for 3 options).
+      adjustedBalance = balance / 10n ** BigInt(decimals - 1);
     }
 
     const vote = Array.from({ length: numOptions }, (_, i) =>

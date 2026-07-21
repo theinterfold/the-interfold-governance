@@ -13,10 +13,13 @@ export enum VotingMode {
 }
 
 export type ProposalParameters = {
+  numOptions: bigint;
   startDate: bigint;
   endDate: bigint;
   snapshotBlock: bigint;
   minVotingPower: bigint;
+  minParticipation: bigint;
+  creditMode: number;
 };
 
 export type Tally = bigint[];
