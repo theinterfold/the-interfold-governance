@@ -1,12 +1,38 @@
 import { useEffect, useState } from "react";
 import { Button } from "@aragon/ods";
 import { useAccount } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { parseAbiItem } from "viem";
 import { If } from "@/components/if";
-import { SppProposalState } from "../utils/types";
+import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { publicClient } from "@/plugins/governance/utils/client";
+import { SppProposalState, sppAddressFor } from "../utils/types";
 import { useSppAdvance } from "../hooks/useSppAdvance";
 import { useSppVeto } from "../hooks/useSppVeto";
 
 import type { SppKind, SppProposal, SppStage } from "../utils/types";
+
+const proposalExecutedEvent = parseAbiItem("event ProposalExecuted(uint256 indexed proposalId)");
+
+/** Tx hash of the SPP's ProposalExecuted event for this proposal, once executed. */
+function useExecutionTx(kind: SppKind, proposalId: bigint, executed: boolean) {
+  const { data } = useQuery<string | null>({
+    queryKey: ["spp-execution-tx", kind, proposalId.toString()],
+    queryFn: async () => {
+      const logs = await publicClient.getLogs({
+        address: sppAddressFor(kind),
+        event: proposalExecutedEvent,
+        args: { proposalId },
+        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
+        toBlock: "latest",
+      });
+      return logs[0]?.transactionHash ?? null;
+    },
+    enabled: executed,
+    staleTime: Infinity,
+  });
+  return data ?? null;
+}
 
 const VETO_STAGE_ID = 1;
 
@@ -40,6 +66,7 @@ export const VetoStageCard = ({
   const { address } = useAccount();
   const { vetoProposal, isConfirming: isVetoConfirming } = useSppVeto(kind, proposalId);
   const { advanceProposal, canAdvance, isConfirming: isAdvanceConfirming } = useSppAdvance(kind, proposalId, true);
+  const executionTx = useExecutionTx(kind, proposalId, !!proposal?.executed);
 
   const inVetoStage = !!proposal && proposal.currentStage >= VETO_STAGE_ID;
   const vetoThreshold = vetoStage?.vetoThreshold ?? 1;
@@ -116,7 +143,22 @@ export const VetoStageCard = ({
           <If true={status === "executable"}>
             The veto window has lapsed with no veto — the proposal can now be executed by anyone.
           </If>
-          <If true={status === "executed"}>The proposal passed the veto window and has been executed on the DAO.</If>
+          <If true={status === "executed"}>
+            The proposal passed the veto window and has been executed on the DAO.
+            {executionTx && PUB_CHAIN.blockExplorers?.default?.url && (
+              <>
+                {" "}
+                <a
+                  href={`${PUB_CHAIN.blockExplorers.default.url}/tx/${executionTx}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-400 hover:underline"
+                >
+                  View execution transaction ↗
+                </a>
+              </>
+            )}
+          </If>
           <If true={status === "expired"}>The execution window has lapsed. The proposal can no longer be executed.</If>
           <If true={status === "canceled"}>The proposal has been canceled.</If>
         </p>
