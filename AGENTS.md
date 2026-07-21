@@ -53,19 +53,28 @@ proxies pinned at install).
 - **CrispVoting `createProposal` is SPP-only** (`CREATE_PROPOSAL_PERMISSION`, granted to its SPP).
   It charges the creator's escrow, not the caller — see the creator-pays section in the arch doc.
 - **The CRISP `_data` tuple is `(uint256 allowFailureMap, uint256 votingDuration, uint256
-  credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()` /
+credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()` /
   `createProposal` and the app encoder in `plugins/crispVoting/hooks/useCreateProposal.ts`. If you
   change one, change both and regenerate the ABI (below).
 - **Public stage-0 `minAdvance = voteDuration`** (`WireSpp.stagesFor`) — do not set it to 0.
-  It's what forces the public vote to decide on the *final* tally (see the gotcha below).
+  It's what forces the public vote to decide on the _final_ tally (see the gotcha below).
 - **Bodies execute via delegatecall to the shared `Executor`** (`TargetConfig` set in wiring) so
   their `reportProposalResult` callback reaches the SPP as the body. Don't repoint them at the DAO.
+- **Snapshot timepoints are token-clock units, not block numbers.** FOLD is an ERC-6372
+  `mode=timestamp` token, so `CrispVoting` snapshots `votingToken.clock() - 1` and the stored
+  `snapshotBlock` field holds a **timestamp**. Anything consuming it (app hooks, CRISP server)
+  must feed it to `getPastVotes`/`getPastTotalSupply` — never use it as an `eth_call` block tag.
+- **Vote scaling is a three-way sync.** The CRISP server encodes each voter's power at 1 decimal
+  of precision (`balance / 10^(decimals-1)`), so tallies come back in scaled units. This factor
+  MUST match in all three places: the server, `CrispVoting._tallyScale()` (quorum math), and the
+  app (`useCrispServer` `adjustedBalance` + `utils/quorum.ts` `voteScale`). Changing one without
+  the others silently breaks merkle proofs or quorum.
 
 ## Gotchas (things that cost time if you don't know them)
 
 - **`hasSucceeded` vs a timer.** The SPP advances stage 0 on the body's `hasSucceeded()`, not a
-  clock. TokenVoting's `hasSucceeded` reports an *early-reached* threshold while the vote is open
-  (even in Standard mode — that mode only blocks early *execution*). That's why the public path
+  clock. TokenVoting's `hasSucceeded` reports an _early-reached_ threshold while the vote is open
+  (even in Standard mode — that mode only blocks early _execution_). That's why the public path
   needs `minAdvance = voteDuration`. The private (CRISP) path is self-limiting: its tally only
   exists after the E3 window closes.
 - **A veto reads as `Expired`, not `Canceled`.** The UI renders a stage-1 proposal with
@@ -76,23 +85,38 @@ proxies pinned at install).
 - **ABI regen after contract changes.** Regenerate `app/plugins/crispVoting/artifacts/CrispVoting.ts`
   and `app/plugins/spp/artifacts/StagedProposalProcessor.ts` from `contracts/out/**` when the
   corresponding contract changes.
+- **Never trust gas estimation for SPP `createProposal`.** The SPP wraps sub-proposal creation in
+  try/catch, so `eth_estimateGas` converges on a limit where the inner call (CRISP E3 request
+  included) runs out of gas, gets swallowed (`SubProposalNotCreated`), and the outer tx still
+  "succeeds" — leaving a dead parent proposal. Both create hooks pass explicit gas limits
+  (`CREATE_PROPOSAL_GAS_LIMIT`); keep them.
+- **Deployed canonical TokenVoting ≠ its npm source.** Sepolia build 4 is clock-aware (handles
+  timestamp tokens via `tokenIndexedByTimestamp`), but the bundled `@aragon/token-voting-plugin`
+  npm source still snapshots `block.number`. Judge the deployed build by its on-chain bytecode,
+  not the vendored source. Its `minDuration` floor is 1 hour — public windows can't go below.
+- **`MINIMUM_PARTICIPATION` is a percentage of `RATIO_BASE = 100`** (CRISP), so 1 = 1% and the
+  finest step is 1%. `0` disables quorum (testing). TokenVoting's `TV_MIN_PARTICIPATION` is ppm
+  out of 1_000_000 instead.
+- **Etherscan V1 endpoints are sunset.** All Etherscan reads go through the V2 multichain
+  endpoint (`api.etherscan.io/v2/api` + `chainid`); `hooks/useAbi.ts` rides the chainid in with
+  the API key because whatsabi 0.14 has no chainid config.
 - **`.env` is the source of truth for addresses** (written by `sync-env`, gitignored). `deploy.log`
   is a convenience artifact; canonical Aragon repo addresses (TokenVoting, SPP, Admin) live in
   `.env.example`.
 
 ## Where things live
 
-| Concern | Location |
-|---|---|
-| Staged-governance mechanism | `docs/architecture.md` |
-| CRISP fork (escrow, per-proposal duration, SPP-body wiring) | `contracts/src/crisp/CrispVoting.sol` + `setup/` |
-| Deploy (5 plugins + Executor) | `contracts/script/DeployInterfoldDao.s.sol` |
-| Wiring (stages, grants, delegatecall, disarm) | `contracts/script/WireSpp.s.sol` |
-| Canonical-plugin install encoders | `contracts/script/{TokenVotingInstall,SppInstall}.sol` |
-| SPP frontend module (stages, veto, advance) | `app/plugins/spp/` |
-| Private / public body UIs | `app/plugins/crispVoting/` · `app/plugins/tokenVoting/` |
-| Fee escrow UI | `app/plugins/crispVoting/{hooks/useFeeCredits.ts,components/feeCreditCard.tsx}` |
-| Unified list / detail shell | `app/plugins/governance/` |
+| Concern                                                     | Location                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Staged-governance mechanism                                 | `docs/architecture.md`                                                          |
+| CRISP fork (escrow, per-proposal duration, SPP-body wiring) | `contracts/src/crisp/CrispVoting.sol` + `setup/`                                |
+| Deploy (5 plugins + Executor)                               | `contracts/script/DeployInterfoldDao.s.sol`                                     |
+| Wiring (stages, grants, delegatecall, disarm)               | `contracts/script/WireSpp.s.sol`                                                |
+| Canonical-plugin install encoders                           | `contracts/script/{TokenVotingInstall,SppInstall}.sol`                          |
+| SPP frontend module (stages, veto, advance)                 | `app/plugins/spp/`                                                              |
+| Private / public body UIs                                   | `app/plugins/crispVoting/` · `app/plugins/tokenVoting/`                         |
+| Fee escrow UI                                               | `app/plugins/crispVoting/{hooks/useFeeCredits.ts,components/feeCreditCard.tsx}` |
+| Unified list / detail shell                                 | `app/plugins/governance/`                                                       |
 
 ## Conventions
 

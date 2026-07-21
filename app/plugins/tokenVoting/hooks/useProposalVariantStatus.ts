@@ -37,7 +37,7 @@ export const useProposalStatus = (proposal: Proposal) => {
       setStatus(ProposalStatus.EXECUTED);
     } else {
       const { passed, lowTurnout } = computeOutcome(proposal);
-      if (lowTurnout) setStatus(ProposalStatus.FAILED);
+      if (lowTurnout) setStatus(ProposalStatus.REJECTED);
       else if (passed) setStatus(proposal.actions.length ? ProposalStatus.EXECUTABLE : ProposalStatus.ACCEPTED);
       else setStatus(ProposalStatus.REJECTED);
     }
@@ -58,9 +58,9 @@ export const useProposalVariantStatus = (proposal: Proposal) => {
       setStatus({ variant: "primary", label: "Executed" });
     } else {
       const { passed, lowTurnout } = computeOutcome(proposal);
-      if (lowTurnout) setStatus({ variant: "critical", label: "Low turnout" });
+      if (lowTurnout) setStatus({ variant: "critical", label: "Rejected — low turnout" });
       else if (passed) setStatus({ variant: "success", label: "Executable" });
-      else setStatus({ variant: "critical", label: "Defeated" });
+      else setStatus({ variant: "critical", label: "Rejected" });
     }
   }, [proposal?.tally, proposal?.active, proposal?.executed, proposal?.parameters]);
 

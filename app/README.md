@@ -7,10 +7,10 @@ The frontend for the Interfold DAO governance. Proposals run through **staged go
 foundation veto in stage 1, sharing the **FOLD** ERC20Votes token. **See
 [`../docs/architecture.md`](../docs/architecture.md) for the full mechanism.**
 
-| Process | Stage 0 body | Privacy | What it does |
-| ------- | ------------ | ------- | ------------ |
-| SPP (private) | CrispVoting | Private | Encrypted ballots tallied by an Interfold ciphernode committee (CRISP). |
-| SPP (public)  | TokenVoting v1.4 | Public  | Transparent on-chain Yes/No/Abstain voting weighted by FOLD. |
+| Process       | Stage 0 body     | Privacy | What it does                                                            |
+| ------------- | ---------------- | ------- | ----------------------------------------------------------------------- |
+| SPP (private) | CrispVoting      | Private | Encrypted ballots tallied by an Interfold ciphernode committee (CRISP). |
+| SPP (public)  | TokenVoting v1.4 | Public  | Transparent on-chain Yes/No/Abstain voting weighted by FOLD.            |
 
 Proposals are created **on the SPP** (not the body). Only the SPPs hold `EXECUTE_PERMISSION` on
 the DAO; the bodies just report their result up to the SPP, which executes after the veto window.

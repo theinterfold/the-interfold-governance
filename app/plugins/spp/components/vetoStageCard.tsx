@@ -17,16 +17,26 @@ interface VetoStageCardProps {
   state: SppProposalState | undefined;
   vetoStage: SppStage | undefined;
   vetoTally: { approvals: bigint; vetoes: bigint } | undefined;
+  /** The stage-0 vote failed definitively — the veto stage will never start. */
+  stage0Failed?: boolean;
 }
 
-type VetoStatus = "pending" | "active" | "vetoed" | "executable" | "executed" | "expired" | "canceled";
+type VetoStatus = "pending" | "notNeeded" | "active" | "vetoed" | "executable" | "executed" | "expired" | "canceled";
 
 /**
  * Stage-1 panel of an SPP proposal: the foundation veto window.
  * After the voting body approves, the proposal is held here for the veto
  * duration; if no veto lands, anyone can execute once the window lapses.
  */
-export const VetoStageCard = ({ kind, proposalId, proposal, state, vetoStage, vetoTally }: VetoStageCardProps) => {
+export const VetoStageCard = ({
+  kind,
+  proposalId,
+  proposal,
+  state,
+  vetoStage,
+  vetoTally,
+  stage0Failed,
+}: VetoStageCardProps) => {
   const { address } = useAccount();
   const { vetoProposal, isConfirming: isVetoConfirming } = useSppVeto(kind, proposalId);
   const { advanceProposal, canAdvance, isConfirming: isAdvanceConfirming } = useSppAdvance(kind, proposalId, true);
@@ -42,6 +52,7 @@ export const VetoStageCard = ({ kind, proposalId, proposal, state, vetoStage, ve
   let status: VetoStatus;
   if (proposal?.executed) status = "executed";
   else if (proposal?.canceled) status = "canceled";
+  else if (!inVetoStage && stage0Failed) status = "notNeeded";
   else if (!inVetoStage) status = "pending";
   else if (isVetoed) status = "vetoed";
   else if (state === SppProposalState.Advanceable) status = "executable";
@@ -55,6 +66,7 @@ export const VetoStageCard = ({ kind, proposalId, proposal, state, vetoStage, ve
 
   const META_LABELS: Record<VetoStatus, string> = {
     pending: "Not started",
+    notNeeded: "Not needed",
     active: "Veto window open",
     vetoed: "Vetoed",
     executable: "Executable",
@@ -65,6 +77,7 @@ export const VetoStageCard = ({ kind, proposalId, proposal, state, vetoStage, ve
 
   const BADGE_CLASSES: Record<VetoStatus, string> = {
     pending: "pending",
+    notNeeded: "pending",
     active: "active",
     vetoed: "failed",
     executable: "executable",
@@ -91,6 +104,9 @@ export const VetoStageCard = ({ kind, proposalId, proposal, state, vetoStage, ve
           <If true={status === "pending"}>
             Once the voting stage passes, the proposal is held here for the foundation veto window before it can be
             executed.
+          </If>
+          <If true={status === "notNeeded"}>
+            The proposal did not pass the voting stage, so the veto stage will not take place.
           </If>
           <If true={status === "active"}>
             The foundation may veto this proposal until the window closes. If no veto lands, anyone can execute it

@@ -12,6 +12,7 @@ import dayjs from "dayjs";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { CardResources } from "@/components/proposal/cardResources";
 import { VotingPower } from "../components/votingPower";
+import { ParticipationCard } from "../components/participationCard";
 import { Address, formatEther } from "viem";
 import { useToken } from "../hooks/useToken";
 import { ElseIf, If, Then } from "@/components/if";
@@ -207,6 +208,7 @@ function ProposalDetailBody({
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
             <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
+            <ParticipationCard proposal={proposal} />
             <VetoStageCard
               kind="public"
               proposalId={sppProposalId}
@@ -214,6 +216,7 @@ function ProposalDetailBody({
               state={spp.state}
               vetoStage={spp.vetoStage}
               vetoTally={spp.vetoTally}
+              stage0Failed={proposalStatus === ProposalStatus.REJECTED}
             />
             <CardResources resources={proposal.resources} title="Resources" />
           </div>

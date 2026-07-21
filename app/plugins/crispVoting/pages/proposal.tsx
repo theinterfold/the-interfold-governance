@@ -21,6 +21,9 @@ import { useMemo } from "react";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
 import { MissingContentView } from "@/components/MissingContentView";
+import { VotingPower } from "@/plugins/tokenVoting/components/votingPower";
+import { ParticipationCard } from "../components/participationCard";
+import { ActivityCard } from "../components/activityCard";
 
 const ZERO = BigInt(0);
 
@@ -129,9 +132,7 @@ function ProposalDetailBody({
                 canVote={!!canVote}
               />
             </If>
-            <ProposalActions actions={sppActions} />
-          </div>
-          <div className="flex flex-col gap-y-6 md:sticky md:top-24 md:w-[33%] md:self-start">
+            {/* Voting lives in the main column, mirroring the public (TokenVoting) page layout. */}
             {proposalStatus === ProposalStatus.ACTIVE && (
               <VoteCard
                 error={canVote === false ? "You cannot vote on this proposal" : undefined}
@@ -173,6 +174,12 @@ function ProposalDetailBody({
                 creditMode={proposal.parameters.creditMode}
               />
             )}
+            <ProposalActions actions={sppActions} />
+          </div>
+          <div className="flex flex-col gap-y-6 md:w-[33%]">
+            <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} />
+            <ParticipationCard proposal={proposal} />
+            <ActivityCard e3Id={proposal.e3Id} />
             <VetoStageCard
               kind="private"
               proposalId={sppProposalId}
@@ -180,6 +187,7 @@ function ProposalDetailBody({
               state={spp.state}
               vetoStage={spp.vetoStage}
               vetoTally={spp.vetoTally}
+              stage0Failed={proposalStatus === ProposalStatus.REJECTED}
             />
             <CardResources resources={proposal.resources} title="Resources" />
           </div>
