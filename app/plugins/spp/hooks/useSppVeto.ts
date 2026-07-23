@@ -10,41 +10,54 @@ import type { SppKind } from "../utils/types";
 const VETO_STAGE_ID = 1;
 
 /**
- * Vetoes an SPP proposal in the stage-1 veto window by reporting a Veto result.
+ * Reports the foundation's stage-1 result on an SPP proposal — a Veto (opt-out
+ * mode) or an Approval (opt-in mode), depending on how the stage is wired.
  * Only meaningful when called from the stage-1 body address (the foundation) —
  * the SPP only counts reports from addresses in the stage configuration.
  */
 export function useSppVeto(kind: SppKind, proposalId: bigint) {
   const { reload } = useRouter();
   const address = sppAddressFor(kind);
-  const [isVetoing, setIsVetoing] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
+  const [resultLabel, setResultLabel] = useState<"vetoed" | "approved">("vetoed");
 
   const { writeContract, isConfirming, isConfirmed } = useTransactionManager({
-    onSuccessMessage: "Proposal vetoed",
-    onErrorMessage: "Could not veto the proposal",
+    onSuccessMessage: resultLabel === "vetoed" ? "Proposal vetoed" : "Proposal approved",
+    onErrorMessage: resultLabel === "vetoed" ? "Could not veto the proposal" : "Could not approve the proposal",
     onSuccess() {
       setTimeout(() => reload(), 1000 * 2);
     },
     onError() {
-      setIsVetoing(false);
+      setIsReporting(false);
     },
   });
 
-  const vetoProposal = () => {
-    setIsVetoing(true);
+  const report = (resultType: SppResultType) => {
+    setIsReporting(true);
 
     writeContract({
       chainId: PUB_CHAIN.id,
       abi: StagedProposalProcessorAbi,
       address,
       functionName: "reportProposalResult",
-      args: [proposalId, VETO_STAGE_ID, SppResultType.Veto, false],
+      args: [proposalId, VETO_STAGE_ID, resultType, false],
     });
+  };
+
+  const vetoProposal = () => {
+    setResultLabel("vetoed");
+    report(SppResultType.Veto);
+  };
+
+  const approveProposal = () => {
+    setResultLabel("approved");
+    report(SppResultType.Approval);
   };
 
   return {
     vetoProposal,
-    isConfirming: isVetoing || isConfirming,
+    approveProposal,
+    isConfirming: isReporting || isConfirming,
     isConfirmed,
   };
 }

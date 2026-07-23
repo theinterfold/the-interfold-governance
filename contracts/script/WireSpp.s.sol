@@ -80,6 +80,22 @@ contract WireSppScript is Script {
     bytes32 internal constant CREATE_PROPOSAL_PERMISSION_ID = keccak256("CREATE_PROPOSAL_PERMISSION");
     bytes32 internal constant EXECUTE_PERMISSION_ID = keccak256("EXECUTE_PERMISSION");
 
+    /// @notice Prints the `updateStages` calldata for both SPPs under the current env config
+    ///         (incl. SPP_STAGE1_MODE) WITHOUT broadcasting. Paste each blob as a proposal
+    ///         action (to = the SPP, value = 0) to change the stage config via governance —
+    ///         the DAO holds the SPPs' update-stages permission, so no redeploy is needed.
+    ///         Usage: forge script script/WireSpp.s.sol:WireSppScript --sig "printUpdateStages()"
+    function printUpdateStages() external view {
+        address crisp = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
+        address tokenVoting = vm.envAddress("TOKEN_VOTING_PLUGIN_ADDRESS");
+        address foundation = vm.envAddress("FOUNDATION_ADDRESS");
+
+        console2.log("Action 1 - to (SPP private):", vm.envAddress("SPP_PRIVATE_ADDRESS"));
+        console2.logBytes(abi.encodeCall(ISpp.updateStages, (stagesFor(crisp, foundation, true))));
+        console2.log("Action 2 - to (SPP public):", vm.envAddress("SPP_PUBLIC_ADDRESS"));
+        console2.logBytes(abi.encodeCall(ISpp.updateStages, (stagesFor(tokenVoting, foundation, false))));
+    }
+
     function run() external {
         address dao = vm.envAddress("DAO_ADDRESS");
         address crisp = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
@@ -206,20 +222,34 @@ contract WireSppScript is Script {
             editable: false
         });
 
-        SppInstall.Body[] memory vetoBodies = new SppInstall.Body[](1);
-        vetoBodies[0] = SppInstall.Body({
+        // Stage 1 mode (SPP_STAGE1_MODE): "approval" (default) or "veto".
+        //   approval — opt-in: the foundation must explicitly report an Approval before the
+        //              proposal can execute; silence means it expires at maxAdvance (rejection).
+        //   veto     — opt-out: the proposal is held for the veto window; silence means consent
+        //              and anyone can execute after the window lapses.
+        // Switching later needs NO redeploy: the DAO holds the SPP's update-stages permission
+        // (wire-spp itself uses it), so a passed governance proposal with action
+        // `spp.updateStages(stagesFor(...))` flips the mode for all FUTURE proposals
+        // (in-flight ones keep the stage config they were created under).
+        bool approvalMode = keccak256(bytes(vm.envOr("SPP_STAGE1_MODE", string("approval")))) != keccak256("veto");
+
+        SppInstall.Body[] memory foundationBodies = new SppInstall.Body[](1);
+        foundationBodies[0] = SppInstall.Body({
             addr: foundation,
-            isManual: true, // the foundation calls reportProposalResult(id, 1, Veto, false) itself
+            isManual: true, // the foundation calls reportProposalResult(id, 1, <result>, false) itself
             tryAdvance: false,
-            resultType: SppInstall.ResultType.Veto
+            resultType: approvalMode ? SppInstall.ResultType.Approval : SppInstall.ResultType.Veto
         });
         stages[1] = SppInstall.Stage({
-            bodies: vetoBodies,
+            bodies: foundationBodies,
             maxAdvance: vetoDuration + executeWindow,
             minAdvance: 0,
-            voteDuration: vetoDuration, // with vetoThreshold > 0 the SPP holds the proposal
-            approvalThreshold: 0, // Active for the full window before it becomes advanceable
-            vetoThreshold: 1,
+            // approval: advanceable the moment the approval lands (no forced hold window).
+            // veto: with vetoThreshold > 0 the SPP holds the proposal Active for the full
+            // window before it becomes advanceable.
+            voteDuration: approvalMode ? 0 : vetoDuration,
+            approvalThreshold: approvalMode ? 1 : 0,
+            vetoThreshold: approvalMode ? 0 : 1,
             cancelable: false,
             editable: false
         });

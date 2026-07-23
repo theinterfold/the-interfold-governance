@@ -64,16 +64,26 @@ export const VetoStageCard = ({
   stage0Failed,
 }: VetoStageCardProps) => {
   const { address } = useAccount();
-  const { vetoProposal, isConfirming: isVetoConfirming } = useSppVeto(kind, proposalId);
+  const { vetoProposal, approveProposal, isConfirming: isVetoConfirming } = useSppVeto(kind, proposalId);
   const { advanceProposal, canAdvance, isConfirming: isAdvanceConfirming } = useSppAdvance(kind, proposalId, true);
   const executionTx = useExecutionTx(kind, proposalId, !!proposal?.executed);
 
+  // Stage-1 mode, read from the on-chain stage config: approval (opt-in — the foundation must
+  // explicitly approve; silence = expiry) vs veto (opt-out — silence = consent).
+  const approvalMode = (vetoStage?.vetoThreshold ?? 1) === 0;
+
   const inVetoStage = !!proposal && proposal.currentStage >= VETO_STAGE_ID;
   const vetoThreshold = vetoStage?.vetoThreshold ?? 1;
-  const isVetoed = inVetoStage && (vetoTally?.vetoes ?? 0n) >= BigInt(vetoThreshold || 1);
+  const isVetoed = !approvalMode && inVetoStage && (vetoTally?.vetoes ?? 0n) >= BigInt(vetoThreshold || 1);
+  const isApproved =
+    approvalMode && inVetoStage && (vetoTally?.approvals ?? 0n) >= BigInt(vetoStage?.approvalThreshold ?? 1);
 
+  // Deadline shown while active: veto mode holds for voteDuration; approval mode has until
+  // maxAdvance for the approval (and execution) to land before the proposal expires.
   const vetoWindowEndsAt =
-    inVetoStage && vetoStage ? Number(proposal.lastStageTransition + vetoStage.voteDuration) * 1000 : undefined;
+    inVetoStage && vetoStage
+      ? Number(proposal.lastStageTransition + (approvalMode ? vetoStage.maxAdvance : vetoStage.voteDuration)) * 1000
+      : undefined;
   const countdown = useCountdown(vetoWindowEndsAt ?? 0);
 
   let status: VetoStatus;
@@ -88,17 +98,18 @@ export const VetoStageCard = ({
 
   const isVetoBody =
     !!address && !!vetoStage?.bodies?.[0]?.addr && address.toLowerCase() === vetoStage.bodies[0].addr.toLowerCase();
-  const showVetoButton = status === "active" && isVetoBody;
+  const showVetoButton = status === "active" && isVetoBody && !approvalMode;
+  const showApproveButton = status === "active" && isVetoBody && approvalMode && !isApproved;
   const showExecuteButton = status === "executable";
 
   const META_LABELS: Record<VetoStatus, string> = {
     pending: "Not started",
     notNeeded: "Not needed",
-    active: "Veto window open",
+    active: approvalMode ? "Awaiting approval" : "Veto window open",
     vetoed: "Vetoed",
     executable: "Executable",
     executed: "Executed",
-    expired: "Expired",
+    expired: approvalMode && !isApproved ? "Expired — not approved" : "Expired",
     canceled: "Canceled",
   };
 
@@ -116,7 +127,7 @@ export const VetoStageCard = ({
   return (
     <div className="vote-panel">
       <div className="vp-head">
-        <h3>Veto stage</h3>
+        <h3>{approvalMode ? "Approval stage" : "Veto stage"}</h3>
         <span className="vp-meta">{META_LABELS[status]}</span>
       </div>
       <div className="vp-body">
@@ -129,19 +140,23 @@ export const VetoStageCard = ({
 
         <p className="vp-note">
           <If true={status === "pending"}>
-            Once the voting stage passes, the proposal is held here for the foundation veto window before it can be
-            executed.
+            {approvalMode
+              ? "Once the voting stage passes, the proposal is held here until the foundation approves it."
+              : "Once the voting stage passes, the proposal is held here for the foundation veto window before it can be executed."}
           </If>
           <If true={status === "notNeeded"}>
-            The proposal did not pass the voting stage, so the veto stage will not take place.
+            The proposal did not pass the voting stage, so this stage will not take place.
           </If>
           <If true={status === "active"}>
-            The foundation may veto this proposal until the window closes. If no veto lands, anyone can execute it
-            afterwards.
+            {approvalMode
+              ? "The proposal needs an explicit foundation approval before it can be executed. Without one, it expires when the window closes."
+              : "The foundation may veto this proposal until the window closes. If no veto lands, anyone can execute it afterwards."}
           </If>
           <If true={status === "vetoed"}>The foundation vetoed this proposal. It can never be executed.</If>
           <If true={status === "executable"}>
-            The veto window has lapsed with no veto — the proposal can now be executed by anyone.
+            {approvalMode
+              ? "The foundation approved the proposal — it can now be executed by anyone."
+              : "The veto window has lapsed with no veto — the proposal can now be executed by anyone."}
           </If>
           <If true={status === "executed"}>
             The proposal passed the veto window and has been executed on the DAO.
@@ -159,7 +174,11 @@ export const VetoStageCard = ({
               </>
             )}
           </If>
-          <If true={status === "expired"}>The execution window has lapsed. The proposal can no longer be executed.</If>
+          <If true={status === "expired"}>
+            {approvalMode && !isApproved
+              ? "The foundation did not approve the proposal in time. It can no longer be executed."
+              : "The execution window has lapsed. The proposal can no longer be executed."}
+          </If>
           <If true={status === "canceled"}>The proposal has been canceled.</If>
         </p>
 
@@ -172,6 +191,17 @@ export const VetoStageCard = ({
             onClick={() => vetoProposal()}
           >
             Veto proposal
+          </Button>
+        </If>
+        <If true={showApproveButton}>
+          <Button
+            className="w-full"
+            size="lg"
+            variant="primary"
+            isLoading={isVetoConfirming}
+            onClick={() => approveProposal()}
+          >
+            Approve proposal
           </Button>
         </If>
         <If true={showExecuteButton}>

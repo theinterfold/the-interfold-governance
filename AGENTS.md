@@ -77,6 +77,13 @@ credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()
   (even in Standard mode — that mode only blocks early _execution_). That's why the public path
   needs `minAdvance = voteDuration`. The private (CRISP) path is self-limiting: its tally only
   exists after the E3 window closes.
+- **Stage 1 has two modes** (`SPP_STAGE1_MODE` in `WireSpp.stagesFor`, default `approval`):
+  `approval` = opt-in (foundation must explicitly report an Approval; silence = expiry),
+  `veto` = opt-out (silence = consent). The UI detects the mode from the on-chain stage config
+  (`vetoThreshold == 0` ⇒ approval). Switching later needs no redeploy: a governance proposal
+  with `spp.updateStages(...)` actions (calldata via
+  `forge script script/WireSpp.s.sol:WireSppScript --sig "printUpdateStages()"`) — it applies
+  to future proposals only; in-flight ones keep their config.
 - **A veto reads as `Expired`, not `Canceled`.** The UI renders a stage-1 proposal with
   `vetoes ≥ vetoThreshold` as **Vetoed**. Vetoes are irreversible.
 - **Per-proposal duration is private-only.** The CRISP creator picks the window; it must stay
