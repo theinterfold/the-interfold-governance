@@ -187,7 +187,7 @@ export const Else = ({ children }: { children?: ReactNode }) => {
 
 function hasConditionalChildren(children: ReactNode): boolean {
   if (!Array.isArray(children)) {
-    return isConditionalChild(children as ReactElement);
+    return isConditionalChild(children);
   }
   for (const item of children) {
     if (isConditionalChild(item)) return true;
@@ -195,8 +195,11 @@ function hasConditionalChildren(children: ReactNode): boolean {
   return false;
 }
 
-function isConditionalChild(node: ReactElement) {
-  return node.type === Then || node.type === ElseIf || node.type === Else;
+function isConditionalChild(node: ReactNode) {
+  // Children can be null/false/strings (conditional JSX like `{cond && <a/>}`) — only elements have a type
+  if (!node || typeof node !== "object") return false;
+  const type = (node as ReactElement).type;
+  return type === Then || type === ElseIf || type === Else;
 }
 
 function resolveCondition(props: IfProps): boolean {
