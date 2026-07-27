@@ -128,7 +128,7 @@ export default function Proposals() {
     <MainSection narrow={true}>
       <div className="page-head w-full">
         <div>
-          <div className="kicker mb-3">02 · Governance</div>
+          <div className="kicker mb-3">Governance</div>
           <h1 className="display-title">Proposals</h1>
         </div>
         <div className="justify-self-end">

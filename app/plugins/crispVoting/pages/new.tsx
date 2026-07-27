@@ -86,7 +86,7 @@ export default function Create() {
       <div className="w-full justify-between">
         <div className="page-head mb-8">
           <div>
-            <div className="kicker mb-3">02 · Governance / Submit</div>
+            <div className="kicker mb-3">Governance / Submit</div>
             <h1 className="display-title">New proposal</h1>
           </div>
         </div>

@@ -27,7 +27,7 @@ export default function Delegation() {
     <MainSection narrow>
       <div className="page-head w-full">
         <div>
-          <div className="kicker mb-3">03 · Membership</div>
+          <div className="kicker mb-3">Membership</div>
           <h1 className="display-title">Delegation</h1>
         </div>
       </div>

@@ -16,7 +16,7 @@ export default function CreateProposal() {
   return (
     <>
       <div className="mx-auto w-full max-w-3xl px-4 pt-10 md:px-6">
-        <div className="kicker mb-3">02 · Governance</div>
+        <div className="kicker mb-3">Governance</div>
         <div className="chips">
           <button
             type="button"
