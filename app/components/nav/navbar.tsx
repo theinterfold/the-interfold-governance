@@ -6,15 +6,12 @@ import { useState } from "react";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
 import { AvatarIcon, Button, IconType, Spinner } from "@aragon/ods";
-import { PUB_APP_NAME, PUB_CHAIN, PUB_FAUCET_ADDRESS, PUB_PROJECT_LOGO } from "@/constants";
-import { useTransactionManager } from "@/hooks/useTransactionManager";
-import { useAccount } from "wagmi";
-import { faucetAbi } from "@/artifacts/faucet";
+import { PUB_APP_NAME, PUB_PROJECT_LOGO } from "@/constants";
+import { useFaucet } from "@/hooks/useFaucet";
 import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
-  const { address } = useAccount();
 
   const { addAlert } = useAlerts();
 
@@ -28,24 +25,16 @@ export const Navbar: React.FC = () => {
     })),
   ];
 
-  const { writeContract, isConfirming } = useTransactionManager({
-    onSuccessMessage: "Test tokens sent",
-    onErrorMessage: "Could not claim from the faucet",
-  });
+  const { claim, canClaim, blockedReason, isConfirming } = useFaucet();
 
-  // One call drips both FOLD and the fee token; the faucet holds the balances.
+  // The faucet tops up per token; blockedReason mirrors its own revert conditions
+  // so a repeat click explains itself instead of burning a reverting transaction.
   const claimTestTokens = () => {
-    if (!address) {
-      addAlert("Wallet not connected");
+    if (!canClaim) {
+      addAlert(blockedReason ?? "Cannot claim from the faucet right now");
       return;
     }
-
-    writeContract({
-      chainId: PUB_CHAIN.id,
-      abi: faucetAbi,
-      address: PUB_FAUCET_ADDRESS,
-      functionName: "faucet",
-    });
+    claim();
   };
 
   return (
@@ -70,8 +59,8 @@ export const Navbar: React.FC = () => {
 
             <div className="flex items-center gap-x-2">
               <div className="shrink-0">
-                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming}>
-                  {isConfirming ? <Spinner size="sm" /> : "Get test tokens"}
+                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
+                  {isConfirming ? <Spinner size="sm" /> : "Faucet"}
                 </Button>
               </div>
               <div className="shrink-0">

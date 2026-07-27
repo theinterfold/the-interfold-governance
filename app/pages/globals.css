@@ -207,13 +207,13 @@ label div p.leading-tight {
   border-color: var(--rule) !important;
 }
 
-/* Mint accent button — "Mint test tokens" (design drops the orange CTA for
-   black + mint). */
+/* Mint accent button — "Faucet" (design drops the orange CTA for black + mint,
+   outlined in ink to match the editorial rules elsewhere). */
 .btn-mint,
 .btn-mint:hover,
 .btn-mint:focus {
   background-color: var(--mint-deep) !important;
-  border-color: var(--mint-deep) !important;
+  border: 1px solid var(--ink) !important;
   color: var(--ink) !important;
 }
 
