@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { Button, InputText } from "@aragon/ods";
-import { formatEther, isAddress, type Address } from "viem";
+import { formatUnits, isAddress, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { AddressText } from "@/components/text/address";
@@ -10,6 +10,7 @@ import { useDelegate } from "@/hooks/useDelegate";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { DelegateList } from "../components/delegateList";
 
 export default function Delegation() {
@@ -21,7 +22,9 @@ export default function Delegation() {
   const delegatedToSelf = !!delegatesTo && !!address && delegatesTo.toLowerCase() === address.toLowerCase();
   const notDelegated = !delegatesTo || delegatesTo === ADDRESS_ZERO;
   const targetValid = isAddress(target);
-  const fmt = (v?: bigint) => `${compactNumber(formatEther(v ?? 0n))} ${PUB_TOKEN_SYMBOL}`;
+  const decimals = useTokenDecimals();
+  const fmt = (v?: bigint) =>
+    decimals === undefined ? "—" : `${compactNumber(formatUnits(v ?? 0n, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
     <MainSection narrow>

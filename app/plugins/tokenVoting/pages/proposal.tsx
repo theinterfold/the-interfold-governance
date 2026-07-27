@@ -13,8 +13,9 @@ import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { CardResources } from "@/components/proposal/cardResources";
 import { VotingPower } from "../components/votingPower";
 import { ParticipationCard } from "../components/participationCard";
-import { Address, formatEther } from "viem";
+import { Address, formatUnits } from "viem";
 import { useToken } from "../hooks/useToken";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { ElseIf, If, Then } from "@/components/if";
 import { AlertCard, ProposalStatus } from "@aragon/ods";
 import { useAccount } from "wagmi";
@@ -74,6 +75,9 @@ function ProposalDetailBody({
   const canVote = useCanVote(proposalIdx);
   const votes = useProposalVoteList(proposalIdx, proposal);
   const { symbol: tokenSymbol } = useToken();
+  const tokenDecimals = useTokenDecimals();
+  // "—" until the on-chain read lands, rather than formatting against an assumed 18.
+  const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "—" : formatUnits(v, tokenDecimals));
   const { balance, delegatesTo } = useTokenVotes(address);
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalIdx);
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
@@ -132,19 +136,19 @@ function ProposalDetailBody({
         votingScores: [
           {
             option: "Yes",
-            voteAmount: formatEther(proposal?.tally.yes || ZERO),
+            voteAmount: fmtVotes(proposal?.tally.yes || ZERO),
             votePercentage: Number(((proposal?.tally.yes || ZERO) * BigInt(10_000)) / (totalVotes || BigInt(1))) / 100,
             tokenSymbol: tokenSymbol || PUB_TOKEN_SYMBOL,
           },
           {
             option: "No",
-            voteAmount: formatEther(proposal?.tally.no || ZERO),
+            voteAmount: fmtVotes(proposal?.tally.no || ZERO),
             votePercentage: Number(((proposal?.tally.no || ZERO) * BigInt(10_000)) / (totalVotes || BigInt(1))) / 100,
             tokenSymbol: tokenSymbol || PUB_TOKEN_SYMBOL,
           },
           {
             option: "Abstain",
-            voteAmount: formatEther(proposal?.tally.abstain || ZERO),
+            voteAmount: fmtVotes(proposal?.tally.abstain || ZERO),
             votePercentage:
               Number(((proposal?.tally.abstain || ZERO) * BigInt(10_000)) / (totalVotes || BigInt(1))) / 100,
             tokenSymbol: tokenSymbol || PUB_TOKEN_SYMBOL,

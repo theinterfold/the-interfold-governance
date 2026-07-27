@@ -55,6 +55,9 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
 
   useEffect(() => {
     if (!proposal || !proposal?.parameters) return;
+    // Quorum scales by the token's decimals; wait for the real value rather than
+    // settling a pass/fail verdict against an assumed 18.
+    if (decimals === undefined) return;
 
     const tally = proposal.tally ?? [];
     const numOptions = proposal.numOptions ?? tally.length;
@@ -70,7 +73,7 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
           effectiveTotalSupply,
           Number(proposal.parameters.minParticipation ?? 0n),
           proposal.parameters.creditMode,
-          Number(decimals ?? 18)
+          Number(decimals)
         );
 
     if (proposal?.active) {

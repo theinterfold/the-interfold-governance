@@ -1,4 +1,4 @@
-import { formatEther } from "viem";
+import { formatUnits } from "viem";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 import { usePastSupply } from "../hooks/usePastSupply";
@@ -21,9 +21,12 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
 
   const creditMode = proposal.parameters.creditMode;
   const numOptions = proposal.numOptions ?? proposal.tally?.length ?? 0;
-  const tokenDecimals = Number(decimals ?? 18);
+  const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
 
   if (isSignalingOnly(numOptions, creditMode) || creditMode === CreditsMode.CONSTANT) return null;
+  // Turnout is scaled by 10^(decimals-1); rendering before the read lands would
+  // show a figure off by orders of magnitude.
+  if (tokenDecimals === undefined) return null;
 
   const minParticipation = Number(proposal.parameters.minParticipation ?? 0n);
   const totalVotesScaled = (proposal.tally ?? []).reduce((sum, v) => sum + (v ?? 0n), 0n);
@@ -34,7 +37,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const pct = (part: bigint) => (pastSupply > 0n ? (Number(part) / Number(pastSupply)) * 100 : 0);
   const progressPct = required > 0n ? Math.min((Number(totalVotesRaw) / Number(required)) * 100, 100) : 100;
 
-  const fmt = (v: bigint) => `${compactNumber(formatEther(v))} ${PUB_TOKEN_SYMBOL}`;
+  const fmt = (v: bigint) => `${compactNumber(formatUnits(v, tokenDecimals))} ${PUB_TOKEN_SYMBOL}`;
   const votedTokens = tallyCountToTokens(totalVotesScaled, creditMode, tokenDecimals);
 
   return (

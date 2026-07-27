@@ -6,16 +6,10 @@ import { useState } from "react";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
 import { AvatarIcon, Button, IconType, Spinner } from "@aragon/ods";
-import {
-  PUB_APP_NAME,
-  PUB_CHAIN,
-  PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
-  PUB_PROJECT_LOGO,
-  PUB_TOKEN_ADDRESS,
-} from "@/constants";
+import { PUB_APP_NAME, PUB_CHAIN, PUB_FAUCET_ADDRESS, PUB_PROJECT_LOGO } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
-import { useAccount, useReadContract } from "wagmi";
-import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
+import { useAccount } from "wagmi";
+import { faucetAbi } from "@/artifacts/faucet";
 import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
@@ -34,60 +28,24 @@ export const Navbar: React.FC = () => {
     })),
   ];
 
-  const { data: balanceDAO } = useReadContract({
-    chainId: PUB_CHAIN.id,
-    abi: iVotesAbi,
-    address: PUB_TOKEN_ADDRESS,
-    functionName: "balanceOf",
-    args: [address!],
-  });
-
-  const { data: balanceEnclaveFee } = useReadContract({
-    chainId: PUB_CHAIN.id,
-    abi: iVotesAbi,
-    address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
-    functionName: "balanceOf",
-    args: [address!],
-  });
-
   const { writeContract, isConfirming } = useTransactionManager({
-    onSuccessMessage: "Tokens minted",
-    onErrorMessage: "Could not mint test tokens",
+    onSuccessMessage: "Test tokens sent",
+    onErrorMessage: "Could not claim from the faucet",
   });
 
-  const mintTestTokens = () => {
-    // you first need to connect your wallet
+  // One call drips both FOLD and the fee token; the faucet holds the balances.
+  const claimTestTokens = () => {
     if (!address) {
       addAlert("Wallet not connected");
       return;
     }
 
-    // check balance
-    if (balanceDAO === 0n) {
-      // mint dao tokens
-      writeContract({
-        chainId: PUB_CHAIN.id,
-        abi: iVotesAbi,
-        address: PUB_TOKEN_ADDRESS,
-        functionName: "mint",
-        args: [address, BigInt(1e18)],
-      });
-    } else {
-      addAlert("You already have DAO tokens", { timeout: 1000 });
-    }
-
-    if (balanceEnclaveFee === 0n) {
-      // mint enclave fee tokens
-      writeContract({
-        chainId: PUB_CHAIN.id,
-        abi: iVotesAbi,
-        address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
-        functionName: "mint",
-        args: [address, BigInt(10000e18)],
-      });
-    } else {
-      addAlert("You already have Interfold Fee tokens", { timeout: 1000 });
-    }
+    writeContract({
+      chainId: PUB_CHAIN.id,
+      abi: faucetAbi,
+      address: PUB_FAUCET_ADDRESS,
+      functionName: "faucet",
+    });
   };
 
   return (
@@ -112,9 +70,8 @@ export const Navbar: React.FC = () => {
 
             <div className="flex items-center gap-x-2">
               <div className="shrink-0">
-                <Button className="btn-mint" onClick={mintTestTokens}>
-                  {" "}
-                  {isConfirming ? <Spinner size="sm" /> : "Mint test tokens"}{" "}
+                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming}>
+                  {isConfirming ? <Spinner size="sm" /> : "Get test tokens"}
                 </Button>
               </div>
               <div className="shrink-0">

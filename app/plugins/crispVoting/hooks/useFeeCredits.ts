@@ -60,7 +60,9 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
 
   const quote = quoteData as bigint | undefined;
   const credit = creditData as bigint | undefined;
-  const decimals = decimalsData === undefined ? 6 : Number(decimalsData);
+  // Never defaulted: the fee token is not necessarily 18 (it is 6 on the testnet
+  // deployment), so formatting before the read lands would print a wrong figure.
+  const decimals = decimalsData === undefined ? undefined : Number(decimalsData);
 
   const shortfall = quote !== undefined && credit !== undefined && credit < quote ? quote - credit : 0n;
 
@@ -148,7 +150,8 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     }
   };
 
-  const format = (value?: bigint) => (value === undefined ? "—" : formatUnits(value, decimals));
+  const format = (value?: bigint) =>
+    value === undefined || decimals === undefined ? "—" : formatUnits(value, decimals);
 
   return {
     quote,

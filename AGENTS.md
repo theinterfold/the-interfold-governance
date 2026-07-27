@@ -86,6 +86,25 @@ credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()
   to future proposals only; in-flight ones keep their config.
 - **A veto reads as `Expired`, not `Canceled`.** The UI renders a stage-1 proposal with
   `vetoes ≥ vetoThreshold` as **Vetoed**. Vetoes are irreversible.
+- **Status labels come from two layers, and the SPP one wins.** While stage 0 is undecided the
+  body-level `ProposalStatus` (CRISP / TokenVoting `useProposalStatus`) is authoritative; once the
+  proposal reaches stage 1 or finalizes, `getSppStatusOverride` (`app/plugins/spp/utils/status.ts`)
+  takes over. Anything that changes how an outcome reads must be applied at the layer that
+  actually renders it — patching only the body hook is invisible from stage 1 onwards.
+- **Zero-action (signaling) proposals must not read as `Executable` or `Expired`.** Their final
+  advance is a no-op that only marks them executed, so `getSppStatusOverride` reports **Accepted**
+  when `proposal.actions.length == 0` — both for `Advanceable` and for a lapsed **veto-mode**
+  window (silence = consent, so the lapse costs a poll nothing). Two carve-outs: in **approval
+  mode** a lapse IS the rejection (the foundation never approved), so it stays `Expired`; and
+  stage-0 expiry is left alone because it can't distinguish "vote failed" from "passed but never
+  advanced". Key this on the **SPP's** `proposal.actions` (what executes on the DAO), never on
+  CRISP's `isSignalingOnly()` — that helper is about pass/fail semantics (option count / credit
+  mode) and a multi-option proposal can still carry actions.
+- **The list's status filter reads rendered labels, not chain state.** Rows resolve their own
+  status via hooks, then report a bucket up to `plugins/governance/pages/list.tsx` via `onStatus`;
+  filtered-out rows stay mounted and render `null` (unmounting them would stop the very hooks that
+  resolve the status). Adding a new status label means adding it to `statusBucketOf`
+  (`app/plugins/governance/utils/statusBucket.ts`) — unmapped labels appear only under "All".
 - **Per-proposal duration is private-only.** The CRISP creator picks the window; it must stay
   within `[minDuration(), stage-0 maxAdvance − buffer]`. Public uses the stage window (canonical
   TokenVoting, can't be per-proposal without forking it).

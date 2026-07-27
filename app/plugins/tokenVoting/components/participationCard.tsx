@@ -1,5 +1,6 @@
 import { useReadContract } from "wagmi";
-import { formatEther, parseAbi } from "viem";
+import { formatUnits, parseAbi } from "viem";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 
@@ -15,6 +16,7 @@ const votesAbi = parseAbi(["function getPastTotalSupply(uint256 timepoint) view 
  */
 export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const snapshotTimepoint = proposal.parameters.snapshotTimepoint;
+  const decimals = useTokenDecimals();
 
   const { data: totalSupply } = useReadContract({
     chainId: PUB_CHAIN.id,
@@ -35,7 +37,8 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const requiredPct = pct(required);
   const progressPct = required > 0n ? Math.min((Number(totalVotes) / Number(required)) * 100, 100) : 100;
 
-  const fmt = (v: bigint) => `${compactNumber(formatEther(v))} ${PUB_TOKEN_SYMBOL}`;
+  const fmt = (v: bigint) =>
+    decimals === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
     <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">

@@ -8,6 +8,11 @@ const VETO_STAGE_ID = 1;
  * SPP-level status label once the proposal has left the voting stage (or ended).
  * Returns undefined while the proposal is still in stage 0 and not finalized —
  * the body-level (voting) status is the meaningful one there.
+ *
+ * Note this keys on `proposal.actions` (the SPP's own actions, which are what
+ * execute on the DAO), not on the body's `isSignalingOnly()` — that helper is
+ * about pass/fail semantics (option count / credit mode) and a multi-option
+ * proposal can still carry actions.
  */
 export function getSppStatusOverride(
   proposal?: SppProposal,
@@ -36,8 +41,24 @@ export function getSppStatusOverride(
     if ((vetoTally?.vetoes ?? 0n) >= vetoThreshold) return { label: "Vetoed", className: "failed" };
   }
 
-  if (state === SppProposalState.Advanceable) return { label: "Executable", className: "executable" };
-  if (state === SppProposalState.Expired) return { label: "Expired", className: "expired" };
+  // Signaling proposals carry no actions: the final advance is a no-op that only
+  // marks them executed, so "Executable" overstates what is left to do.
+  // `=== 0` rather than a falsy check: if actions were ever undefined we want the
+  // existing "Executable" wording, not a wrong "Accepted".
+  const signaling = proposal.actions?.length === 0;
+  const accepted = { label: "Accepted", className: "accepted" };
+
+  if (state === SppProposalState.Advanceable) {
+    return signaling ? accepted : { label: "Executable", className: "executable" };
+  }
+
+  if (state === SppProposalState.Expired) {
+    // Reaching stage 1 means stage 0 succeeded, so in veto mode (silence = consent)
+    // a lapsed window costs a signaling proposal nothing — it still passed. In
+    // approval mode the lapse IS the rejection: the foundation never approved.
+    if (signaling && !approvalMode) return accepted;
+    return { label: "Expired", className: "expired" };
+  }
 
   return { label: approvalMode ? "Approval period" : "Veto period", className: "active" };
 }

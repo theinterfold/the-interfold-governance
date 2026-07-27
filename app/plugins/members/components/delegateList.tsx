@@ -1,4 +1,5 @@
-import { formatEther } from "viem";
+import { formatUnits } from "viem";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useAccount } from "wagmi";
 import { Button } from "@aragon/ods";
 import { AddressText } from "@/components/text/address";
@@ -14,6 +15,7 @@ export function DelegateList() {
   const { delegates, totalSupply, isLoading, error } = useDelegates();
   const { delegatesTo, refetch } = useTokenVotes(address);
   const { delegate, isConfirming } = useDelegate(() => setTimeout(() => refetch(), 1000 * 2));
+  const decimals = useTokenDecimals();
 
   if (isLoading) {
     return (
@@ -49,7 +51,8 @@ export function DelegateList() {
             <div className="flex shrink-0 items-center gap-x-4">
               <div className="text-right">
                 <div className="text-sm font-semibold text-neutral-800">
-                  {compactNumber(formatEther(d.votingPower))} {PUB_TOKEN_SYMBOL}
+                  {decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}{" "}
+                  {PUB_TOKEN_SYMBOL}
                 </div>
                 <div className="text-xs text-neutral-500">{pct(d.votingPower)}</div>
               </div>

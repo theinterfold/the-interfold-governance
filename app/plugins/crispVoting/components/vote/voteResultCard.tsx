@@ -100,11 +100,13 @@ export const VoteResultCard = ({
   const pastSupply = usePastSupply(snapshotBlock);
   const [isVisible, setIsVisible] = useState(false);
 
-  const tokenDecimals = Number(decimals ?? 18);
+  // Undefined until the on-chain read lands — tally scaling depends on it, so the
+  // derived token figures stay empty rather than being computed against a guess.
+  const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
   const unitLabel = creditMode === CreditsMode.CONSTANT ? "credits" : symbol && symbol.length > 0 ? symbol : "tokens";
 
   const parsedResults = useMemo(() => {
-    if (!results) return [];
+    if (!results || tokenDecimals === undefined) return [];
     return results.map((r, idx) => ({
       option: r.option,
       value: Number(r.value),
@@ -120,7 +122,7 @@ export const VoteResultCard = ({
   // the total voting power at the snapshot timepoint. Signaling-only polls have none.
   const quorum = useMemo(() => {
     const signaling = isSignalingOnly(numOptions ?? results?.length ?? 0, creditMode);
-    if (signaling || minParticipation == null || !pastSupply || !results) return null;
+    if (signaling || minParticipation == null || !pastSupply || !results || tokenDecimals === undefined) return null;
 
     const totalVotes = results.reduce((sum, r) => sum + BigInt(r.value || "0"), 0n);
     return computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);
