@@ -17,10 +17,17 @@ export interface ProposalRowProps {
   statusClass?: string;
   rightLabel?: string;
   bars?: RowBar[];
+  /**
+   * Filtered out by the active status filter. The row stays mounted (its hooks
+   * are what resolve the status in the first place) but renders nothing.
+   */
+  hidden?: boolean;
 }
 
 /** Shared presentational row so private (CRISP) and public (TokenVoting) proposals render identically. */
 export function ProposalRow(props: ProposalRowProps) {
+  if (props.hidden) return null;
+
   if (props.loading) {
     return (
       <Link href={props.href} className="proposal-row">

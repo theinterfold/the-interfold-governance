@@ -26,11 +26,18 @@ export function getSppStatusOverride(
     return undefined;
   }
 
-  const vetoThreshold = BigInt(vetoStage?.vetoThreshold || 1);
-  if ((vetoTally?.vetoes ?? 0n) >= vetoThreshold) return { label: "Vetoed", className: "failed" };
+  // Stage-1 mode, read from the stage config the proposal was created under:
+  // approval (opt-in, vetoThreshold == 0) vs veto (opt-out). Mirrors VetoStageCard.
+  const approvalMode = (vetoStage?.vetoThreshold ?? 1) === 0;
+
+  // A veto is only reachable in veto mode; in approval mode silence is the rejection.
+  if (!approvalMode) {
+    const vetoThreshold = BigInt(vetoStage?.vetoThreshold || 1);
+    if ((vetoTally?.vetoes ?? 0n) >= vetoThreshold) return { label: "Vetoed", className: "failed" };
+  }
 
   if (state === SppProposalState.Advanceable) return { label: "Executable", className: "executable" };
   if (state === SppProposalState.Expired) return { label: "Expired", className: "expired" };
 
-  return { label: "Veto period", className: "active" };
+  return { label: approvalMode ? "Approval period" : "Veto period", className: "active" };
 }

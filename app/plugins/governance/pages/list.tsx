@@ -1,5 +1,5 @@
 import { useAccount, useBlockNumber } from "wagmi";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, IconType } from "@aragon/ods";
 import classNames from "classnames";
 import Link from "next/link";
@@ -14,6 +14,9 @@ import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVotin
 import { PrivateRow } from "../components/privateRow";
 import { PublicRow } from "../components/publicRow";
 import { publicClient } from "../utils/client";
+import { STATUS_BUCKETS } from "../utils/statusBucket";
+
+import type { StatusBucket } from "../utils/statusBucket";
 
 type Kind = "private" | "public";
 type Entry = { kind: Kind; id: bigint; block: bigint };
@@ -23,6 +26,13 @@ const FILTERS: { label: string; value: "all" | Kind }[] = [
   { label: "Public", value: "public" },
   { label: "Private", value: "private" },
 ];
+
+const STATUS_FILTERS: { label: string; value: "all" | StatusBucket }[] = [
+  { label: "All", value: "all" },
+  ...STATUS_BUCKETS,
+];
+
+const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
 export default function Proposals() {
   const { isConnected } = useAccount();
@@ -35,7 +45,15 @@ export default function Proposals() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | StatusBucket>("all");
+  // Status lives in the per-row hooks (metadata + tally + SPP state), so rows
+  // report it back up here and the list filters on what they resolved.
+  const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
   const lastFetchedBlock = useRef<bigint | null>(null);
+
+  const reportStatus = useCallback((key: string, bucket: StatusBucket | undefined) => {
+    setStatuses((prev) => (prev[key] === bucket ? prev : { ...prev, [key]: bucket }));
+  }, []);
 
   const fetchProposals = useCallback(async () => {
     if (!publicClient || !blockNumber || !PUB_DEPLOYMENT_BLOCK) return;
@@ -91,7 +109,20 @@ export default function Proposals() {
     fetchProposals();
   }, [blockNumber, fetchProposals]);
 
+  // Stable per-row reporters so the rows' effects don't re-fire on every render.
+  const statusHandlers = useMemo(() => {
+    const map: Record<string, (bucket: StatusBucket | undefined) => void> = {};
+    for (const e of entries) {
+      const key = entryKey(e);
+      map[key] = (bucket) => reportStatus(key, bucket);
+    }
+    return map;
+  }, [entries, reportStatus]);
+
   const visible = entries.filter((e) => kindFilter === "all" || e.kind === kindFilter);
+  // Rows stay mounted when filtered out (their hooks are what resolve the status),
+  // so "nothing matches" is counted here rather than by an empty render.
+  const matchCount = visible.filter((e) => statusFilter === "all" || statuses[entryKey(e)] === statusFilter).length;
 
   return (
     <MainSection narrow={true}>
@@ -134,14 +165,31 @@ export default function Proposals() {
               </button>
             ))}
           </div>
+          <div className="chips mt-2">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                className={classNames("chip", { on: statusFilter === f.value })}
+                onClick={() => setStatusFilter(f.value)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <If not={matchCount}>
+            <MissingContentView>No proposals match the selected filters.</MissingContentView>
+          </If>
           <div className="proposal-list">
-            {visible.map((e) =>
-              e.kind === "private" ? (
-                <PrivateRow key={`private:${e.id}`} proposalId={e.id} />
+            {visible.map((e) => {
+              const key = entryKey(e);
+              const hidden = statusFilter !== "all" && statuses[key] !== statusFilter;
+              return e.kind === "private" ? (
+                <PrivateRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
               ) : (
-                <PublicRow key={`public:${e.id}`} proposalId={e.id} />
-              )
-            )}
+                <PublicRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
+              );
+            })}
           </div>
         </Else>
       </If>
