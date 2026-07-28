@@ -34,8 +34,16 @@ follows is the short version of who can do what, and what has to be trusted.
 These are real trust assumptions, not bugs — but they are worth stating plainly:
 
 - **The CRISP server** supplies the eligible-voter set and merkle leaves for private voting, and
-  receives every encrypted ballot. If it is down, private voting stops. If it is dishonest about
-  the voter set, ballots will not match. Public (TokenVoting) proposals do not depend on it.
+  receives every encrypted ballot. If it is down, private voting stops. Public (TokenVoting)
+  proposals do not depend on it.
+  - **The census is verifiable, not merely trusted.** The eligible-voters dialog rebuilds the
+    census tree from the served leaves (SDK `generateMerkleTree`, the same LeanIMT + Poseidon
+    the circuit uses) and compares it to the `merkleRoot` the CRISP program committed for that
+    round, then re-derives each leaf from `getPastVotes` at the snapshot. A tampered set fails
+    one of those two checks.
+  - **Still trusted:** omission (a holder the server never lists cannot be checked from the
+    list alone — that needs independent enumeration from token events) and ballot-level
+    censorship (a vote accepted then dropped).
 - **IPFS pinning** holds proposal titles/summaries/bodies. On-chain actions survive a lost pin,
   but the human-readable description does not. A single pinning provider is a single point of
   failure.

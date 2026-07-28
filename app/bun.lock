@@ -5,7 +5,7 @@
       "name": "CRISPVoting",
       "dependencies": {
         "@aragon/ods": "1.0.44",
-        "@crisp-e3/sdk": "0.12.0",
+        "@crisp-e3/sdk": "0.14.0",
         "@hookform/resolvers": "^3.9.0",
         "@phosphor-icons/react": "^2.1.10",
         "@react-native-async-storage/async-storage": "^1.24.0",
@@ -136,9 +136,9 @@
 
     "@coinbase/wallet-sdk": ["@coinbase/wallet-sdk@4.0.4", "", { "dependencies": { "buffer": "^6.0.3", "clsx": "^1.2.1", "eventemitter3": "^5.0.1", "keccak": "^3.0.3", "preact": "^10.16.0", "sha.js": "^2.4.11" } }, "sha512-74c040CRnGhfRjr3ArnkAgud86erIqdkPHNt5HR1k9u97uTIZCJww9eGYT67Qf7gHPpGS/xW8Be1D4dvRm63FA=="],
 
-    "@crisp-e3/sdk": ["@crisp-e3/sdk@0.12.0", "", { "dependencies": { "@aztec/bb.js": "3.0.0-nightly.20260102", "@crisp-e3/zk-inputs": "0.12.0", "@noir-lang/noir_js": "1.0.0-beta.16", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-hc4a8B1Htsv7Jc9zfRp9dp8yKRPNWsOec9Dz6cl123k7TXJ/CNisFGTaWKHJdQSyDUDTMawBNAqx8yAfNITG7A=="],
+    "@crisp-e3/sdk": ["@crisp-e3/sdk@0.14.0", "", { "dependencies": { "@aztec/bb.js": "3.0.0-nightly.20260102", "@crisp-e3/zk-inputs": "0.14.0", "@noir-lang/noir_js": "1.0.0-beta.16", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-yO5r2tYzYPUTIDM5r5eQltKJFwgw33ehToAu4YOo1i67d1y8oNLJqoZ+2kmoHDtN1fUe/hPliRDiQ7CHqaHAew=="],
 
-    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.12.0", "", {}, "sha512-LGIMi0WbDp1qqGglc5POoXIa/W5QZQtP9xy1oBDjp+l+zc2dbb07nB2GfCUszcUYKyu7zr9zvwJJP5yvit4NJw=="],
+    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.14.0", "", {}, "sha512-ZPHwvQJ/iFb1BrqsGjbxjXfld7oEuEQwt9Av9YnTf8r2vDotLV09TUUxsinhzeCGM4Kg9c+nKe8YUZdFTRFyqg=="],
 
     "@emnapi/core": ["@emnapi/core@1.8.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" } }, "sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg=="],
 
