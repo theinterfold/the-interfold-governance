@@ -152,12 +152,13 @@ contract CrispVotingSetup is PluginSetup {
         if (tokenSettings.addr == address(0)) {
             bytes32 tokenMintPermission = GovernanceERC20(token).MINT_PERMISSION_ID();
 
+            // Minting is governance-only. This previously granted to ANY_ADDR
+            // (`address(type(uint160).max)`) "for testing", which let anyone mint the
+            // governance token and therefore manufacture voting power at will.
             permissions[2] = PermissionLib.MultiTargetPermission({
                 operation: PermissionLib.Operation.Grant,
                 where: token,
-                /// @notice For testing only, we are going to allow anyone to mint. This should be set to the DAO instead
-                /// who: _dao,
-                who: address(type(uint160).max),
+                who: _dao,
                 condition: PermissionLib.NO_CONDITION,
                 permissionId: tokenMintPermission
             });

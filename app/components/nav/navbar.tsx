@@ -6,8 +6,9 @@ import { useState } from "react";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
 import { AvatarIcon, Button, IconType, Spinner } from "@aragon/ods";
-import { PUB_APP_NAME, PUB_PROJECT_LOGO } from "@/constants";
+import { PUB_APP_NAME, PUB_ENABLE_FAUCET, PUB_PROJECT_LOGO } from "@/constants";
 import { useFaucet } from "@/hooks/useFaucet";
+import { If } from "@/components/if";
 import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
@@ -58,11 +59,13 @@ export const Navbar: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-x-2">
-              <div className="shrink-0">
-                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
-                  {isConfirming ? <Spinner size="sm" /> : "Faucet"}
-                </Button>
-              </div>
+              <If true={PUB_ENABLE_FAUCET}>
+                <div className="shrink-0">
+                  <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
+                    {isConfirming ? <Spinner size="sm" /> : "Faucet"}
+                  </Button>
+                </div>
+              </If>
               <div className="shrink-0">
                 <WalletContainer />
               </div>

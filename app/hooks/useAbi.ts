@@ -4,7 +4,7 @@ import { usePublicClient } from "wagmi";
 import { AbiFunction } from "abitype";
 import { useQuery } from "@tanstack/react-query";
 import { ADDRESS_ZERO, isAddress, isContract } from "@/utils/evm";
-import { PUB_CHAIN, PUB_ETHERSCAN_API_KEY } from "@/constants";
+import { PUB_CHAIN } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
 import { getImplementation } from "@/utils/proxies";
 
@@ -103,13 +103,16 @@ export const useAbi = (contractAddress: Address) => {
 };
 
 function getEtherscanAbiLoader() {
-  // Etherscan's per-network V1 endpoints (api-sepolia.etherscan.io, api.polygonscan.com, ...)
-  // are sunset — every chain now goes through the multichain V2 endpoint with a `chainid`
-  // query param. whatsabi 0.14 has no chainid config, so it rides in with the API key
-  // (Etherscan doesn't care about query-param order).
+  // Requests go through our own `/api/etherscan` route, which appends the API key
+  // server-side — the key must never be a NEXT_PUBLIC_* var (inlined into the bundle).
+  //
+  // Etherscan's per-network V1 endpoints (api-sepolia.etherscan.io, ...) are sunset;
+  // everything goes through the multichain V2 endpoint with a `chainid` param. whatsabi
+  // 0.14 has no chainid config, so it rides in via the apiKey field (the proxy strips
+  // any caller-supplied `apikey`, and query-param order is irrelevant).
   return new whatsabi.loaders.EtherscanABILoader({
-    apiKey: `${PUB_ETHERSCAN_API_KEY}&chainid=${PUB_CHAIN.id}`,
-    baseURL: "https://api.etherscan.io/v2/api",
+    apiKey: `ignored&chainid=${PUB_CHAIN.id}`,
+    baseURL: "/api/etherscan",
   });
 }
 

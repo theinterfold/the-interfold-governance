@@ -1,0 +1,343 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+pragma solidity ^0.8.29;
+
+import {Test} from "forge-std/Test.sol";
+
+import {DAO} from "@aragon/osx/core/dao/DAO.sol";
+import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import {ProxyLib} from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
+
+import {CrispVoting} from "../src/crisp/CrispVoting.sol";
+import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
+import {IInterfold} from "../src/crisp/IInterfold.sol";
+import {IStagedProposalProcessor} from "../src/crisp/IStagedProposalProcessor.sol";
+import {E3} from "../src/crisp/IE3.sol";
+
+// --- Mocks -----------------------------------------------------------------
+
+contract MockFeeToken {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
+/// @dev Voting token with configurable supply AND decimals — decimals drive `_tallyScale()`.
+contract MockVotesToken {
+    uint256 public supply;
+    uint8 internal dec;
+    bool internal revertOnDecimals;
+
+    constructor(uint256 _supply, uint8 _decimals) {
+        supply = _supply;
+        dec = _decimals;
+    }
+
+    function setSupply(uint256 _supply) external {
+        supply = _supply;
+    }
+
+    function setRevertOnDecimals(bool v) external {
+        revertOnDecimals = v;
+    }
+
+    function decimals() external view returns (uint8) {
+        require(!revertOnDecimals, "no decimals()");
+        return dec;
+    }
+
+    function getVotes(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function getPastVotes(address, uint256) external pure returns (uint256) {
+        return 0;
+    }
+
+    function getPastTotalSupply(uint256) external view returns (uint256) {
+        return supply;
+    }
+
+    function balanceOf(address) external pure returns (uint256) {
+        return 0;
+    }
+}
+
+contract MockInterfold {
+    address public immutable feeTokenAddr;
+    address public e3RefundManager;
+    uint256 public constant FEE = 10 ether;
+    uint256 public nextE3Id = 1;
+
+    constructor(address _feeToken) {
+        feeTokenAddr = _feeToken;
+    }
+
+    function feeToken() external view returns (address) {
+        return feeTokenAddr;
+    }
+
+    function getE3Quote(IInterfold.E3RequestParams calldata) external pure returns (uint256) {
+        return FEE;
+    }
+
+    function request(IInterfold.E3RequestParams calldata) external returns (uint256 e3Id, E3 memory e3) {
+        MockFeeToken(feeTokenAddr).transferFrom(msg.sender, address(this), FEE);
+        e3Id = nextE3Id++;
+    }
+}
+
+contract MockCrispProgram {
+    mapping(uint256 => uint256[]) internal tallies;
+
+    function setTally(uint256 e3Id, uint256[] memory counts) external {
+        tallies[e3Id] = counts;
+    }
+
+    function decodeTally(uint256 e3Id) external view returns (uint256[] memory) {
+        require(tallies[e3Id].length != 0, "tally not published");
+        return tallies[e3Id];
+    }
+}
+
+contract MockSpp {
+    mapping(uint256 => address) public creators;
+
+    function setCreator(uint256 sppProposalId, address creator) external {
+        creators[sppProposalId] = creator;
+    }
+
+    function getProposal(uint256 sppProposalId)
+        external
+        view
+        returns (IStagedProposalProcessor.Proposal memory proposal)
+    {
+        proposal.creator = creators[sppProposalId];
+    }
+
+    function reportProposalResult(uint256, uint16, uint8, bool) external {}
+}
+
+// --- Tests -----------------------------------------------------------------
+
+/// @notice Covers the quorum / tally-scaling half of `CrispVoting`.
+///
+/// The CRISP server encodes each voter's power at 1 decimal of precision
+/// (`balance / 10^(decimals-1)`), so decrypted tallies arrive in scaled units.
+/// `_tallyScale()` must undo exactly that when checking quorum — it is one leg of
+/// the three-way sync (server / contract / app) called out in AGENTS.md, and a
+/// mismatch silently changes which proposals pass.
+contract CrispVotingQuorumTest is Test {
+    DAO internal dao;
+    CrispVoting internal plugin;
+    MockFeeToken internal feeToken;
+    MockVotesToken internal votesToken;
+    MockInterfold internal interfold;
+    MockCrispProgram internal crispProgram;
+    MockSpp internal spp;
+
+    address internal sppAddr;
+    address internal creator;
+
+    uint64 internal constant MIN_DURATION = 3600;
+    uint256 internal constant SPP_PROPOSAL_ID = 777;
+    uint32 internal constant MIN_PARTICIPATION = 50; // 50% of RATIO_BASE (=100)
+
+    /// @dev 18-decimal token => the server scales by 10^17.
+    uint256 internal constant SCALE = 10 ** 17;
+
+    function setUp() public {
+        vm.roll(100);
+
+        feeToken = new MockFeeToken();
+        // 1000 whole tokens of supply at 18 decimals.
+        votesToken = new MockVotesToken(1000 * 10 ** 18, 18);
+        interfold = new MockInterfold(address(feeToken));
+        crispProgram = new MockCrispProgram();
+        spp = new MockSpp();
+        creator = makeAddr("creator");
+
+        dao = DAO(
+            payable(ProxyLib.deployUUPSProxy(
+                    address(new DAO()), abi.encodeCall(DAO.initialize, (bytes(""), address(this), address(0), ""))
+                ))
+        );
+
+        _deployPlugin(MIN_PARTICIPATION);
+        spp.setCreator(SPP_PROPOSAL_ID, creator);
+    }
+
+    function _deployPlugin(uint32 minParticipation) internal {
+        ICrispVoting.PluginInitParams memory params = ICrispVoting.PluginInitParams({
+            dao: IDAO(address(dao)),
+            token: address(votesToken),
+            interfold: address(interfold),
+            committeeSize: IInterfold.CommitteeSize(0),
+            paramSet: 0,
+            crispProgramAddress: address(crispProgram),
+            computeProviderParams: bytes(""),
+            votingSettings: ICrispVoting.VotingSettings({
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 1,
+                minParticipation: minParticipation,
+                minDuration: MIN_DURATION
+            })
+        });
+
+        plugin = CrispVoting(
+            ProxyLib.deployUUPSProxy(address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, params))
+        );
+
+        sppAddr = address(spp);
+        dao.grant(address(plugin), sppAddr, plugin.CREATE_PROPOSAL_PERMISSION_ID());
+    }
+
+    function _depositAs(address who, uint256 amount) internal {
+        feeToken.mint(who, amount);
+        vm.startPrank(who);
+        feeToken.approve(address(plugin), amount);
+        plugin.deposit(amount);
+        vm.stopPrank();
+    }
+
+    function _sppMetadata() internal view returns (bytes memory) {
+        return abi.encode(sppAddr, SPP_PROPOSAL_ID, uint16(0));
+    }
+
+    /// @dev Creates a proposal and publishes `counts` as its decrypted tally.
+    function _createWithTally(uint256[] memory counts) internal returns (uint256 proposalId) {
+        _depositAs(creator, 100 ether);
+
+        Action[] memory actions = new Action[](1);
+        actions[0] =
+            Action({to: address(spp), value: 0, data: abi.encodeCall(MockSpp.reportProposalResult, (0, 1, 1, true))});
+
+        vm.prank(sppAddr);
+        proposalId =
+            plugin.createProposal(_sppMetadata(), actions, 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+
+        crispProgram.setTally(plugin.getProposal(proposalId).e3Id, counts);
+        vm.warp(block.timestamp + MIN_DURATION + 1);
+    }
+
+    function _counts(uint256 yes, uint256 no) internal pure returns (uint256[] memory counts) {
+        counts = new uint256[](2);
+        counts[0] = yes;
+        counts[1] = no;
+    }
+
+    // --- quorum ---
+
+    function test_quorumReachedExactlyAtThresholdSucceeds() public {
+        // Supply 1000e18, minParticipation 50% => need 500e18 raw = 5000 scaled units.
+        uint256 proposalId = _createWithTally(_counts(3000, 2000)); // 5000 scaled == exactly 50%
+        assertTrue(plugin.canExecute(proposalId), "exactly-at-quorum must pass");
+    }
+
+    function test_quorumOneUnitBelowThresholdFails() public {
+        uint256 proposalId = _createWithTally(_counts(3000, 1999)); // 4999 scaled < 50%
+        assertFalse(plugin.canExecute(proposalId), "one unit below quorum must fail");
+    }
+
+    function test_rejectedWhenNoBeatsYesDespiteQuorum() public {
+        uint256 proposalId = _createWithTally(_counts(2000, 4000)); // quorum met, but no > yes
+        assertFalse(plugin.canExecute(proposalId), "no must beat yes => rejected");
+    }
+
+    function test_tieIsRejected() public {
+        // counts[0] must STRICTLY beat counts[1].
+        uint256 proposalId = _createWithTally(_counts(3000, 3000));
+        assertFalse(plugin.canExecute(proposalId), "a tie must not pass");
+    }
+
+    function test_zeroTurnoutFails() public {
+        uint256 proposalId = _createWithTally(_counts(0, 0));
+        assertFalse(plugin.canExecute(proposalId), "no votes => no quorum");
+    }
+
+    function test_zeroTotalVotingPowerFails() public {
+        uint256 proposalId = _createWithTally(_counts(5000, 0));
+        votesToken.setSupply(0);
+        assertFalse(plugin.canExecute(proposalId), "zero supply must fail closed, not divide-by-zero");
+    }
+
+    function test_zeroMinParticipationDisablesQuorum() public {
+        _deployPlugin(0);
+        uint256 proposalId = _createWithTally(_counts(1, 0)); // a single scaled unit
+        assertTrue(plugin.canExecute(proposalId), "minParticipation 0 => quorum disabled");
+    }
+
+    // --- tally scaling ---
+
+    /// @notice The scaling invariant: a tally expressed in scaled units must be judged
+    ///         against raw supply as `counts * 10^(decimals-1)`. If `_tallyScale()` ever
+    ///         drifts from the server's encoding, this is the test that catches it.
+    function test_tallyScaleMatchesTheServerEncoding() public {
+        // Half the supply voted: 500e18 raw => 500e18 / 10^17 == 5000 scaled units.
+        uint256 halfSupplyScaled = (500 * 10 ** 18) / SCALE;
+        assertEq(halfSupplyScaled, 5000, "sanity: 18-decimal scaling is 10^17");
+
+        uint256 proposalId = _createWithTally(_counts(halfSupplyScaled, 0));
+        assertTrue(plugin.canExecute(proposalId), "half the supply must meet a 50% quorum");
+    }
+
+    /// @dev Tokens with 0 or 1 decimals are unscaled (scale == 1).
+    function test_lowDecimalTokenIsUnscaled() public {
+        votesToken = new MockVotesToken(1000, 1);
+        _deployPlugin(MIN_PARTICIPATION);
+        spp.setCreator(SPP_PROPOSAL_ID, creator);
+
+        uint256 proposalId = _createWithTally(_counts(500, 0)); // 500/1000 == 50%, unscaled
+        assertTrue(plugin.canExecute(proposalId), "1-decimal token must not be scaled");
+    }
+
+    /// @dev A token without `decimals()` must fall back to scale 1 rather than revert.
+    function test_tokenWithoutDecimalsFallsBackToUnscaled() public {
+        votesToken = new MockVotesToken(1000, 18);
+        _deployPlugin(MIN_PARTICIPATION);
+        spp.setCreator(SPP_PROPOSAL_ID, creator);
+        votesToken.setRevertOnDecimals(true);
+
+        uint256 proposalId = _createWithTally(_counts(500, 0));
+        assertTrue(plugin.canExecute(proposalId), "missing decimals() must degrade to scale 1");
+    }
+
+    /// @notice Quorum must be monotonic: more turnout never turns a passing proposal
+    ///         into a failing one. Guards against overflow/truncation in the scaling.
+    function testFuzz_quorumIsMonotonicInTurnout(uint96 yesA, uint96 extra) public {
+        uint256 yes = uint256(yesA) % 1e12;
+        uint256 more = yes + (uint256(extra) % 1e12);
+
+        uint256 idA = _createWithTally(_counts(yes, 0));
+        bool passesA = plugin.canExecute(idA);
+
+        // Fresh plugin so the second proposal is judged independently.
+        _deployPlugin(MIN_PARTICIPATION);
+        spp.setCreator(SPP_PROPOSAL_ID, creator);
+        uint256 idB = _createWithTally(_counts(more, 0));
+        bool passesB = plugin.canExecute(idB);
+
+        if (passesA) assertTrue(passesB, "more turnout must never lose a passing quorum");
+    }
+}

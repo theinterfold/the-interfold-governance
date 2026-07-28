@@ -144,6 +144,23 @@ credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()
 | Fee escrow UI                                               | `app/plugins/crispVoting/{hooks/useFeeCredits.ts,components/feeCreditCard.tsx}` |
 | Unified list / detail shell                                 | `app/plugins/governance/`                                                       |
 
+## Production rules
+
+- **No credential may carry a `NEXT_PUBLIC_` prefix.** Next inlines those into the client bundle.
+  `PINATA_JWT` and `ETHERSCAN_API_KEY` are server-only and are read exclusively by
+  `app/pages/api/ipfs/pin.ts` and `app/pages/api/etherscan.ts`; the browser calls those routes.
+  CI's `secret-hygiene` job fails the build if this is violated. See [`SECURITY.md`](SECURITY.md).
+- **Minting is DAO-only.** `CrispVotingSetup` grants `MINT_PERMISSION` to the DAO. It once granted
+  to `ANY_ADDR` "for testing" — anyone could mint voting power. Guarded by a test; do not loosen.
+- **Testnet scaffolding is env-gated.** The faucet button renders only when
+  `NEXT_PUBLIC_ENABLE_FAUCET=true`. Anything testnet-only must be gated the same way.
+- **CI lives at the repo root** (`.github/workflows/ci.yml`) and runs contracts + app + secret
+  hygiene. A workflow under `app/.github/` is never executed by GitHub — that trap already cost
+  this repo a silently-dead CI.
+- **Verify permissions after every deploy.** The runbook is in [`SECURITY.md`](SECURITY.md):
+  only the SPPs may hold `EXECUTE_PERMISSION`, Admin must be disarmed, the deployer must not
+  retain `ROOT`.
+
 ## Conventions
 
 - Contracts: `forge fmt`; Solidity 0.8.29; match existing NatSpc density. Add tests to

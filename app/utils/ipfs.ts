@@ -1,4 +1,4 @@
-import { PUB_IPFS_ENDPOINTS, PUB_PINATA_JWT, PUB_APP_NAME } from "@/constants";
+import { PUB_IPFS_ENDPOINTS, PUB_APP_NAME } from "@/constants";
 import { type Hex, fromHex, toBytes } from "viem";
 import { CID } from "multiformats/cid";
 import * as raw from "multiformats/codecs/raw";
@@ -19,27 +19,25 @@ export function fetchIpfsAsBlob(ipfsUri: string) {
   return fetchRawIpfs(ipfsUri).then((res) => res.blob());
 }
 
+/**
+ * Pins metadata via the server-side proxy (`/api/ipfs/pin`).
+ *
+ * The Pinata credential lives on the server only — see `pages/api/ipfs/pin.ts`.
+ * Never call Pinata directly from the browser: a `NEXT_PUBLIC_*` token is
+ * inlined into the bundle and readable by every visitor.
+ */
 export async function uploadToPinata(strBody: string) {
-  const blob = new Blob([strBody], { type: "text/plain" });
-  const file = new File([blob], UPLOAD_FILE_NAME);
-  const data = new FormData();
-  data.append("file", file);
-  data.append("pinataMetadata", JSON.stringify({ name: UPLOAD_FILE_NAME }));
-  data.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
-
-  const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+  const res = await fetch("/api/ipfs/pin", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${PUB_PINATA_JWT}`,
-    },
-    body: data,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: strBody, name: UPLOAD_FILE_NAME }),
   });
 
-  const resData = await res.json();
+  const resData = (await res.json()) as { uri?: string; error?: string };
 
-  if (resData.error) throw new Error(`Request failed: ${resData.error}`);
-  else if (!resData.IpfsHash) throw new Error("Could not pin the metadata");
-  return `ipfs://${resData.IpfsHash}`;
+  if (!res.ok || resData.error) throw new Error(resData.error ?? "Could not pin the metadata");
+  else if (!resData.uri) throw new Error("Could not pin the metadata");
+  return resData.uri;
 }
 
 export async function getContentCid(strMetadata: string) {

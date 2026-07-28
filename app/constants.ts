@@ -9,6 +9,10 @@ export const PUB_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_ADDRESS ?? "") a
 export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS ?? "") as Address;
 // Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
+// Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet
+// and the button would point at a non-existent contract.
+export const PUB_ENABLE_FAUCET =
+  (process.env.NEXT_PUBLIC_ENABLE_FAUCET ?? "").toLowerCase() === "true" && !!PUB_FAUCET_ADDRESS;
 export const PUB_CRISP_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS ?? "") as Address;
 export const PUB_TOKEN_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS ?? "") as Address;
 // Staged Proposal Processor (SPP) instances — proposals are created here; the bodies above are stage-0 sub-bodies.
@@ -29,12 +33,9 @@ export const PUB_CHAIN_ID = PUB_CHAIN.id;
 // Network and services
 export const PUB_WEB3_ENDPOINT = process.env.NEXT_PUBLIC_WEB3_ENDPOINT ?? "";
 
-export const PUB_ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY ?? "";
-
 export const PUB_WALLET_CONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
 
 export const PUB_IPFS_ENDPOINTS = process.env.NEXT_PUBLIC_IPFS_ENDPOINTS ?? "";
-export const PUB_PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT ?? "";
 
 // General
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);

@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch supersedes the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Contracts (forge)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: contracts/pnpm-lock.yaml
+
+      # --ignore-scripts: only the Solidity sources are needed; the skipped native
+      # builds are runtime web3 addons Foundry never uses (see the Makefile).
+      - name: Install Solidity deps
+        run: pnpm install --ignore-scripts --frozen-lockfile
+
+      - name: Check formatting
+        run: forge fmt --check
+
+      - name: Build
+        run: forge build
+
+      - name: Test
+        run: forge test -vvv
+
+      - name: Coverage summary
+        run: forge coverage --report summary
+
+  app:
+    name: App (next)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Unit tests
+        run: bun test
+
+      - name: Lint
+        run: bun run lint
+
+      # Placeholder values only — the build must not depend on real addresses or
+      # secrets. Anything genuinely secret is server-side and absent here by design.
+      - name: Build
+        run: bun run build
+        env:
+          NEXT_PUBLIC_CHAIN_NAME: sepolia
+          NEXT_PUBLIC_DAO_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_TOKEN_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_FAUCET_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_SPP_PRIVATE_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_SPP_PUBLIC_ADDRESS: "0x1234567890123456789012345678901234567890"
+          NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK: 1
+          NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK: 1
+          NEXT_PUBLIC_CRISP_SERVER_URL: https://crisp.invalid
+          NEXT_PUBLIC_WEB3_ENDPOINT: https://rpc.invalid
+          NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID: x
+          NEXT_PUBLIC_IPFS_ENDPOINTS: https://ipfs.invalid
+          NODE_ENV: production
+
+  secret-hygiene:
+    name: No secrets in the client bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # NEXT_PUBLIC_* is inlined into the browser bundle. A credential behind that
+      # prefix is public to every visitor — fail the build rather than ship one.
+      - name: Reject NEXT_PUBLIC_ secrets
+        run: |
+          if grep -rInE 'NEXT_PUBLIC_[A-Z0-9_]*(JWT|SECRET|PRIVATE_KEY|PASSWORD|API_KEY)' \
+              --include='*.ts' --include='*.tsx' --include='*.env*' --include='*.yml' \
+              --exclude-dir=node_modules --exclude-dir=.next . ; then
+            echo "::error::A secret-shaped variable is exposed via NEXT_PUBLIC_. Move it server-side."
+            exit 1
+          fi
+          echo "OK - no secret-shaped NEXT_PUBLIC_ variables found"
