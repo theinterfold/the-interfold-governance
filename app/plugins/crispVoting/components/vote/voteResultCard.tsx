@@ -5,7 +5,7 @@ import { Button, ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
 import { useToken } from "../../hooks/useToken";
 import { usePastSupply } from "../../hooks/usePastSupply";
-import { computeQuorum, isSignalingOnly, tallyCountToTokens } from "../../utils/quorum";
+import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
 
 interface IResult {
@@ -121,8 +121,7 @@ export const VoteResultCard = ({
   // Quorum mirrors the contract: turnout (scaled votes) vs. minParticipation% of
   // the total voting power at the snapshot timepoint. Signaling-only polls have none.
   const quorum = useMemo(() => {
-    const signaling = isSignalingOnly(numOptions ?? results?.length ?? 0, creditMode);
-    if (signaling || minParticipation == null || !pastSupply || !results || tokenDecimals === undefined) return null;
+    if (minParticipation == null || !pastSupply || !results || tokenDecimals === undefined) return null;
 
     const totalVotes = results.reduce((sum, r) => sum + BigInt(r.value || "0"), 0n);
     return computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);

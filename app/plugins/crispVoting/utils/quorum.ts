@@ -17,15 +17,6 @@ export function voteScale(creditMode: CreditsMode | number | undefined, decimals
   return decimals > 1 ? 10n ** BigInt(decimals - 1) : 1n;
 }
 
-/**
- * Whether a proposal is signaling-only (a poll) and therefore has no quorum /
- * pass-fail concept: proposals with more than 3 options, or CONSTANT credits,
- * are informational polls.
- */
-export function isSignalingOnly(numOptions: number, creditMode: CreditsMode | number | undefined): boolean {
-  return numOptions > 3 || creditMode === CreditsMode.CONSTANT;
-}
-
 export interface QuorumInfo {
   /** Whether turnout met the quorum requirement. */
   reached: boolean;

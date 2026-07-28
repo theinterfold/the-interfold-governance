@@ -1,11 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import {
-  RATIO_BASE,
-  computeQuorum,
-  isSignalingOnly,
-  tallyCountToTokens,
-  voteScale,
-} from "@/plugins/crispVoting/utils/quorum";
+import { RATIO_BASE, computeQuorum, tallyCountToTokens, voteScale } from "@/plugins/crispVoting/utils/quorum";
 import { CreditsMode } from "@/plugins/crispVoting/utils/types";
 
 /**
@@ -108,23 +102,5 @@ describe("INVARIANT: tallyCountToTokens reverses the scaling", () => {
 
   test("CONSTANT mode counts are raw credits", () => {
     expect(tallyCountToTokens(42n, CreditsMode.CONSTANT, 18)).toBe(42);
-  });
-});
-
-describe("INVARIANT: isSignalingOnly is about semantics, not action count", () => {
-  test("more than 3 options, or CONSTANT credits, means a poll", () => {
-    expect(isSignalingOnly(4, CreditsMode.CUSTOM)).toBe(true);
-    expect(isSignalingOnly(2, CreditsMode.CONSTANT)).toBe(true);
-  });
-
-  test("a normal 2-3 option token vote is not signaling", () => {
-    expect(isSignalingOnly(2, CreditsMode.CUSTOM)).toBe(false);
-    expect(isSignalingOnly(3, CreditsMode.CUSTOM)).toBe(false);
-  });
-
-  test("a signaling proposal may still carry actions — status must key on actions.length", () => {
-    // Guards the trap noted in AGENTS.md: `isSignalingOnly` says nothing about whether the
-    // SPP proposal has actions, so it must never be used to pick the Accepted/Executable label.
-    expect(isSignalingOnly(4, CreditsMode.CUSTOM)).toBe(true);
   });
 });

@@ -44,6 +44,12 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     /// @notice The denominator for ratio calculations.
     uint256 internal constant RATIO_BASE = 100;
 
+    /// @notice Every CRISP proposal is a fixed 3-option vote: yes (0), no (1), abstain (2).
+    /// @dev The app and the CRISP circuit both assume this. Changing it means revisiting
+    ///      `_canExecute` (which compares index 0 against index 1), the E3 request params,
+    ///      and the app's tally rendering together.
+    uint256 internal constant NUM_OPTIONS = 3;
+
     /// @notice The interface id for the Crisp Voting plugin
     bytes4 internal constant CRISP_VOTING_INTERFACE_ID = this.initialize.selector ^ this.minProposerVotingPower.selector
         ^ this.minVoterVotingPower.selector ^ this.totalVotingPower.selector ^ this.getVotingToken.selector
@@ -178,7 +184,6 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
 
         {
-            uint256 numOptions = 3;
             ICRISP.CreditMode creditMode = ICRISP.CreditMode.CUSTOM;
 
             IInterfold.E3RequestParams memory requestParams = _buildRequestParams(_startDate, _endDate, credits);
@@ -195,9 +200,9 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             (uint256 e3Id,) = interfold.request(requestParams);
 
             /// @notice Store the data
-            proposal.tally.counts = new uint256[](numOptions);
+            proposal.tally.counts = new uint256[](NUM_OPTIONS);
             proposal.parameters = ProposalParameters({
-                numOptions: numOptions,
+                numOptions: NUM_OPTIONS,
                 startDate: _startDate,
                 endDate: _endDate,
                 // snapshot the previous timepoint (token ERC-6372 clock units: block number or
@@ -557,7 +562,8 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             return false;
         }
 
-        // For 2-3 options: yes (index 0) must strictly beat no (index 1)
+        // Fixed 3 options (see NUM_OPTIONS): yes (index 0) must strictly beat no (index 1).
+        // A tie is a rejection.
         return counts[0] > counts[1];
     }
 
@@ -579,7 +585,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         returns (IInterfold.E3RequestParams memory)
     {
         bytes memory customParams = abi.encode(
-            address(votingToken), votingSettings.minVoterVotingPower, uint256(3), ICRISP.CreditMode.CUSTOM, _credits
+            address(votingToken), votingSettings.minVoterVotingPower, NUM_OPTIONS, ICRISP.CreditMode.CUSTOM, _credits
         );
 
         return IInterfold.E3RequestParams({

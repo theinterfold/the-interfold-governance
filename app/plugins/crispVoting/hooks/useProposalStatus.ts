@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
 import { useToken } from "./useToken";
 import { usePastSupply } from "./usePastSupply";
-import { computeQuorum, isSignalingOnly } from "../utils/quorum";
+import { computeQuorum } from "../utils/quorum";
 
 import type { Proposal } from "../utils/types";
 
@@ -18,30 +18,19 @@ function getTotalVotes(tally: bigint[]): bigint {
 }
 
 /**
- * Mirrors the contract's _hasSucceeded logic:
- * - 2-3 options: quorum + counts[0] > counts[1]
- * - 4+ options: quorum only
+ * Mirrors the contract's `_canExecute`: quorum, then yes (index 0) must strictly
+ * beat no (index 1). The app is fixed at 3 options, matching `NUM_OPTIONS`.
  */
-function hasPassed(tally: bigint[], numOptions: number): boolean {
+function hasPassed(tally: bigint[]): boolean {
   const totalVotes = getTotalVotes(tally);
   if (totalVotes === 0n) return false;
 
-  if (numOptions <= 3) {
-    return (tally[0] ?? BigInt(0)) > (tally[1] ?? BigInt(0));
-  }
-  return true;
+  return (tally[0] ?? BigInt(0)) > (tally[1] ?? BigInt(0));
 }
 
-/**
- * For 2-3 options, the proposal is rejected when no >= yes.
- * For 4+ options, there's no concept of "rejected" — it either
- * meets quorum or has low turnout.
- */
-function isRejected(tally: bigint[], numOptions: number): boolean {
-  if (numOptions <= 3) {
-    return (tally[1] ?? BigInt(0)) >= (tally[0] ?? BigInt(0));
-  }
-  return false;
+/** Rejected when no (index 1) is at least yes (index 0) — a tie is a rejection. */
+function isRejected(tally: bigint[]): boolean {
+  return (tally[1] ?? BigInt(0)) >= (tally[0] ?? BigInt(0));
 }
 
 export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint) => {
@@ -60,21 +49,18 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
     if (decimals === undefined) return;
 
     const tally = proposal.tally ?? [];
-    const numOptions = proposal.numOptions ?? tally.length;
     const totalVotes = getTotalVotes(tally);
 
-    // Signaling-only proposals (polls) have no quorum / pass-fail concept; their
-    // tally is informational only. Quorum gating applies to executable proposals.
-    const signaling = isSignalingOnly(numOptions, proposal.parameters.creditMode);
-    const quorum = signaling
-      ? null
-      : computeQuorum(
-          totalVotes,
-          effectiveTotalSupply,
-          Number(proposal.parameters.minParticipation ?? 0n),
-          proposal.parameters.creditMode,
-          Number(decimals)
-        );
+    // Quorum applies to EVERY proposal, with or without actions — `CrispVoting._canExecute`
+    // gates on it unconditionally. Skipping it for "signaling" proposals would make the app
+    // report a pass the chain rejects.
+    const quorum = computeQuorum(
+      totalVotes,
+      effectiveTotalSupply,
+      Number(proposal.parameters.minParticipation ?? 0n),
+      proposal.parameters.creditMode,
+      Number(decimals)
+    );
 
     if (proposal?.active) {
       setStatus(ProposalStatus.ACTIVE);
@@ -86,11 +72,11 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       setStatus(ProposalStatus.REJECTED);
     } else if (quorum && !quorum.reached) {
       setStatus(ProposalStatus.REJECTED);
-    } else if (hasPassed(tally, numOptions) && proposal.actions.length > 0) {
+    } else if (hasPassed(tally) && proposal.actions.length > 0) {
       setStatus(ProposalStatus.EXECUTABLE);
-    } else if (hasPassed(tally, numOptions) && proposal.actions.length === 0) {
+    } else if (hasPassed(tally) && proposal.actions.length === 0) {
       setStatus(ProposalStatus.ACCEPTED);
-    } else if (isRejected(tally, numOptions)) {
+    } else if (isRejected(tally)) {
       setStatus(ProposalStatus.REJECTED);
     } else {
       setStatus(ProposalStatus.PENDING);

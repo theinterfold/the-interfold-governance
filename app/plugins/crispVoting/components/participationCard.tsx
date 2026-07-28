@@ -4,7 +4,7 @@ import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 import { usePastSupply } from "../hooks/usePastSupply";
 import { useToken } from "../hooks/useToken";
-import { isSignalingOnly, tallyCountToTokens, voteScale } from "../utils/quorum";
+import { tallyCountToTokens, voteScale } from "../utils/quorum";
 import { EligibleVotersDialog } from "./eligibleVotersDialog";
 import { CreditsMode } from "../utils/types";
 
@@ -23,10 +23,8 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const [showVoters, setShowVoters] = useState(false);
 
   const creditMode = proposal.parameters.creditMode;
-  const numOptions = proposal.numOptions ?? proposal.tally?.length ?? 0;
   const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
 
-  if (isSignalingOnly(numOptions, creditMode) || creditMode === CreditsMode.CONSTANT) return null;
   // Turnout is scaled by 10^(decimals-1); rendering before the read lands would
   // show a figure off by orders of magnitude.
   if (tokenDecimals === undefined) return null;

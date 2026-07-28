@@ -10,9 +10,8 @@ const VETO_STAGE_ID = 1;
  * the body-level (voting) status is the meaningful one there.
  *
  * Note this keys on `proposal.actions` (the SPP's own actions, which are what
- * execute on the DAO), not on the body's `isSignalingOnly()` — that helper is
- * about pass/fail semantics (option count / credit mode) and a multi-option
- * proposal can still carry actions.
+ * execute on the DAO). That is the ONLY definition of "signaling" in this app —
+ * a proposal with nothing to execute. Quorum still applies to it on-chain.
  */
 export function getSppStatusOverride(
   proposal?: SppProposal,
