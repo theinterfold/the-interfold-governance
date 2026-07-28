@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { formatUnits } from "viem";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 import { usePastSupply } from "../hooks/usePastSupply";
 import { useToken } from "../hooks/useToken";
 import { isSignalingOnly, tallyCountToTokens, voteScale } from "../utils/quorum";
+import { EligibleVotersDialog } from "./eligibleVotersDialog";
 import { CreditsMode } from "../utils/types";
 
 import type { Proposal } from "../utils/types";
@@ -18,6 +20,7 @@ import type { Proposal } from "../utils/types";
 export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const pastSupply = usePastSupply(proposal.parameters.snapshotBlock);
   const { decimals } = useToken();
+  const [showVoters, setShowVoters] = useState(false);
 
   const creditMode = proposal.parameters.creditMode;
   const numOptions = proposal.numOptions ?? proposal.tally?.length ?? 0;
@@ -83,6 +86,25 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
         <span className="text-neutral-500">Total voting power</span>
         <span className="font-semibold text-neutral-800">{fmt(pastSupply)}</span>
       </div>
+
+      {/* Anyone can audit who was eligible and with what weight — the dialog re-derives
+          each entry from the token at the snapshot rather than trusting the server. */}
+      <button
+        type="button"
+        className="mt-1 text-left text-sm text-primary-400 hover:underline"
+        onClick={() => setShowVoters(true)}
+      >
+        View eligible voters ↗
+      </button>
+
+      <EligibleVotersDialog
+        open={showVoters}
+        onClose={() => setShowVoters(false)}
+        e3Id={proposal.e3Id}
+        chainSnapshot={proposal.parameters.snapshotBlock}
+        chainThreshold={proposal.parameters.minVotingPower}
+        creditMode={creditMode}
+      />
     </div>
   );
 }

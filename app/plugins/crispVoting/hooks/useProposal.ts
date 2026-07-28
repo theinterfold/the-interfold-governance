@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useBlockNumber, useReadContract } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useMetadata } from "@/hooks/useMetadata";
 import { getAbiItem, fromHex } from "viem";
 import { publicClient } from "../utils/client";
@@ -10,7 +10,7 @@ import type { RawAction, ProposalMetadata } from "@/utils/types";
 import type { IRoundDetailsResponse, Proposal, Tally } from "../utils/types";
 import type { AbiEvent, Hex } from "viem";
 import { CreditsMode } from "../utils/types";
-import { CRISP_SERVER_STATE_LITE_ROUTE, CRISP_SERVER_STATE_ELIGIBLE_VOTERS } from "./useCrispServer";
+import { crispSdk } from "../utils/crispSdk";
 
 type ProposalCreatedLogResponse = {
   args: {
@@ -84,13 +84,10 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
     const roundId = Number(proposalRaw.e3Id.toString());
 
-    fetch(`${PUB_CRISP_SERVER_URL}/${CRISP_SERVER_STATE_LITE_ROUTE}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ round_id: roundId }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then(async (data: IRoundDetailsResponse | null) => {
+    crispSdk
+      .getRoundStateLite(roundId)
+      .then(async (raw) => {
+        const data = raw as unknown as IRoundDetailsResponse | null;
         setIsTallied(data?.status === "Finished");
         setIsCommitteeReady(
           data
@@ -100,16 +97,8 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
         if (data && data.credit_mode === CreditsMode.CONSTANT && data.credits && !eligibleVotersFetched.current) {
           eligibleVotersFetched.current = true;
-          const res = await fetch(`${PUB_CRISP_SERVER_URL}/${CRISP_SERVER_STATE_ELIGIBLE_VOTERS}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ round_id: roundId }),
-          });
-
-          if (res.ok) {
-            const voters = await res.json();
-            setTotalVotingPower(BigInt(data.credits) * BigInt(voters.length));
-          }
+          const voters = await crispSdk.getEligibleAddresses(roundId);
+          setTotalVotingPower(BigInt(data.credits) * BigInt(voters.length));
         } else if (data && data.credit_mode !== CreditsMode.CONSTANT) {
           setTotalVotingPower(undefined);
         }

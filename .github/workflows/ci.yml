@@ -50,8 +50,40 @@ jobs:
       - name: Test
         run: forge test -vvv
 
-      - name: Coverage summary
-        run: forge coverage --report summary
+      # Ratchet: the CRISP sources are fully covered today. Fail the build if that
+      # slips, rather than letting coverage erode one PR at a time.
+      - name: Coverage (enforced minimum)
+        env:
+          MIN_COVERAGE: 100
+        run: |
+          forge coverage --report summary | tee /tmp/coverage.txt
+          python3 - <<'EOF'
+          import os, re, sys
+
+          minimum = float(os.environ["MIN_COVERAGE"])
+          failures = []
+          checked = 0
+
+          for line in open("/tmp/coverage.txt"):
+              if not line.startswith("| src/crisp"):
+                  continue
+              cells = [c.strip() for c in line.strip().strip("|").split("|")]
+              path = cells[0]
+              checked += 1
+              for label, cell in zip(("lines", "statements", "branches", "funcs"), cells[1:5]):
+                  m = re.match(r"([\d.]+)%", cell)
+                  if not m:
+                      continue
+                  pct = float(m.group(1))
+                  if pct < minimum:
+                      failures.append(f"{path} {label}: {pct}% < {minimum}%")
+
+          if not checked:
+              sys.exit("::error::No src/crisp rows found in the coverage report")
+          for f in failures:
+              print(f"::error::Coverage regression - {f}")
+          sys.exit(1 if failures else 0)
+          EOF
 
   app:
     name: App (next)

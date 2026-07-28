@@ -11,10 +11,6 @@ import { crispSdk } from "../utils/crispSdk";
 import { hashMessage } from "viem";
 import { getRandomVoterToMask } from "../utils/voters";
 
-export const CRISP_SERVER_STATE_LITE_ROUTE = "state/lite";
-export const CRISP_SERVER_STATE_TOKEN_HOLDERS = "state/token-holders";
-export const CRISP_SERVER_STATE_ELIGIBLE_VOTERS = "state/eligible-addresses";
-
 /**
  * State of the Crisp server
  */
@@ -62,63 +58,21 @@ export function useCrispServer(): CrispServerState {
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
 
+  // All three go through the SDK (0.12.0) rather than hand-rolled fetches, so the
+  // route names and payload shapes stay owned by the SDK.
   const getRoundState = async (e3Id: bigint): Promise<IRoundDetailsResponse> => {
-    const response = await fetch(`${PUB_CRISP_SERVER_URL}/${CRISP_SERVER_STATE_LITE_ROUTE}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ round_id: Number(e3Id.toString()) }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error fetching round data: ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as IRoundDetailsResponse;
-
-    return data;
+    return (await crispSdk.getRoundStateLite(Number(e3Id))) as unknown as IRoundDetailsResponse;
   };
 
   const getTokenHoldersHashes = async (e3Id: bigint): Promise<bigint[]> => {
-    const response = await fetch(`${PUB_CRISP_SERVER_URL}/${CRISP_SERVER_STATE_TOKEN_HOLDERS}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ round_id: Number(e3Id.toString()) }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error fetching token holder hashes: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    return data.map((s: string) => BigInt(`0x${s}`));
+    const hashes = await crispSdk.getTokenHolderHashes(Number(e3Id));
+    return hashes.map((h) => BigInt(h.startsWith("0x") ? h : `0x${h}`));
   };
 
   const getEligibleVoters = async (e3Id: bigint): Promise<EligibleVoter[]> => {
-    const response = await fetch(`${PUB_CRISP_SERVER_URL}/${CRISP_SERVER_STATE_ELIGIBLE_VOTERS}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ round_id: Number(e3Id.toString()) }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error fetching eligible voters: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    return data.map((v: EligibleVoter) => ({
-      address: v.address,
-      balance: Number(v.balance),
-    }));
+    const holders = await crispSdk.getEligibleAddresses(Number(e3Id));
+    return holders.map((v) => ({ address: v.address, balance: BigInt(v.balance) }));
   };
-
   const handleMask = async (e3Id: bigint, numOptions: string) => {
     const eligibleVoters = await getEligibleVoters(e3Id);
 

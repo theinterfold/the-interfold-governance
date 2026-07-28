@@ -45,30 +45,70 @@ proxies pinned at install).
 
 ## Invariants — do not break these
 
-- **Proposals are created on the SPP, never on a body.** The bodies (CrispVoting, TokenVoting)
-  are stage-0 bodies; the SPP creates their sub-proposals.
-- **Only the SPPs hold `EXECUTE_PERMISSION` on the DAO.** Bodies must never (re)gain it — that
-  would let a proposer bypass the veto stage. `wire-spp` revokes TokenVoting's; CrispVoting's
-  setup never grants it.
-- **CrispVoting `createProposal` is SPP-only** (`CREATE_PROPOSAL_PERMISSION`, granted to its SPP).
-  It charges the creator's escrow, not the caller — see the creator-pays section in the arch doc.
-- **The CRISP `_data` tuple is `(uint256 allowFailureMap, uint256 votingDuration, uint256
-credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()` /
-  `createProposal` and the app encoder in `plugins/crispVoting/hooks/useCreateProposal.ts`. If you
-  change one, change both and regenerate the ABI (below).
-- **Public stage-0 `minAdvance = voteDuration`** (`WireSpp.stagesFor`) — do not set it to 0.
-  It's what forces the public vote to decide on the _final_ tally (see the gotcha below).
-- **Bodies execute via delegatecall to the shared `Executor`** (`TargetConfig` set in wiring) so
-  their `reportProposalResult` callback reaches the SPP as the body. Don't repoint them at the DAO.
-- **Snapshot timepoints are token-clock units, not block numbers.** FOLD is an ERC-6372
-  `mode=timestamp` token, so `CrispVoting` snapshots `votingToken.clock() - 1` and the stored
-  `snapshotBlock` field holds a **timestamp**. Anything consuming it (app hooks, CRISP server)
-  must feed it to `getPastVotes`/`getPastTotalSupply` — never use it as an `eth_call` block tag.
-- **Vote scaling is a three-way sync.** The CRISP server encodes each voter's power at 1 decimal
-  of precision (`balance / 10^(decimals-1)`), so tallies come back in scaled units. This factor
-  MUST match in all three places: the server, `CrispVoting._tallyScale()` (quorum math), and the
-  app (`useCrispServer` `adjustedBalance` + `utils/quorum.ts` `voteScale`). Changing one without
-  the others silently breaks merkle proofs or quorum.
+The register below is canonical. Every entry states the rule, why it exists, and the test that
+guards it. **If you change behaviour covered here, update the test in the same commit** — CI
+enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build.
+
+`INV-*` ids are stable; reference them in PRs and code comments.
+
+### Governance structure
+
+| Id        | Invariant                                                                                                                                                                    | Guarded by                                                                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **INV-1** | **Proposals are created on the SPP, never on a body.** Bodies are stage-0 sub-bodies; the SPP creates their sub-proposals.                                                   | `CrispVotingSpp.t.sol::test_createProposalRevertsWithoutPermission`                                                                          |
+| **INV-2** | **Only the SPPs hold `EXECUTE_PERMISSION` on the DAO.** A body holding it would let a proposer execute straight from stage 0 and skip the foundation entirely.               | `CrispVotingSetup.t.sol::test_prepareInstallationNeverRequestsExecutePermissionOnTheDao` + the post-deploy runbook in `SECURITY.md`          |
+| **INV-3** | **`CrispVoting.createProposal` is SPP-only** (`CREATE_PROPOSAL_PERMISSION`, granted to its SPP) and charges the SPP proposal _creator's_ escrow, never the caller's.         | `CrispVotingSpp.t.sol::test_createProposalChargesSppProposalCreator`, `…RevertsWithoutPermission`                                            |
+| **INV-4** | **Nobody can spend someone else's fee credit.** The payer comes from the SPP's own attestation (`metadata = abi.encode(spp, sppProposalId, stageId)`), never a caller field. | `CrispVotingViews.t.sol::test_createProposalRevertsOnWrongLengthMetadata`, `…WhenTheEncodedSppIsNotTheCaller`, `…WhenTheSppReportsNoCreator` |
+| **INV-5** | **Bodies execute via delegatecall to the shared `Executor`** so `reportProposalResult` reaches the SPP _as the body_. Never repoint them at the DAO.                         | `CrispVotingSpp.t.sol::test_executeIsPermissionlessAndReportsAsPlugin`                                                                       |
+| **INV-6** | **Minting the governance token is DAO-only.** It once granted to `ANY_ADDR` "for testing" — anyone could mint voting power.                                                  | `CrispVotingSetup.t.sol::test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr`                                                       |
+| **INV-7** | **Install and uninstall are symmetric.** Uninstall must revoke exactly what install granted, or a removed plugin leaves live permissions behind.                             | `CrispVotingSetup.t.sol::test_prepareUninstallationRevokesExactlyWhatInstallGranted`                                                         |
+
+### Stage configuration (`WireSpp.stagesFor`)
+
+| Id         | Invariant                                                                                                                                                                                               | Guarded by                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **INV-8**  | **Public stage-0 `minAdvance == voteDuration`, never 0.** TokenVoting's `hasSucceeded()` reports an early-reached threshold while the vote is open; this forces the SPP to decide on the _final_ tally. | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-9**  | **Private stage-0 `minAdvance == 0` is safe** — a CRISP tally only exists once the E3 window closes, so the path is self-limiting.                                                                      | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-10** | **Stage 1 approval mode ⇒ `vetoThreshold == 0`.** The UI detects the mode from exactly this field; changing it silently flips the mode the app displays.                                                | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-11** | **Stage 1 veto mode holds for the full window** (`voteDuration == vetoDuration`). A zero window would mean no veto opportunity at all.                                                                  | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-12** | **An unrecognised `SPP_STAGE1_MODE` falls back to `approval`** (the check is `!= "veto"`), so a typo can never silently disable the foundation gate.                                                    | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-13** | **The foundation body is `isManual` and does not `tryAdvance`.** It reports its own result; a non-manual body would have the SPP try to create a sub-proposal on it.                                    | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-14** | **No stage is `editable` or `cancelable`.** An in-flight proposal's actions must not change after voters have seen them.                                                                                | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+| **INV-15** | **The public window clears TokenVoting's 1 hour `minDuration` floor**, or every sub-proposal creation reverts.                                                                                          | `WireSppStages.t.sol::test_stageConfigurationInvariants` |
+
+### Cross-boundary sync (contract ↔ server ↔ app)
+
+| Id         | Invariant                                                                                                                                                                                                                                                                          | Guarded by                                                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **INV-16** | **Vote scaling is a three-way sync.** The CRISP server encodes power as `balance / 10^(decimals-1)`, so tallies arrive scaled. The factor must match in the server, `CrispVoting._tallyScale()`, and the app (`useCrispServer` `adjustedBalance` + `utils/quorum.ts` `voteScale`). | `CrispVotingQuorum.t.sol::test_tallyScaleMatchesTheServerEncoding`; app `quorum-invariants.test.ts`                   |
+| **INV-17** | **`RATIO_BASE == 100`**, so CRISP `minParticipation` is a whole percentage (1 = 1%) and the finest step is 1%. TokenVoting's is ppm out of 1_000_000 — do not conflate them.                                                                                                       | `CrispVotingViews.t.sol::test_initializeRevertsWhenMinParticipationExceedsRatioBase`; app `quorum-invariants.test.ts` |
+| **INV-18** | **The CRISP `_data` tuple is `(uint256 allowFailureMap, uint256 votingDuration, uint256 credits)`** and must stay in sync between `customProposalParamsABI()`, `createProposal`'s decode, and the app encoder in `plugins/crispVoting/hooks/useCreateProposal.ts`.                 | `CrispVotingViews.t.sol::test_customProposalParamsAbiMatchesTheDecodedTuple`                                          |
+| **INV-19** | **Snapshot timepoints are token-clock units, not block numbers.** FOLD is ERC-6372 `mode=timestamp`, so `snapshotBlock` holds a **timestamp**. Feed it to `getPastVotes`/`getPastTotalSupply`; never use it as an `eth_call` block tag.                                            | `CrispVotingViews.t.sol::test_snapshotUsesTheTokenClockWhenAvailable`, `…UsesBlockNumberWhenTheTokenHasNoClock`       |
+| **INV-20** | **Decimals are read on-chain, never assumed.** Both the fee token (6) and FOLD (18) are read; a hardcoded 18 silently misreports balances and breaks quorum.                                                                                                                       | app `hooks/useTokenDecimals.ts`; app `quorum-invariants.test.ts`                                                      |
+
+### Outcome semantics
+
+| Id         | Invariant                                                                                                                                                                                                                        | Guarded by                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **INV-21** | **Quorum is monotonic in turnout** — more votes must never turn a passing proposal into a failing one.                                                                                                                           | `CrispVotingQuorum.t.sol::testFuzz_quorumIsMonotonicInTurnout`; app `quorum-invariants.test.ts`                                     |
+| **INV-22** | **Quorum is met at exactly the threshold**, and a proposal needs `counts[0] > counts[1]` strictly — a tie is a rejection.                                                                                                        | `CrispVotingQuorum.t.sol::test_quorumReachedExactlyAtThresholdSucceeds`, `…OneUnitBelowThresholdFails`, `test_tieIsRejected`        |
+| **INV-23** | **Executed proposals freeze their tally.** `getTally`/`getWinningOption` must read the stored result, not live CRISP, or a re-published tally would rewrite history.                                                             | `CrispVotingViews.t.sol::test_getTallyReadsTheStoredResultAfterExecution`, `test_getWinningOptionAfterExecutionUsesTheStoredTally`  |
+| **INV-24** | **Execution is single-shot and window-gated**: not before `endDate`, not without a passing tally, never twice.                                                                                                                   | `CrispVotingViews.t.sol::test_executeRevertsBeforeTheVotingWindowCloses`, `…WhenTheTallyDoesNotPass`, `test_executeIsNotRepeatable` |
+| **INV-25** | **Zero-action (signaling) proposals read as `Accepted`, never `Executable`/`Expired`** — except an approval-mode lapse, which really is a rejection. Key on the **SPP's** `proposal.actions`, never CRISP's `isSignalingOnly()`. | app `status-bucket.test.ts`                                                                                                         |
+| **INV-26** | **A veto reads as `Vetoed`, and vetoes are irreversible.** In approval mode a veto is unreachable — silence is the rejection.                                                                                                    | app `status-bucket.test.ts`                                                                                                         |
+
+### Operational
+
+| Id         | Invariant                                                                                                                          | Guarded by                                           |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **INV-27** | **No credential carries a `NEXT_PUBLIC_` prefix.** Next inlines those into the client bundle, making them public to every visitor. | CI `secret-hygiene` job                              |
+| **INV-28** | **Testnet-only UI is env-gated** (`NEXT_PUBLIC_ENABLE_FAUCET`). There is no faucet on mainnet.                                     | `app/constants.ts` (`PUB_ENABLE_FAUCET`)             |
+| **INV-29** | **The Admin plugin is disarmed after wiring** and the deployer retains no `ROOT`. An armed Admin executes on the DAO with no vote. | post-deploy runbook in `SECURITY.md`                 |
+| **INV-30** | **`src/crisp/**` stays at 100% coverage.** A behaviour change without a test fails the build.                                      | CI `MIN_COVERAGE` gate in `.github/workflows/ci.yml` |
+
+Two invariants are **not** enforceable by a test and need a human check: the foundation body must
+be a **multisig, not an EOA** (`SECURITY.md` runbook), and the CRISP server must be honest about
+the eligible-voter set (documented trust assumption).
 
 ## Gotchas (things that cost time if you don't know them)
 
@@ -164,7 +204,13 @@ credits)`** and MUST stay in sync between `CrispVoting.customProposalParamsABI()
 ## Conventions
 
 - Contracts: `forge fmt`; Solidity 0.8.29; match existing NatSpc density. Add tests to
-  `contracts/test/` for any behavior change (see `CrispVotingSpp.t.sol` for the SPP-body mocks).
+  `contracts/test/` for any behavior change. The suites are split by concern:
+  `CrispVotingSpp.t.sol` (SPP-body lifecycle), `CrispVotingQuorum.t.sol` (tally scaling +
+  quorum), `CrispVotingViews.t.sol` (read surface, settings, revert paths),
+  `CrispVotingSetup.t.sol` (install/uninstall permissions). Shared test doubles live in
+  `contracts/test/mocks/CrispMocks.sol` — extend those rather than redeclaring per-file.
+- **`src/crisp/**` is at 100% coverage and CI enforces it** (`MIN_COVERAGE` in `ci.yml`).
+  A behaviour change without a test will fail the build.
 - App: match existing style — `If/Then` components, `useTransactionManager`, alerts, `@aragon/ods`.
   Run `bun run build` (typecheck) before committing.
 - Root: `bun run format` / `bun run lint` cover both packages (Prettier + `forge fmt`).
