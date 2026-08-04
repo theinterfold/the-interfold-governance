@@ -205,6 +205,10 @@ interface IInterfold {
     /// @param paramSet The BFV encryption parameter set to use.
     /// @param computeProviderParams The ABI encoded compute provider parameters.
     /// @param customParams Arbitrary ABI-encoded application-defined parameters.
+    /// @dev The whole struct is one selector, so this must match the deployed Interfold exactly.
+    ///      `proofAggregationEnabled` was removed upstream; keeping it here changes
+    ///      `request`'s selector, which means the call reaches no function and reverts with *empty*
+    ///      data — no named error, nothing to diagnose from.
     struct E3RequestParams {
         CommitteeSize committeeSize;
         uint256[2] inputWindow;
@@ -212,12 +216,6 @@ interface IInterfold {
         uint8 paramSet;
         bytes computeProviderParams;
         bytes customParams;
-        /// @notice When true, ciphernodes generate and fold wrapper proofs
-        ///         for DKG proof aggregation (public verifiability). When
-        ///         false, wrapper/fold proofs are skipped to reduce latency.
-        ///         C5 and C7 proofs are always generated and verified on-chain
-        ///         regardless of this flag.
-        bool proofAggregationEnabled;
     }
 
     ////////////////////////////////////////////////////////////

@@ -20,4 +20,19 @@ interface ICRISP {
         /// @notice Credits are custom (can be based on token balance, etc)
         CUSTOM
     }
+
+    /// @notice How the coordinator decides who is allowed to vote in a round.
+    ///
+    /// @dev Declared per round rather than inferred, because the two are indistinguishable from
+    ///      outside and guessing wrong enfranchises the wrong people silently. Governance wants
+    ///      TOKEN: eligibility is "held the voting token at the snapshot", which the coordinator
+    ///      reconstructs from transfer logs without asking anyone.
+    enum CensusMode {
+        /// @notice The coordinator derives the electorate from holders of the voting token.
+        TOKEN,
+        /// @notice The coordinator asks the requesting contract via `getCensus(uint256)`. For
+        ///         applications whose electorate is not a token balance — a subset of players, a
+        ///         jury — and which therefore cannot be discovered.
+        BY_REQUESTER
+    }
 }

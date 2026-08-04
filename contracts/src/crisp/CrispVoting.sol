@@ -584,8 +584,20 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         view
         returns (IInterfold.E3RequestParams memory)
     {
+        // Six fields, and the sixth is not optional: `CRISPProgram.validate` decodes exactly this
+        // shape, so a five-field encoding reverts the request rather than defaulting to anything.
+        //
+        // TOKEN, because governance eligibility *is* the token balance at the snapshot — the
+        // coordinator reconstructs it from transfer logs and needs nothing from this contract.
+        // BY_REQUESTER exists for electorates that cannot be discovered that way (a subset of
+        // players, a jury), and would oblige this plugin to answer `getCensus(uint256)` per round.
         bytes memory customParams = abi.encode(
-            address(votingToken), votingSettings.minVoterVotingPower, NUM_OPTIONS, ICRISP.CreditMode.CUSTOM, _credits
+            address(votingToken),
+            votingSettings.minVoterVotingPower,
+            NUM_OPTIONS,
+            ICRISP.CreditMode.CUSTOM,
+            _credits,
+            ICRISP.CensusMode.TOKEN
         );
 
         return IInterfold.E3RequestParams({
@@ -594,7 +606,6 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             e3Program: IE3Program(crispProgramAddress),
             computeProviderParams: computeProviderParams,
             customParams: customParams,
-            proofAggregationEnabled: false,
             paramSet: paramSet
         });
     }

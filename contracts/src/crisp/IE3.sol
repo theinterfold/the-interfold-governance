@@ -90,5 +90,10 @@ struct E3 {
     bytes32 ciphertextOutput;
     bytes plaintextOutput;
     address requester;
-    bool proofAggregationEnabled;
+    /// @dev Replaced `bool proofAggregationEnabled` upstream. Both occupy one word in the same
+    ///      position, so the stale definition happened to keep decoding — a fresh E3 has this zero,
+    ///      and zero is a valid `bool`. It would only have failed once the field carried a real
+    ///      commitment, which is nowhere near the `request` that reads it. Matching the deployment
+    ///      exactly is cheaper than relying on that.
+    bytes32 ciphertextCommitment;
 }
