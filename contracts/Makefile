@@ -32,6 +32,11 @@ wire-spp: ## Bootstrap: proposal wiring SPP stages + permissions (run after depl
 	forge script script/WireSpp.s.sol:WireSppScript \
 		--rpc-url $$RPC_URL --broadcast --slow -vvvv
 
+publish-crisp-build: ## Publish a new CRISP build into the EXISTING plugin repo (run after changing CrispVotingSetup)
+	set -a; . ./.env; set +a; \
+	forge script script/PublishCrispBuild.s.sol:PublishCrispBuild \
+		--rpc-url $$RPC_URL --broadcast --slow -vvvv
+
 # DEPRECATED: superseded by the SPP veto stage (wire-spp). Kept for reference only.
 lock-public-execution: ## Bootstrap: create a proposal locking public execution to the foundation
 	set -a; . ./.env; set +a; \
