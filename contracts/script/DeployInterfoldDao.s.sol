@@ -171,7 +171,12 @@ contract DeployInterfoldDaoScript is Script {
 
         // NOTE: no foundation param anymore — the foundation's veto power moved from an
         // execute-gate on the plugin to the SPP's veto stage (configured in wire-spp).
-        bytes memory data = abi.encode(params, tokenSettings, mintSettings);
+        //
+        // `grantExecuteOnDao: false` — this plugin is installed as an SPP body. Granting it
+        // EXECUTE on the DAO would let a stage-0 proposal execute without ever reaching the veto
+        // stage, which is the whole point of the staged setup. Only a standalone install (the
+        // Aragon app's simple-governance path) passes true.
+        bytes memory data = abi.encode(params, tokenSettings, mintSettings, false);
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(1, 1), crispRepo), data);
     }
 

@@ -113,13 +113,20 @@ contract CrispVotingSetupTest is Test {
         });
     }
 
+    /// @dev Defaults to the SPP-body shape (no EXECUTE on the DAO), which is what the Interfold
+    ///      deployment installs and what the invariant tests below are about.
     function _encode(address tokenAddr) internal view returns (bytes memory) {
+        return _encode(tokenAddr, false);
+    }
+
+    function _encode(address tokenAddr, bool grantExecuteOnDao) internal view returns (bytes memory) {
         address[] memory receivers = new address[](0);
         uint256[] memory amounts = new uint256[](0);
         return abi.encode(
             _params(tokenAddr),
             CrispVotingSetup.TokenSettings({addr: tokenAddr, name: "Interfold", symbol: "FOLD"}),
-            GovernanceERC20.MintSettings({receivers: receivers, amounts: amounts})
+            GovernanceERC20.MintSettings({receivers: receivers, amounts: amounts}),
+            grantExecuteOnDao
         );
     }
 
@@ -162,13 +169,17 @@ contract CrispVotingSetupTest is Test {
         (address plugin, IPluginSetup.PreparedSetupData memory data) =
             setup.prepareInstallation(address(dao), _encode(token));
 
-        assertEq(data.permissions.length, 2, "existing token => no mint permission");
+        assertEq(data.permissions.length, 3, "existing token, SPP body => settings pair + CREATE_PROPOSAL");
 
         for (uint256 i = 0; i < data.permissions.length; i++) {
             assertEq(uint8(data.permissions[i].operation), uint8(PermissionLib.Operation.Grant), "must be a grant");
             assertEq(data.permissions[i].where, plugin, "must target the plugin");
-            assertEq(data.permissions[i].who, address(dao), "only the DAO may hold these");
         }
+
+        // The settings pair is governance-only; proposal creation deliberately is not.
+        assertEq(data.permissions[0].who, address(dao), "SET_TARGET_CONFIG is the DAO's");
+        assertEq(data.permissions[1].who, address(dao), "MANAGER is the DAO's");
+        assertEq(data.permissions[2].who, ANY_ADDR, "CREATE_PROPOSAL is open, subject to voting power");
 
         assertEq(data.permissions[0].permissionId, setup.crispVotingBase().SET_TARGET_CONFIG_PERMISSION_ID());
         assertEq(data.permissions[1].permissionId, CrispVoting(plugin).MANAGER_PERMISSION_ID());
@@ -194,15 +205,60 @@ contract CrispVotingSetupTest is Test {
         }
     }
 
+    /// @notice A standalone process must be able to create proposals AND execute the ones that
+    ///         pass, or installing it through the app produces an inert DAO. This is the case the
+    ///         plugin was never installed in before: every deployment so far went through the SPP.
+    function test_prepareInstallationGrantsCreateProposalToAnyAddrInBothShapes() public {
+        bytes32 createProposal = keccak256("CREATE_PROPOSAL_PERMISSION");
+        address token = address(new MockVotesErc20());
+
+        bool[2] memory shapes = [false, true];
+        for (uint256 i = 0; i < shapes.length; i++) {
+            (address plugin, IPluginSetup.PreparedSetupData memory data) =
+                setup.prepareInstallation(address(dao), _encode(token, shapes[i]));
+
+            bool found;
+            for (uint256 j = 0; j < data.permissions.length; j++) {
+                if (data.permissions[j].permissionId == createProposal) {
+                    found = true;
+                    assertEq(data.permissions[j].who, address(type(uint160).max), "must be granted to ANY_ADDR");
+                    assertEq(data.permissions[j].where, plugin, "granted on the plugin");
+                }
+            }
+            assertTrue(found, "CREATE_PROPOSAL must be granted in both shapes");
+        }
+    }
+
+    /// @notice The standalone counterpart of the invariant above: with the flag set, and only
+    ///         then, the plugin may execute on the DAO.
+    function test_prepareInstallationGrantsExecuteOnlyForAStandaloneProcess() public {
+        bytes32 executePermission = keccak256("EXECUTE_PERMISSION");
+        address token = address(new MockVotesErc20());
+
+        (address plugin, IPluginSetup.PreparedSetupData memory data) =
+            setup.prepareInstallation(address(dao), _encode(token, true));
+
+        bool found;
+        for (uint256 i = 0; i < data.permissions.length; i++) {
+            if (data.permissions[i].permissionId == executePermission) {
+                found = true;
+                assertEq(data.permissions[i].where, address(dao), "EXECUTE is granted on the DAO");
+                assertEq(data.permissions[i].who, plugin, "EXECUTE is granted to the plugin");
+            }
+        }
+        assertTrue(found, "a standalone process must be able to execute its own proposals");
+    }
+
     /// @notice Minting must be governance-gated. This previously granted to ANY_ADDR
     ///         "for testing", which would have let anyone mint the governance token and
     ///         manufacture voting power.
     function test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr() public {
         (, IPluginSetup.PreparedSetupData memory data) = setup.prepareInstallation(address(dao), _encode(address(0)));
 
-        assertEq(data.permissions.length, 3, "fresh token => mint permission is also granted");
+        assertEq(data.permissions.length, 4, "fresh token => mint permission is also granted");
 
-        PermissionLib.MultiTargetPermission memory mintPerm = data.permissions[2];
+        // [0] SET_TARGET_CONFIG, [1] MANAGER, [2] CREATE_PROPOSAL, [3] MINT
+        PermissionLib.MultiTargetPermission memory mintPerm = data.permissions[3];
         assertEq(mintPerm.permissionId, keccak256("MINT_PERMISSION"), "third grant must be the mint permission");
         assertEq(mintPerm.who, address(dao), "mint must be granted to the DAO");
         assertTrue(mintPerm.who != ANY_ADDR, "mint must NEVER be granted to ANY_ADDR");
@@ -218,14 +274,27 @@ contract CrispVotingSetupTest is Test {
             address(dao), IPluginSetup.SetupPayload({plugin: plugin, currentHelpers: new address[](0), data: bytes("")})
         );
 
-        assertEq(revoked.length, 2, "both plugin permissions must be revoked");
+        assertEq(revoked.length, 4, "every permission install grants must be revoked");
         for (uint256 i = 0; i < revoked.length; i++) {
             assertEq(uint8(revoked[i].operation), uint8(PermissionLib.Operation.Revoke), "must be a revoke");
-            assertEq(revoked[i].where, plugin, "must target the plugin");
-            assertEq(revoked[i].who, address(dao), "must revoke from the DAO");
         }
 
         assertEq(revoked[0].permissionId, setup.crispVotingBase().SET_TARGET_CONFIG_PERMISSION_ID());
+        assertEq(revoked[0].where, plugin);
+        assertEq(revoked[0].who, address(dao));
+
         assertEq(revoked[1].permissionId, setup.crispVotingBase().MANAGER_PERMISSION_ID());
+        assertEq(revoked[1].where, plugin);
+        assertEq(revoked[1].who, address(dao));
+
+        assertEq(revoked[2].permissionId, keccak256("CREATE_PROPOSAL_PERMISSION"));
+        assertEq(revoked[2].where, plugin);
+        assertEq(revoked[2].who, ANY_ADDR);
+
+        // Revoked unconditionally: a no-op for an SPP body that never held it, and the difference
+        // between a clean uninstall and a plugin that can still act on the DAO for a standalone one.
+        assertEq(revoked[3].permissionId, keccak256("EXECUTE_PERMISSION"));
+        assertEq(revoked[3].where, address(dao));
+        assertEq(revoked[3].who, plugin);
     }
 }

@@ -35,6 +35,11 @@ contract CrispVotingSetup is PluginSetup {
     // solhint-disable-next-line immutable-vars-naming
     address public immutable governanceWrappedERC20Base;
 
+    /// @notice The wildcard grantee understood by OSx's `PermissionManager`. Redeclared here
+    ///     because the canonical one is `internal` to `PermissionManager` and therefore not
+    ///     reachable from a setup contract. Must stay identical to it.
+    address internal constant ANY_ADDR = address(type(uint160).max);
+
     /// @notice Configuration settings for a token used within the governance system.
     /// @param addr The token address. If set to `address(0)`, a new
     /// `GovernanceERC20` token is deployed.
@@ -79,15 +84,19 @@ contract CrispVotingSetup is PluginSetup {
         external
         returns (address plugin, PreparedSetupData memory preparedSetupData)
     {
-        // Decode the installation params. Note: under the staged-governance (SPP) setup the
-        // plugin acts as an SPP body — it does NOT get EXECUTE_PERMISSION on the DAO, and the
-        // foundation's veto lives in the SPP's veto stage (no execution gate here anymore).
+        // Decode the installation params. `grantExecuteOnDao` distinguishes the two shapes this plugin is installed in. A
+        // standalone process executes its own passed proposals and needs EXECUTE on the DAO; an
+        // SPP body must never hold it (see the invariant below). It is an explicit install
+        // parameter rather than a permission granted here and revoked by a later wiring step,
+        // because a wiring step that is skipped, reverted or forgotten would leave the veto
+        // bypassable — and nothing on-chain would say so.
         (
             ICrispVoting.PluginInitParams memory params,
             TokenSettings memory tokenSettings,
-            GovernanceERC20.MintSettings memory mintSettings
+            GovernanceERC20.MintSettings memory mintSettings,
+            bool grantExecuteOnDao
         ) = abi.decode(
-            _installationParams, (ICrispVoting.PluginInitParams, TokenSettings, GovernanceERC20.MintSettings)
+            _installationParams, (ICrispVoting.PluginInitParams, TokenSettings, GovernanceERC20.MintSettings, bool)
         );
 
         address token = tokenSettings.addr;
@@ -121,14 +130,26 @@ contract CrispVotingSetup is PluginSetup {
         // 1) Upgradeable plugin variant
         plugin = ProxyLib.deployUUPSProxy(implementation(), abi.encodeCall(CrispVoting.initialize, params));
 
-        // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER on the plugin
-        // (so governance can point the plugin at the delegatecall Executor and tune voting
-        // settings). CREATE_PROPOSAL is granted to the SPP post-install by the wiring proposal
-        // (the SPP address is unknown at install time). The plugin deliberately does NOT get
-        // EXECUTE_PERMISSION on the DAO: only the SPP executes on the DAO, which is what makes
-        // the veto stage non-bypassable. Plus a mint permission when a fresh token was deployed.
+        // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER on the plugin (so
+        // governance can point the plugin at the delegatecall Executor and tune voting settings),
+        // plus CREATE_PROPOSAL to ANY_ADDR so the process is usable at all. EXECUTE on the DAO is
+        // added only for a standalone process, and a mint permission only when a fresh token was
+        // deployed.
+        //
+        // CREATE_PROPOSAL is granted to ANY_ADDR in both shapes: proposal creation is gated by
+        // the plugin's own `minProposerVotingPower`, and a proposal created directly on an SPP
+        // body is inert, since without EXECUTE it can never act on the DAO. Aragon's SPP wiring
+        // narrows it to the SPP address anyway. Withholding it entirely is what left every
+        // standalone install unusable: nobody could create a proposal on it, ever.
+        //
+        // INVARIANT: an SPP body must never receive EXECUTE_PERMISSION on the DAO. If it did, a
+        // proposer could execute straight from stage 0 and skip the veto stage entirely.
+        uint256 permissionCount = 3;
+        if (grantExecuteOnDao) permissionCount++;
+        if (tokenSettings.addr == address(0)) permissionCount++;
+
         PermissionLib.MultiTargetPermission[] memory permissions =
-            new PermissionLib.MultiTargetPermission[](tokenSettings.addr != address(0) ? 2 : 3);
+            new PermissionLib.MultiTargetPermission[](permissionCount);
 
         // The DAO can re-target the plugin's executor (setTargetConfig).
         permissions[0] = PermissionLib.MultiTargetPermission({
@@ -148,19 +169,37 @@ contract CrispVotingSetup is PluginSetup {
             permissionId: CrispVoting(plugin).MANAGER_PERMISSION_ID()
         });
 
+        permissions[2] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Grant,
+            where: plugin,
+            who: ANY_ADDR,
+            condition: PermissionLib.NO_CONDITION,
+            permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
+        });
+
+        uint256 next = 3;
+
+        if (grantExecuteOnDao) {
+            permissions[next++] = PermissionLib.MultiTargetPermission({
+                operation: PermissionLib.Operation.Grant,
+                where: _dao,
+                who: plugin,
+                condition: PermissionLib.NO_CONDITION,
+                permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID()
+            });
+        }
+
         // Grant the `MINT_PERMISSION_ID` on the token to the DAO if deploying a new token
         if (tokenSettings.addr == address(0)) {
-            bytes32 tokenMintPermission = GovernanceERC20(token).MINT_PERMISSION_ID();
-
             // Minting is governance-only. This previously granted to ANY_ADDR
             // (`address(type(uint160).max)`) "for testing", which let anyone mint the
             // governance token and therefore manufacture voting power at will.
-            permissions[2] = PermissionLib.MultiTargetPermission({
+            permissions[next] = PermissionLib.MultiTargetPermission({
                 operation: PermissionLib.Operation.Grant,
                 where: token,
                 who: _dao,
                 condition: PermissionLib.NO_CONDITION,
-                permissionId: tokenMintPermission
+                permissionId: GovernanceERC20(token).MINT_PERMISSION_ID()
             });
         }
 
@@ -173,8 +212,10 @@ contract CrispVotingSetup is PluginSetup {
         view
         returns (PermissionLib.MultiTargetPermission[] memory permissions)
     {
-        // Request reverting the granted permissions.
-        permissions = new PermissionLib.MultiTargetPermission[](2);
+        // Request reverting the granted permissions. Mirrors `prepareInstallation` exactly: a
+        // permission granted there and not revoked here outlives the plugin, and an uninstalled
+        // process that still holds EXECUTE on the DAO is a live hole.
+        permissions = new PermissionLib.MultiTargetPermission[](4);
 
         permissions[0] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Revoke,
@@ -190,6 +231,25 @@ contract CrispVotingSetup is PluginSetup {
             who: _dao,
             condition: PermissionLib.NO_CONDITION,
             permissionId: crispVotingBase.MANAGER_PERMISSION_ID()
+        });
+
+        permissions[2] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Revoke,
+            where: _payload.plugin,
+            who: ANY_ADDR,
+            condition: PermissionLib.NO_CONDITION,
+            permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
+        });
+
+        // Revoked unconditionally even though an SPP body had it revoked at wiring time: a
+        // revoke of a permission that is not held is a no-op, whereas leaving a standalone
+        // plugin's EXECUTE in place after uninstall would leave it able to act on the DAO.
+        permissions[3] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Revoke,
+            where: _dao,
+            who: _payload.plugin,
+            condition: PermissionLib.NO_CONDITION,
+            permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID()
         });
     }
 
