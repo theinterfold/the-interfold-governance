@@ -65,29 +65,51 @@ contract DeployInterfoldDaoScript is Script {
         address fold = vm.envAddress("FOLD_TOKEN_ADDRESS");
         require(fold != address(0), "FOLD_TOKEN_ADDRESS not set");
 
+        // Phased rollout (see docs/mainnet-deployment.md). When false, ONLY the public
+        // process is deployed: TokenVoting body + one SPP + the Admin bootstrap. The CRISP
+        // body and its SPP are installed later into the live DAO by InstallPrivateProcess.
+        // Defaults to true so the Sepolia flow is unchanged.
+        bool withPrivate = vm.envOr("DEPLOY_PRIVATE_PROCESS", true);
+
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
-        // 1. Deploy + publish the CRISP plugin as a new PluginRepo, plus the stateless
-        //    Executor that SPP bodies delegatecall into (keeps `msg.sender` == body when
-        //    a sub-proposal reports its result back to the SPP).
-        CrispVotingSetup crispSetup = deployCrispSetup();
-        PluginRepo crispRepo = deployCrispRepo(address(crispSetup));
+        // 1. The stateless Executor that SPP bodies delegatecall into (keeps `msg.sender` ==
+        //    body when a sub-proposal reports its result back to the SPP). Always deployed —
+        //    the public body needs it now, and phase 2 reuses this same instance.
         Executor executor = new Executor();
 
-        // 2. Assemble all installations. Bodies (CRISP + TokenVoting) point at the existing
-        //    FOLD token; the two SPP instances (one per process: PRIVATE and PUBLIC) install
-        //    with EMPTY stages — bodies are only known post-deploy, so stages + permissions
-        //    are wired by the follow-up bootstrap step (make wire-spp). The Admin plugin gives
-        //    the deployer direct execute-on-DAO power so wire-spp needs NO governance vote; the
-        //    wiring's final action revokes that power, disarming the bootstrap.
-        IDAOFactory.PluginSettings[] memory pluginSettings = new IDAOFactory.PluginSettings[](5);
-        pluginSettings[0] = crispPluginSettings(crispRepo, fold); // index 0 -> PRIVATE body
-        pluginSettings[1] = tokenVotingPluginSettings(fold); // index 1 -> PUBLIC body
-        pluginSettings[2] = sppPluginSettings(); // index 2 -> SPP (PRIVATE process)
-        pluginSettings[3] = sppPluginSettings(); // index 3 -> SPP (PUBLIC process)
-        pluginSettings[4] = adminPluginSettings(); // index 4 -> Admin (bootstrap, disarmed by wire-spp)
+        // 1b. Deploy + publish the CRISP plugin as a new PluginRepo (private process only).
+        //     Skipped entirely in the public-only deploy: `Utils.readCrispEnv()` reads
+        //     INTERFOLD_ADDRESS via `envAddress` and would revert on an unset mainnet value.
+        CrispVotingSetup crispSetup;
+        PluginRepo crispRepo;
+        if (withPrivate) {
+            crispSetup = deployCrispSetup();
+            crispRepo = deployCrispRepo(address(crispSetup));
+        }
 
-        // 3. Create the DAO with both plugins installed atomically.
+        // 2. Assemble all installations. Bodies (CRISP + TokenVoting) point at the existing
+        //    FOLD token; the SPP instances (one per process) install with EMPTY stages —
+        //    bodies are only known post-deploy, so stages + permissions are wired by the
+        //    follow-up bootstrap step (make wire-spp). The Admin plugin gives the deployer
+        //    direct execute-on-DAO power so wire-spp needs NO governance vote.
+        //
+        //    Install order is load-bearing: `InstallationApplied` is emitted in this order and
+        //    step 4 recovers the addresses positionally.
+        IDAOFactory.PluginSettings[] memory pluginSettings = new IDAOFactory.PluginSettings[](withPrivate ? 5 : 3);
+        if (withPrivate) {
+            pluginSettings[0] = crispPluginSettings(crispRepo, fold); // PRIVATE body
+            pluginSettings[1] = tokenVotingPluginSettings(fold); // PUBLIC body
+            pluginSettings[2] = sppPluginSettings(); // SPP (PRIVATE process)
+            pluginSettings[3] = sppPluginSettings(); // SPP (PUBLIC process)
+            pluginSettings[4] = adminPluginSettings(); // Admin (bootstrap)
+        } else {
+            pluginSettings[0] = tokenVotingPluginSettings(fold); // PUBLIC body
+            pluginSettings[1] = sppPluginSettings(); // SPP (PUBLIC process)
+            pluginSettings[2] = adminPluginSettings(); // Admin (bootstrap)
+        }
+
+        // 3. Create the DAO with the plugins installed atomically.
         vm.recordLogs();
         address createdDAO = daoFactory.createDao(getDAOSettings(), pluginSettings);
 
@@ -105,24 +127,43 @@ contract DeployInterfoldDaoScript is Script {
         vm.stopBroadcast();
 
         // 6. Log everything needed for the frontend .env and the wire-spp step.
+        //    These labels are PARSED BY script/sync-env.sh — keep them byte-stable.
         console2.log("=== The Interfold DAO ===");
         console2.log("DAO:                 ", createdDAO);
         console2.log("FOLD token (shared): ", fold);
-        console2.log("CRISP PluginRepo:    ", address(crispRepo));
-        console2.log("CRISP setup:         ", address(crispSetup));
         console2.log("Executor (delegatecall target): ", address(executor));
-        if (installedPlugins.length == 5) {
+        logInstalledPlugins(withPrivate, crispRepo, crispSetup);
+    }
+
+    /// @dev Emits the per-plugin summary. Labels are parsed by `script/sync-env.sh`, which
+    ///      matches them literally — do not reword them without updating that script.
+    function logInstalledPlugins(bool withPrivate, PluginRepo crispRepo, CrispVotingSetup crispSetup) internal view {
+        uint256 expected = withPrivate ? 5 : 3;
+        if (installedPlugins.length != expected) {
+            console2.log("WARNING: expected installations:", expected);
+            console2.log("         recovered:             ", installedPlugins.length);
+            for (uint256 i = 0; i < installedPlugins.length; i++) {
+                console2.log("Installed plugin:    ", installedPlugins[i]);
+            }
+            return;
+        }
+
+        if (withPrivate) {
+            console2.log("CRISP PluginRepo:    ", address(crispRepo));
+            console2.log("CRISP setup:         ", address(crispSetup));
             console2.log("CRISP plugin (PRIVATE body):  ", installedPlugins[0]);
             console2.log("TokenVoting plugin (PUBLIC body): ", installedPlugins[1]);
             console2.log("SPP plugin (PRIVATE process): ", installedPlugins[2]);
             console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[3]);
             console2.log("Admin plugin (bootstrap):     ", installedPlugins[4]);
-            console2.log("NEXT STEP: run `make sync-env` then `make wire-spp` (no vote needed)");
         } else {
-            for (uint256 i = 0; i < installedPlugins.length; i++) {
-                console2.log("Installed plugin:    ", installedPlugins[i]);
-            }
+            console2.log("TokenVoting plugin (PUBLIC body): ", installedPlugins[0]);
+            console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[1]);
+            console2.log("Admin plugin (bootstrap):     ", installedPlugins[2]);
+            console2.log("PUBLIC-ONLY deploy: no CRISP body, no PRIVATE process.");
+            console2.log("  Phase 2 installs them into this DAO (make install-private-process).");
         }
+        console2.log("NEXT STEP: run `make sync-env` then `make wire-spp` (no vote needed)");
     }
 
     // --- CRISP (private) ---

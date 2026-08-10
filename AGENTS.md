@@ -31,6 +31,22 @@ make sync-env   # parse deploy.log → write contracts/.env + app/.env
 make wire-spp   # Admin executes the wiring in one tx, then disarms (no vote)
 ```
 
+Phased rollout (mainnet — see [`docs/mainnet-deployment.md`](docs/mainnet-deployment.md)). Two env
+flags, both defaulting to today's single-phase behaviour so Sepolia is unaffected:
+`DEPLOY_PRIVATE_PROCESS=false` deploys the public process only, `DISARM_ADMIN=false` leaves the
+Admin bootstrap armed so plugins can be installed later without a vote.
+
+```bash
+make publish-crisp-repo         # phase 2 step 1: CrispVotingSetup + mint the CRISP PluginRepo
+make prepare-private-process    # phase 2 step 2: prepareInstallation (EOA, DAO untouched)
+make install-private-process    # phase 2 step 3: Admin applies + wires the private process
+make print-private-actions      # same actions as calldata, if the Admin is already disarmed
+make disarm-admin               # revoke the Admin bootstrap's EXECUTE (INV-29) — always separate
+```
+
+**Disarming is never bundled into a deploy or an install.** It is its own command so it is always a
+deliberate action, and so a failed install is not entangled with an irreversible revoke.
+
 Frontend (`cd app`):
 
 ```bash
@@ -176,15 +192,24 @@ the eligible-voter set (documented trust assumption).
 - **`.env` is the source of truth for addresses** (written by `sync-env`, gitignored). `deploy.log`
   is a convenience artifact; canonical Aragon repo addresses (TokenVoting, SPP, Admin) live in
   `.env.example`.
+- **One env file per network.** `.env.example` is Sepolia; `.env.mainnet.example` is the mainnet
+  production set (OSx v1.4.0 factories, `spp.plugin.dao.eth`, production quorum/timings). Every
+  target takes `ENV_FILE`, and the whole chain must use the same value:
+  `make deploy ENV_FILE=.env.mainnet && make sync-env ENV_FILE=.env.mainnet && make wire-spp ENV_FILE=.env.mainnet`
+  (`DEPLOY_LOG` / `APP_ENV_FILE` override the log and frontend env alongside it). Mainnet is
+  **not deployable yet** — the template's four `TODO(mainnet)` entries (FOLD, foundation multisig,
+  Interfold coordinator, CRISP program) have no mainnet deployment.
 
 ## Where things live
 
 | Concern                                                     | Location                                                                        |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Staged-governance mechanism                                 | `docs/architecture.md`                                                          |
+| Mainnet rollout runbook (phased public → private)           | `docs/mainnet-deployment.md`                                                    |
 | CRISP fork (escrow, per-proposal duration, SPP-body wiring) | `contracts/src/crisp/CrispVoting.sol` + `setup/`                                |
 | Deploy (5 plugins + Executor)                               | `contracts/script/DeployInterfoldDao.s.sol`                                     |
 | Wiring (stages, grants, delegatecall, disarm)               | `contracts/script/WireSpp.s.sol`                                                |
+| Phase-2 install of the private process into a live DAO      | `contracts/script/InstallPrivateProcess.s.sol`                                  |
 | Canonical-plugin install encoders                           | `contracts/script/{TokenVotingInstall,SppInstall}.sol`                          |
 | SPP frontend module (stages, veto, advance)                 | `app/plugins/spp/`                                                              |
 | Private / public body UIs                                   | `app/plugins/crispVoting/` · `app/plugins/tokenVoting/`                         |

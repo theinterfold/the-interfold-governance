@@ -10,14 +10,21 @@
 #   ./script/sync-env.sh [deploy.log]
 #
 # Defaults to ./deploy.log (written by `make deploy`).
+#
+# CONTRACTS_ENV and APP_ENV may be overridden to target a non-default env file —
+# this is how `make sync-env ENV_FILE=.env.mainnet` keeps a mainnet run from
+# patching the Sepolia `.env`. Relative paths resolve against contracts/ and the
+# repo root respectively.
 
 set -euo pipefail
 
 CONTRACTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT_DIR="$(cd "${CONTRACTS_DIR}/.." && pwd)"
 LOG_FILE="${1:-${CONTRACTS_DIR}/deploy.log}"
-APP_ENV="${ROOT_DIR}/app/.env"
-CONTRACTS_ENV="${CONTRACTS_DIR}/.env"
+# Resolve to absolute so the values are stable regardless of the caller's cwd.
+abs_path() { case "$1" in /*) printf '%s' "$1";; *) printf '%s/%s' "$2" "$1";; esac; }
+APP_ENV="$(abs_path "${APP_ENV:-app/.env}" "${ROOT_DIR}")"
+CONTRACTS_ENV="$(abs_path "${CONTRACTS_ENV:-.env}" "${CONTRACTS_DIR}")"
 
 if [[ ! -f "${LOG_FILE}" ]]; then
   echo "error: deploy log not found: ${LOG_FILE}" >&2
@@ -26,8 +33,11 @@ if [[ ! -f "${LOG_FILE}" ]]; then
 fi
 
 # Pull the address that follows a given console2.log label.
+# A missing label is NOT an error — a public-only deploy logs no CRISP/private-SPP address.
+# Without the `|| true` the empty grep would exit the whole script under `set -e`, because
+# the exit status of an assignment is the exit status of its command substitution.
 addr_for() {
-  grep -F "$1" "${LOG_FILE}" | grep -oE '0x[a-fA-F0-9]{40}' | tail -1
+  grep -F "$1" "${LOG_FILE}" 2>/dev/null | grep -oE '0x[a-fA-F0-9]{40}' | tail -1 || true
 }
 
 DAO_ADDRESS="$(addr_for 'DAO:')"
@@ -56,10 +66,18 @@ if [[ -n "${RUN_JSON}" && -f "${RUN_JSON}" ]]; then
     | sort -n | head -1 || true)"
 fi
 
-if [[ -z "${DAO_ADDRESS}" || -z "${CRISP_PLUGIN}" || -z "${TOKEN_VOTING_PLUGIN}" ]]; then
-  echo "error: could not parse all addresses from ${LOG_FILE}" >&2
-  echo "  DAO=${DAO_ADDRESS} CRISP=${CRISP_PLUGIN} TOKENVOTING=${TOKEN_VOTING_PLUGIN}" >&2
+# The public body always exists. The CRISP body does NOT in a public-only (phased) deploy —
+# `DEPLOY_PRIVATE_PROCESS=false` installs three plugins and never logs a CRISP address, so
+# it is optional here. `set_env` skips empty values, leaving any existing entry untouched.
+if [[ -z "${DAO_ADDRESS}" || -z "${TOKEN_VOTING_PLUGIN}" ]]; then
+  echo "error: could not parse the required addresses from ${LOG_FILE}" >&2
+  echo "  DAO=${DAO_ADDRESS} TOKENVOTING=${TOKEN_VOTING_PLUGIN}" >&2
   exit 1
+fi
+
+if [[ -z "${CRISP_PLUGIN}" || -z "${SPP_PRIVATE}" ]]; then
+  echo "note: no private process in this deploy (public-only phase)." >&2
+  echo "      CRISP_VOTING_PLUGIN_ADDRESS / SPP_PRIVATE_ADDRESS are left as-is." >&2
 fi
 
 # Set KEY=VALUE in an env file: replace the line if the key exists, else append.

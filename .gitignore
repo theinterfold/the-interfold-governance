@@ -7,3 +7,7 @@ node_modules/
 .env.*
 !.env.example
 !**/.env.example
+# Per-network templates (.env.mainnet.example, ...). The `.example` suffix is the
+# only thing that makes a .env file committable — a filled .env.mainnet stays ignored.
+!.env.*.example
+!**/.env.*.example

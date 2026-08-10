@@ -44,7 +44,29 @@ There are **two SPP processes** — one wrapping the private (CRISP) body, one w
 - [Bun](https://bun.sh) — the frontend
 - [Foundry](https://getfoundry.sh) (`forge`, `cast`) — the contracts
 - [pnpm](https://pnpm.io) — installs the contracts' npm Solidity deps (`make setup`)
-- An RPC endpoint (Alchemy/Infura) and a funded deployer key for the target network (Sepolia)
+- An RPC endpoint (Alchemy/Infura) and a funded deployer key for the target network
+
+## From a fresh clone
+
+```bash
+git clone <repo-url> the-interfold-governance
+cd the-interfold-governance
+
+bun install            # root tooling (Prettier)
+
+cd contracts
+make setup             # git submodules under lib/ + pnpm Solidity deps
+make build
+make test              # 68 tests; src/crisp/** is held at 100% coverage by CI
+
+cd ../app
+bun install
+bun run build          # typecheck + build
+```
+
+That is the whole local setup — no deployment required to run the test suites. To point the app at
+an existing deployment, fill `app/.env` from `app/.env.example`; to stand up your own, see
+[Deploying to Sepolia](#deploying-to-sepolia) below.
 
 ## Frontend (`app/`)
 
@@ -69,24 +91,77 @@ make build
 make test
 ```
 
-### Deploy
+Every deploy command takes `ENV_FILE` (default `.env`), so each network gets its own env file and
+they never overwrite each other's addresses. **The whole chain must use the same value** — `deploy`,
+`sync-env` and `wire-spp` each read it.
 
-`DeployInterfoldDao` creates the Interfold DAO and installs **five** plugins in one atomic
-`createDao` (two voting bodies, two SPP processes, and an Admin bootstrap plugin), sharing the
-existing FOLD token. `wire-spp` then configures the stages and permissions **with no vote** by
-executing through the Admin plugin, which disarms itself as the last step.
+## Deploying to Sepolia
+
+The single-phase flow: one `createDao` installs **five** plugins (two voting bodies, two SPP
+processes, an Admin bootstrap), sharing the existing FOLD token. `wire-spp` then configures stages
+and permissions **with no vote** by executing through the Admin plugin, which disarms itself as the
+last action.
 
 ```bash
-cp .env.example .env   # Sepolia framework + Interfold addresses are prefilled; add your key/RPC + FOUNDATION_ADDRESS
-make predeploy         # simulate (no broadcast)
+cd contracts
+cp .env.example .env   # Sepolia framework + Interfold addresses are prefilled;
+                       # add PRIVATE_KEY, RPC_URL, FOUNDATION_ADDRESS
+
+make predeploy         # simulate (no broadcast) — read the trace before continuing
 make deploy            # broadcast: 5-plugin DAO + Executor
 make sync-env          # write deployed addresses into contracts/.env + app/.env
 make wire-spp          # Admin executes the SPP wiring in one tx, then disarms — no vote
 ```
 
-`sync-env` copies every address into `app/.env` for you. The wiring and permission model are
+Strict order; everything except `sync-env` broadcasts. `sync-env` copies every address into
+`app/.env` for you.
+
+Sepolia defaults are **testing values** — 10-minute vote windows, quorum disabled
+(`MINIMUM_PARTICIPATION=0`), and the faucet enabled. Do not carry them to mainnet.
+
+## Deploying to mainnet
+
+Mainnet is **phased**, because the private (CRISP) process depends on infrastructure — an Interfold
+E3 coordinator, a CRISP program, a ciphernode set — that does not exist on mainnet yet. Public
+governance goes live first; the private process is installed into the same live DAO later.
+
+```
+Phase 1  DAO + FOLD + TokenVoting body + one SPP + Admin bootstrap   (public governance live)
+Phase 2  install the CRISP body + a second SPP into the live DAO     (private governance live)
+Phase 3  disarm the Admin bootstrap                                   (deliberate, separate step)
+```
+
+`contracts/.env.mainnet.example` is the production parameter set: OSx v1.4.0 factories, the
+canonical mainnet plugin repos, and production quorum/timings (10% quorum, 3-day votes, 2-day
+foundation window) rather than Sepolia's testing values. Every address in it was verified on-chain.
+
+```bash
+cd contracts
+cp .env.mainnet.example .env.mainnet   # then fill the four TODO(mainnet) entries
+
+make predeploy ENV_FILE=.env.mainnet
+make deploy    ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
+make sync-env  ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
+make wire-spp  ENV_FILE=.env.mainnet
+```
+
+Four things must be filled before phase 1 can run — the template marks each `TODO(mainnet)`:
+`FOLD_TOKEN_ADDRESS`, `FOUNDATION_ADDRESS` (**a multisig, never an EOA**), and — for phase 2 only —
+`INTERFOLD_ADDRESS` and `CRISP_PROGRAM_ADDRESS`.
+
+Phase 2 (`publish-crisp-repo` → `prepare-private-process` → `install-private-process`) and phase 3
+(`disarm-admin`) are commands too. **Disarming is never bundled into a deploy or an install** — it
+is always its own explicit step, so a failed install is never entangled with an irreversible revoke.
+
+> Between phases 1 and 2 the Admin bootstrap stays **armed**, which is what lets phase 2 install
+> plugins without a vote. During that window one key can execute anything on the DAO. Keep the
+> treasury empty until phase 3 is done.
+
+**→ Full runbook, verification commands and failure modes:
+[`docs/mainnet-deployment.md`](docs/mainnet-deployment.md).** The wiring and permission model are
 explained in [`docs/architecture.md`](docs/architecture.md); the env reference is in
-[`contracts/README.md`](contracts/README.md).
+[`contracts/README.md`](contracts/README.md); the post-deploy security checks are in
+[`SECURITY.md`](SECURITY.md).
 
 ## Linting & formatting
 
