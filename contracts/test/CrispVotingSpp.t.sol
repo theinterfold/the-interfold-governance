@@ -270,20 +270,27 @@ contract CrispVotingSppTest is Test {
         assertEq(plugin.getProposal(proposalId).e3Id, 1);
     }
 
-    function test_createProposalRevertsOnForgedMetadata() public {
+    /// @notice The property that matters: metadata cannot be forged to make somebody else pay.
+    ///         Metadata the caller does not back by actually being the named SPP is treated as a
+    ///         direct proposal, where the caller pays from its own escrow — so the named creator's
+    ///         credit is never touched. Here the caller (the SPP) holds no voting power and no
+    ///         credit, so it is rejected outright.
+    function test_createProposalCannotForgeMetadataToSpendAnotherAccountsCredit() public {
         _depositAs(creator, 100 ether);
         Action[] memory actions = new Action[](0);
 
         // metadata naming a different SPP than the caller
         bytes memory forged = abi.encode(makeAddr("notTheSpp"), SPP_PROPOSAL_ID, uint16(0));
         vm.prank(sppAddr);
-        vm.expectRevert(ICrispVoting.InvalidSppMetadata.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
         plugin.createProposal(forged, actions, 0, 0, DATA);
 
         // metadata that is not the SPP encoding at all
         vm.prank(sppAddr);
-        vm.expectRevert(ICrispVoting.InvalidSppMetadata.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
         plugin.createProposal(bytes("free-form metadata"), actions, 0, 0, DATA);
+
+        assertEq(plugin.feeCredits(creator), 100 ether, "the named creator's credit must be untouched");
     }
 
     // --- creator-pays escrow ---

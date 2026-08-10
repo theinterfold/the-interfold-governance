@@ -75,12 +75,19 @@ contract MockVotesToken {
         return dec;
     }
 
-    function getVotes(address) external pure returns (uint256) {
-        return 0;
+    /// @dev Voting power per account, defaulting to 0 so existing tests are unaffected.
+    mapping(address => uint256) internal votes;
+
+    function setVotes(address who, uint256 amount) external {
+        votes[who] = amount;
     }
 
-    function getPastVotes(address, uint256) external pure returns (uint256) {
-        return 0;
+    function getVotes(address who) external view returns (uint256) {
+        return votes[who];
+    }
+
+    function getPastVotes(address who, uint256) external view returns (uint256) {
+        return votes[who];
     }
 
     function getPastTotalSupply(uint256) external view returns (uint256) {

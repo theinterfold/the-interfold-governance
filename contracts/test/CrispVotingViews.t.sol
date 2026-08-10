@@ -264,21 +264,62 @@ contract CrispVotingViewsTest is Test {
 
     // --- SPP metadata / payer resolution -------------------------------------
 
-    function test_createProposalRevertsOnWrongLengthMetadata() public {
+    /// @notice The standalone shape: no SPP, the creator calls the plugin directly, pays from
+    ///         their own escrow, and must clear `minProposerVotingPower` themselves. This is the
+    ///         path the Aragon app uses for a simple governance process, and the one the
+    ///         SPP-only payer resolution used to reject outright.
+    function test_createProposalDirectlyChargesTheCallerAndSucceeds() public {
+        address proposer = makeAddr("directProposer");
+        // A standalone install grants this to ANY_ADDR; the harness grants only the SPP, so the
+        // direct caller is granted explicitly here.
+        dao.grant(address(plugin), proposer, plugin.CREATE_PROPOSAL_PERMISSION_ID());
+        _depositAs(proposer, 100 ether);
+        votesToken.setVotes(proposer, 7); // exactly minProposerVotingPower
+
+        vm.prank(proposer);
+        uint256 proposalId = plugin.createProposal(
+            bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0))
+        );
+
+        assertEq(plugin.proposalPayer(proposalId), proposer, "the direct caller is the payer");
+        assertLt(plugin.feeCredits(proposer), 100 ether, "the caller's own escrow funds the fee");
+    }
+
+    /// @notice Nothing else enforces proposer eligibility in the direct shape —
+    ///         CREATE_PROPOSAL_PERMISSION is granted to ANY_ADDR on a standalone install — so the
+    ///         plugin must, or the setting is decorative.
+    function test_createProposalDirectlyRejectsAProposerBelowTheVotingPowerBar() public {
+        address proposer = makeAddr("weakProposer");
+        dao.grant(address(plugin), proposer, plugin.CREATE_PROPOSAL_PERMISSION_ID());
+        _depositAs(proposer, 100 ether);
+        votesToken.setVotes(proposer, 6); // one short of minProposerVotingPower
+
+        vm.prank(proposer);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, proposer));
+        plugin.createProposal(bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+    }
+
+    /// @notice Metadata that is not the SPP encoding falls through to the direct path, where the
+    ///         caller pays for itself — and is rejected here for holding no voting power, rather
+    ///         than being allowed to spend `creator`'s escrow.
+    function test_createProposalTreatsWrongLengthMetadataAsADirectProposal() public {
         _depositAs(creator, 100 ether);
 
         vm.prank(sppAddr);
-        vm.expectRevert(ICrispVoting.InvalidSppMetadata.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
         plugin.createProposal(
             abi.encode(sppAddr, SPP_PROPOSAL_ID), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0))
         );
+
+        assertEq(plugin.feeCredits(creator), 100 ether, "creator's credit must be untouched");
     }
 
-    function test_createProposalRevertsWhenTheEncodedSppIsNotTheCaller() public {
+    /// @notice Naming an SPP the caller is not does not make that SPP's proposal creator pay.
+    function test_createProposalWillNotChargeAnSppItIsNotCalledBy() public {
         _depositAs(creator, 100 ether);
 
         vm.prank(sppAddr);
-        vm.expectRevert(ICrispVoting.InvalidSppMetadata.selector);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
         plugin.createProposal(
             abi.encode(makeAddr("otherSpp"), SPP_PROPOSAL_ID, uint16(0)),
             _actions(),
@@ -286,6 +327,8 @@ contract CrispVotingViewsTest is Test {
             0,
             abi.encode(uint256(0), uint256(0), uint256(0))
         );
+
+        assertEq(plugin.feeCredits(creator), 100 ether, "creator's credit must be untouched");
     }
 
     function test_createProposalRevertsWhenTheSppReportsNoCreator() public {

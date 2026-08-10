@@ -149,12 +149,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
                 revert ProposalAlreadyExists(proposalId);
             }
 
-            /// @notice Proposer eligibility (e.g. minimum voting power) is enforced at the SPP
-            /// layer via its rule condition: the direct caller here is the SPP, which holds no
-            /// voting power, so the previous `minProposerVotingPower` check would always fail.
-
-            /// @notice Resolve and record the fee payer (the SPP proposal creator) up front;
-            /// the fee itself is charged once quoted below.
+            /// @notice Resolve and record the fee payer up front; the fee itself is charged
+            /// once quoted below. This also enforces proposer eligibility in the direct shape —
+            /// in the staged one the SPP's rule condition already did, and the caller there is
+            /// the SPP, which holds no voting power of its own.
             proposalPayer[proposalId] = _resolvePayer(_metadata);
         }
 
@@ -622,25 +620,48 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         return interfold.getE3Quote(_buildRequestParams(_startDate, _endDate, 0));
     }
 
-    /// @notice Resolves the fee payer from the SPP-encoded metadata.
-    /// @dev The SPP always calls sub-bodies with `metadata = abi.encode(spp, sppProposalId,
-    /// stageId)`. The payer is the SPP proposal's CREATOR as attested by the SPP itself —
-    /// there is no caller-controlled payer field, so nobody can spend someone else's credit.
-    /// @param _metadata The metadata passed by the SPP.
-    /// @return payer The fee payer (the SPP proposal creator).
+    /// @notice Resolves the fee payer, and enforces proposer eligibility when there is no SPP to
+    ///     enforce it for us.
+    /// @dev Two shapes, distinguished by the metadata and the caller — never by a caller-supplied
+    ///     flag, so neither path can be used to spend someone else's credit:
+    ///
+    ///     - STAGED: the SPP calls sub-bodies with `metadata = abi.encode(spp, sppProposalId,
+    ///       stageId)`. The payer is the SPP proposal's CREATOR as attested by the SPP itself.
+    ///       Proposer eligibility was already enforced by the SPP's rule condition, and the
+    ///       direct caller (the SPP) holds no voting power, so checking it here would always fail.
+    ///
+    ///     - DIRECT: anything else. The caller is the creator, pays from their own escrow, and
+    ///       must clear `minProposerVotingPower` themselves — nothing else enforces it in this
+    ///       shape, and `CREATE_PROPOSAL_PERMISSION` is granted to ANY_ADDR on a standalone
+    ///       install, so without this check the setting would be decorative.
+    ///
+    /// @param _metadata The proposal metadata: SPP-encoded in the staged shape, the metadata URI
+    ///     in the direct one.
+    /// @return payer The account whose escrowed credit funds the E3 fee.
     function _resolvePayer(bytes memory _metadata) internal view returns (address payer) {
-        if (_metadata.length != 96) {
-            revert InvalidSppMetadata();
+        if (_metadata.length == 96) {
+            (address spp, uint256 sppProposalId,) = abi.decode(_metadata, (address, uint256, uint16));
+
+            // Only treats this as staged when the caller IS the SPP it names. A direct caller
+            // whose metadata happens to be 96 bytes falls through to the direct path rather than
+            // being able to name an SPP proposal whose creator would pay for it.
+            if (spp == _msgSender()) {
+                payer = IStagedProposalProcessor(spp).getProposal(sppProposalId).creator;
+                if (payer == address(0)) {
+                    revert InvalidSppMetadata();
+                }
+
+                return payer;
+            }
         }
 
-        (address spp, uint256 sppProposalId,) = abi.decode(_metadata, (address, uint256, uint16));
-        if (spp != _msgSender()) {
-            revert InvalidSppMetadata();
-        }
+        payer = _msgSender();
 
-        payer = IStagedProposalProcessor(spp).getProposal(sppProposalId).creator;
-        if (payer == address(0)) {
-            revert InvalidSppMetadata();
+        // Snapshotted a timepoint back, matching how the proposal itself snapshots voting power:
+        // reading the live balance would let a proposer borrow tokens within the transaction.
+        uint256 proposerVotingPower = votingToken.getPastVotes(payer, _tokenClock() - 1);
+        if (proposerVotingPower < votingSettings.minProposerVotingPower) {
+            revert ProposalCreationForbidden(payer);
         }
     }
 
