@@ -24,6 +24,20 @@ follows is the short version of who can do what, and what has to be trusted.
     key freezes governance permanently — every future proposal expires unapproved.
 - **The Admin plugin must be disarmed after wiring.** `make wire-spp` revokes it. An armed Admin
   plugin can execute on the DAO with no vote at all.
+  - The phased mainnet rollout **deliberately defers this** (`DISARM_ADMIN="false"`) so phase 2 can
+    install the private process without a vote. For that window the `has $ADMIN_PLUGIN_ADDRESS
+    $EXEC` check below is a known, dated exception rather than a finding — record the intended
+    disarm date next to it.
+  - **Who may drive an armed bootstrap** is `EXECUTE_PROPOSAL_PERMISSION` on the Admin *plugin*,
+    not `EXECUTE` on the DAO. `make grant-admin` / `make revoke-admin` rotate it (deployer EOA →
+    foundation multisig): two commands, never batched, with a successor-proves-it no-op proposal in
+    between. Rotating is not disarming — while the grant overlaps, *both* holders can execute
+    anything on the DAO.
+  - **The successor must be a multisig, not an EOA** — same rule as the foundation body and for the
+    same reason. `grantAdminTo()` enforces it unless `ADMIN_SUCCESSOR_ALLOW_EOA=true` (testnets).
+  - Handing the bootstrap to the **same** address as `FOUNDATION_ADDRESS` collapses the stage
+    separation: that signer set can then both approve and bypass stage 0. It also removes the
+    escape hatch if the foundation key is lost — in approval mode that freeze is permanent.
 - **Minting the governance token is DAO-only.** `CrispVotingSetup` grants `MINT_PERMISSION` to the
   DAO. It previously granted to `ANY_ADDR` ("for testing"), which would have let anyone mint
   voting power; `test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr` prevents a
@@ -91,6 +105,22 @@ has $DEPLOYER_ADDRESS            $ROOT   # deployer must not retain ROOT
 # The foundation body must be a contract (multisig), not an EOA:
 cast code $FOUNDATION_ADDRESS --rpc-url $RPC | wc -c   # 3 == EOA == not production-ready
 ```
+
+While the bootstrap is still armed on purpose (phase 1 → 3), also check **who can drive it**. This
+is a permission on the Admin plugin, so `_where` is the plugin, not the DAO:
+
+```bash
+EXEC_PROPOSAL=$(cast keccak "EXECUTE_PROPOSAL_PERMISSION")
+drives() { cast call $DAO "hasPermission(address,address,bytes32,bytes)(bool)" \
+  $ADMIN_PLUGIN_ADDRESS $1 $EXEC_PROPOSAL 0x --rpc-url $RPC; }
+
+drives $DEPLOYER_ADDRESS            # false once `make revoke-admin` has run
+drives $ADMIN_SUCCESSOR_ADDRESS     # true after `make grant-admin`
+```
+
+Exactly one of these should be true outside a rotation window; both true means the rotation was
+started and never finished. `drives $FOUNDATION_ADDRESS` returning true means the approver and the
+bypass are the same signer set — intentional or not, note it.
 
 Also confirm the stage-1 mode matches intent — `vetoThreshold == 0` means **approval** mode
 (opt-in), anything else means **veto** mode (opt-out):

@@ -1,5 +1,6 @@
 .PHONY: setup build test predeploy deploy sync-env wire-spp lock-public-execution \
-	publish-crisp-repo prepare-private-process install-private-process disarm-admin
+	publish-crisp-repo prepare-private-process install-private-process \
+	grant-admin revoke-admin disarm-admin
 
 # Which env file the broadcasting targets source. Defaults to the Sepolia `.env`;
 # override per network, e.g.  make deploy ENV_FILE=.env.mainnet
@@ -67,6 +68,24 @@ print-private-actions: ## Print the phase-2 actions as proposal calldata (no bro
 	set -a; . ./$(ENV_FILE); set +a; \
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
 		--sig "printProposalActions()" --rpc-url $$RPC_URL -vvvv
+
+# --- Hand the Admin bootstrap from the deployer EOA to the foundation multisig -------
+# Two steps ON PURPOSE. Between them both holders can drive the bootstrap, so the successor
+# proves it can execute before the EOA gives up the only key. Never batch them.
+#   1. make grant-admin      (EOA grants ADMIN_SUCCESSOR_ADDRESS)
+#   2. successor executes a NO-OP proposal on the Admin plugin — must succeed
+#   3. make revoke-admin     (EOA revokes itself)
+# Rotation does NOT disarm; `make disarm-admin` is still outstanding afterwards.
+
+grant-admin: ## Rotation step 1: grant ADMIN_SUCCESSOR_ADDRESS the right to drive the Admin bootstrap
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/WireSpp.s.sol:WireSppScript \
+		--sig "grantAdminTo()" --rpc-url $$RPC_URL --broadcast --slow -vvvv
+
+revoke-admin: ## Rotation step 2: revoke the predecessor (default: this key). ONLY after the successor's no-op proposal succeeded.
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/WireSpp.s.sol:WireSppScript \
+		--sig "revokeAdminFrom()" --rpc-url $$RPC_URL --broadcast --slow -vvvv
 
 # Deliberately standalone: disarming is never bundled into a deploy or an install, so it is
 # always an explicit, reviewed action. IRREVERSIBLE without a governance proposal.

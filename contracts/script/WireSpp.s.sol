@@ -129,6 +129,114 @@ contract WireSppScript is Script {
         console2.log("The Admin plugin no longer holds EXECUTE on the DAO (INV-29).");
     }
 
+    // ---------------------------------------------------------------------------------
+    // Admin-bootstrap rotation (EOA -> foundation multisig)
+    //
+    // The bootstrap holds EXECUTE on the DAO; WHO may drive it is a separate permission —
+    // EXECUTE_PROPOSAL_PERMISSION on the Admin PLUGIN, granted to ADMIN_ADDRESS at install.
+    // Rotating that grant hands the bootstrap to the multisig without touching the DAO's own
+    // permissions, so the EOA can run the scripted, retry-prone steps (`wire-spp`,
+    // `install-private-process`) and only then pass control on.
+    //
+    // Deliberately TWO commands, never one batch. Between them BOTH holders can drive the
+    // bootstrap, which is the point: the successor proves it can actually execute before the
+    // EOA gives up the only key. Batched, a misconfigured successor leaves the bootstrap
+    // armed with nobody able to drive it — and, in approval mode, no way to recover it except
+    // a governance proposal the foundation must itself approve.
+    //
+    //   make grant-admin    # EOA grants the successor
+    //   <successor executes a no-op proposal on the Admin plugin to prove it works>
+    //   make revoke-admin   # EOA revokes itself
+    //
+    // Rotation does NOT disarm. `make disarm-admin` stays a separate, final step (INV-29).
+    // ---------------------------------------------------------------------------------
+
+    bytes32 internal constant EXECUTE_PROPOSAL_PERMISSION_ID = keccak256("EXECUTE_PROPOSAL_PERMISSION");
+
+    /// @dev The single action behind both rotation commands. `_where` is the Admin PLUGIN, never
+    ///      the DAO — that distinction is the whole difference between rotating and disarming,
+    ///      and getting it wrong would silently hand out (or destroy) execute-on-DAO power.
+    function rotationAction(address dao, address adminPlugin, address who, bool isGrant)
+        internal
+        pure
+        returns (Action memory)
+    {
+        bytes memory data = isGrant
+            ? abi.encodeCall(IDAOPermissions.grant, (adminPlugin, who, EXECUTE_PROPOSAL_PERMISSION_ID))
+            : abi.encodeCall(IDAOPermissions.revoke, (adminPlugin, who, EXECUTE_PROPOSAL_PERMISSION_ID));
+        return Action({to: dao, value: 0, data: data});
+    }
+
+    /// @notice Step 1 of the rotation: grant ADMIN_SUCCESSOR_ADDRESS the right to drive the
+    ///         Admin bootstrap. The current holder (PRIVATE_KEY) keeps its own grant, so the
+    ///         bootstrap is never unreachable.
+    ///         Usage: forge script script/WireSpp.s.sol:WireSppScript --sig "grantAdminTo()" \
+    ///                  --rpc-url $RPC_URL --broadcast
+    ///
+    /// @dev VERIFY BEFORE REVOKING: have the successor call `executeProposal` on the Admin
+    ///      plugin with an empty action array. If Aragon's AdminSetup granted the permission
+    ///      with a condition, this plain `grant` produces one that fails the auth check, and
+    ///      the no-op proposal is what surfaces that while the EOA still holds the key.
+    function grantAdminTo() external {
+        address dao = vm.envAddress("DAO_ADDRESS");
+        address adminPlugin = vm.envAddress("ADMIN_PLUGIN_ADDRESS");
+        address successor = vm.envAddress("ADMIN_SUCCESSOR_ADDRESS");
+        require(dao != address(0) && adminPlugin != address(0), "missing address env");
+        require(successor != address(0), "ADMIN_SUCCESSOR_ADDRESS not set");
+        // The successor inherits unconditional execute-on-DAO power. Same rule as
+        // FOUNDATION_ADDRESS: a multisig, never an EOA (SECURITY.md). Opt out only on testnets.
+        require(
+            successor.code.length > 0 || vm.envOr("ADMIN_SUCCESSOR_ALLOW_EOA", false),
+            "ADMIN_SUCCESSOR_ADDRESS has no code (set ADMIN_SUCCESSOR_ALLOW_EOA=true to override)"
+        );
+
+        Action[] memory actions = new Action[](1);
+        actions[0] = rotationAction(dao, adminPlugin, successor, true);
+
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        uint256 proposalId = IAdmin(adminPlugin).executeProposal(bytes("ipfs://grant-admin"), actions, 0);
+        vm.stopBroadcast();
+
+        console2.log("=== Admin bootstrap granted to successor ===");
+        console2.log("admin proposalId:  ", proposalId);
+        console2.log("successor:         ", successor);
+        console2.log("BOTH holders can now drive the bootstrap.");
+        console2.log("NEXT: have the successor execute a NO-OP proposal (empty actions) on");
+        console2.log("      the Admin plugin. Only once that succeeds, run `make revoke-admin`.");
+    }
+
+    /// @notice Step 2 of the rotation: revoke the predecessor's right to drive the Admin
+    ///         bootstrap. Defaults to revoking the broadcasting key itself.
+    ///         Usage: forge script script/WireSpp.s.sol:WireSppScript --sig "revokeAdminFrom()" \
+    ///                  --rpc-url $RPC_URL --broadcast
+    ///         Run ONLY after the successor has proven it can execute (see `grantAdminTo`).
+    ///         Irreversible from the predecessor's side.
+    function revokeAdminFrom() external {
+        address dao = vm.envAddress("DAO_ADDRESS");
+        address adminPlugin = vm.envAddress("ADMIN_PLUGIN_ADDRESS");
+        address caller = vm.addr(vm.envUint("PRIVATE_KEY"));
+        address predecessor = vm.envOr("ADMIN_PREDECESSOR_ADDRESS", caller);
+        require(dao != address(0) && adminPlugin != address(0), "missing address env");
+        require(predecessor != address(0), "predecessor not resolved");
+
+        Action[] memory actions = new Action[](1);
+        actions[0] = rotationAction(dao, adminPlugin, predecessor, false);
+
+        // Self-revocation is safe here for the same reason the disarm is: `executeProposal`
+        // checks the caller's permission once, up front, before forwarding the actions.
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        uint256 proposalId = IAdmin(adminPlugin).executeProposal(bytes("ipfs://revoke-admin"), actions, 0);
+        vm.stopBroadcast();
+
+        console2.log("=== Admin bootstrap revoked from predecessor ===");
+        console2.log("admin proposalId:  ", proposalId);
+        console2.log("predecessor:       ", predecessor);
+        if (predecessor == caller) {
+            console2.log("This key can no longer drive the bootstrap.");
+        }
+        console2.log("The bootstrap is still ARMED. `make disarm-admin` remains outstanding (INV-29).");
+    }
+
     /// @dev `virtual` so InstallPrivateProcess can inherit the stage builder and helpers
     ///      while exposing its own `run()` entrypoint.
     function run() external virtual {

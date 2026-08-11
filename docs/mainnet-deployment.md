@@ -33,6 +33,8 @@ risk. See [the Admin bootstrap](#the-admin-bootstrap-armed-between-the-phases).
 | Foundation address             | Safe / other multisig                  | **Never an EOA.** In `approval` mode a lost key freezes governance permanently — every future proposal expires unapproved. |
 | Stage-1 mode                   | `approval` (opt-in) / `veto` (opt-out) | Template defaults to `approval`. Changeable later by proposal, no redeploy.                                                |
 | `TV_MIN_PROPOSER_VOTING_POWER` | `0` / non-zero                         | `0` = anyone can open a proposal. Left at `0` in the template and flagged; decide deliberately for mainnet.                |
+| `TV_VOTING_MODE`               | `0` Standard / `2` VoteReplacement     | Template defaults to `2` (voters may change their vote while open). **Install-time parameter** — changing it later needs `updateVotingSettings` by proposal. Neither mode early-executes. |
+| Who holds the bootstrap        | deployer EOA / foundation multisig     | Rotatable at any point via `make grant-admin` + `make revoke-admin`. See [handing it over](#handing-the-bootstrap-to-the-multisig-phase-2b). |
 | FOLD distribution at go-live   | —                                      | Quorum is 10% of **total supply**. If supply is minted but undistributed, quorum may be unreachable in practice.           |
 
 ### The Admin bootstrap, armed between the phases
@@ -58,6 +60,57 @@ has to be untangled from an irreversible revoke.
 If phase 2 is deferred or abandoned, run `make disarm-admin` anyway. Once disarmed, further installs
 must go through a governance proposal instead (`make print-private-actions` emits the calldata).
 
+### Handing the bootstrap to the multisig (phase 2b)
+
+Two different permissions are in play, and conflating them is the main way this goes wrong:
+
+| Permission                                 | `_where`        | Means                                    | Removed by         |
+| ------------------------------------------ | --------------- | ---------------------------------------- | ------------------ |
+| `EXECUTE_PERMISSION`                       | the DAO         | the bootstrap **is armed**                | `make disarm-admin` |
+| `EXECUTE_PROPOSAL_PERMISSION`              | the Admin plugin | **who may drive** the armed bootstrap    | `make revoke-admin` |
+
+Rotating the second one hands the bootstrap from the deployer EOA to the foundation multisig
+without touching the DAO's own permissions. That lets the EOA run the scripted, retry-prone steps
+(`wire-spp`, `install-private-process`) and pass control on afterwards — the alternative,
+`ADMIN_ADDRESS=<multisig>` at deploy time, makes the multisig sign every one of those attempts.
+
+```bash
+# .env.mainnet: ADMIN_SUCCESSOR_ADDRESS=<the foundation multisig>
+make grant-admin ENV_FILE=.env.mainnet
+```
+
+**Then, before revoking, the successor must prove it works.** From the multisig, call
+`executeProposal("", [], 0)` on `$ADMIN_PLUGIN_ADDRESS` — an empty action array changes nothing on
+the DAO and simply asserts the permission check passes. This is the step that catches a grant that
+does not satisfy the plugin's auth condition, while the EOA still holds a working key.
+
+```bash
+# only after the no-op proposal succeeded
+make revoke-admin ENV_FILE=.env.mainnet
+```
+
+Verify the handover with the `drives` checks in the
+[runbook](../SECURITY.md#deployment-verification-runbook): exactly one address should hold the
+permission when you are done ([INV-31](../AGENTS.md#operational)).
+
+**Never batch the grant and the revoke.** If the successor turns out to be unable to execute, a
+batched rotation leaves the bootstrap armed with nobody able to drive it — recoverable only by a
+governance proposal, which in `approval` mode the foundation must itself approve.
+
+Two things to decide rather than drift into:
+
+- **When.** Rotate before phase 2 and the multisig signs the 7-action install batch — the friction
+  you were avoiding. Rotate after and the EOA is what installed the private process. Either is
+  defensible; pick one deliberately.
+- **Whether the successor is `FOUNDATION_ADDRESS` itself.** If it is, that signer set can both
+  approve at stage 1 and bypass stage 0 entirely, so the SPP is advisory for as long as the
+  bootstrap stays armed. It also removes the escape hatch: in `approval` mode a lost foundation key
+  freezes governance permanently, and an armed bootstrap held by a **separate** key is the only way
+  out. Using a different multisig, or a different signer set, keeps both properties.
+
+Rotation does **not** disarm. Phase 3 is still outstanding afterwards — whoever holds the bootstrap
+at that point is who runs `make disarm-admin`.
+
 ---
 
 ## Phase 1 — public governance
@@ -76,6 +129,11 @@ must go through a governance proposal instead (`make print-private-actions` emit
       stay empty — phase 1 does not read them.
 - [ ] `DEPLOY_PRIVATE_PROCESS="false"` and `DISARM_ADMIN="false"` in that file (both are the
       template defaults).
+- [ ] `TV_VOTING_MODE` decided. The template ships `2` (VoteReplacement — voters may change their
+      vote while a proposal is open). It is an **install parameter**: changing it after phase 1
+      requires `updateVotingSettings` through a governance proposal.
+- [ ] Decided whether the bootstrap will be rotated to the multisig (phase 2b), and if so, whether
+      the successor is `FOUNDATION_ADDRESS` itself or a separate signer set.
 
 ### Re-verify the framework addresses
 
@@ -284,6 +342,9 @@ Run it as soon as you are done installing. Then re-run the full
 has $ADMIN_PLUGIN_ADDRESS $EXEC   # MUST now be false (INV-29)
 ```
 
+If the bootstrap was rotated (phase 2b), this is run by the multisig, not the deployer — the
+predecessor no longer holds `EXECUTE_PROPOSAL_PERMISSION` and its `disarm-admin` will revert.
+
 Irreversible without a governance proposal re-granting EXECUTE. After this point every change —
 including further plugin installs — goes through the SPP.
 
@@ -304,6 +365,8 @@ Only once this passes is the deployment complete. Announce the DAO address, and 
 | `PluginAlreadyInstalled`                       | The install already applied — check whether an earlier attempt partially succeeded before retrying.                                                                                                                       |
 | `SetupApplicationUnauthorized`                 | The batch is not executing as the DAO, or the Admin bootstrap was already disarmed. Use `make print-private-actions` and go through a proposal.                                                                           |
 | Admin still holds EXECUTE after `disarm-admin` | The tx reverted. Re-check before announcing — this is INV-29.                                                                                                                                                             |
+| Successor's no-op proposal reverts after `grant-admin` | The plain `grant` does not satisfy the plugin's auth check (e.g. the install used a condition). Do **not** run `revoke-admin` — the EOA is still the working holder.                                              |
+| Nobody can drive the bootstrap after `revoke-admin` | The grant and the revoke were run without the no-op proof in between. Recoverable only by a governance proposal re-granting the permission — which in approval mode the foundation must itself approve.               |
 
 ## Rollback
 

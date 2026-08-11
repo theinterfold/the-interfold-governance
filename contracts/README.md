@@ -12,7 +12,7 @@ build/deploy reference.
 | 1 | TokenVoting v1.4 | public stage-0 body | Aragon canonical PluginRepo (by address) |
 | 2 | SPP | private process | Aragon canonical PluginRepo (by address) |
 | 3 | SPP | public process | Aragon canonical PluginRepo (by address) |
-| 4 | Admin | wiring bootstrap (disarmed by `wire-spp`) | Aragon canonical PluginRepo (by address) |
+| 4 | Admin | wiring bootstrap (disarmed by `wire-spp`; deferred to `disarm-admin` in the phased mainnet flow) | Aragon canonical PluginRepo (by address) |
 
 The CRISP plugin is a **fork** of `crisp-aragon-plugin` vendored under `src/crisp/`. As a
 governance SPP body it: uses a fixed **3-option (Yes/No/Abstain), token-weighted (`CUSTOM`)**
@@ -66,6 +66,22 @@ make wire-spp          # Admin executes the wiring in one tx (stages, grants, de
 `make deploy` logs the DAO, FOLD, the CRISP `PluginRepo`, the `Executor`, and the five installed
 plugins. `make sync-env` copies them into both `.env` files for you. Optionally set
 `CRISP_FEE_DEPOSIT_AMOUNT` before `wire-spp` to pre-escrow CRISP fee credit for the deployer.
+
+### Bootstrap lifecycle (`WireSpp.s.sol`)
+
+Two independent permissions, easy to conflate:
+
+| Command             | Changes                                                    | Effect                                            |
+| ------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
+| `make grant-admin`  | `EXECUTE_PROPOSAL_PERMISSION` on the **Admin plugin**, grant | successor may now drive the bootstrap             |
+| `make revoke-admin` | the same permission, revoke                                | predecessor may no longer drive it                |
+| `make disarm-admin` | `EXECUTE_PERMISSION` on the **DAO**, revoke                 | the bootstrap is dead regardless of who holds it  |
+
+Rotation is deliberately two commands: between them both holders can drive the bootstrap, so the
+successor proves it can execute (a no-op `executeProposal` with an empty action array) before the
+predecessor gives up the only key. `grantAdminTo()` requires the successor to be a contract unless
+`ADMIN_SUCCESSOR_ALLOW_EOA=true`. Full procedure and the trade-offs:
+[`../docs/mainnet-deployment.md`](../docs/mainnet-deployment.md).
 
 ### Stage timing (env, consumed by `wire-spp`)
 

@@ -41,11 +41,19 @@ make publish-crisp-repo         # phase 2 step 1: CrispVotingSetup + mint the CR
 make prepare-private-process    # phase 2 step 2: prepareInstallation (EOA, DAO untouched)
 make install-private-process    # phase 2 step 3: Admin applies + wires the private process
 make print-private-actions      # same actions as calldata, if the Admin is already disarmed
+make grant-admin                # phase 2b step 1: grant ADMIN_SUCCESSOR_ADDRESS the bootstrap
+make revoke-admin               # phase 2b step 2: revoke the predecessor (default: this key)
 make disarm-admin               # revoke the Admin bootstrap's EXECUTE (INV-29) — always separate
 ```
 
 **Disarming is never bundled into a deploy or an install.** It is its own command so it is always a
 deliberate action, and so a failed install is not entangled with an irreversible revoke.
+
+**Rotation is two commands, never one.** `grant-admin` / `revoke-admin` move
+`EXECUTE_PROPOSAL_PERMISSION` on the Admin *plugin* — who may drive the bootstrap — not `EXECUTE` on
+the DAO, which is whether it is armed at all. Between the two commands both holders can drive it,
+and that is the point: the successor executes a no-op proposal to prove the grant satisfies the
+plugin's auth check before the EOA gives up the only key. Rotating is not disarming.
 
 Frontend (`cd app`):
 
@@ -128,10 +136,16 @@ enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build
 | **INV-28** | **Testnet-only UI is env-gated** (`NEXT_PUBLIC_ENABLE_FAUCET`). There is no faucet on mainnet.                                     | `app/constants.ts` (`PUB_ENABLE_FAUCET`)             |
 | **INV-29** | **The Admin plugin is disarmed after wiring** and the deployer retains no `ROOT`. An armed Admin executes on the DAO with no vote. | post-deploy runbook in `SECURITY.md`                 |
 | **INV-30** | **`src/crisp/**` stays at 100% coverage.** A behaviour change without a test fails the build.                                      | CI `MIN_COVERAGE` gate in `.github/workflows/ci.yml` |
+| **INV-31** | **Exactly one address holds `EXECUTE_PROPOSAL_PERMISSION` on an armed Admin plugin**, outside a rotation window. Two means a rotation was started and never finished. | post-deploy runbook in `SECURITY.md`                 |
 
-Two invariants are **not** enforceable by a test and need a human check: the foundation body must
-be a **multisig, not an EOA** (`SECURITY.md` runbook), and the CRISP server must be honest about
-the eligible-voter set (documented trust assumption).
+INV-29 is **deliberately deferred** during the phased mainnet rollout (`DISARM_ADMIN=false`), from
+phase 1 until phase 3. Treat the armed bootstrap as a dated exception with an intended disarm date,
+not as a finding — but INV-31 applies for that whole window.
+
+Three invariants are **not** enforceable by a test and need a human check: the foundation body must
+be a **multisig, not an EOA** (`SECURITY.md` runbook), an Admin successor must be a multisig for the
+same reason (`grantAdminTo()` guards this, but `ADMIN_SUCCESSOR_ALLOW_EOA` can bypass it), and the
+CRISP server must be honest about the eligible-voter set (documented trust assumption).
 
 ## Gotchas (things that cost time if you don't know them)
 
@@ -208,7 +222,7 @@ the eligible-voter set (documented trust assumption).
 | Mainnet rollout runbook (phased public → private)           | `docs/mainnet-deployment.md`                                                    |
 | CRISP fork (escrow, per-proposal duration, SPP-body wiring) | `contracts/src/crisp/CrispVoting.sol` + `setup/`                                |
 | Deploy (5 plugins + Executor)                               | `contracts/script/DeployInterfoldDao.s.sol`                                     |
-| Wiring (stages, grants, delegatecall, disarm)               | `contracts/script/WireSpp.s.sol`                                                |
+| Wiring (stages, grants, delegatecall, disarm, rotation)     | `contracts/script/WireSpp.s.sol`                                                |
 | Phase-2 install of the private process into a live DAO      | `contracts/script/InstallPrivateProcess.s.sol`                                  |
 | Canonical-plugin install encoders                           | `contracts/script/{TokenVotingInstall,SppInstall}.sol`                          |
 | SPP frontend module (stages, veto, advance)                 | `app/plugins/spp/`                                                              |
@@ -231,7 +245,8 @@ the eligible-voter set (documented trust assumption).
   this repo a silently-dead CI.
 - **Verify permissions after every deploy.** The runbook is in [`SECURITY.md`](SECURITY.md):
   only the SPPs may hold `EXECUTE_PERMISSION`, Admin must be disarmed, the deployer must not
-  retain `ROOT`.
+  retain `ROOT`. While the bootstrap is armed on purpose, also verify **who can drive it**
+  (`EXECUTE_PROPOSAL_PERMISSION` on the Admin plugin) — the runbook has that check too.
 
 ## Conventions
 

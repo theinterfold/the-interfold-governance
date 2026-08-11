@@ -23,6 +23,14 @@ contract WireSppHarness is WireSppScript {
     function wiringActions(bool withPrivate, bool shouldDisarmAdmin) external view returns (Action[] memory) {
         return buildWiringActions(withPrivate, shouldDisarmAdmin);
     }
+
+    function rotation(address dao, address adminPlugin, address who, bool isGrant)
+        external
+        pure
+        returns (Action memory)
+    {
+        return rotationAction(dao, adminPlugin, who, isGrant);
+    }
 }
 
 /// @notice Guards the stage configuration produced by `WireSpp.stagesFor` — the shape of
@@ -190,6 +198,50 @@ contract WireSppStagesTest is Test {
         // The disarm stays the final action whenever it is included at all.
         _assertDisarmIsLast(harness.wiringActions(false, true));
         assertEq(harness.wiringActions(true, false).length, 7, "private wiring without the disarm is 7 actions");
+    }
+
+    /// @notice Rotating the bootstrap must move `EXECUTE_PROPOSAL_PERMISSION` on the Admin
+    ///         PLUGIN — never `EXECUTE_PERMISSION` on the DAO. Conflating the two would either
+    ///         hand a successor nothing while the predecessor is revoked (bricking the
+    ///         bootstrap) or disarm the DAO's bootstrap under the name of a handover.
+    ///         Guards INV-31; see docs/mainnet-deployment.md#handing-the-bootstrap-to-the-multisig-phase-2b.
+    function test_rotationMovesThePluginPermissionNeverTheDaosExecute() public view {
+        address successor = address(0x5AFE);
+
+        Action memory grantAction = harness.rotation(DAO, ADMIN, successor, true);
+        Action memory revokeAction = harness.rotation(DAO, ADMIN, successor, false);
+
+        // Both are permission ops sent to the DAO's permission manager, with no value attached.
+        assertEq(grantAction.to, DAO, "the rotation is executed by the DAO");
+        assertEq(revokeAction.to, DAO, "the rotation is executed by the DAO");
+        assertEq(grantAction.value, 0, "a permission op never carries value");
+        assertEq(revokeAction.value, 0, "a permission op never carries value");
+
+        // `_where` is the plugin and the permission is the plugin's, not the DAO's EXECUTE.
+        assertEq(
+            keccak256(grantAction.data),
+            keccak256(
+                abi.encodeWithSignature(
+                    "grant(address,address,bytes32)", ADMIN, successor, keccak256("EXECUTE_PROPOSAL_PERMISSION")
+                )
+            ),
+            "grant must target EXECUTE_PROPOSAL_PERMISSION on the Admin plugin"
+        );
+        assertEq(
+            keccak256(revokeAction.data),
+            keccak256(
+                abi.encodeWithSignature(
+                    "revoke(address,address,bytes32)", ADMIN, successor, keccak256("EXECUTE_PROPOSAL_PERMISSION")
+                )
+            ),
+            "revoke must target EXECUTE_PROPOSAL_PERMISSION on the Admin plugin"
+        );
+
+        // The disarm is a DIFFERENT action. Neither rotation direction may produce it.
+        bytes memory disarmCalldata =
+            abi.encodeWithSignature("revoke(address,address,bytes32)", DAO, ADMIN, EXECUTE_PERMISSION);
+        assertTrue(keccak256(revokeAction.data) != keccak256(disarmCalldata), "rotating must never disarm");
+        assertTrue(keccak256(grantAction.data) != keccak256(disarmCalldata), "rotating must never disarm");
     }
 
     /// @dev The Admin disarm must be the LAST action: the batch runs under the Admin plugin's

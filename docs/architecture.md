@@ -143,12 +143,26 @@ execute the whole wiring in one transaction, and its **final action revokes the 
 `EXECUTE` on the DAO**, disarming the bootstrap. (Admin's own uninstall can only revoke that same
 permission, so this is the equivalent disarm; the plugin remains listed but powerless.)
 
+Two separate permissions govern the bootstrap, and only the first decides whether it is dangerous:
+
+- `EXECUTE_PERMISSION` on the **DAO**, held by the Admin plugin — whether the bootstrap is *armed*.
+  Revoked by the final wiring action, or later by `make disarm-admin`.
+- `EXECUTE_PROPOSAL_PERMISSION` on the **Admin plugin**, held by `ADMIN_ADDRESS` — *who may drive*
+  an armed bootstrap. `make grant-admin` / `make revoke-admin` rotate it, which is how the phased
+  mainnet rollout hands the bootstrap from the deployer EOA to the foundation multisig without
+  touching the DAO's own permissions. Rotating is not disarming.
+
+The phased mainnet flow (`DISARM_ADMIN=false`) keeps the bootstrap armed from phase 1 until phase 3
+so the private process can be installed without a vote — see
+[`mainnet-deployment.md`](mainnet-deployment.md).
+
 ## Permission map (after wiring)
 
 | Permission | Where | Holder |
 |---|---|---|
 | `EXECUTE_PERMISSION` | DAO | SPP private, SPP public |
 | `EXECUTE_PERMISSION` | DAO | ~~TokenVoting~~ (revoked), ~~CrispVoting~~ (never granted), ~~Admin~~ (revoked = disarmed) |
+| `EXECUTE_PROPOSAL_PERMISSION` | Admin plugin | `ADMIN_ADDRESS` — deployer EOA, or the foundation multisig after rotation. Moot once disarmed. |
 | `CREATE_PROPOSAL_PERMISSION` | CrispVoting | SPP private |
 | `CREATE_PROPOSAL_PERMISSION` | TokenVoting | SPP public |
 | `UPDATE_STAGES_PERMISSION` | each SPP | DAO |

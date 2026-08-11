@@ -128,7 +128,8 @@ governance goes live first; the private process is installed into the same live 
 ```
 Phase 1  DAO + FOLD + TokenVoting body + one SPP + Admin bootstrap   (public governance live)
 Phase 2  install the CRISP body + a second SPP into the live DAO     (private governance live)
-Phase 3  disarm the Admin bootstrap                                   (deliberate, separate step)
+Phase 2b hand the Admin bootstrap to the foundation multisig         (optional, two steps)
+Phase 3  disarm the Admin bootstrap                                  (deliberate, separate step)
 ```
 
 `contracts/.env.mainnet.example` is the production parameter set: OSx v1.4.0 factories, the
@@ -156,6 +157,33 @@ is always its own explicit step, so a failed install is never entangled with an 
 > Between phases 1 and 2 the Admin bootstrap stays **armed**, which is what lets phase 2 install
 > plugins without a vote. During that window one key can execute anything on the DAO. Keep the
 > treasury empty until phase 3 is done.
+
+### Handing the bootstrap to the multisig (phase 2b, optional)
+
+The bootstrap holds `EXECUTE` on the DAO; **who** may drive it is a separate permission
+(`EXECUTE_PROPOSAL_PERMISSION` on the Admin plugin, granted to `ADMIN_ADDRESS` at install).
+Rotating that grant moves the bootstrap from the deployer EOA to the foundation multisig without
+touching the DAO's own permissions — so the EOA runs the scripted, retry-prone steps and only then
+passes control on.
+
+```bash
+make grant-admin  ENV_FILE=.env.mainnet   # 1. EOA grants ADMIN_SUCCESSOR_ADDRESS
+                                          # 2. successor executes a NO-OP proposal — must succeed
+make revoke-admin ENV_FILE=.env.mainnet   # 3. EOA revokes itself
+```
+
+**Two commands on purpose.** Between them both holders can drive the bootstrap, so the successor
+proves it can execute before the EOA gives up the only key. Batched, a misconfigured successor
+leaves the bootstrap armed with nobody able to drive it. Step 2 is not optional: it is what
+detects a grant that does not satisfy the plugin's auth check.
+
+Rotation does **not** disarm — phase 3 is still outstanding afterwards. Note the tension worth
+deciding before phase 2: rotate first and the multisig signs the 7-action install batch; rotate
+after and the EOA is what installed the private process.
+
+> One argument for *not* rotating: with `SPP_STAGE1_MODE="approval"`, a lost foundation key
+> freezes governance permanently. An armed bootstrap held by a **separate** key is the escape
+> hatch from that. Put both in the same multisig and one signer set covers both failures.
 
 **→ Full runbook, verification commands and failure modes:
 [`docs/mainnet-deployment.md`](docs/mainnet-deployment.md).** The wiring and permission model are
