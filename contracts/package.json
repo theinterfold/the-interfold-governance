@@ -4,7 +4,6 @@
   "private": true,
   "description": "Solidity npm deps for the Interfold governance contracts (Foundry resolves git deps under lib/).",
   "dependencies": {
-    "@enclave-e3/contracts": "0.0.10-test",
     "@aragon/token-voting-plugin": "github:aragon/token-voting-plugin#v1.3"
   }
 }

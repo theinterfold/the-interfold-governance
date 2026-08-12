@@ -83,7 +83,7 @@ interface ICiphernodeRegistry {
 
     /// @notice This event MUST be emitted when `interfold` is set.
     /// @param interfold Address of the interfold contract.
-    event EnclaveSet(address indexed interfold);
+    event InterfoldSet(address indexed interfold);
 
     /// @notice This event MUST be emitted when a ciphernode is added to the registry.
     /// @param node Address of the ciphernode.
@@ -172,8 +172,8 @@ interface ICiphernodeRegistry {
 
     /// @notice Sets the Interfold contract address
     /// @dev Only callable by owner
-    /// @param _enclave Address of the Interfold contract
-    function setEnclave(IInterfold _enclave) external;
+    /// @param _interfold Address of the Interfold contract
+    function setInterfold(IInterfold _interfold) external;
 
     /// @notice Sets the bonding registry contract address
     /// @dev Only callable by owner

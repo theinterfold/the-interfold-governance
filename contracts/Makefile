@@ -16,9 +16,9 @@ DEPLOY_LOG ?= deploy.log
 
 setup: ## Fetch Solidity deps (git submodules under lib/ + npm packages)
 	git submodule update --init --recursive
-	# --ignore-scripts: we only need the Solidity sources (@aragon/token-voting-plugin,
-	# @enclave-e3/contracts); the skipped native builds (keccak, secp256k1, ...) are
-	# runtime web3 addons that Foundry never uses.
+	# --ignore-scripts: we only need the Solidity sources (@aragon/token-voting-plugin);
+	# the skipped native builds (keccak, secp256k1, ...) are runtime web3 addons that
+	# Foundry never uses.
 	pnpm install --ignore-scripts
 
 build: ## Compile

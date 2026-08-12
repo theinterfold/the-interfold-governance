@@ -28,8 +28,8 @@ inline for Admin) — so their source is never compiled here (avoiding a `Govern
 clash).
 
 Dependencies are declared directly by this project — git submodules under `lib/` (OSx,
-OpenZeppelin, forge-std, ENS) pinned to the same commits the plugin used, plus npm packages
-(`@enclave-e3/contracts`, `@aragon/token-voting-plugin`) in `package.json`. Run `make setup`
+OpenZeppelin, forge-std, ENS) pinned to the same commits the plugin used, plus the
+`@aragon/token-voting-plugin` npm package in `package.json`. Run `make setup`
 (`git submodule update --init --recursive` + `pnpm install`) to fetch everything.
 
 ## Setup

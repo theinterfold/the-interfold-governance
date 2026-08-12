@@ -93,7 +93,7 @@ export const IInterfoldAbi = [
   {
     inputs: [
       {
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "committeeSize",
         type: "uint8",
       },
@@ -104,7 +104,7 @@ export const IInterfoldAbi = [
   {
     inputs: [
       {
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "committeeSize",
         type: "uint8",
       },
@@ -306,12 +306,12 @@ export const IInterfoldAbi = [
         type: "uint256",
       },
       {
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "expected",
         type: "uint8",
       },
       {
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "actual",
         type: "uint8",
       },
@@ -545,7 +545,7 @@ export const IInterfoldAbi = [
     inputs: [
       {
         indexed: true,
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "size",
         type: "uint8",
       },
@@ -570,13 +570,13 @@ export const IInterfoldAbi = [
       },
       {
         indexed: false,
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "failedAtStage",
         type: "uint8",
       },
       {
         indexed: false,
-        internalType: "enum IEnclave.FailureReason",
+        internalType: "enum IInterfold.FailureReason",
         name: "reason",
         type: "uint8",
       },
@@ -665,7 +665,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
           {
-            internalType: "enum IEnclave.CommitteeSize",
+            internalType: "enum IInterfold.CommitteeSize",
             name: "committeeSize",
             type: "uint8",
           },
@@ -761,13 +761,13 @@ export const IInterfoldAbi = [
       },
       {
         indexed: false,
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "previousStage",
         type: "uint8",
       },
       {
         indexed: false,
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "newStage",
         type: "uint8",
       },
@@ -1016,7 +1016,7 @@ export const IInterfoldAbi = [
           },
         ],
         indexed: false,
-        internalType: "struct IEnclave.PricingConfig",
+        internalType: "struct IInterfold.PricingConfig",
         name: "config",
         type: "tuple",
       },
@@ -1103,7 +1103,7 @@ export const IInterfoldAbi = [
           },
         ],
         indexed: false,
-        internalType: "struct IEnclave.E3TimeoutConfig",
+        internalType: "struct IInterfold.E3TimeoutConfig",
         name: "config",
         type: "tuple",
       },
@@ -1140,7 +1140,7 @@ export const IInterfoldAbi = [
         type: "bool",
       },
       {
-        internalType: "enum IEnclave.FailureReason",
+        internalType: "enum IInterfold.FailureReason",
         name: "reason",
         type: "uint8",
       },
@@ -1164,7 +1164,7 @@ export const IInterfoldAbi = [
   {
     inputs: [
       {
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "",
         type: "uint8",
       },
@@ -1297,7 +1297,7 @@ export const IInterfoldAbi = [
         type: "uint256",
       },
       {
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "committeeSize",
         type: "uint8",
       },
@@ -1437,7 +1437,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
         ],
-        internalType: "struct IEnclave.E3Deadlines",
+        internalType: "struct IInterfold.E3Deadlines",
         name: "deadlines",
         type: "tuple",
       },
@@ -1482,7 +1482,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
           {
-            internalType: "enum IEnclave.CommitteeSize",
+            internalType: "enum IInterfold.CommitteeSize",
             name: "committeeSize",
             type: "uint8",
           },
@@ -1565,7 +1565,7 @@ export const IInterfoldAbi = [
       {
         components: [
           {
-            internalType: "enum IEnclave.CommitteeSize",
+            internalType: "enum IInterfold.CommitteeSize",
             name: "committeeSize",
             type: "uint8",
           },
@@ -1600,7 +1600,7 @@ export const IInterfoldAbi = [
             type: "bool",
           },
         ],
-        internalType: "struct IEnclave.E3RequestParams",
+        internalType: "struct IInterfold.E3RequestParams",
         name: "requestParams",
         type: "tuple",
       },
@@ -1627,7 +1627,7 @@ export const IInterfoldAbi = [
     name: "getE3Stage",
     outputs: [
       {
-        internalType: "enum IEnclave.E3Stage",
+        internalType: "enum IInterfold.E3Stage",
         name: "stage",
         type: "uint8",
       },
@@ -1646,7 +1646,7 @@ export const IInterfoldAbi = [
     name: "getFailureReason",
     outputs: [
       {
-        internalType: "enum IEnclave.FailureReason",
+        internalType: "enum IInterfold.FailureReason",
         name: "reason",
         type: "uint8",
       },
@@ -1755,7 +1755,7 @@ export const IInterfoldAbi = [
             type: "uint32",
           },
         ],
-        internalType: "struct IEnclave.PricingConfig",
+        internalType: "struct IInterfold.PricingConfig",
         name: "",
         type: "tuple",
       },
@@ -1804,7 +1804,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
         ],
-        internalType: "struct IEnclave.E3TimeoutConfig",
+        internalType: "struct IInterfold.E3TimeoutConfig",
         name: "config",
         type: "tuple",
       },
@@ -1862,7 +1862,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
         ],
-        internalType: "struct IEnclave.E3TimeoutConfig",
+        internalType: "struct IInterfold.E3TimeoutConfig",
         name: "config",
         type: "tuple",
       },
@@ -1883,7 +1883,7 @@ export const IInterfoldAbi = [
     name: "markE3Failed",
     outputs: [
       {
-        internalType: "enum IEnclave.FailureReason",
+        internalType: "enum IInterfold.FailureReason",
         name: "reason",
         type: "uint8",
       },
@@ -2105,7 +2105,7 @@ export const IInterfoldAbi = [
       {
         components: [
           {
-            internalType: "enum IEnclave.CommitteeSize",
+            internalType: "enum IInterfold.CommitteeSize",
             name: "committeeSize",
             type: "uint8",
           },
@@ -2140,7 +2140,7 @@ export const IInterfoldAbi = [
             type: "bool",
           },
         ],
-        internalType: "struct IEnclave.E3RequestParams",
+        internalType: "struct IInterfold.E3RequestParams",
         name: "requestParams",
         type: "tuple",
       },
@@ -2160,7 +2160,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
           {
-            internalType: "enum IEnclave.CommitteeSize",
+            internalType: "enum IInterfold.CommitteeSize",
             name: "committeeSize",
             type: "uint8",
           },
@@ -2267,7 +2267,7 @@ export const IInterfoldAbi = [
   {
     inputs: [
       {
-        internalType: "enum IEnclave.CommitteeSize",
+        internalType: "enum IInterfold.CommitteeSize",
         name: "size",
         type: "uint8",
       },
@@ -2455,7 +2455,7 @@ export const IInterfoldAbi = [
             type: "uint32",
           },
         ],
-        internalType: "struct IEnclave.PricingConfig",
+        internalType: "struct IInterfold.PricingConfig",
         name: "config",
         type: "tuple",
       },
@@ -2498,7 +2498,7 @@ export const IInterfoldAbi = [
             type: "uint256",
           },
         ],
-        internalType: "struct IEnclave.E3TimeoutConfig",
+        internalType: "struct IInterfold.E3TimeoutConfig",
         name: "config",
         type: "tuple",
       },

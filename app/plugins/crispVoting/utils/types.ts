@@ -100,7 +100,7 @@ export type VotesReceivedResponse = {
 export interface IRoundDetailsResponse {
   id: string;
   chain_id: string;
-  enclave_address: string;
+  interfold_address: string;
   status: string;
   vote_count: string;
   start_time: string;
