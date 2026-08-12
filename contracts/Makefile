@@ -8,7 +8,9 @@
 #   make deploy ENV_FILE=.env.mainnet && make sync-env ENV_FILE=.env.mainnet && make wire-spp ENV_FILE=.env.mainnet
 ENV_FILE ?= .env
 # Where sync-env writes the frontend addresses. Override for a non-default app env.
-APP_ENV_FILE ?= ../app/.env
+# Relative paths resolve against the REPO ROOT (sync-env.sh), not contracts/ — so this is
+# `app/.env`, not `../app/.env`, which would land outside the repo.
+APP_ENV_FILE ?= app/.env
 # Deploy log to write/parse. Override so a mainnet run does not clobber the Sepolia log.
 DEPLOY_LOG ?= deploy.log
 

@@ -11,6 +11,7 @@ import type { IRoundDetailsResponse, Proposal, Tally } from "../utils/types";
 import type { AbiEvent, Hex } from "viem";
 import { CreditsMode } from "../utils/types";
 import { crispSdk } from "../utils/crispSdk";
+import { useE3Status } from "./useE3Status";
 
 type ProposalCreatedLogResponse = {
   args: {
@@ -69,6 +70,18 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
   });
 
   const proposalRaw = proposalResult as Proposal | undefined;
+
+  // Interfold is the authority on whether a round failed, so ask it about anything not yet
+  // tallied — not just rounds whose committee never formed. Gating on `!isCommitteeReady`
+  // would leave every post-DKG failure (ComputeTimeout, ComputeProviderExpired,
+  // ComputeProviderFailed, DecryptionTimeout, DecryptionInvalidShares, VerificationFailed)
+  // on a proposal the UI still showed as healthy. A tallied round is terminal and cannot fail
+  // afterwards, so that gate stays.
+  const {
+    isDead: e3Failed,
+    isFailurePending: e3FailurePending,
+    failureReason: e3FailureReason,
+  } = useE3Status(proposalRaw?.e3Id, !isTallied);
 
   const tally: Tally = useMemo(() => {
     if (!tallyResult) return [];
@@ -148,6 +161,9 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     proposal,
     isCommitteeReady,
     totalVotingPower,
+    e3Failed,
+    e3FailurePending,
+    e3FailureReason,
     status: {
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",

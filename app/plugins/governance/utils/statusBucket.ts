@@ -39,6 +39,9 @@ export function statusBucketOf(label?: string): StatusBucket | undefined {
     case "executed":
       return "executed";
     // Every terminal not-happening state reads as rejected to a filtering user.
+    // "Round failed" is a private-proposal label: the E3 died, so it was never decided —
+    // but a user filtering for what did not happen expects to find it here.
+    case "round failed":
     case "rejected":
     case "vetoed":
     case "expired":

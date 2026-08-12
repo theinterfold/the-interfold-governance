@@ -7,6 +7,7 @@ import { useToken } from "../../hooks/useToken";
 import { usePastSupply } from "../../hooks/usePastSupply";
 import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
+import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
 
 interface IResult {
   option: string;
@@ -28,6 +29,12 @@ interface VoteResultCardProps {
   numOptions?: number;
   /** Credit mode — controls whether the tally is scaled (token mode) or raw (CONSTANT). */
   creditMode?: CreditsMode;
+  /** The E3 round failed on-chain (or meets the failure condition): there will never be a tally. */
+  e3Failed?: boolean;
+  /** The on-chain failure reason, when `e3Failed` is set. */
+  e3FailureReason?: E3FailureReason;
+  /** The round meets the failure condition but nobody has sent `markE3Failed` yet. */
+  e3FailurePending?: boolean;
 }
 
 // Interfold earth-tone palette — matches the vote card option colors
@@ -94,6 +101,9 @@ export const VoteResultCard = ({
   snapshotBlock,
   numOptions,
   creditMode,
+  e3Failed,
+  e3FailureReason,
+  e3FailurePending,
 }: VoteResultCardProps) => {
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalId);
   const { decimals, symbol } = useToken();
@@ -144,6 +154,41 @@ export const VoteResultCard = ({
   useEffect(() => {
     setIsVisible(true);
   }, []);
+
+  // Before the empty-results guard: a failed round usually has no tally at all, and that is
+  // exactly the case where the reader most needs to be told why.
+  if (e3Failed) {
+    return (
+      <div className="vote-panel">
+        <div className="vp-head">
+          <h3>Result</h3>
+          <span className="vp-meta" style={{ color: "var(--critical, #a84932)" }}>
+            Round failed
+          </span>
+        </div>
+        <div className="vp-body items-center text-center">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ color: "var(--critical, #a84932)" }}>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+            <path d="M12 7v6M12 16.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <p className="vp-note text-center" style={{ fontWeight: 600 }}>
+            The encrypted vote round failed
+          </p>
+          <p className="vp-note text-center">
+            {describeE3Failure(e3FailureReason)} This proposal could not be tallied or executed.
+          </p>
+          {/* Interfold does not fail a round by itself — `markE3Failed` is a permissionless call
+              someone has to send once the deadline passes. Until then the round still reads as
+              live on-chain, and the refund cannot be claimed. */}
+          {e3FailurePending && (
+            <p className="vp-note text-center">
+              The failure has not been recorded on-chain yet. Anyone can finalise it, which also unlocks the fee refund.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (!results || results.length === 0) {
     return null;

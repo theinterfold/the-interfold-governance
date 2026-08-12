@@ -17,7 +17,8 @@ import { useCanVote } from "../hooks/useCanVote";
 import { VoteCard } from "../components/vote/voteCard";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
-import { useMemo } from "react";
+import { RefundCard } from "../components/fee/refundCard";
+import { useMemo, useState } from "react";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
 import { MissingContentView } from "@/components/MissingContentView";
@@ -59,18 +60,32 @@ function ProposalDetailBody({
   spp: ReturnType<typeof useSppProposal>;
 }) {
   const { address } = useAccount();
-  const { isLoading, error, postVote, votingStep, lastActiveStep, stepMessage, txHash } = useCrispServer();
+  const [submitOnChain, setSubmitOnChain] = useState(false);
   const {
     proposal,
     isCommitteeReady,
     totalVotingPower,
+    e3Failed,
+    e3FailurePending,
+    e3FailureReason,
     status: proposalFetchStatus,
   } = useProposal(proposalIdx, { metadataUri: spp.metadataUri, creator: spp.creator });
+  const {
+    isLoading,
+    error,
+    postVote,
+    votingStep,
+    lastActiveStep,
+    stepMessage,
+    txHash,
+    canPublishOnChain,
+    onChainBlockedReason,
+  } = useCrispServer(proposal?.e3Id);
   const canVote = useCanVote(proposalIdx);
   const { balance, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower);
+  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const results = useMemo(() => {
     if (!proposal || !proposal.options || !proposal.tally) return undefined;
@@ -90,13 +105,13 @@ function ProposalDetailBody({
       return;
     }
 
-    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock);
+    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
   };
 
   const onMask = () => {
     if (!proposal) return;
     // Mask uses the next index after the last option
-    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true);
+    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain);
   };
 
   const hasBalance = !!balance && balance > ZERO;
@@ -117,7 +132,12 @@ function ProposalDetailBody({
 
   return (
     <section className="flex w-screen min-w-full max-w-full flex-col items-center">
-      <ProposalHeader proposalIdx={proposalIdx} proposal={proposal} totalVotingPower={totalVotingPower} />
+      <ProposalHeader
+        proposalIdx={proposalIdx}
+        proposal={proposal}
+        totalVotingPower={totalVotingPower}
+        e3Failed={e3Failed}
+      />
 
       <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10">
         <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
@@ -148,6 +168,10 @@ function ProposalDetailBody({
                 }
                 isLoading={isLoading}
                 onClickVote={onVote}
+                canPublishOnChain={canPublishOnChain}
+                onChainBlockedReason={onChainBlockedReason}
+                submitOnChain={submitOnChain}
+                onChangeSubmitOnChain={setSubmitOnChain}
                 onClickMask={onMask}
                 proposalId={proposalIdx}
                 votingStep={votingStep}
@@ -172,8 +196,12 @@ function ProposalDetailBody({
                 snapshotBlock={proposal.parameters.snapshotBlock}
                 numOptions={proposal.numOptions}
                 creditMode={proposal.parameters.creditMode}
+                e3Failed={e3Failed}
+                e3FailureReason={e3FailureReason}
+                e3FailurePending={e3FailurePending}
               />
             )}
+            {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
             <ProposalActions actions={sppActions} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">

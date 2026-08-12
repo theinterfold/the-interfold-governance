@@ -58,6 +58,12 @@ describe("statusBucketOf", () => {
     expect(statusBucketOf("Rejected")).toBe("rejected");
   });
 
+  // A private row labels a dead E3 round "Round failed" rather than "Pending" or "Rejected";
+  // it still has to land in a bucket, or the row would only ever show under "All".
+  test("buckets a failed E3 round as rejected", () => {
+    expect(statusBucketOf("Round failed")).toBe("rejected");
+  });
+
   test("is case- and whitespace-insensitive", () => {
     expect(statusBucketOf("  eXeCuTeD ")).toBe("executed");
   });

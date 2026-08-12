@@ -33,7 +33,7 @@ function isRejected(tally: bigint[]): boolean {
   return (tally[1] ?? BigInt(0)) >= (tally[0] ?? BigInt(0));
 }
 
-export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint) => {
+export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint, e3Failed = false) => {
   const [status, setStatus] = useState<ProposalStatus>(ProposalStatus.PENDING);
 
   const { decimals } = useToken();
@@ -62,7 +62,14 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       Number(decimals)
     );
 
-    if (proposal?.active) {
+    // Checked BEFORE `active`. `active` means only "the end date is in the future", and the
+    // most common failures — committee formation timeout, DKG timeout — happen early, well
+    // inside the voting window. Testing `active` first therefore advertised a dead round as
+    // open for votes until its end date passed, with a vote card people could still click.
+    // A failed round is terminal: it can never be tallied or executed.
+    if (e3Failed) {
+      setStatus(ProposalStatus.REJECTED);
+    } else if (proposal?.active) {
       setStatus(ProposalStatus.ACTIVE);
     } else if (proposal?.executed) {
       setStatus(ProposalStatus.EXECUTED);
@@ -81,7 +88,7 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
     } else {
       setStatus(ProposalStatus.PENDING);
     }
-  }, [proposal, effectiveTotalSupply, decimals]);
+  }, [proposal, effectiveTotalSupply, decimals, e3Failed]);
 
   return status;
 };

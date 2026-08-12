@@ -70,12 +70,17 @@ function PrivateRowBody({
   onStatus?: (bucket: StatusBucket | undefined) => void;
   hidden?: boolean;
 }) {
-  const { proposal, totalVotingPower, status } = useProposal(subProposalId, { metadataUri, creator });
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower);
+  const { proposal, totalVotingPower, e3Failed, status } = useProposal(subProposalId, { metadataUri, creator });
+  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
   const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
-  const resolvedLabel = loading ? undefined : (sppOverride?.label ?? capitalize(proposalStatus));
+  // A dead round would otherwise sit here as "Pending" — never active, never tallied — which
+  // reads as "waiting to start" for something that can never run. The SPP override still wins:
+  // a canceled or expired process is the more specific fact about the proposal.
+  const resolvedLabel = loading
+    ? undefined
+    : (sppOverride?.label ?? (e3Failed ? "Round failed" : capitalize(proposalStatus)));
   const bucket = statusBucketOf(resolvedLabel);
 
   useEffect(() => {
@@ -92,7 +97,8 @@ function PrivateRowBody({
   const isActive = !sppOverride && proposalStatus === ProposalStatus.ACTIVE;
   const endDate = Number(proposal.parameters.endDate) * 1000;
   const statusLabel = resolvedLabel ?? "";
-  const statusClass = sppOverride?.className ?? (proposalStatus ?? "").toString().toLowerCase();
+  const statusClass =
+    sppOverride?.className ?? (e3Failed ? "failed" : (proposalStatus ?? "").toString().toLowerCase());
   const rightLabel =
     isActive && endDate > Date.now() ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}` : statusLabel;
 

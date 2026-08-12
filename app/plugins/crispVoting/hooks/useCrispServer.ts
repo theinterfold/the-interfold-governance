@@ -10,6 +10,26 @@ import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { hashMessage } from "viem";
 import { getRandomVoterToMask } from "../utils/voters";
+import { usePublishVote } from "./usePublishVote";
+import { useCommitteeKeyCheck } from "./useCommitteeKeyCheck";
+
+/**
+ * Converts the server's `committee_public_key` to bytes, or `undefined` if it is not the byte array
+ * the type claims.
+ *
+ * `getRoundStateLite` only CASTS the parsed JSON, so the declared `number[]` is a promise the server
+ * is not held to. `new Uint8Array("...")` on a string yields an empty array rather than throwing,
+ * and an array of non-numbers yields zeros — either way the caller would go on to treat junk as a
+ * key. Returning `undefined` instead lets the resolver report "no server key" honestly.
+ */
+function toKeyBytes(value: unknown): Uint8Array | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+
+  const valid = value.every((n) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255);
+  if (!valid) return undefined;
+
+  return Uint8Array.from(value as number[]);
+}
 
 /**
  * State of the Crisp server
@@ -17,11 +37,22 @@ import { getRandomVoterToMask } from "../utils/voters";
 interface CrispServerState {
   isLoading: boolean;
   error: string;
-  postVote: (voteOption: bigint, e3Id: bigint, snapshotBlock: bigint, isAMask?: boolean) => Promise<void>;
+  postVote: (
+    voteOption: bigint,
+    e3Id: bigint,
+    snapshotBlock: bigint,
+    isAMask?: boolean,
+    /** Send the vote yourself instead of handing it to the CRISP server to relay. */
+    submitOnChain?: boolean
+  ) => Promise<void>;
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
   txHash: string | null;
+  /** The round currently satisfies every precondition `publishInput` enforces. */
+  canPublishOnChain: boolean;
+  /** Why the on-chain route is unavailable, when it is. */
+  onChainBlockedReason?: string;
 }
 
 interface VoteResponse {
@@ -44,9 +75,19 @@ export interface BroadcastVoteRequest {
  * Hook to interact with Crisp server
  * @returns an error, a loading state and a function to cast votes
  */
-export function useCrispServer(): CrispServerState {
+export function useCrispServer(e3Id?: bigint): CrispServerState {
   const { address } = useAccount();
   const { addAlert } = useAlerts();
+
+  // The on-chain route needs the round up front to check `publishInput`'s preconditions, so the
+  // caller passes it here rather than only at vote time.
+  const {
+    publish: publishVoteOnChain,
+    canPublish: canPublishOnChain,
+    blockedReason: onChainBlockedReason,
+  } = usePublishVote(e3Id);
+
+  const resolveCommitteeKey = useCommitteeKeyCheck(e3Id);
 
   const [votingStep, setVotingStep] = useState<VotingStep>("idle");
   const [lastActiveStep, setLastActiveStep] = useState<VotingStep | null>(null);
@@ -154,7 +195,13 @@ export function useCrispServer(): CrispServerState {
     };
   };
 
-  const postVote = async (voteOption: bigint, e3Id: bigint, snapshotBlock: bigint, isAMask: boolean = false) => {
+  const postVote = async (
+    voteOption: bigint,
+    e3Id: bigint,
+    snapshotBlock: bigint,
+    isAMask: boolean = false,
+    submitOnChain: boolean = false
+  ) => {
     setIsLoading(true);
     try {
       if (!address) {
@@ -170,14 +217,42 @@ export function useCrispServer(): CrispServerState {
       });
 
       const roundState = await getRoundState(e3Id);
-      const publicKey = new Uint8Array(roundState.committee_public_key);
 
-      if (publicKey.length === 0 || roundState.status !== "Active") {
-        setError("The committee key has not been published yet. Please wait and try again.");
+      if (roundState.status !== "Active") {
+        setError("This round is not accepting votes yet. Please wait and try again.");
         setVotingStep("error");
-        setStepMessage("The committee key has not been published yet.");
+        setStepMessage("This round is not accepting votes yet.");
         return;
       }
+
+      // Bail out before signing and proof generation when the chain stage or input window
+      // already blocks on-chain publication. `canPublish` is false while the preconditions are
+      // still being read too, in which case there is no reason to report yet.
+      if (submitOnChain && !canPublishOnChain) {
+        const reason =
+          onChainBlockedReason ??
+          "Still checking whether this round accepts on-chain votes. Please try again in a moment.";
+        setError(reason);
+        setVotingStep("error");
+        setStepMessage(reason);
+        return;
+      }
+
+      // The committee key comes from `CommitteePublished` logs, falling back to the CRISP server
+      // only when the key was never published on-chain. Either way it is accepted only if its
+      // recomputed BFV commitment matches the round's on-chain `committeePublicKey`, so nobody —
+      // relayer or log spammer — can substitute a key they hold the secret for and decrypt the
+      // ballot. Resolved BEFORE anything is encrypted to it.
+      const resolved = await resolveCommitteeKey(toKeyBytes(roundState.committee_public_key));
+      if (!resolved.key) {
+        const reason = resolved.reason ?? "The committee public key could not be verified.";
+        setError(reason);
+        setVotingStep("error");
+        setStepMessage(reason);
+        return;
+      }
+
+      const publicKey = resolved.key;
 
       let voteData;
       if (isAMask) {
@@ -236,6 +311,24 @@ export function useCrispServer(): CrispServerState {
       // Step 3: Broadcasting
       setVotingStep("broadcasting");
       setLastActiveStep("broadcasting");
+
+      // Everything above this point is identical for both routes: the ballot is encrypted and
+      // proven locally, and `encodedProof` is already the exact payload `publishInput` decodes.
+      // The only difference is who sends the transaction — the voter, or the CRISP server acting
+      // as a relayer.
+      if (submitOnChain) {
+        setStepMessage("Publishing your vote on-chain...");
+
+        const hash = await publishVoteOnChain(encodedProof as `0x${string}`);
+        setTxHash(hash);
+
+        const onChainLabel = isAMask ? "Masking" : "Vote";
+        setVotingStep("complete");
+        setStepMessage(`${onChainLabel} published on-chain!`);
+        addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
+        return;
+      }
+
       setStepMessage("Broadcasting vote to the network...");
 
       const response = await fetch(`${PUB_CRISP_SERVER_URL}/voting/broadcast`, {
@@ -284,5 +377,7 @@ export function useCrispServer(): CrispServerState {
     lastActiveStep,
     stepMessage,
     txHash,
+    canPublishOnChain,
+    onChainBlockedReason,
   };
 }

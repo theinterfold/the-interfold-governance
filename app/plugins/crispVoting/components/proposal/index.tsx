@@ -30,8 +30,8 @@ function LoadingRow({ proposalId, message }: { proposalId: bigint; message: stri
 }
 
 export default function ProposalCard(props: ProposalInputs) {
-  const { proposal, totalVotingPower, status: proposalFetchStatus } = useProposal(props.proposalId);
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower);
+  const { proposal, totalVotingPower, e3Failed, status: proposalFetchStatus } = useProposal(props.proposalId);
+  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const showLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const e3Label = proposal ? `E3 · ${proposal.e3Id.toString()}` : "E3 · …";
@@ -71,6 +71,9 @@ export default function ProposalCard(props: ProposalInputs) {
       <div className="body">
         <div className="meta">
           <span className={`badge ${statusClass}`}>{capitalize(proposalStatus)}</span>
+          {/* A failed round and a voted-down proposal both resolve to REJECTED, but they mean
+              very different things — one was decided, the other never got to run. Say which. */}
+          {e3Failed && <span className="badge failed">Round failed</span>}
         </div>
         <h3>{proposal!.title}</h3>
         <p className="summary line-clamp-2">{proposal!.summary}</p>

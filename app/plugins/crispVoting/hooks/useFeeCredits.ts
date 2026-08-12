@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { formatUnits } from "viem";
+import { useEffect, useState } from "react";
+import { erc20Abi, formatUnits } from "viem";
 import { useAccount, usePublicClient, useReadContract } from "wagmi";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_INTERFOLD_FEE_TOKEN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { iVotesAbi } from "../artifacts/iVotes";
+import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
+import { describeFailure } from "../utils/describeFailure";
 
 /** Extra margin applied when depositing a fee-credit shortfall (10%). */
 export const FEE_BUFFER_PERCENT = 10n;
@@ -26,6 +28,17 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   const client = usePublicClient();
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  // Both actions can fail where `useTransactionManager` never sees it — the client guard fires
+  // before any transaction is sent, and a reverted receipt is caught by `awaitSuccessfulReceipt`
+  // rather than by wagmi. Callers discard these promises, so an uncaught throw is an unhandled
+  // rejection and a button that silently does nothing.
+  const [error, setError] = useState<string | undefined>(undefined);
+
+  // An error belongs to the account that hit it. Switching wallets otherwise carries the previous
+  // account's failure over and shows it against balances it has nothing to do with.
+  useEffect(() => {
+    setError(undefined);
+  }, [address]);
 
   // Quote with the creator's chosen window: the sub-proposal's end date is start + duration,
   // and the Interfold fee scales with the input-window length. Quoting (0, 0) would fall back
@@ -56,6 +69,13 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
     abi: iVotesAbi,
     functionName: "decimals",
+  });
+
+  const { data: symbolData } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "symbol",
   });
 
   const quote = quoteData as bigint | undefined;
@@ -99,8 +119,14 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   const deposit = async (amount: bigint): Promise<boolean> => {
     if (amount <= 0n) return true;
 
+    setError(undefined);
     setIsDepositing(true);
     try {
+      // Optional chaining on `client` would make every await below resolve to `undefined` rather
+      // than fail, silently skipping the receipt waits — the UI would report success and refetch
+      // stale balances while the transactions were still pending.
+      if (!client) throw new Error("No RPC client available");
+
       const approveTx = await approveWrite({
         chainId: PUB_CHAIN.id,
         abi: iVotesAbi,
@@ -108,7 +134,8 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
         functionName: "approve",
         args: [PUB_CRISP_VOTING_PLUGIN_ADDRESS, amount],
       });
-      await client?.waitForTransactionReceipt({ hash: approveTx });
+      // A reverted approval must stop the flow: the deposit that follows would fail anyway.
+      await awaitSuccessfulReceipt(client, approveTx, "The fee-token approval");
 
       const depositTx = await depositWrite({
         chainId: PUB_CHAIN.id,
@@ -117,11 +144,12 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
         functionName: "deposit",
         args: [amount],
       });
-      await client?.waitForTransactionReceipt({ hash: depositTx });
+      await awaitSuccessfulReceipt(client, depositTx, "The deposit");
       return true;
     } catch (err) {
-      console.error("Could not deposit the fee credit", err);
+      setError(describeFailure(err, "The deposit could not be completed"));
       setIsDepositing(false);
+      void refetchCredit();
       return false;
     }
   };
@@ -134,8 +162,11 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     const value = amount ?? credit ?? 0n;
     if (value <= 0n) return;
 
+    setError(undefined);
     setIsWithdrawing(true);
     try {
+      if (!client) throw new Error("No RPC client available");
+
       const tx = await withdrawWrite({
         chainId: PUB_CHAIN.id,
         abi: CrispVotingAbi,
@@ -143,10 +174,11 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
         functionName: "withdraw",
         args: [value],
       });
-      await client?.waitForTransactionReceipt({ hash: tx });
+      await awaitSuccessfulReceipt(client, tx, "The withdrawal");
     } catch (err) {
-      console.error("Could not withdraw the fee credit", err);
+      setError(describeFailure(err, "The withdrawal could not be completed"));
       setIsWithdrawing(false);
+      void refetchCredit();
     }
   };
 
@@ -158,6 +190,9 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     credit,
     shortfall,
     decimals,
+    symbol: symbolData as string | undefined,
+    /** Why the last deposit or withdrawal failed, if it did. */
+    error,
     format,
     deposit,
     depositShortfall,
