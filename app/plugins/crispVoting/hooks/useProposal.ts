@@ -95,7 +95,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     if (proposalRaw?.e3Id === undefined) return;
     if (isTallied && isCommitteeReady) return;
 
-    const roundId = Number(proposalRaw.e3Id.toString());
+    const roundId = BigInt(proposalRaw.e3Id.toString());
 
     crispSdk
       .getRoundStateLite(roundId)

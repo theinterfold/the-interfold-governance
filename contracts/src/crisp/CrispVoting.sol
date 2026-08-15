@@ -188,6 +188,11 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
 
             // calculate the E3 fee
             uint256 fee = interfold.getE3Quote(requestParams);
+
+            // Tighten the limit to exactly what was quoted, charged and approved below. Left
+            // unbounded the assertion would be decorative: `request` re-quotes internally, and a
+            // price move between the two would be paid silently.
+            requestParams.maxFee = fee;
             // Charge the SPP proposal creator's escrowed credit (creator-pays: junk
             // proposals burn the junk-creator's own deposit, never a shared pot).
             _chargeFee(proposalId, fee);
@@ -582,20 +587,35 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         view
         returns (IInterfold.E3RequestParams memory)
     {
-        // Six fields, and the sixth is not optional: `CRISPProgram.validate` decodes exactly this
-        // shape, so a five-field encoding reverts the request rather than defaulting to anything.
+        // Seven fields, none optional: `CRISPProgram.validate` decodes exactly this shape, so a
+        // short encoding reverts the request rather than defaulting to anything.
         //
-        // TOKEN, because governance eligibility *is* the token balance at the snapshot — the
-        // coordinator reconstructs it from transfer logs and needs nothing from this contract.
-        // BY_REQUESTER exists for electorates that cannot be discovered that way (a subset of
-        // players, a jury), and would oblige this plugin to answer `getCensus(uint256)` per round.
+        // ONCHAIN, so eligibility and weight are read from the token by the CRISP program itself
+        // at the round's snapshot. Nothing has to build or publish a census, which takes the
+        // coordinator out of the eligibility path entirely. TOKEN produced the same electorate but
+        // required the coordinator to reconstruct it from transfer logs and publish a Merkle root
+        // before anyone could vote.
+        //
+        // The divisor is 0, meaning "derive from the token's decimals". That derivation is
+        // `10 ** (decimals - 1)`, the same rule `_tallyScale()` applies when reading results back,
+        // so ballots and tallies stay in one set of units.
+        //
+        // The floor is raised to at least one ballot unit. `CRISPProgram` refuses an ONCHAIN round
+        // whose floor is worth less than that, because a voter could clear it and still scale to
+        // zero weight — able to publish, but counted for nothing. A DAO that set no floor would
+        // otherwise be unable to create a proposal at all.
+        uint256 minVotingPower = votingSettings.minVoterVotingPower;
+        uint256 ballotUnit = _tallyScale();
+        if (minVotingPower < ballotUnit) minVotingPower = ballotUnit;
+
         bytes memory customParams = abi.encode(
             address(votingToken),
-            votingSettings.minVoterVotingPower,
+            minVotingPower,
             NUM_OPTIONS,
             ICRISP.CreditMode.CUSTOM,
             _credits,
-            ICRISP.CensusMode.TOKEN
+            ICRISP.CensusMode.ONCHAIN,
+            uint256(0)
         );
 
         return IInterfold.E3RequestParams({
@@ -604,7 +624,20 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             e3Program: IE3Program(crispProgramAddress),
             computeProviderParams: computeProviderParams,
             customParams: customParams,
-            paramSet: paramSet
+            paramSet: paramSet,
+            // The token this plugin escrows and approves. Asserting it means a fee-token swap on
+            // the protocol fails the request rather than spending an asset the plugin never
+            // reserved.
+            expectedFeeToken: interfoldFeeToken,
+            // Read live, so a circuit-config change does not block proposals. That makes the
+            // assertion tautological: it cannot detect the change it exists to catch. Pinning an
+            // expected id at install time would restore it, at the cost of a reconfiguration step
+            // after every legitimate circuit upgrade.
+            expectedCryptoConfigId: interfold.activeCryptoConfigId(),
+            // Unbounded here because `_buildRequestParams` also feeds `quoteProposalFee`, where
+            // nothing is charged and the limit is not checked. `createProposal` tightens it to the
+            // quoted fee before requesting.
+            maxFee: type(uint256).max
         });
     }
 

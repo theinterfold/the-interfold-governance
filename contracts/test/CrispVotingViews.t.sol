@@ -14,6 +14,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
+import {ICRISP} from "../src/crisp/ICRISP.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
 import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesToken} from "./mocks/CrispMocks.sol";
 
@@ -140,6 +141,82 @@ contract CrispVotingViewsTest is Test {
         crispProgram.setTally(plugin.getProposal(proposalId).e3Id, _counts(6000, 0));
         vm.warp(block.timestamp + MIN_DURATION + 1);
         plugin.execute(proposalId);
+    }
+
+    // --- request params -------------------------------------------------------
+
+    /// @notice Pins the tuple `CRISPProgram.validate` decodes.
+    /// @dev Nothing asserted this before, so the encoding could drift silently — and it is the one
+    ///      place where a mistake costs a whole round: a short or reordered tuple reverts the
+    ///      request, and a wrong census mode enfranchises the wrong people without erroring.
+    function test_requestParamsDeclareOnChainCensus() public {
+        _create();
+
+        (
+            address token,
+            uint256 minVotingPower,
+            uint256 numOptions,
+            uint256 creditMode,
+            uint256 credits,
+            uint256 censusMode,
+            uint256 votingPowerDivisor
+        ) = abi.decode(
+            interfold.lastCustomParams(), (address, uint256, uint256, uint256, uint256, uint256, uint256)
+        );
+
+        assertEq(token, address(votesToken), "token");
+        assertEq(numOptions, 3, "numOptions");
+        assertEq(creditMode, uint256(ICRISP.CreditMode.CUSTOM), "creditMode");
+        assertEq(credits, 0, "credits");
+        assertEq(censusMode, uint256(ICRISP.CensusMode.ONCHAIN), "censusMode");
+
+        // 0 means "derive from the token decimals", which is the same rule `_tallyScale()` applies
+        // when reading results back — so ballots and tallies stay in one set of units.
+        assertEq(votingPowerDivisor, 0, "divisor derived on-chain");
+
+        // The DAO configured a floor of 3 raw units, far below one ballot unit (10 ** 17 for an
+        // 18-decimal token). `CRISPProgram` refuses such a round, because a voter could clear the
+        // floor and still scale to zero weight, so the plugin raises it to exactly one unit.
+        assertEq(plugin.minVoterVotingPower(), 3, "DAO setting is untouched");
+        assertEq(minVotingPower, 10 ** 17, "floor raised to one ballot unit");
+    }
+
+    /// @notice Pins the vendored `E3RequestParams` against the deployed coordinator's shape.
+    /// @dev The struct is part of the `getE3Quote`/`request` selector, so a field added upstream
+    ///      does not degrade gracefully: the call hits a selector that does not exist, there is no
+    ///      fallback, and it reverts with EMPTY data — indistinguishable from a wrong address or a
+    ///      dead contract. That is exactly how the missing `expectedFeeToken`/
+    ///      `expectedCryptoConfigId`/`maxFee` fields surfaced: as a blank fee card, long after the
+    ///      plugin had compiled cleanly against its own stale copy.
+    ///
+    ///      Nothing links this repo to the protocol's source, so only an explicit assertion keeps
+    ///      them in step. If this fails, re-vendor `IInterfold.sol` rather than editing the hash.
+    function test_requestParamsSelectorMatchesTheProtocol() public pure {
+        // keccak of the canonical signature, from the deployed Interfold.
+        bytes4 expectedQuote = bytes4(
+            keccak256("getE3Quote((uint8,uint256[2],address,uint8,bytes,bytes,address,bytes32,uint256))")
+        );
+
+        assertEq(IInterfold.getE3Quote.selector, expectedQuote, "E3RequestParams drifted from the protocol");
+    }
+
+    /// @notice The fee limits the plugin asserts when it requests an E3.
+    /// @dev `validateQuoteLimit` runs inside `request`, not `getE3Quote`, so these are the values
+    ///      that decide whether a request is honoured or refused.
+    function test_requestAssertsTheQuotedFeeAndConfiguredToken() public {
+        _create();
+
+        assertEq(interfold.lastExpectedFeeToken(), address(feeToken), "asserts the token it escrows");
+        assertEq(
+            interfold.lastExpectedCryptoConfigId(),
+            interfold.activeCryptoConfigId(),
+            "asserts the coordinator's active config"
+        );
+
+        // Tightened to the quote rather than left unbounded: `request` re-quotes internally, so an
+        // unbounded limit would pay a moved price silently.
+        assertEq(interfold.lastMaxFee(), interfold.fee(), "max fee is the quoted fee");
+        assertLt(interfold.lastMaxFee(), type(uint256).max, "must not stay unbounded");
     }
 
     // --- initialize -----------------------------------------------------------

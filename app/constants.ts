@@ -7,6 +7,19 @@ import type { ChainName } from "./utils/chains";
 export const PUB_DAO_ADDRESS = (process.env.NEXT_PUBLIC_DAO_ADDRESS ?? "") as Address;
 export const PUB_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_ADDRESS ?? "") as Address;
 export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS ?? "") as Address;
+// `BondedVotes`: the IVotes adapter that reports wallet FOLD *plus* FOLD bonded as ciphernode
+// collateral. Bonded FOLD sits in the BondingRegistry, which never delegates it, so reading the
+// token directly reports zero weight for an operator who has bonded everything — while that same
+// FOLD still counts in the quorum denominator.
+//
+// Reads only. It holds no delegation state: `delegate()` reverts `DelegationNotSupported`, and it
+// emits no `DelegateChanged`, so delegation and the delegate list must stay on the token itself.
+//
+// Falls back to the token when unset, which keeps the app working against a deployment that has
+// no adapter — it just cannot see bonded weight.
+export const PUB_BONDED_VOTES_ADDRESS = (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "") as Address;
+/// The address to read balances and voting power from.
+export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_ADDRESS) as Address;
 // Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
 // Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet

@@ -126,8 +126,6 @@ export interface VoteData {
   vote: Vote;
   slotAddress: string;
   balance: bigint;
-  signature: string;
-  messageHash: `0x${string}`;
 }
 
 export enum CreditsMode {

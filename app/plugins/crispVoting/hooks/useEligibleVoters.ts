@@ -95,7 +95,7 @@ export function useEligibleVoters(
     staleTime: Infinity,
     enabled: enabled && e3Id !== undefined && decimals !== undefined,
     queryFn: async () => {
-      const id = Number(e3Id);
+      const id = BigInt(e3Id!);
 
       const [holders, leafHashes, tokenDetails, onChainRound] = await Promise.all([
         crispSdk.getEligibleAddresses(id),

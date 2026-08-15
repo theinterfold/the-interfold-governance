@@ -141,13 +141,32 @@ contract MockInterfold {
         return feeTokenAddr;
     }
 
+    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin now reads
+    ///         when building request params. Without it the call reverts and every proposal path
+    ///         fails, which is how its absence first showed up.
+    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+
+    /// @notice The last request's asserted fee limits, so tests can pin what the plugin promises.
+    address public lastExpectedFeeToken;
+    bytes32 public lastExpectedCryptoConfigId;
+    uint256 public lastMaxFee;
+
     function getE3Quote(IInterfold.E3RequestParams calldata) external view returns (uint256) {
         return fee;
     }
 
-    function request(IInterfold.E3RequestParams calldata) external returns (uint256 e3Id, E3 memory e3) {
+    /// @notice The `customParams` of the most recent request, so tests can assert the exact shape
+    ///         `CRISPProgram.validate` will decode. Discarding them let the encoding drift
+    ///         unnoticed: the plugin builds a tuple no test ever looked at.
+    bytes public lastCustomParams;
+
+    function request(IInterfold.E3RequestParams calldata params) external returns (uint256 e3Id, E3 memory e3) {
         // Pull the fee like the real coordinator does (the plugin forceApproves us).
         MockFeeToken(feeTokenAddr).transferFrom(msg.sender, address(this), fee);
+        lastCustomParams = params.customParams;
+        lastExpectedFeeToken = address(params.expectedFeeToken);
+        lastExpectedCryptoConfigId = params.expectedCryptoConfigId;
+        lastMaxFee = params.maxFee;
         e3Id = nextE3Id++;
     }
 }

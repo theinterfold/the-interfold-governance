@@ -209,6 +209,17 @@ interface IInterfold {
     ///      `proofAggregationEnabled` was removed upstream; keeping it here changes
     ///      `request`'s selector, which means the call reaches no function and reverts with *empty*
     ///      data — no named error, nothing to diagnose from.
+    /// @param expectedFeeToken Fee token accepted by the requester.
+    /// @param expectedCryptoConfigId Circuit configuration accepted by the requester.
+    /// @param maxFee Maximum fee accepted for this request.
+    /// @dev The last three are caller-supplied assertions, checked by `validateQuoteLimit` inside
+    ///      `request` (not `getE3Quote`), so a fee-token swap, a circuit-config change or a price
+    ///      move between quoting and requesting cannot silently bind the requester.
+    ///
+    ///      This struct must match the deployed Interfold exactly. It is part of the function
+    ///      selector, so a missing field does not degrade gracefully — every `getE3Quote` and
+    ///      `request` call reverts with empty data, which is indistinguishable from a wrong
+    ///      address. `CrispVotingViewsTest` pins it against the canonical definition.
     struct E3RequestParams {
         CommitteeSize committeeSize;
         uint256[2] inputWindow;
@@ -216,6 +227,9 @@ interface IInterfold {
         uint8 paramSet;
         bytes computeProviderParams;
         bytes customParams;
+        IERC20 expectedFeeToken;
+        bytes32 expectedCryptoConfigId;
+        uint256 maxFee;
     }
 
     ////////////////////////////////////////////////////////////
@@ -334,6 +348,10 @@ interface IInterfold {
 
     /// @notice Returns the ERC20 token used to pay for E3 fees.
     function feeToken() external view returns (IERC20);
+
+    /// @notice The circuit configuration accepted by new requests.
+    /// @return The active crypto config id.
+    function activeCryptoConfigId() external view returns (bytes32);
 
     /// @notice Returns the BondingRegistry contract.
     function bondingRegistry() external view returns (IBondingRegistry);

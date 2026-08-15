@@ -33,6 +33,11 @@ interface ICRISP {
         /// @notice The coordinator asks the requesting contract via `getCensus(uint256)`. For
         ///         applications whose electorate is not a token balance — a subset of players, a
         ///         jury — and which therefore cannot be discovered.
-        BY_REQUESTER
+        BY_REQUESTER,
+        /// @notice No census at all. `CRISPProgram.publishInput` reads each voter's power straight
+        ///         from the token at the round's snapshot and hands it to the circuit, so nothing
+        ///         has to build or publish a Merkle tree. This is what removes the coordinator
+        ///         from the eligibility path.
+        ONCHAIN
     }
 }

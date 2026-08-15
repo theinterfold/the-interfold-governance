@@ -57,6 +57,11 @@ contract MockVotesErc20 {
 }
 
 contract MockInterfoldMinimal {
+
+    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin reads when
+    ///         building request params. Absent, every proposal path reverts.
+    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+
     function feeToken() external view returns (address) {
         return address(this);
     }

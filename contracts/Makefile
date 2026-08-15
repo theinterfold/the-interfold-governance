@@ -39,7 +39,10 @@ deploy: ## Deploy: create the Interfold DAO with both plugins (tees output to $(
 		--rpc-url $$RPC_URL --broadcast --slow -vvvv | tee $(DEPLOY_LOG)
 
 sync-env: ## Patch $(APP_ENV_FILE) + contracts/$(ENV_FILE) from the last deploy log
-	CONTRACTS_ENV=$(ENV_FILE) APP_ENV=$(APP_ENV_FILE) ./script/sync-env.sh $(DEPLOY_LOG)
+# Sources the env file for RPC_URL only, so the script can ask whether the DAO's voting token is a
+# BondedVotes adapter over the real token. Without it the probe is skipped and the adapter address
+# lands in NEXT_PUBLIC_TOKEN_ADDRESS, which breaks delegation in the app while looking correct.
+	set -a; . ./$(ENV_FILE); set +a; 	CONTRACTS_ENV=$(ENV_FILE) APP_ENV=$(APP_ENV_FILE) ./script/sync-env.sh $(DEPLOY_LOG)
 
 wire-spp: ## Bootstrap: proposal wiring SPP stages + permissions (run after deploy + sync-env)
 	set -a; . ./$(ENV_FILE); set +a; \

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { usePublicClient } from "wagmi";
 import { erc20Abi, parseAbiItem, type Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
-import { PUB_TOKEN_ADDRESS, PUB_TOKEN_DEPLOYMENT_BLOCK } from "@/constants";
+import { PUB_TOKEN_ADDRESS, PUB_TOKEN_DEPLOYMENT_BLOCK, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 
 const delegateChangedEvent = parseAbiItem(
@@ -64,11 +64,17 @@ export function useDelegates() {
           functionName: "totalSupply",
         })) as bigint;
 
+        // Voting power from the adapter, so a delegate who is also a bonded operator shows the
+        // weight they can actually vote with. The candidate scan above stays on the token: the
+        // adapter emits no `DelegateChanged`, and delegation is a token-level relationship.
+        //
+        // The percentage still divides by the token's own supply, which is right — bonded FOLD was
+        // transferred rather than burned, so it is already counted there exactly once.
         const votes = addrs.length
           ? ((await publicClient.multicall({
               allowFailure: true,
               contracts: addrs.map((a) => ({
-                address: PUB_TOKEN_ADDRESS,
+                address: PUB_VOTING_POWER_SOURCE,
                 abi: iVotesAbi,
                 functionName: "getVotes",
                 args: [a],

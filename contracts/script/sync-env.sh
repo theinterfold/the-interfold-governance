@@ -118,8 +118,62 @@ set_env "${APP_ENV}" NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS "${TOKEN_VOTING_PLU
 set_env "${APP_ENV}" NEXT_PUBLIC_SPP_PRIVATE_ADDRESS "${SPP_PRIVATE}"
 set_env "${APP_ENV}" NEXT_PUBLIC_SPP_PUBLIC_ADDRESS "${SPP_PUBLIC}"
 set_env "${APP_ENV}" NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK "${DEPLOY_BLOCK}"
-# FOLD only changes if you redeployed the token; harmless to keep in sync.
-set_env "${APP_ENV}" NEXT_PUBLIC_TOKEN_ADDRESS "${FOLD_ADDRESS}"
+# The DAO's *voting* token and the app's *user* token are not always the same contract.
+#
+# `FOLD_TOKEN_ADDRESS` may be a `BondedVotes` adapter, so that a round counts FOLD bonded as
+# ciphernode collateral as well as FOLD held in a wallet. The adapter is read-only: `delegate()`
+# reverts `DelegationNotSupported` and it emits no `DelegateChanged`. Writing it to
+# NEXT_PUBLIC_TOKEN_ADDRESS therefore breaks delegation and empties the members list, while
+# looking entirely correct.
+#
+# Probe `token()` to tell the two apart: an adapter answers with the underlying token, a plain
+# ERC20Votes has no such function. Falls back to the previous behaviour when `cast` or an RPC is
+# unavailable, since this script otherwise needs neither.
+# CRISP program: propagated from the contracts env, which is the value the plugin was actually
+# installed with (`Utils.readCrispEnv()` feeds it into `PluginInitParams`). Redeploying CRISP
+# changes it, and a stale value points the app at a program the DAO's rounds do not run on.
+if [[ -n "${CRISP_PROGRAM_ADDRESS:-}" ]]; then
+  set_env "${APP_ENV}" NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS "${CRISP_PROGRAM_ADDRESS}"
+fi
+
+# Faucet: only exists on testnets, so absence is normal rather than an error. Redeploying the
+# protocol replaces it, and a stale address silently dispenses nothing — the symptom is a faucet
+# button that appears to work against a dead contract.
+if [[ -n "${FAUCET_ADDRESS:-}" ]]; then
+  set_env "${APP_ENV}" NEXT_PUBLIC_FAUCET_ADDRESS "${FAUCET_ADDRESS}"
+fi
+
+# The fee token is read from the plugin rather than the deploy log: the plugin caches it at
+# `initialize` (`interfoldFeeToken = interfold.feeToken()`), so this is the exact contract a
+# deposit will pull from. Left stale, the app approves one token and the plugin pulls another —
+# the approval succeeds, the deposit reverts ERC20InsufficientAllowance, and nothing points at the
+# address as the cause.
+if command -v cast >/dev/null 2>&1 && [[ -n "${RPC_URL:-}" && -n "${CRISP_PLUGIN}" ]]; then
+  FEE_TOKEN="$(cast call "${CRISP_PLUGIN}" 'interfoldFeeToken()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+  if [[ "${FEE_TOKEN}" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+    set_env "${APP_ENV}" NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS "${FEE_TOKEN}"
+  fi
+fi
+
+UNDERLYING_TOKEN=""
+if command -v cast >/dev/null 2>&1 && [[ -n "${RPC_URL:-}" ]]; then
+  UNDERLYING_TOKEN="$(cast call "${FOLD_ADDRESS}" 'token()(address)' --rpc-url "${RPC_URL}" 2>/dev/null || true)"
+fi
+
+if [[ "${UNDERLYING_TOKEN}" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+  echo "  (${FOLD_ADDRESS} is a bonded-votes adapter over ${UNDERLYING_TOKEN})"
+  set_env "${APP_ENV}" NEXT_PUBLIC_TOKEN_ADDRESS "${UNDERLYING_TOKEN}"
+  set_env "${APP_ENV}" NEXT_PUBLIC_BONDED_VOTES_ADDRESS "${FOLD_ADDRESS}"
+else
+  # Either a plain token, or the probe could not run. Balances and votes then come from the token
+  # itself, and bonded weight is invisible until NEXT_PUBLIC_BONDED_VOTES_ADDRESS is set by hand.
+  set_env "${APP_ENV}" NEXT_PUBLIC_TOKEN_ADDRESS "${FOLD_ADDRESS}"
+fi
+# Deployment-derived values this script cannot resolve. Named explicitly, because every address
+# that broke after the last redeploy broke by being silently stale, not by erroring.
+for manual in NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK NEXT_PUBLIC_BRIDGE_ADDRESS; do
+  echo "  note: ${manual} is not synced — update it by hand if the deployment changed"
+done
 echo
 
 echo "Patching ${CONTRACTS_ENV}:"

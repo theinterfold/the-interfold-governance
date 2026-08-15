@@ -5,6 +5,7 @@ import { useProposal } from "../../hooks/useProposal";
 import { useProposalStatus } from "../../hooks/useProposalStatus";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import { AddressText } from "@/components/text/address";
+import { e3RoundNumber } from "../../utils/ballotDigest";
 
 const DEFAULT_PROPOSAL_METADATA_TITLE = "(No proposal title)";
 const DEFAULT_PROPOSAL_METADATA_SUMMARY = "(The metadata of the proposal is not available)";
@@ -34,7 +35,7 @@ export default function ProposalCard(props: ProposalInputs) {
   const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const showLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const e3Label = proposal ? `E3 · ${proposal.e3Id.toString()}` : "E3 · …";
+  const e3Label = proposal ? `E3 · ${e3RoundNumber(proposal.e3Id).toString()}` : "E3 · …";
 
   // Hide row if it doesn't match the active filter (only once status is resolved)
   if (props.statusFilter && proposal && proposalStatus !== props.statusFilter) {

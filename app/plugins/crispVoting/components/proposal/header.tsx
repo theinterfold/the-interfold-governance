@@ -6,6 +6,7 @@ import { HeaderSection } from "@/components/layout/header-section";
 import { capitalizeFirstLetter } from "@/utils/text";
 import { AddressText } from "@/components/text/address";
 import { useEffect, useState } from "react";
+import { e3RoundNumber } from "../../utils/ballotDigest";
 
 const DEFAULT_PROPOSAL_TITLE = "(No proposal title)";
 const DEFAULT_PROPOSAL_SUMMARY = "(No proposal summary)";
@@ -42,7 +43,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal, 
             Proposals
           </Link>
           <span className="detail-kicker">/</span>
-          <span className="detail-kicker">E3 · {proposal.e3Id.toString()}</span>
+          <span className="detail-kicker">E3 · {e3RoundNumber(proposal.e3Id).toString()}</span>
         </div>
 
         <div className="flex w-full flex-col">
