@@ -1,5 +1,11 @@
 # Mainnet deployment runbook
 
+> **Production installs go through the foundation multisig.** This runbook keeps the Admin
+> bootstrap armed on a deployer EOA between phases, which is acceptable on Sepolia and local
+> forks but is a single point of total failure over a funded DAO. For mainnet, follow
+> [`production-multisig-install.md`](./production-multisig-install.md), where every transaction
+> is signed by the Safe and no hot key ever holds authority.
+
 Operational instructions for taking the Interfold DAO to Ethereum mainnet in two phases:
 
 - **Phase 1 — public governance.** DAO + mainnet FOLD + TokenVoting body + one SPP (public

@@ -105,7 +105,14 @@ contract InstallPrivateProcessScript is WireSppScript {
             new CrispVotingSetup(governanceERC20Base, governanceWrappedERC20Base, crispVotingImpl);
 
         PluginRepo crispRepo = PluginRepoFactory(pluginRepoFactory)
-            .createPluginRepoWithFirstVersion(subdomain, address(crispSetup), msg.sender, "1", "1");
+            // Maintainer is the foundation multisig, not the broadcasting EOA. The EOA pays the
+            // gas but keeps no authority: publishing a future CRISP build is a multisig action
+            // from the start, so there is never a window where a hot key can publish a build the
+            // DAO would then install. Falls back to the sender only if unset, which keeps a local
+            // or fork run working without a Safe.
+            .createPluginRepoWithFirstVersion(
+            subdomain, address(crispSetup), vm.envOr("FOUNDATION_ADDRESS", msg.sender), "1", "1"
+        );
 
         vm.stopBroadcast();
 

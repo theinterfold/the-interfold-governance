@@ -74,6 +74,59 @@ print-private-actions: ## Print the phase-2 actions as proposal calldata (no bro
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
 		--sig "printProposalActions()" --rpc-url $$RPC_URL -vvvv
 
+# --- Multisig-signable actions (DAO execute rights held by the foundation Safe) -------
+# One Safe Transaction Builder file per action, written to out/safe/. Each is loadable on its
+# own, so you sign, verify on chain, then move to the next. The EOA `prepare` steps above are
+# unchanged: they touch nothing the DAO owns and need no signature.
+safe-deploy-setup: ## Safe action: deploy a plugin setup via the CREATE2 deployer
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "deploySetupViaCreate2()" --rpc-url $$RPC_URL
+
+safe-create-repo: ## Safe action: mint the CRISP plugin repo with the Safe as maintainer
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "createRepo()" --rpc-url $$RPC_URL
+
+# Read the InstallationPrepared event from the receipt afterwards: applyInstallation needs the
+# plugin address, permissions and helpers hash it emits, and they cannot be predicted.
+safe-prepare-install: ## Safe action: prepareInstallation for one plugin (see PLUGIN_PREFIX)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	PLUGIN_PREFIX=$(PLUGIN_PREFIX) PLUGIN_SLUG=$(PLUGIN_SLUG) \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "prepareInstall()" --rpc-url $$RPC_URL
+
+# Reads the InstallationPrepared event straight from the prepare receipt, so the values
+# applyInstallation re-derives its setup id from are never transcribed by hand.
+#   make read-prepared TX=0x… PLUGIN_PREFIX=CRISP >> .env
+read-prepared: ## Print the <PREFIX>_* env lines from a prepare transaction receipt
+	set -a; . ./$(ENV_FILE); set +a; \
+	./script/read-prepared.sh $(TX) $(PLUGIN_PREFIX) $$RPC_URL
+
+# Emitted as ONE file: stages without grants, or grants without stages, is a broken process.
+safe-wire: ## Safe action: SPP stages + CREATE_PROPOSAL grants + target config (atomic)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "wireProcess()" --rpc-url $$RPC_URL
+
+safe-grant-root: ## Safe action: grant ROOT on the DAO to the PluginSetupProcessor
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "grantRootToPsp()" --rpc-url $$RPC_URL
+
+safe-revoke-root: ## Safe action: revoke ROOT from the PluginSetupProcessor (closes installs)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "revokeRootFromPsp()" --rpc-url $$RPC_URL
+
+# PLUGIN_PREFIX selects which <PREFIX>_* prepared values to read; PLUGIN_SLUG names the file.
+#   make safe-apply-install PLUGIN_PREFIX=SPP_PUBLIC PLUGIN_SLUG=01-install-spp-public
+safe-apply-install: ## Safe action: applyInstallation for one prepared plugin (see PLUGIN_PREFIX)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	PLUGIN_PREFIX=$(PLUGIN_PREFIX) PLUGIN_SLUG=$(PLUGIN_SLUG) \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "applyInstall()" --rpc-url $$RPC_URL
+
 # --- Hand the Admin bootstrap from the deployer EOA to the foundation multisig -------
 # Two steps ON PURPOSE. Between them both holders can drive the bootstrap, so the successor
 # proves it can execute before the EOA gives up the only key. Never batch them.

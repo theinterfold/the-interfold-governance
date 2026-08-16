@@ -9,6 +9,10 @@ optimizer-runs = 200
 solc = "0.8.29"
 via_ir = false
 
+# SafeActions writes one Transaction Builder file per action here. Scoped to this directory only:
+# a script that can write anywhere could overwrite sources or build output.
+fs_permissions = [{ access = "read-write", path = "./safe-actions" }]
+
 [fmt]
 # Never reformat vendored dependency source — `forge fmt` would otherwise walk lib/ and
 # leave every submodule with a dirty working tree (whitespace-only edits, no SHA change).
