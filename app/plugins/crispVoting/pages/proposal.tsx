@@ -187,6 +187,7 @@ function ProposalDetailBody({
             )}
             {proposalStatus !== ProposalStatus.ACTIVE && (
               <VoteResultCard
+                vetoStage={spp.vetoStage}
                 isSignalling={false}
                 proposalId={proposalIdx}
                 results={results}

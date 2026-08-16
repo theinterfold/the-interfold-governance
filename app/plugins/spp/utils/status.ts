@@ -31,8 +31,10 @@ export function getSppStatusOverride(
   }
 
   // Stage-1 mode, read from the stage config the proposal was created under:
-  // approval (opt-in, vetoThreshold == 0) vs veto (opt-out). Mirrors VetoStageCard.
-  const approvalMode = (vetoStage?.vetoThreshold ?? 1) === 0;
+  // approval (opt-in, vetoThreshold == 0) vs veto (opt-out). Shared with the CTA labels via
+  // `isApprovalStage` — duplicating the rule is how the button came to say "veto stage" while
+  // the status beside it said "Approval period".
+  const approvalMode = isApprovalStage(vetoStage);
 
   // A veto is only reachable in veto mode; in approval mode silence is the rejection.
   if (!approvalMode) {
@@ -61,3 +63,32 @@ export function getSppStatusOverride(
 
   return { label: approvalMode ? "Approval period" : "Veto period", className: "active" };
 }
+
+/**
+ * Whether stage 1 is opt-in (approval) or opt-out (veto).
+ *
+ * A `vetoThreshold` of 0 means no number of vetoes can reject, so the stage passes only by
+ * explicit approval.
+ *
+ * Defaults to approval while the config is unread, because that is the mode this DAO runs. The
+ * default only shows while stage config is loading, and it decides which way a transient label
+ * leans — never how a proposal is actually resolved, which the chain decides from the real
+ * threshold.
+ *
+ * The single source for this question: `sppStatus` below and every CTA label read it, so the
+ * status and the button cannot disagree about which stage comes next.
+ *
+ * @param vetoStage The stage config the proposal was created under.
+ * @returns True when stage 1 is an approval stage.
+ */
+export const isApprovalStage = (vetoStage?: { vetoThreshold?: number | bigint }): boolean =>
+  Number(vetoStage?.vetoThreshold ?? 0) === 0;
+
+/**
+ * The name of stage 1, for button labels and prose.
+ *
+ * @param vetoStage The stage config the proposal was created under.
+ * @returns "approval" or "veto".
+ */
+export const nextStageName = (vetoStage?: { vetoThreshold?: number | bigint }): string =>
+  isApprovalStage(vetoStage) ? "approval" : "veto";

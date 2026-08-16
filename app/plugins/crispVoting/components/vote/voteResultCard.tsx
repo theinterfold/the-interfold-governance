@@ -8,6 +8,7 @@ import { usePastSupply } from "../../hooks/usePastSupply";
 import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
 import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
+import { nextStageName } from "@/plugins/spp/utils/status";
 
 interface IResult {
   option: string;
@@ -15,6 +16,8 @@ interface IResult {
 }
 
 interface VoteResultCardProps {
+  /** Stage-1 config, so the CTA names the stage this actually advances to. */
+  vetoStage?: { vetoThreshold?: number | bigint };
   results?: IResult[];
   proposalId: bigint;
   isSignalling?: boolean;
@@ -92,6 +95,7 @@ function formatAmount(value: number): string {
 }
 
 export const VoteResultCard = ({
+  vetoStage,
   results,
   proposalId,
   isSignalling,
@@ -285,7 +289,7 @@ export const VoteResultCard = ({
             disabled={isConfirmingExecution}
             onClick={executeProposal}
           >
-            Submit result & advance to veto stage
+            Submit result & advance to {nextStageName(vetoStage)} stage
           </Button>
         )}
       </div>

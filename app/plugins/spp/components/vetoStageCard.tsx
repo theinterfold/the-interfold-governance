@@ -11,6 +11,7 @@ import { useSppAdvance } from "../hooks/useSppAdvance";
 import { useSppVeto } from "../hooks/useSppVeto";
 
 import type { SppKind, SppProposal, SppStage } from "../utils/types";
+import { isApprovalStage } from "../utils/status";
 
 const proposalExecutedEvent = parseAbiItem("event ProposalExecuted(uint256 indexed proposalId)");
 
@@ -70,7 +71,7 @@ export const VetoStageCard = ({
 
   // Stage-1 mode, read from the on-chain stage config: approval (opt-in — the foundation must
   // explicitly approve; silence = expiry) vs veto (opt-out — silence = consent).
-  const approvalMode = (vetoStage?.vetoThreshold ?? 1) === 0;
+  const approvalMode = isApprovalStage(vetoStage);
 
   const inVetoStage = !!proposal && proposal.currentStage >= VETO_STAGE_ID;
   const vetoThreshold = vetoStage?.vetoThreshold ?? 1;

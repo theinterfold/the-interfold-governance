@@ -29,6 +29,7 @@ import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
 import { MissingContentView } from "@/components/MissingContentView";
+import { nextStageName } from "@/plugins/spp/utils/status";
 
 const ZERO = BigInt(0);
 const ABSTAIN_VALUE = 1;
@@ -109,7 +110,7 @@ function ProposalDetailBody({
     cta = {
       disabled: !canExecute,
       isLoading: isConfirmingExecution,
-      label: "Submit result & advance to veto stage",
+      label: `Submit result & advance to ${nextStageName(spp.vetoStage)} stage`,
       onClick: executeProposal,
     };
   } else if (proposalStatus === ProposalStatus.ACTIVE) {
