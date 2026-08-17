@@ -85,14 +85,19 @@ print(f"{prefix}_PERM_OPS=" + ",".join(str(p[0]) for p in perms))
 print(f"{prefix}_PERM_WHERE=" + ",".join(p[1] for p in perms))
 print(f"{prefix}_PERM_WHO=" + ",".join(p[2] for p in perms))
 print(f"{prefix}_PERM_IDS=" + ",".join(p[4] for p in perms))
+# Conditions are hashed into the setup id alongside the rest, so they are carried explicitly.
+# TokenVoting grants CREATE_PROPOSAL to ANY_ADDR behind a VotingPowerCondition; dropping that
+# address here yields a setup id applyInstallation rejects.
+print(f"{prefix}_PERM_CONDITIONS=" + ",".join(p[3] for p in perms))
 print()
 print(f"# {len(perms)} permission(s), {len(helpers)} helper(s) - order preserved as emitted.")
 
 if conditioned:
+    # Not an error: the condition is a deployed helper the setup produced. Surfaced because a
+    # condition silently narrows who a permission actually applies to, and a reviewer should
+    # know one is in the batch they are signing.
     sys.stderr.write(
-        f"error: {len(conditioned)} permission(s) carry a condition; SafeActions encodes "
-        "NO_CONDITION and applyInstallation hashes the condition into the setup id, so the "
-        "generated action would be rejected. Extend the generator before proceeding.\n"
+        f"note: {len(conditioned)} permission(s) carry a condition; the addresses are emitted in "
+        f"{prefix}_PERM_CONDITIONS. Verify each is a helper this prepare deployed before signing.\n"
     )
-    sys.exit(2)
 '

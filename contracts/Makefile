@@ -1,6 +1,8 @@
 .PHONY: setup build test predeploy deploy sync-env wire-spp lock-public-execution \
 	publish-crisp-repo prepare-private-process install-private-process \
-	grant-admin revoke-admin disarm-admin
+	grant-admin revoke-admin disarm-admin \
+	deploy-executor simulate-public-install simulate-public-governance \
+	safe-prepare-public safe-install-public simulate-stage-change safe-update-stages simulate-approval-window dry-run-public print-rotation simulate-rotation simulate-body-execution simulate-quorum-change
 
 # Which env file the broadcasting targets source. Defaults to the Sepolia `.env`;
 # override per network, e.g.  make deploy ENV_FILE=.env.mainnet
@@ -109,6 +111,71 @@ safe-wire: ## Safe action: SPP stages + CREATE_PROPOSAL grants + target config (
 	forge script script/SafeActions.s.sol:SafeActionsScript \
 		--sig "wireProcess()" --rpc-url $$RPC_URL
 
+# --- Install the PUBLIC process into an ALREADY-DEPLOYED, Admin-only DAO ---------------
+# For a DAO the DAOFactory created with the Admin bootstrap alone, where TokenVoting and the
+# public SPP are added afterwards through the PluginSetupProcessor. Order:
+#   1. make deploy-executor              (EOA; prints EXECUTOR_ADDRESS -> write it into the env)
+#   2. make simulate-public-install      (fork; asserts the end state before anything is signed)
+#   3. make simulate-public-governance   (fork; drives a real proposal all the way to execution)
+#   4. make safe-prepare-public          (two Safe files; execute them, then read the receipts)
+#   5. make read-prepared TX=0x… PLUGIN_PREFIX=TOKEN_VOTING >> .env.mainnet
+#      make read-prepared TX=0x… PLUGIN_PREFIX=SPP_PUBLIC   >> .env.mainnet
+#   6. make safe-install-public          (ONE atomic Safe file: apply + wire)
+
+deploy-executor: ## Deploy the stateless Executor the bodies delegatecall into (EOA, no privileges)
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
+		--sig "deployExecutor()" --rpc-url $$RPC_URL --broadcast --slow -vvvv
+
+simulate-public-install: ## Fork-simulate the public install and assert the resulting permissions
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulate()"
+
+simulate-public-governance: ## Fork-simulate a full proposal: create -> vote -> advance -> approve -> execute
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulateGovernance()"
+
+safe-prepare-public: ## Safe actions: prepareInstallation for the TokenVoting body and the public SPP
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
+		--sig "emitPrepare()" --rpc-url $$RPC_URL
+
+# ATOMIC ON PURPOSE. Between an apply and a separate wiring tx, TokenVoting holds EXECUTE on the
+# DAO while CREATE_PROPOSAL is open to any FOLD holder - i.e. a live bypass of the foundation
+# stage. Never split this file into its constituent actions.
+safe-install-public: ## Safe action: apply BOTH prepared installs and wire the process, in one tx
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
+		--sig "emitApplyAndWire()" --rpc-url $$RPC_URL
+
+# Retiming after the fact. The DAO holds UPDATE_STAGES on the SPP, so the windows are NOT frozen
+# at install: edit the SPP_* durations in the env file and re-emit. Applies to proposals created
+# after it lands; in-flight ones keep the config they were created under.
+simulate-stage-change: ## Fork-simulate a stage-config change and prove in-flight proposals are unaffected
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulateStageChange()"
+
+dry-run-public: ## Print all three Safe transactions on a fork, executing each as it goes
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "dryRun()"
+
+simulate-body-execution: ## Fork-check INV-5: the body executes its sub-proposal via the Executor
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulateBodyExecution()"
+
+simulate-quorum-change: ## Fork-check that raising the quorum mid-proposal does not affect open proposals
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulateQuorumChangeMidFlight()"
+
+simulate-approval-window: ## Fork-check who may execute after the foundation approves, and for how long
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript --sig "simulateApprovalWindow()"
+
+safe-update-stages: ## Safe action: rewrite the public SPP stage config from the current env timings
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
+		--sig "emitUpdateStages()" --rpc-url $$RPC_URL
+
 safe-grant-root: ## Safe action: grant ROOT on the DAO to the PluginSetupProcessor
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	forge script script/SafeActions.s.sol:SafeActionsScript \
@@ -134,6 +201,14 @@ safe-apply-install: ## Safe action: applyInstallation for one prepared plugin (s
 #   2. successor executes a NO-OP proposal on the Admin plugin — must succeed
 #   3. make revoke-admin     (EOA revokes itself)
 # Rotation does NOT disarm; `make disarm-admin` is still outstanding afterwards.
+
+print-rotation: ## Print the rotation calldata without broadcasting (drive it from a wallet/Safe/Aragon app)
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/WireSpp.s.sol:WireSppScript --sig "printRotation()"
+
+simulate-rotation: ## Fork-rehearse the full rotation: grant -> successor no-op -> revoke
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/WireSpp.s.sol:WireSppScript --sig "simulateRotation()"
 
 grant-admin: ## Rotation step 1: grant ADMIN_SUCCESSOR_ADDRESS the right to drive the Admin bootstrap
 	set -a; . ./$(ENV_FILE); set +a; \

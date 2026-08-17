@@ -559,8 +559,14 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
             return false;
         }
 
-        bool quorumReached =
-            totalVotes * _tallyScale() * RATIO_BASE >= uint256(votingSettings.minParticipation) * _totalVotingPower;
+        // INV-33: the quorum is the one SNAPSHOTTED into the proposal at creation, never the live
+        // setting. Canonical TokenVoting does the same (it freezes `minVotingPower` into
+        // `ProposalParameters` and never re-reads `minParticipation()`), and the SPP pins each
+        // proposal to a `stageConfigIndex`. Reading the live value here let a governance proposal
+        // that changed the quorum retroactively decide votes already in flight — and a CRISP
+        // ballot is encrypted and cannot be re-cast, so voters could not even respond.
+        bool quorumReached = totalVotes * _tallyScale() * RATIO_BASE
+            >= uint256(proposal.parameters.minParticipation) * _totalVotingPower;
         if (!quorumReached) {
             return false;
         }

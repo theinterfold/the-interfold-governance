@@ -41,7 +41,7 @@ risk. See [the Admin bootstrap](#the-admin-bootstrap-armed-between-the-phases).
 | `TV_MIN_PROPOSER_VOTING_POWER` | `0` / non-zero                         | `0` = anyone can open a proposal. Left at `0` in the template and flagged; decide deliberately for mainnet.                |
 | `TV_VOTING_MODE`               | `0` Standard / `2` VoteReplacement     | Template defaults to `2` (voters may change their vote while open). **Install-time parameter** — changing it later needs `updateVotingSettings` by proposal. Neither mode early-executes. |
 | Who holds the bootstrap        | deployer EOA / foundation multisig     | Rotatable at any point via `make grant-admin` + `make revoke-admin`. See [handing it over](#handing-the-bootstrap-to-the-multisig-phase-2b). |
-| FOLD distribution at go-live   | —                                      | Quorum is 10% of **total supply**. If supply is minted but undistributed, quorum may be unreachable in practice.           |
+| FOLD distribution at go-live   | —                                      | Quorum is `TV_MIN_PARTICIPATION` of **total supply**, not of circulating or delegated supply. If supply is minted but undistributed, quorum may be unreachable in practice. |
 
 ### The Admin bootstrap, armed between the phases
 
@@ -229,6 +229,169 @@ should be regardless.
       **rotate it** — removing it from code does not un-publish it.
 - [ ] The app must tolerate a DAO with no private process: no CRISP plugin address is configured in
       phase 1. Verify the list and detail views render without it before go-live.
+
+---
+
+## Phase 1-alt — public process into an existing, Admin-only DAO
+
+Use this instead of phase 1 when the DAO **already exists** and was created with the Admin plugin
+alone, so `DeployInterfoldDao` cannot be used: it calls `createDao`, and there is no second DAO to
+create. TokenVoting and the public SPP go in afterwards, through the `PluginSetupProcessor`.
+
+This is the path the mainnet Interfold DAO took. Its state at the start:
+
+| What                | Address                                      |
+| ------------------- | -------------------------------------------- |
+| DAO (OSx 1.4.0)     | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
+| Admin plugin        | `0xf21E25455988887ee797050080141EBa67b33920` |
+| Foundation Safe (stage-1 body) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (3-of-5) |
+| Admin-bootstrap driver         | `0x5429D8C7Fd14023f3C414126f94BBe25a05fC018` (3-of-5), to be rotated to the Safe above |
+| FOLD                | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904` |
+
+The Safe holds `EXECUTE_PROPOSAL_PERMISSION` on the Admin plugin, and the Admin plugin holds
+`EXECUTE_PERMISSION` on the DAO — so the Safe drives the bootstrap, and every DAO-authorised action
+is a Safe transaction wrapped in `admin.executeProposal`.
+
+### Why the apply and the wiring are ONE transaction
+
+`TokenVotingSetup.prepareInstallation` returns a permission list that grants:
+
+- `CREATE_PROPOSAL_PERMISSION` on the body to **`ANY_ADDR`**, behind a `VotingPowerCondition`, and
+- `EXECUTE_PERMISSION` **on the DAO** to the body itself.
+
+So the moment `applyInstallation` lands, any FOLD holder meeting the condition can open a proposal
+on the body and execute it straight onto the DAO — no SPP, no foundation stage. In the `createDao`
+path that window does not exist, because the factory installs everything atomically. Here it would,
+if the apply and the wiring were separate signatures.
+
+`make safe-install-public` therefore emits **one** Safe file containing the ROOT grant, both
+applies, the ROOT revoke, and the full wiring. It either all lands or none of it does. Do not split
+it, and do not sign the apply on its own.
+
+### Steps
+
+```bash
+cd contracts
+
+# 0. The stateless Executor the bodies delegatecall into (INV-5). No owner, no permissions.
+make deploy-executor ENV_FILE=.env.mainnet
+#    -> write the printed EXECUTOR_ADDRESS into .env.mainnet
+
+# 1. Fork-simulate the install. Asserts the end-state permissions.
+make simulate-public-install ENV_FILE=.env.mainnet
+
+# 2. Fork-simulate an actual proposal, end to end: create on the SPP -> vote -> advance ->
+#    foundation approves -> executes on the DAO. This is what proves the timings are consistent.
+make simulate-public-governance ENV_FILE=.env.mainnet
+
+# 3. Emit the two prepareInstallation Safe files. Permissionless, so they are DIRECT Safe calls,
+#    not wrapped in the bootstrap. Execute them one at a time.
+make safe-prepare-public ENV_FILE=.env.mainnet
+
+# 4. Read the InstallationPrepared event from each receipt. Never transcribe these by hand:
+#    applyInstallation re-derives the setup id from them and reverts on any mismatch.
+make read-prepared TX=0x… PLUGIN_PREFIX=TOKEN_VOTING ENV_FILE=.env.mainnet >> .env.mainnet
+make read-prepared TX=0x… PLUGIN_PREFIX=SPP_PUBLIC   ENV_FILE=.env.mainnet >> .env.mainnet
+
+# 5. Emit the single atomic apply-and-wire file and sign it.
+make safe-install-public ENV_FILE=.env.mainnet
+```
+
+Both simulations run their own `prepareInstallation` on the fork rather than reading the recorded
+values, so they verify the *shape* — that the encodings decode, nothing reverts, and the end state
+holds — not the exact bytes the Safe will sign. The recorded values are checked on chain instead:
+`applyInstallation` re-derives the setup id from them and reverts on any mismatch. Before signing
+step 5, diff the plugin addresses in the emitted file against the ones in the two prepare receipts.
+
+Both installs grant at least one **conditioned** permission (`GrantWithCondition`), whose condition
+address is hashed into the setup id. `read-prepared.sh` emits it as `<PREFIX>_PERM_CONDITIONS` and
+prints a note; verify each condition address is a helper that same prepare deployed before signing.
+
+### Settings this DAO installed with
+
+| Setting                                        | Value              | Meaning                                                    |
+| ---------------------------------------------- | ------------------ | ---------------------------------------------------------- |
+| `TV_VOTING_MODE`                               | `2`                | VoteReplacement — votes changeable, no early execution     |
+| `TV_SUPPORT_THRESHOLD`                         | `510000`           | `yes/(yes+no) > 51%`, abstain excluded                     |
+| `TV_MIN_PARTICIPATION`                         | `50000`            | `yes+no+abstain ≥ 5%` of 373.86M FOLD = 18,693,217.5 FOLD   |
+| `TV_MIN_DURATION` / `SPP_PUBLIC_VOTE_DURATION` | `432000`           | 5 days, enforced at both the SPP and the body              |
+| `SPP_ADVANCE_WINDOW`                           | `604800`           | +7 days to advance a passed stage 0                        |
+| `SPP_STAGE1_MODE`                              | `approval`         | the foundation must explicitly approve; silence = expiry   |
+| `SPP_VETO_DURATION` + `SPP_EXECUTE_WINDOW`     | `172800`+`259200`  | summed into a **5-day** stage-1 approve-and-execute deadline |
+
+Read back off the installed plugin by `make simulate-public-install`, so the numbers above are
+confirmed against chain state rather than against the env file they came from.
+
+Two notes on that table. `TV_MIN_DURATION` is set **equal** to the stage window rather than left at
+the 1-hour protocol floor: the SPP creates each sub-proposal for exactly `SPP_PUBLIC_VOTE_DURATION`,
+so matching them means the body rejects anything shorter and 5 days is enforced at both layers
+instead of by the stage config alone. And in approval mode `stagesFor` sets stage 1's `voteDuration`
+and `minAdvance` to `0`, so `SPP_VETO_DURATION` and `SPP_EXECUTE_WINDOW` are only ever **summed**
+into `maxAdvance` — the split between them is arbitrary today, and is kept non-zero purely so
+flipping `SPP_STAGE1_MODE=veto` later does not produce a zero veto window (INV-11).
+
+### What the stage-1 approval actually does
+
+Measured on a mainnet fork with `make simulate-approval-window`:
+
+| Question                                             | Answer                                                |
+| ---------------------------------------------------- | ----------------------------------------------------- |
+| Who may execute once the foundation approves?        | **Anyone.** Any address, not just the foundation.      |
+| How long does the approval stay live?                | Until `stage entry + maxAdvance` (5 days), then it lapses and the proposal expires. |
+| Can the foundation take an approval back?            | **Yes**, by re-reporting, for as long as it is unexecuted. |
+
+Execution is not literally unpermissioned — `advanceProposal` on the last stage checks
+`EXECUTE_PROPOSAL_PERMISSION` on the SPP — but the SPP's setup grants that to `ANY_ADDR`, so in
+practice it is open to the world. That is the intended design: the foundation's job is to *decide*,
+not to be the one that presses the button, so a passed and approved proposal cannot be strangled by
+the foundation simply never executing it.
+
+The consequence to be deliberate about: **approval arms execution, it does not schedule it.** From
+the moment the foundation approves until the deadline, any address may execute at any time. A
+proposal approved on day 1 can still be executed by a stranger on day 5, against a treasury and a
+DAO state that have moved on in the meantime. The 5-day deadline keeps that drift small; lengthening
+`maxAdvance` widens it proportionally.
+
+Withdrawal is a real safety valve, but a racy one: it is a transaction competing with anyone else's
+execute. Treat it as a backstop, not a plan.
+
+### Changing the timings later
+
+None of the durations are frozen at install. The SPP's setup grants `UPDATE_STAGES_PERMISSION` on
+the SPP **to the DAO**, so the stage-0 window, the stage-1 approval deadline and the stage-1 mode
+can all be rewritten with `spp.updateStages(...)`:
+
+```bash
+# edit the SPP_* durations in .env.mainnet, then:
+make simulate-stage-change ENV_FILE=.env.mainnet   # fork-check it first
+make safe-update-stages    ENV_FILE=.env.mainnet   # emit the Safe file / proposal calldata
+```
+
+Who signs it depends on where you are in the rollout. While the Admin bootstrap is armed
+(phases 1–2) the Safe executes it directly, no vote. Once disarmed (phase 3) the same `to`/`data`
+becomes an action inside a governance proposal — the process then edits itself, which is the
+intended end state.
+
+**In-flight proposals are not affected.** `updateStages` appends a new config and bumps the index;
+each proposal snapshots `stageConfigIndex` when it is created, so anything already open keeps the
+rules it was created under. A retime therefore cannot expire a live proposal out from under its
+voters. Verified by `make simulate-stage-change`, which shortens the stage-1 deadline from 30 days
+to 10 and asserts an already-open proposal still points at the old config.
+
+`WireSpp.printUpdateStages()` is the equivalent for a DAO that has both processes; it reads
+`CRISP_VOTING_PLUGIN_ADDRESS` and so reverts here. Use `safe-update-stages` while the DAO is
+public-only.
+
+### Verification
+
+The phase 1 verification block applies unchanged. Additionally confirm the body is using FOLD
+itself and was not silently wrapped — `TokenVotingSetup` clones a `GovernanceWrappedERC20` when the
+token fails its `IVotes` probe, which would leave every holder unable to vote until they wrapped:
+
+```bash
+cast call $TOKEN_VOTING_PLUGIN_ADDRESS "getVotingToken()(address)" --rpc-url $M
+# MUST equal FOLD_TOKEN_ADDRESS
+```
 
 ---
 

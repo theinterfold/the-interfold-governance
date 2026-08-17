@@ -12,6 +12,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 import {SppInstall} from "./SppInstall.sol";
 
+/// @dev The DAO's permission oracle, for asserting a rotation landed.
+interface IDAOPerms {
+    function hasPermission(address where, address who, bytes32 permissionId, bytes calldata data)
+        external
+        view
+        returns (bool);
+}
+
 /// @dev Minimal view of the DAO's permission manager.
 interface IDAOPermissions {
     function grant(address where, address who, bytes32 permissionId) external;
@@ -86,6 +94,18 @@ contract WireSppScript is Script {
 
     bytes32 internal constant CREATE_PROPOSAL_PERMISSION_ID = keccak256("CREATE_PROPOSAL_PERMISSION");
     bytes32 internal constant EXECUTE_PERMISSION_ID = keccak256("EXECUTE_PERMISSION");
+
+    /// @dev WHO DRIVES THE ADMIN BOOTSTRAP — the address holding EXECUTE_PROPOSAL_PERMISSION on
+    ///      the Admin plugin, i.e. whoever signs the emitted Safe transactions.
+    ///
+    ///      Deliberately separate from FOUNDATION_ADDRESS, which is the stage-1 approval BODY.
+    ///      They are usually the same multisig and default to it, but they diverge during a
+    ///      rotation: the successor becomes the foundation body before it can drive the
+    ///      bootstrap. Emitting files "from" the wrong Safe produces transactions the intended
+    ///      signer cannot execute.
+    function adminDriver() internal view returns (address) {
+        return vm.envOr("ADMIN_DRIVER_ADDRESS", vm.envAddress("FOUNDATION_ADDRESS"));
+    }
 
     /// @notice Prints the `updateStages` calldata for both SPPs under the current env config
     ///         (incl. SPP_STAGE1_MODE) WITHOUT broadcasting. Paste each blob as a proposal
@@ -203,6 +223,116 @@ contract WireSppScript is Script {
         console2.log("BOTH holders can now drive the bootstrap.");
         console2.log("NEXT: have the successor execute a NO-OP proposal (empty actions) on");
         console2.log("      the Admin plugin. Only once that succeeds, run `make revoke-admin`.");
+    }
+
+    /// @notice Forks the network and runs the whole rotation, proving the successor can drive the
+    ///         bootstrap and the predecessor can no longer.
+    /// @dev Rehearse here before doing it for real. The failure this is guarding against is
+    ///      revoking the only working key: the grant and the proof-of-use are cheap, and the
+    ///      revoke is the irreversible half.
+    function simulateRotation() external {
+        vm.createSelectFork(vm.envString("RPC_URL"));
+
+        address dao = vm.envAddress("DAO_ADDRESS");
+        address adminPlugin = vm.envAddress("ADMIN_PLUGIN_ADDRESS");
+        address successor = vm.envAddress("ADMIN_SUCCESSOR_ADDRESS");
+        address predecessor = vm.envAddress("ADMIN_PREDECESSOR_ADDRESS");
+
+        IDAOPerms perms = IDAOPerms(dao);
+        require(
+            perms.hasPermission(adminPlugin, predecessor, EXECUTE_PROPOSAL_PERMISSION_ID, ""),
+            "predecessor does not currently hold the bootstrap"
+        );
+
+        // --- step 1: the current holder grants the successor ---
+        Action[] memory actions = new Action[](1);
+        actions[0] = rotationAction(dao, adminPlugin, successor, true);
+        vm.prank(predecessor);
+        IAdmin(adminPlugin).executeProposal(bytes("ipfs://grant-admin"), actions, 0);
+
+        require(perms.hasPermission(adminPlugin, successor, EXECUTE_PROPOSAL_PERMISSION_ID, ""), "grant did not land");
+        console2.log("step 1: both holders can now drive the bootstrap");
+
+        // --- step 1.5: the successor proves it works, while the old key still exists ---
+        vm.prank(successor);
+        IAdmin(adminPlugin).executeProposal(bytes("ipfs://noop"), new Action[](0), 0);
+        console2.log("step 1.5: successor executed a no-op proposal - the grant is real");
+
+        // --- step 2: revoke the predecessor ---
+        actions[0] = rotationAction(dao, adminPlugin, predecessor, false);
+        vm.prank(predecessor);
+        IAdmin(adminPlugin).executeProposal(bytes("ipfs://revoke-admin"), actions, 0);
+
+        require(
+            !perms.hasPermission(adminPlugin, predecessor, EXECUTE_PROPOSAL_PERMISSION_ID, ""),
+            "predecessor still holds the bootstrap"
+        );
+        console2.log("step 2: predecessor revoked");
+
+        // The predecessor must now be locked out, and the successor must still work.
+        vm.prank(predecessor);
+        vm.expectRevert();
+        IAdmin(adminPlugin).executeProposal(bytes("ipfs://should-fail"), new Action[](0), 0);
+
+        vm.prank(successor);
+        IAdmin(adminPlugin).executeProposal(bytes("ipfs://still-works"), new Action[](0), 0);
+
+        // Rotation is not disarming: the plugin still executes on the DAO (INV-29 untouched).
+        require(
+            perms.hasPermission(dao, adminPlugin, EXECUTE_PERMISSION_ID, ""),
+            "rotation disarmed the bootstrap - it should not have"
+        );
+
+        console2.log("");
+        console2.log("=== Rotation passed ===");
+        console2.log("  successor drives the bootstrap:   yes");
+        console2.log("  predecessor locked out:           yes");
+        console2.log("  bootstrap still armed on the DAO: yes (rotating != disarming)");
+    }
+
+    /// @notice Prints both rotation transactions WITHOUT broadcasting, for driving the handover
+    ///         from a wallet, a Safe, or the Aragon app rather than from this key.
+    /// @dev Both are calls to the ADMIN PLUGIN, sent by whoever currently holds
+    ///      `EXECUTE_PROPOSAL_PERMISSION` on it. The inner action targets the DAO, because a
+    ///      permission change has to come from the DAO itself — that is the whole reason this is
+    ///      wrapped in `executeProposal` rather than being a direct call.
+    ///      Usage: forge script script/WireSpp.s.sol:WireSppScript --sig "printRotation()"
+    function printRotation() external view {
+        address dao = vm.envAddress("DAO_ADDRESS");
+        address adminPlugin = vm.envAddress("ADMIN_PLUGIN_ADDRESS");
+        address successor = vm.envAddress("ADMIN_SUCCESSOR_ADDRESS");
+        address predecessor = vm.envAddress("ADMIN_PREDECESSOR_ADDRESS");
+
+        Action[] memory grantActions = new Action[](1);
+        grantActions[0] = rotationAction(dao, adminPlugin, successor, true);
+
+        Action[] memory revokeActions = new Action[](1);
+        revokeActions[0] = rotationAction(dao, adminPlugin, predecessor, false);
+
+        console2.log("=== Admin bootstrap rotation ===");
+        console2.log("DAO:          %s", dao);
+        console2.log("Admin plugin: %s", adminPlugin);
+        console2.log("from:         %s", predecessor);
+        console2.log("to:           %s", successor);
+        console2.log("");
+        console2.log("--- STEP 1: grant the successor (sent by the CURRENT holder) ---");
+        console2.log("  to:   %s", adminPlugin);
+        console2.log("  data:");
+        console2.logBytes(abi.encodeCall(IAdmin.executeProposal, (bytes("ipfs://grant-admin"), grantActions, 0)));
+        console2.log("  inner action -> %s", dao);
+        console2.logBytes(grantActions[0].data);
+        console2.log("");
+        console2.log("--- STEP 2: revoke the predecessor (ONLY after step 1.5 below) ---");
+        console2.log("  to:   %s", adminPlugin);
+        console2.log("  data:");
+        console2.logBytes(abi.encodeCall(IAdmin.executeProposal, (bytes("ipfs://revoke-admin"), revokeActions, 0)));
+        console2.log("  inner action -> %s", dao);
+        console2.logBytes(revokeActions[0].data);
+        console2.log("");
+        console2.log("STEP 1.5 (do not skip): the SUCCESSOR sends a no-op to prove the grant works");
+        console2.log("  to:   %s", adminPlugin);
+        console2.log("  data:");
+        console2.logBytes(abi.encodeCall(IAdmin.executeProposal, (bytes("ipfs://noop"), new Action[](0), 0)));
     }
 
     /// @notice Step 2 of the rotation: revoke the predecessor's right to drive the Admin

@@ -46,6 +46,20 @@ make revoke-admin               # phase 2b step 2: revoke the predecessor (defau
 make disarm-admin               # revoke the Admin bootstrap's EXECUTE (INV-29) — always separate
 ```
 
+Installing the **public** process into a DAO that already exists with only the Admin plugin (the
+mainnet case — `DeployInterfoldDao` cannot be used, there is no DAO left to create):
+
+```bash
+make deploy-executor            # EOA: the stateless delegatecall target (INV-5)
+make simulate-public-install    # fork: assert the end-state permissions before signing
+make simulate-public-governance # fork: create -> vote -> advance -> approve -> execute
+make safe-prepare-public        # two DIRECT Safe calls (prepareInstallation is permissionless)
+make safe-install-public        # ONE atomic Safe tx: apply BOTH installs + wire
+```
+
+`safe-install-public` is atomic **on purpose** — see the trap below. All of these take
+`ENV_FILE=.env.mainnet`.
+
 **Disarming is never bundled into a deploy or an install.** It is its own command so it is always a
 deliberate action, and so a failed install is not entangled with an irreversible revoke.
 
@@ -106,6 +120,7 @@ enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | **INV-31** | **Every CRISP proposal is exactly 3 options** — yes (0), no (1), abstain (2) — via `CrispVoting.NUM_OPTIONS`, and `CreditMode` is always `CUSTOM`. There is no multi-option or CONSTANT-credit path; do not reintroduce option-count branching. Changing this means revisiting `_canExecute`, the E3 request params and the app's tally rendering together. | `CrispVotingQuorum.t.sol` (tally is 3-wide throughout)     |
 | **INV-32** | **Quorum applies to every proposal, with or without actions.** `_canExecute` gates on it unconditionally, so the app must never skip it for "signaling" proposals — that would report a pass the chain rejects.                                                                                                                                             | app `quorum-invariants.test.ts`; `CrispVotingQuorum.t.sol` |
+| **INV-33** | **A proposal settles under the rules in force WHEN IT WAS CREATED.** `_canExecute` must read `proposal.parameters.minParticipation`, never the live `votingSettings`. Canonical TokenVoting freezes `minVotingPower` into `ProposalParameters` at creation and never re-reads the setting; the SPP pins each proposal to a `stageConfigIndex`. All three layers must agree, or a governance proposal that changes the quorum retroactively decides votes already in flight — and a CRISP ballot is encrypted, so voters cannot re-cast in response. | `CrispVotingQuorum.t.sol::test_quorumRaisedMidProposalDoesNotAffectAnOpenProposal`, `…QuorumLoweredMidProposalDoesNotRescueAnOpenProposal` |
 
 ### Cross-boundary sync (contract ↔ server ↔ app)
 
@@ -185,6 +200,50 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
 - **Per-proposal duration is private-only.** The CRISP creator picks the window; it must stay
   within `[minDuration(), stage-0 maxAdvance − buffer]`. Public uses the stage window (canonical
   TokenVoting, can't be per-proposal without forking it).
+- **`EXECUTOR_ADDRESS` is a stateless contract, NOT the foundation multisig.** It is
+  `@aragon/osx-commons-contracts` `Executor` — no owner, no state, no permissions — and the bodies
+  **delegatecall** into it (INV-5) so `reportProposalResult` reaches the SPP with the body as
+  `msg.sender`. Pointing it at a Safe makes the Safe's code run in the plugin's storage context;
+  every body execution then reverts. Verified by `make simulate-body-execution`.
+- **`FOUNDATION_ADDRESS` and `ADMIN_DRIVER_ADDRESS` are different roles.** The first is the
+  stage-1 approval body, baked into the SPP stage config. The second is who holds
+  `EXECUTE_PROPOSAL_PERMISSION` on the Admin plugin, i.e. who must SIGN the emitted Safe files.
+  They default to the same address and diverge during a rotation; emitting a file "from" the wrong
+  Safe produces a transaction the intended signer cannot execute.
+- **Advancing stage 0 has two paths, and only one uses the Executor.** `spp.advanceProposal` reads
+  `hasSucceeded()` off the body and never makes it execute; `body.execute(subId)` runs the
+  sub-proposal's `reportProposalResult` action through the target config. A simulation that only
+  does the former passes with a completely wrong `EXECUTOR_ADDRESS` — cover both.
+- **Foundation approval ARMS execution, it does not schedule it.** `advanceProposal` on the last
+  stage checks `EXECUTE_PROPOSAL_PERMISSION` on the SPP, which the SPP's setup grants to
+  `ANY_ADDR` — so once the foundation reports its Approval, **any address** may execute, at any
+  moment up to `stage entry + maxAdvance` (5 days in the mainnet config). Approving early means a
+  stranger can still execute at the very end of that window, against a DAO state that has moved on. The approval is withdrawable by
+  re-reporting while unexecuted (`_processProposalResult` plainly overwrites
+  `bodyResults[id][stage][sender]`), but that is a race against anyone's execute, not a veto.
+  Measured by `make simulate-approval-window`.
+- **Installing TokenVoting post-hoc opens a bypass window; never split the apply from the
+  wiring.** `TokenVotingSetup.prepareInstallation` grants `CREATE_PROPOSAL_PERMISSION` to
+  `ANY_ADDR` (behind a `VotingPowerCondition`) **and** `EXECUTE_PERMISSION` on the DAO to the body.
+  Between an `applyInstallation` and a later wiring transaction, any qualifying token holder can
+  propose on the body and execute straight onto the DAO — INV-2's exact failure. `createDao` has no
+  such window because the factory installs atomically; the PSP path does.
+  `InstallPublicProcess.emitApplyAndWire` bundles the ROOT grant, both applies, the ROOT revoke and
+  the whole wiring into one `admin.executeProposal`.
+- **Prepared permissions can carry a condition, and it is hashed into the setup id.** Both the
+  TokenVoting and SPP installs return a `GrantWithCondition`. Rebuilding the permission list with
+  `NO_CONDITION` yields a setup id `applyInstallation` rejects. `read-prepared.sh` emits
+  `<PREFIX>_PERM_CONDITIONS` and `SafeActions._loadPrepared` reads it; guarded by
+  `SafeActionsPrepared.t.sol`.
+- **`vm.setEnv` is process-global and forge runs test functions concurrently.** Two tests that set
+  the same env key race each other and fail only when the suite runs as a whole — passing in
+  isolation under `--match-test`. Give each test its own key prefix.
+- **Do not use `deal()` on FOLD in a fork.** `stdstore` probes for the balance slot and on this
+  token writes into a total-supply checkpoint instead: `getPastTotalSupply` came back as 25x the
+  real supply, silently moving the quorum bar. Prank real holders (`SIM_VOTERS`) instead.
+- **`VoteOption` is `{None, Abstain, Yes, No}`** — Yes is **2**, not 1. Voting `1` registers an
+  abstention, which still counts toward participation but never toward support, so a proposal
+  reaches quorum and then fails.
 - **ABI regen after contract changes.** Regenerate `app/plugins/crispVoting/artifacts/CrispVoting.ts`
   and `app/plugins/spp/artifacts/StagedProposalProcessor.ts` from `contracts/out/**` when the
   corresponding contract changes.
@@ -224,6 +283,8 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
 | Deploy (5 plugins + Executor)                               | `contracts/script/DeployInterfoldDao.s.sol`                                     |
 | Wiring (stages, grants, delegatecall, disarm, rotation)     | `contracts/script/WireSpp.s.sol`                                                |
 | Phase-2 install of the private process into a live DAO      | `contracts/script/InstallPrivateProcess.s.sol`                                  |
+| Public process into an existing Admin-only DAO (mainnet)    | `contracts/script/InstallPublicProcess.s.sol`                                   |
+| Multisig-signable actions (Safe Transaction Builder files)  | `contracts/script/SafeActions.s.sol` · `contracts/script/read-prepared.sh`      |
 | Canonical-plugin install encoders                           | `contracts/script/{TokenVotingInstall,SppInstall}.sol`                          |
 | SPP frontend module (stages, veto, advance)                 | `app/plugins/spp/`                                                              |
 | Private / public body UIs                                   | `app/plugins/crispVoting/` · `app/plugins/tokenVoting/`                         |

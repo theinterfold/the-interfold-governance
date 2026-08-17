@@ -134,6 +134,44 @@ contract CrispVotingQuorumTest is Test {
         assertFalse(plugin.canExecute(proposalId), "one unit below quorum must fail");
     }
 
+    /// @notice A proposal settles at the quorum in force WHEN IT WAS CREATED, not the one in
+    ///         force when its tally is read (INV-33).
+    /// @dev Matches canonical TokenVoting, which freezes `minVotingPower` into the proposal at
+    ///      creation and never re-reads the setting, and matches the SPP, which pins each
+    ///      proposal to a `stageConfigIndex`. Without this, a governance proposal that raises the
+    ///      quorum retroactively fails every CRISP vote already in flight — the goalposts move
+    ///      after people have voted, and an encrypted vote cannot even be re-cast.
+    function test_quorumRaisedMidProposalDoesNotAffectAnOpenProposal() public {
+        // Created under 50%: 5000 scaled units is exactly quorum, so it passes.
+        uint256 proposalId = _createWithTally(_counts(3000, 2000));
+
+        // Mid-flight, governance raises the bar to 90% (9000 scaled units).
+        dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
+        plugin.updateVotingSettings(
+            ICrispVoting.VotingSettings({
+                minProposerVotingPower: 0, minVoterVotingPower: 1, minParticipation: 90, minDuration: MIN_DURATION
+            })
+        );
+        assertEq(plugin.minParticipation(), 90, "the live setting must have changed");
+
+        assertTrue(plugin.canExecute(proposalId), "an open proposal must settle at the quorum it was created under");
+    }
+
+    /// @notice The converse: LOWERING the quorum must not rescue a proposal that already failed.
+    function test_quorumLoweredMidProposalDoesNotRescueAnOpenProposal() public {
+        // Created under 50%: 4999 scaled units is one unit short, so it fails.
+        uint256 proposalId = _createWithTally(_counts(3000, 1999));
+
+        dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
+        plugin.updateVotingSettings(
+            ICrispVoting.VotingSettings({
+                minProposerVotingPower: 0, minVoterVotingPower: 1, minParticipation: 1, minDuration: MIN_DURATION
+            })
+        );
+
+        assertFalse(plugin.canExecute(proposalId), "a failed proposal must not be rescued by a later change");
+    }
+
     function test_rejectedWhenNoBeatsYesDespiteQuorum() public {
         uint256 proposalId = _createWithTally(_counts(2000, 4000)); // quorum met, but no > yes
         assertFalse(plugin.canExecute(proposalId), "no must beat yes => rejected");

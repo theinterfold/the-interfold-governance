@@ -141,8 +141,7 @@ contract SafeActionsScript is WireSppScript {
             "10-deploy-plugin-setup",
             string.concat("Deploy plugin setup via CREATE2 to ", vm.toString(predicted)),
             "Safe calls the deterministic deployer with salt ++ initcode. The address is fixed by "
-            "those two inputs, so it can be verified before signing and does not depend on the "
-            "Safe's nonce.",
+            "those two inputs, so it can be verified before signing and does not depend on the " "Safe's nonce.",
             deployer,
             bytes.concat(salt, initcode)
         );
@@ -255,16 +254,23 @@ contract SafeActionsScript is WireSppScript {
         );
         p.helpersHash = vm.envBytes32(string.concat(prefix, "_HELPERS_HASH"));
 
-        // Permissions come back as four parallel arrays, because forge's env readers cannot
+        // Permissions come back as five parallel arrays, because forge's env readers cannot
         // decode an array of structs. They must be in the SAME order prepareInstallation
         // emitted: the setup id hashes the sequence, so a reordering fails on chain.
         uint256[] memory ops = vm.envUint(string.concat(prefix, "_PERM_OPS"), ",");
         address[] memory wheres = vm.envAddress(string.concat(prefix, "_PERM_WHERE"), ",");
         address[] memory whos = vm.envAddress(string.concat(prefix, "_PERM_WHO"), ",");
         bytes32[] memory ids = vm.envBytes32(string.concat(prefix, "_PERM_IDS"), ",");
+        // Conditions are part of the hashed setup id too. TokenVoting's install grants
+        // CREATE_PROPOSAL to ANY_ADDR behind a VotingPowerCondition, so assuming NO_CONDITION
+        // here produced a setup id the PSP rejects. Optional: setups whose permissions are all
+        // unconditioned may omit the var entirely.
+        address[] memory conditions = vm.envOr(string.concat(prefix, "_PERM_CONDITIONS"), ",", new address[](0));
+        if (conditions.length == 0) conditions = new address[](ops.length); // all NO_CONDITION
 
         require(
-            ops.length == wheres.length && ops.length == whos.length && ops.length == ids.length,
+            ops.length == wheres.length && ops.length == whos.length && ops.length == ids.length
+                && ops.length == conditions.length,
             "permission arrays differ in length"
         );
 
@@ -274,15 +280,12 @@ contract SafeActionsScript is WireSppScript {
                 operation: PermissionLib.Operation(uint8(ops[i])),
                 where: wheres[i],
                 who: whos[i],
-                condition: PermissionLib.NO_CONDITION,
+                condition: conditions[i],
                 permissionId: ids[i]
             });
         }
     }
 
-    /// @dev Writes one Safe Transaction Builder file and echoes the raw call for eyeballing.
-    ///      The printed `to`/`data` is the same bytes the file carries, so a reviewer can check
-    ///      the file against the console without trusting the JSON writer.
     /// @dev `to`/`data` describe what the DAO must do; the Safe cannot perform it directly.
     ///      `applyInstallation` authorises on `msg.sender == dao`, and permission changes must come
     ///      from the DAO itself, so every action is wrapped in `adminPlugin.executeProposal` —
@@ -301,13 +304,9 @@ contract SafeActionsScript is WireSppScript {
     /// @dev Wraps one or more DAO actions into a single `executeProposal` and writes the file.
     ///      Several actions in one entry execute atomically, which is what makes a multi-step
     ///      change like the SPP wiring safe to sign as a unit.
-    function _emitActions(
-        string memory slug,
-        string memory name,
-        string memory description,
-        Action[] memory actions
-    ) internal {
-        address safe = vm.envAddress("FOUNDATION_ADDRESS");
+    function _emitActions(string memory slug, string memory name, string memory description, Action[] memory actions)
+        internal
+    {
         address adminPlugin = vm.envAddress("ADMIN_PLUGIN_ADDRESS");
 
         for (uint256 i = 0; i < actions.length; i++) {
@@ -315,8 +314,37 @@ contract SafeActionsScript is WireSppScript {
             console2.logBytes(actions[i].data);
         }
 
-        address to = adminPlugin;
-        bytes memory data = abi.encodeCall(IAdmin.executeProposal, (bytes(name), actions, 0));
+        _writeSafeFile(
+            slug, name, description, adminPlugin, abi.encodeCall(IAdmin.executeProposal, (bytes(name), actions, 0))
+        );
+    }
+
+    /// @dev Writes a call the Safe makes DIRECTLY, with no Admin wrapper. Correct only for
+    ///      functions that do not authorise on `msg.sender == dao` — `prepareInstallation` is
+    ///      permissionless and touches nothing the DAO owns, so routing it through the bootstrap
+    ///      would spend the Admin plugin for no benefit.
+    function _emitDirect(
+        string memory slug,
+        string memory name,
+        string memory description,
+        address to,
+        bytes memory data
+    ) internal {
+        _writeSafeFile(slug, name, description, to, data);
+    }
+
+    /// @dev The Safe Transaction Builder writer, shared by the wrapped and direct emitters.
+    ///      The printed `to`/`data` is the same bytes the file carries, so a reviewer can check
+    ///      the file against the console without trusting the JSON writer.
+    function _writeSafeFile(
+        string memory slug,
+        string memory name,
+        string memory description,
+        address to,
+        bytes memory data
+    ) internal {
+        // The Safe that will SIGN this file - the bootstrap driver, not the stage-1 body.
+        address safe = adminDriver();
         string memory path = string.concat(OUT_DIR, "/", slug, ".json");
 
         string memory json = string.concat(

@@ -2,5 +2,11 @@ out/
 cache/
 broadcast/
 node_modules/
+# Every env file is secret-bearing (PRIVATE_KEY, funded RPC urls). `.env` alone was not
+# enough: the phased rollout uses `ENV_FILE=.env.mainnet`, which the old rule did not cover.
 .env
+.env.*
+# ...except the checked-in templates, which carry no secrets.
+!.env.example
+!.env.mainnet.example
 contract.log
