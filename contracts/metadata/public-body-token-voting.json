@@ -1,0 +1,5 @@
+{
+  "name": "FOLD Public Voting",
+  "description": "Token voting body for the public process. Voting power is read from the BondedVotes adapter, so FOLD bonded by operators and vesting-locked FOLD count alongside escrow-locked FOLD.",
+  "links": []
+}

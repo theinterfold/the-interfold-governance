@@ -51,11 +51,18 @@ library SppInstall {
     /// @notice Encode install params: no metadata, empty stages, empty rules (anyone can create
     ///         proposals on the SPP until the DAO sets rules), target == DAO via regular call.
     function encode() internal pure returns (bytes memory) {
+        return encode(bytes(""));
+    }
+
+    /// @notice Same, carrying `pluginMetadata` — the UTF-8 bytes of an `ipfs://` URI whose JSON
+    ///         is `{name, description, links, processKey, stageNames}` (the process-metadata
+    ///         shape the Aragon app pins for a staged process).
+    function encode(bytes memory pluginMetadata) internal pure returns (bytes memory) {
         // target == address(0) resolves to the DAO in OSx 1.4 (the SPP executes passed
         // proposals' actions on the DAO; its setup grants it EXECUTE_PERMISSION there).
         IPlugin.TargetConfig memory targetConfig =
             IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
 
-        return abi.encode(bytes(""), new Stage[](0), new RuledCondition.Rule[](0), targetConfig);
+        return abi.encode(pluginMetadata, new Stage[](0), new RuledCondition.Rule[](0), targetConfig);
     }
 }

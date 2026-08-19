@@ -160,9 +160,7 @@ contract CrispVotingViewsTest is Test {
             uint256 credits,
             uint256 censusMode,
             uint256 votingPowerDivisor
-        ) = abi.decode(
-            interfold.lastCustomParams(), (address, uint256, uint256, uint256, uint256, uint256, uint256)
-        );
+        ) = abi.decode(interfold.lastCustomParams(), (address, uint256, uint256, uint256, uint256, uint256, uint256));
 
         assertEq(token, address(votesToken), "token");
         assertEq(numOptions, 3, "numOptions");
@@ -193,9 +191,8 @@ contract CrispVotingViewsTest is Test {
     ///      them in step. If this fails, re-vendor `IInterfold.sol` rather than editing the hash.
     function test_requestParamsSelectorMatchesTheProtocol() public pure {
         // keccak of the canonical signature, from the deployed Interfold.
-        bytes4 expectedQuote = bytes4(
-            keccak256("getE3Quote((uint8,uint256[2],address,uint8,bytes,bytes,address,bytes32,uint256))")
-        );
+        bytes4 expectedQuote =
+            bytes4(keccak256("getE3Quote((uint8,uint256[2],address,uint8,bytes,bytes,address,bytes32,uint256))"));
 
         assertEq(IInterfold.getE3Quote.selector, expectedQuote, "E3RequestParams drifted from the protocol");
     }

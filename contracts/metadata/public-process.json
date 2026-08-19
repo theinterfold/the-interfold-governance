@@ -1,0 +1,7 @@
+{
+  "name": "Public Token Voting",
+  "description": "FOLD-holder voting over 5 days — bonded and vesting-locked FOLD carry weight — followed by a 5-day Interfold Foundation approval window. Approved proposals execute on the DAO.",
+  "links": [],
+  "processKey": "PUB",
+  "stageNames": ["Token holder voting", "Foundation approval"]
+}

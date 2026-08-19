@@ -101,7 +101,6 @@ contract MockInterfold {
         e3RefundManager = address(new MockRefundManager(MockFeeToken(_feeToken)));
     }
 
-
     /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin reads when
     ///         building request params. Absent, every proposal path reverts.
     bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");

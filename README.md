@@ -181,7 +181,7 @@ Rotation does **not** disarm — phase 3 is still outstanding afterwards. Note t
 deciding before phase 2: rotate first and the multisig signs the 7-action install batch; rotate
 after and the EOA is what installed the private process.
 
-> One argument for *not* rotating: with `SPP_STAGE1_MODE="approval"`, a lost foundation key
+> One argument for _not_ rotating: with `SPP_STAGE1_MODE="approval"`, a lost foundation key
 > freezes governance permanently. An armed bootstrap held by a **separate** key is the escape
 > hatch from that. Put both in the same multisig and one signer set covers both failures.
 

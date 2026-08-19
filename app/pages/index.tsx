@@ -41,10 +41,10 @@ export default function StandardHome() {
         <div className="hero-body-grid">
           <div />
           <p className="lede">
-            <span className="dropcap">T</span>he Interfold is the governance home of The Interfold DAO, built on the Aragon
-            OSx stack. Open a public proposal and let the community vote transparently on-chain, or open a private one —
-            ballots are encrypted in your browser and a committee of independent ciphernodes tallies them with CRISP,
-            without ever exposing an individual vote.
+            <span className="dropcap">T</span>he Interfold is the governance home of The Interfold DAO, built on the
+            Aragon OSx stack. Open a public proposal and let the community vote transparently on-chain, or open a
+            private one — ballots are encrypted in your browser and a committee of independent ciphernodes tallies them
+            with CRISP, without ever exposing an individual vote.
           </p>
           <ul className="em-list self-center">
             <li>Public, on-chain tallies</li>

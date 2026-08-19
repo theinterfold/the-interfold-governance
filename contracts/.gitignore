@@ -9,4 +9,6 @@ node_modules/
 # ...except the checked-in templates, which carry no secrets.
 !.env.example
 !.env.mainnet.example
+# ...and the committed mainnet public-install snapshot (no key: everything is Safe-signed).
+!.env.mainnet.install
 contract.log
