@@ -1,4 +1,9 @@
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
+import {
+  PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+  PUB_ENABLE_LOCKING,
+  PUB_TOKEN_ADDRESS,
+  PUB_VE_LOCKER_ADDRESS,
+} from "@/constants";
 import { IconType } from "@aragon/ods";
 
 type PluginItem = {
@@ -28,4 +33,16 @@ export const plugins: PluginItem[] = [
     icon: IconType.APP_MEMBERS,
     pluginAddress: PUB_TOKEN_ADDRESS,
   },
+  // Only when a voting escrow is configured — without one there is nothing to lock into.
+  ...(PUB_ENABLE_LOCKING
+    ? [
+        {
+          id: "lock",
+          folderName: "velocker",
+          title: "Lock",
+          icon: IconType.APP_ASSETS,
+          pluginAddress: PUB_VE_LOCKER_ADDRESS,
+        },
+      ]
+    : []),
 ];

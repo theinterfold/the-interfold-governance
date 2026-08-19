@@ -20,6 +20,13 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 export const PUB_BONDED_VOTES_ADDRESS = (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "") as Address;
 /// The address to read balances and voting power from.
 export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_ADDRESS) as Address;
+// VotingEscrow ("velocker"): lock FOLD to gain voting power. Only the escrow address is
+// configured — its lock NFT, exit queue and IVotes adapter are read off it on-chain, so the
+// app can never pair a locker with the wrong satellites. Locked votes are delegated on the
+// ADAPTER, not the token; a lock with no adapter delegation carries no voting power.
+// Unset => the whole locking section is hidden (deployments where only wallet FOLD votes).
+export const PUB_VE_LOCKER_ADDRESS = (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "") as Address;
+export const PUB_ENABLE_LOCKING = !!PUB_VE_LOCKER_ADDRESS;
 // Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
 // Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet
