@@ -26,12 +26,12 @@ follows is the short version of who can do what, and what has to be trusted.
   plugin can execute on the DAO with no vote at all.
   - The phased mainnet rollout **deliberately defers this** (`DISARM_ADMIN="false"`) so phase 2 can
     install the private process without a vote. For that window the `has $ADMIN_PLUGIN_ADDRESS
-    $EXEC` check below is a known, dated exception rather than a finding — record the intended
+$EXEC` check below is a known, dated exception rather than a finding — record the intended
     disarm date next to it.
-  - **Who may drive an armed bootstrap** is `EXECUTE_PROPOSAL_PERMISSION` on the Admin *plugin*,
+  - **Who may drive an armed bootstrap** is `EXECUTE_PROPOSAL_PERMISSION` on the Admin _plugin_,
     not `EXECUTE` on the DAO. `make grant-admin` / `make revoke-admin` rotate it (deployer EOA →
     foundation multisig): two commands, never batched, with a successor-proves-it no-op proposal in
-    between. Rotating is not disarming — while the grant overlaps, *both* holders can execute
+    between. Rotating is not disarming — while the grant overlaps, _both_ holders can execute
     anything on the DAO.
   - **The successor must be a multisig, not an EOA** — same rule as the foundation body and for the
     same reason. `grantAdminTo()` enforces it unless `ADMIN_SUCCESSOR_ALLOW_EOA=true` (testnets).

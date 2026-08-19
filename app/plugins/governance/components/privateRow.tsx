@@ -97,8 +97,7 @@ function PrivateRowBody({
   const isActive = !sppOverride && proposalStatus === ProposalStatus.ACTIVE;
   const endDate = Number(proposal.parameters.endDate) * 1000;
   const statusLabel = resolvedLabel ?? "";
-  const statusClass =
-    sppOverride?.className ?? (e3Failed ? "failed" : (proposalStatus ?? "").toString().toLowerCase());
+  const statusClass = sppOverride?.className ?? (e3Failed ? "failed" : (proposalStatus ?? "").toString().toLowerCase());
   const rightLabel =
     isActive && endDate > Date.now() ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}` : statusLabel;
 
