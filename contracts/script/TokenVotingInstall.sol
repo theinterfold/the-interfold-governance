@@ -41,6 +41,17 @@ library TokenVotingInstall {
         pure
         returns (bytes memory)
     {
+        return encode(fold, votingSettings, minApprovals, bytes(""));
+    }
+
+    /// @notice Same, carrying `pluginMetadata` — the UTF-8 bytes of an `ipfs://` URI whose JSON
+    ///         is `{name, description, links}` (the body-metadata shape the Aragon app pins).
+    function encode(
+        address fold,
+        VotingSettings memory votingSettings,
+        uint256 minApprovals,
+        bytes memory pluginMetadata
+    ) internal pure returns (bytes memory) {
         TokenSettings memory tokenSettings = TokenSettings({addr: fold, name: "", symbol: ""});
         MintSettings memory mintSettings =
             MintSettings({receivers: new address[](0), amounts: new uint256[](0), ensureDelegationOnMint: false});
@@ -49,7 +60,6 @@ library TokenVotingInstall {
         IPlugin.TargetConfig memory targetConfig =
             IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
 
-        bytes memory pluginMetadata = bytes("");
         address[] memory excludedAccounts = new address[](0);
 
         return abi.encode(

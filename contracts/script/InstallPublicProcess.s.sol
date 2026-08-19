@@ -82,8 +82,8 @@ contract InstallPublicProcessScript is SafeActionsScript {
     /// @notice Deploys the stateless `Executor` the bodies delegatecall into (INV-5).
     /// @dev Broadcast from an EOA rather than the Safe: the contract holds no state, no owner
     ///      and no permissions, so who deploys it cannot affect what it does. A Safe cannot
-    ///      issue a raw creation anyway — `deploySetupViaCreate2()` is the alternative if the
-    ///      address must be deterministic and pre-verifiable.
+    ///      issue a raw creation anyway — `emitDeployExecutor()` is the alternative when no EOA
+    ///      is available and the Safe must do everything.
     function deployExecutor() external {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         Executor executor = new Executor();
@@ -92,6 +92,36 @@ contract InstallPublicProcessScript is SafeActionsScript {
         console2.log("=== Executor deployed ===");
         console2.log("EXECUTOR_ADDRESS=%s", address(executor));
         console2.log("Write this into the env file before running emitApplyAndWire().");
+    }
+
+    /// @notice Emits the Executor deployment as a direct Safe transaction via the CREATE2
+    ///         deployer, for the no-EOA flow.
+    /// @dev A Safe cannot issue a raw contract creation — every Transaction Builder entry is a
+    ///      call to an address — so the deploy goes through the deterministic deployer at
+    ///      0x4e59b448..., called with `salt ++ initcode`. The resulting address depends only on
+    ///      those two inputs, never on the Safe's nonce, so EXECUTOR_ADDRESS is known and can be
+    ///      written into the env BEFORE the transaction is signed. Verify code exists there after
+    ///      execution, then run `make simulate-body-execution` against it.
+    function emitDeployExecutor() external {
+        address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        bytes32 salt = vm.envOr("EXECUTOR_SALT", bytes32("interfold-executor-v1"));
+        bytes memory initcode = type(Executor).creationCode;
+
+        address predicted = vm.computeCreate2Address(salt, keccak256(initcode), deployer);
+        console2.log("=== Executor via CREATE2 (Safe-signed) ===");
+        console2.log("EXECUTOR_ADDRESS=%s", predicted);
+        console2.log("Write this into the env file now; verify code exists there after execution.");
+
+        _emitDirect(
+            "12-deploy-executor",
+            string.concat("Deploy the stateless Executor via CREATE2 to ", vm.toString(predicted)),
+            "Safe calls the deterministic deployer with salt ++ initcode. The Executor holds no "
+            "state, no owner and no permissions; the bodies delegatecall into it so "
+            "reportProposalResult reaches the SPP as the body (INV-5). The address is fixed by "
+            "the salt and initcode alone, so it is verifiable before signing.",
+            deployer,
+            bytes.concat(salt, initcode)
+        );
     }
 
     // --- step 1: prepare -----------------------------------------------------------
@@ -128,7 +158,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
             psp,
             abi.encodeCall(
                 PluginSetupProcessor.prepareInstallation,
-                (dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), SppInstall.encode()))
+                (dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), _sppInstallData()))
             )
         );
     }
@@ -217,7 +247,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
         );
         bytes memory sppPrepare = abi.encodeCall(
             PluginSetupProcessor.prepareInstallation,
-            (dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), SppInstall.encode()))
+            (dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), _sppInstallData()))
         );
 
         console2.log("--- TX 1 of 3  (FINAL - sign this) ------------------------------");
@@ -256,7 +286,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
                 dao, PluginSetupProcessor.PrepareInstallationParams(_tokenVotingRef(), tokenVotingInstallData())
             );
         (sppPublic, sppData) = PluginSetupProcessor(psp)
-            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), SppInstall.encode()));
+            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), _sppInstallData()));
         vm.stopPrank();
 
         vm.setEnv("TOKEN_VOTING_PLUGIN_ADDRESS", vm.toString(tokenVoting));
@@ -334,7 +364,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
                 dao, PluginSetupProcessor.PrepareInstallationParams(_tokenVotingRef(), tokenVotingInstallData())
             );
         (address sppPublic, IPluginSetup.PreparedSetupData memory sppData) = PluginSetupProcessor(psp)
-            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), SppInstall.encode()));
+            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), _sppInstallData()));
         vm.stopPrank();
 
         console2.log("prepared TokenVoting: %s", tokenVoting);
@@ -442,14 +472,13 @@ contract InstallPublicProcessScript is SafeActionsScript {
         // REAL FOLD holders, delegating to themselves. Deliberately not `deal`: stdstore picks
         // the balance slot by probing, and on this token it wrote into a total-supply checkpoint
         // instead — `getPastTotalSupply` came back as 25x the real supply, which silently moved
-        // the quorum bar. Real holders keep the 373.86M denominator honest, which is the whole
+        // the quorum bar. Real holders keep the denominator honest, which is the whole
         // point of simulating the quorum at all.
         address[] memory voters = _simulationVoters();
         uint256 votingPower;
         for (uint256 i = 0; i < voters.length; i++) {
-            vm.prank(voters[i]);
-            IVotesLite(fold).delegate(voters[i]);
-            votingPower += IERC20Supply(fold).balanceOf(voters[i]);
+            _delegateIfSupported(fold, voters[i]);
+            votingPower += IVotesLite(fold).getVotes(voters[i]);
         }
         vm.warp(block.timestamp + 1); // checkpoints are timestamp-keyed (INV-19); let them settle
 
@@ -694,8 +723,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
 
         address[] memory voters = _simulationVoters();
         for (uint256 i = 0; i < voters.length; i++) {
-            vm.prank(voters[i]);
-            IVotesLite(fold).delegate(voters[i]);
+            _delegateIfSupported(fold, voters[i]);
         }
         vm.warp(block.timestamp + 1);
 
@@ -757,8 +785,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
         // ONE voter, deliberately: enough for a 5% quorum, not enough for 10%.
         address[] memory all = _simulationVoters();
         address voter = all[0];
-        vm.prank(voter);
-        IVotesLite(fold).delegate(voter);
+        _delegateIfSupported(fold, voter);
         vm.warp(block.timestamp + 1);
 
         bytes[][] memory proposalParams = new bytes[][](2);
@@ -840,8 +867,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
         address fold = vm.envAddress("FOLD_TOKEN_ADDRESS");
         address[] memory voters = _simulationVoters();
         for (uint256 i = 0; i < voters.length; i++) {
-            vm.prank(voters[i]);
-            IVotesLite(fold).delegate(voters[i]);
+            _delegateIfSupported(fold, voters[i]);
         }
         vm.warp(block.timestamp + 1);
 
@@ -878,6 +904,13 @@ contract InstallPublicProcessScript is SafeActionsScript {
 
         if (vm.envOr("EXECUTOR_ADDRESS", address(0)) == address(0)) {
             vm.setEnv("EXECUTOR_ADDRESS", vm.toString(address(new Executor())));
+        } else if (vm.envAddress("EXECUTOR_ADDRESS").code.length == 0) {
+            // A predicted CREATE2 address the Safe has not executed yet. Etch the same runtime
+            // there rather than leaving it empty: a delegatecall to a codeless address returns
+            // success as a no-op, which would let the sim pass the call and then fail (or lie)
+            // at the report assertion instead of exercising the real path.
+            vm.etch(vm.envAddress("EXECUTOR_ADDRESS"), address(new Executor()).code);
+            console2.log("EXECUTOR_ADDRESS has no code yet - etched the Executor runtime for the fork");
         }
 
         vm.startPrank(safe);
@@ -888,7 +921,7 @@ contract InstallPublicProcessScript is SafeActionsScript {
                 dao, PluginSetupProcessor.PrepareInstallationParams(_tokenVotingRef(), tokenVotingInstallData())
             );
         (sppPublic, sppData) = PluginSetupProcessor(psp)
-            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), SppInstall.encode()));
+            .prepareInstallation(dao, PluginSetupProcessor.PrepareInstallationParams(_sppRef(), _sppInstallData()));
         vm.stopPrank();
 
         vm.setEnv("TOKEN_VOTING_PLUGIN_ADDRESS", vm.toString(tokenVoting));
@@ -925,8 +958,18 @@ contract InstallPublicProcessScript is SafeActionsScript {
         });
 
         return TokenVotingInstall.encode(
-            vm.envAddress("FOLD_TOKEN_ADDRESS"), votingSettings, vm.envOr("TV_MIN_APPROVALS", uint256(0))
+            vm.envAddress("FOLD_TOKEN_ADDRESS"),
+            votingSettings,
+            vm.envOr("TV_MIN_APPROVALS", uint256(0)),
+            bytes(vm.envOr("TV_METADATA_URI", string("")))
         );
+    }
+
+    /// @dev SPP install data with the process metadata URI, when one is configured. The URI's
+    ///      JSON is the Aragon-app process shape: {name, description, links, processKey,
+    ///      stageNames} — see docs/mainnet-deployment.md.
+    function _sppInstallData() internal view returns (bytes memory) {
+        return SppInstall.encode(bytes(vm.envOr("SPP_METADATA_URI", string(""))));
     }
 
     function _tokenVotingRef() internal view returns (PluginSetupRef memory) {
@@ -1020,6 +1063,19 @@ contract InstallPublicProcessScript is SafeActionsScript {
         p.setupRef = ref;
         p.permissions = data.permissions;
         p.helpersHash = keccak256(abi.encode(data.helpers));
+    }
+
+    /// @dev Self-delegates, tolerating a token that forbids delegation. `BondedVotes` reverts on
+    ///      `delegate` by design — its weight comes from bonds and vesting/escrow locks, which are
+    ///      not delegatable — so voters on that token must already carry power (pick them with
+    ///      `SIM_VOTERS`). A plain ERC20Votes token still needs the self-delegation to activate
+    ///      its checkpoints, so the call is attempted rather than dropped.
+    function _delegateIfSupported(address fold, address voter) internal {
+        vm.prank(voter);
+        (bool ok,) = fold.call(abi.encodeCall(IVotesLite.delegate, (voter)));
+        if (!ok) {
+            console2.log("token refused delegate() for %s - relying on existing voting power", voter);
+        }
     }
 
     /// @dev The holders the governance simulation votes with. Overridable via `SIM_VOTERS` so the

@@ -245,8 +245,14 @@ This is the path the mainnet Interfold DAO took. Its state at the start:
 | DAO (OSx 1.4.0)     | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
 | Admin plugin        | `0xf21E25455988887ee797050080141EBa67b33920` |
 | Foundation Safe (stage-1 body) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (3-of-5) |
-| Admin-bootstrap driver         | `0x5429D8C7Fd14023f3C414126f94BBe25a05fC018` (3-of-5), to be rotated to the Safe above |
-| FOLD                | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904` |
+| Admin-bootstrap driver         | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` — rotation from `0x5429D8C7…fC018` started; its revoke is outstanding (INV-31) |
+| FOLD (raw)          | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904` |
+| Voting token        | `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E` — **BondedVotes**, the IVotes adapter counting bonded + vesting-locked + escrow-locked FOLD; its `getPastTotalSupply` mirrors the FULL raw supply |
+| Executor (INV-5)    | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, verified byte-identical to the Sepolia one; **no deploy needed** |
+
+> **Operators: the executable, self-contained instructions live in
+> [`public-install-runbook.md`](public-install-runbook.md)** — clone, verify, sign. The sections
+> below are the rationale.
 
 The Safe holds `EXECUTE_PROPOSAL_PERMISSION` on the Admin plugin, and the Admin plugin holds
 `EXECUTE_PERMISSION` on the DAO — so the Safe drives the bootstrap, and every DAO-authorised action
@@ -274,6 +280,10 @@ it, and do not sign the apply on its own.
 cd contracts
 
 # 0. The stateless Executor the bodies delegatecall into (INV-5). No owner, no permissions.
+#    On mainnet this step is SKIPPED: Aragon's canonical v1.4.0 Executor
+#    (0x56ce4D8006292Abf418291FaE813C1E3769240A4, from osx-commons-configs) is used instead.
+#    For a chain without one: `make deploy-executor` (EOA) or `make safe-deploy-executor`
+#    (no EOA — Safe file via CREATE2, address known before signing).
 make deploy-executor ENV_FILE=.env.mainnet
 #    -> write the printed EXECUTOR_ADDRESS into .env.mainnet
 
@@ -313,7 +323,7 @@ prints a note; verify each condition address is a helper that same prepare deplo
 | ---------------------------------------------- | ------------------ | ---------------------------------------------------------- |
 | `TV_VOTING_MODE`                               | `2`                | VoteReplacement — votes changeable, no early execution     |
 | `TV_SUPPORT_THRESHOLD`                         | `510000`           | `yes/(yes+no) > 51%`, abstain excluded                     |
-| `TV_MIN_PARTICIPATION`                         | `50000`            | `yes+no+abstain ≥ 5%` of 373.86M FOLD = 18,693,217.5 FOLD   |
+| `TV_MIN_PARTICIPATION`                         | `20000`            | `yes+no+abstain ≥ 2%` of the 1.2B total FOLD supply = 24M FOLD-worth of votes |
 | `TV_MIN_DURATION` / `SPP_PUBLIC_VOTE_DURATION` | `432000`           | 5 days, enforced at both the SPP and the body              |
 | `SPP_ADVANCE_WINDOW`                           | `604800`           | +7 days to advance a passed stage 0                        |
 | `SPP_STAGE1_MODE`                              | `approval`         | the foundation must explicitly approve; silence = expiry   |

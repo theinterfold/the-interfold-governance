@@ -1,7 +1,7 @@
 .PHONY: setup build test predeploy deploy sync-env wire-spp lock-public-execution \
 	publish-crisp-repo prepare-private-process install-private-process \
 	grant-admin revoke-admin disarm-admin \
-	deploy-executor simulate-public-install simulate-public-governance \
+	deploy-executor safe-deploy-executor simulate-public-install simulate-public-governance \
 	safe-prepare-public safe-install-public simulate-stage-change safe-update-stages simulate-approval-window dry-run-public print-rotation simulate-rotation simulate-body-execution simulate-quorum-change
 
 # Which env file the broadcasting targets source. Defaults to the Sepolia `.env`;
@@ -115,6 +115,7 @@ safe-wire: ## Safe action: SPP stages + CREATE_PROPOSAL grants + target config (
 # For a DAO the DAOFactory created with the Admin bootstrap alone, where TokenVoting and the
 # public SPP are added afterwards through the PluginSetupProcessor. Order:
 #   1. make deploy-executor              (EOA; prints EXECUTOR_ADDRESS -> write it into the env)
+#      or make safe-deploy-executor      (no EOA: Safe file via CREATE2; address known pre-signing)
 #   2. make simulate-public-install      (fork; asserts the end state before anything is signed)
 #   3. make simulate-public-governance   (fork; drives a real proposal all the way to execution)
 #   4. make safe-prepare-public          (two Safe files; execute them, then read the receipts)
@@ -126,6 +127,11 @@ deploy-executor: ## Deploy the stateless Executor the bodies delegatecall into (
 	set -a; . ./$(ENV_FILE); set +a; \
 	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
 		--sig "deployExecutor()" --rpc-url $$RPC_URL --broadcast --slow -vvvv
+
+safe-deploy-executor: ## Safe action: deploy the Executor via CREATE2 (no EOA; address known pre-signing)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/InstallPublicProcess.s.sol:InstallPublicProcessScript \
+		--sig "emitDeployExecutor()" --rpc-url $$RPC_URL
 
 simulate-public-install: ## Fork-simulate the public install and assert the resulting permissions
 	set -a; . ./$(ENV_FILE); set +a; \
