@@ -38,7 +38,10 @@ export default function Proposals() {
   const { isConnected } = useAccount();
   const { canCreate: canCreatePrivate } = useCanCreatePrivate();
   const canCreatePublic = useCanCreatePublic();
-  const canCreate = canCreatePrivate || canCreatePublic;
+  // A DAO can exist with no voting process yet (the phased mainnet rollout) — say so
+  // explicitly instead of a generic empty state, and offer no create button.
+  const noVotingPlugins = !isAddress(PUB_SPP_PRIVATE_ADDRESS) && !isAddress(PUB_SPP_PUBLIC_ADDRESS);
+  const canCreate = (canCreatePrivate || canCreatePublic) && !noVotingPlugins;
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -145,11 +148,13 @@ export default function Proposals() {
       <If not={entries.length}>
         <Then>
           <MissingContentView>
-            {isLoading
-              ? "Loading proposals…"
-              : error
-                ? error
-                : "No proposals have been created yet. Public and private proposals will both appear here."}
+            {noVotingPlugins
+              ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
+              : isLoading
+                ? "Loading proposals…"
+                : error
+                  ? error
+                  : "No proposals have been created yet. Public and private proposals will both appear here."}
           </MissingContentView>
         </Then>
         <Else>

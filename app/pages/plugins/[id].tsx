@@ -16,7 +16,12 @@ const PluginLoader: FC = () => {
     if (!pluginId) return;
 
     const plugin = plugins.find((p) => p.id === pluginId);
-    if (!plugin) return;
+    if (!plugin) {
+      // An unknown section (stale link, or a feature-gated plugin that is disabled in this
+      // deployment): without this, the spinner never resolves and the page hangs forever.
+      setComponentLoading(false);
+      return;
+    }
 
     import(`@/plugins/${plugin.folderName}`)
       .then((mod) => {
