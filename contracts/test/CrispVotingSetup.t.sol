@@ -93,13 +93,7 @@ contract CrispVotingSetupTest is Test {
 
         interfold = new MockInterfoldMinimal();
 
-        setup = new CrispVotingSetup(
-            new GovernanceERC20(
-                IDAO(address(dao)), "base", "BASE", GovernanceERC20.MintSettings(new address[](0), new uint256[](0))
-            ),
-            new GovernanceWrappedERC20(IERC20Upgradeable(address(new MockPlainErc20())), "wbase", "WBASE"),
-            address(new CrispVoting())
-        );
+        setup = new CrispVotingSetup(address(new CrispVoting()));
     }
 
     function _params(address token) internal view returns (ICrispVoting.PluginInitParams memory params) {
@@ -124,14 +118,7 @@ contract CrispVotingSetupTest is Test {
     }
 
     function _encode(address tokenAddr, bool grantExecuteOnDao) internal view returns (bytes memory) {
-        address[] memory receivers = new address[](0);
-        uint256[] memory amounts = new uint256[](0);
-        return abi.encode(
-            _params(tokenAddr),
-            CrispVotingSetup.TokenSettings({addr: tokenAddr, name: "Interfold", symbol: "FOLD"}),
-            GovernanceERC20.MintSettings({receivers: receivers, amounts: amounts}),
-            grantExecuteOnDao
-        );
+        return abi.encode(_params(tokenAddr), tokenAddr, grantExecuteOnDao);
     }
 
     // --- token handling ---
@@ -156,14 +143,23 @@ contract CrispVotingSetupTest is Test {
         assertEq(address(CrispVoting(plugin).getVotingToken()), token, "IVotes token must be used unwrapped");
     }
 
-    function test_prepareInstallationWrapsAPlainErc20() public {
+    /// @notice There is deliberately NO wrap fallback: a silently wrapped voting token would
+    ///         leave every holder unable to vote until they wrapped, so a non-IVotes token
+    ///         fails the install loudly instead of installing something subtly broken.
+    function test_prepareInstallationRejectsANonIVotesErc20InsteadOfWrapping() public {
         address token = address(new MockPlainErc20());
         assertFalse(setup.supportsIVotesInterface(token), "plain ERC20 is not IVotes");
 
-        (address plugin,) = setup.prepareInstallation(address(dao), _encode(token));
-        address used = address(CrispVoting(plugin).getVotingToken());
-        assertTrue(used != token, "plain ERC20 must be wrapped");
-        assertEq(address(GovernanceWrappedERC20(used).underlying()), token, "wrapper must point at the original");
+        vm.expectRevert(abi.encodeWithSelector(CrispVotingSetup.TokenNotIVotes.selector, token));
+        setup.prepareInstallation(address(dao), _encode(token));
+    }
+
+    /// @notice There is deliberately NO fresh-token path either: `address(0)` used to mean
+    ///         "deploy a GovernanceERC20 for me" and now simply fails the contract check, so
+    ///         the setup can never mint a voting token (and never needs a MINT permission).
+    function test_prepareInstallationRejectsTheZeroAddressFreshTokenRequest() public {
+        vm.expectRevert(abi.encodeWithSelector(CrispVotingSetup.TokenNotContract.selector, address(0)));
+        setup.prepareInstallation(address(dao), _encode(address(0)));
     }
 
     // --- permission surface ---
@@ -197,7 +193,7 @@ contract CrispVotingSetupTest is Test {
     function test_prepareInstallationNeverRequestsExecutePermissionOnTheDao() public {
         bytes32 executePermission = keccak256("EXECUTE_PERMISSION");
 
-        address[2] memory tokens = [address(new MockVotesErc20()), address(0)];
+        address[1] memory tokens = [address(new MockVotesErc20())];
         for (uint256 t = 0; t < tokens.length; t++) {
             (, IPluginSetup.PreparedSetupData memory data) = setup.prepareInstallation(address(dao), _encode(tokens[t]));
 
@@ -255,19 +251,29 @@ contract CrispVotingSetupTest is Test {
         assertTrue(found, "a standalone process must be able to execute its own proposals");
     }
 
-    /// @notice Minting must be governance-gated. This previously granted to ANY_ADDR
-    ///         "for testing", which would have let anyone mint the governance token and
-    ///         manufacture voting power.
-    function test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr() public {
-        (, IPluginSetup.PreparedSetupData memory data) = setup.prepareInstallation(address(dao), _encode(address(0)));
+    /// @notice Minting is not merely governance-gated any more — the mint path is GONE. The
+    ///         setup once granted MINT to ANY_ADDR "for testing" (anyone could manufacture
+    ///         voting power), then to the DAO only; the lean setup deploys no token at all,
+    ///         so no install, in either shape, may request a mint permission on anything.
+    function test_prepareInstallationNeverRequestsAMintPermission() public {
+        address token = address(new MockVotesErc20());
+        bool[2] memory shapes = [false, true];
+        for (uint256 i = 0; i < shapes.length; i++) {
+            (address plugin, IPluginSetup.PreparedSetupData memory data) =
+                setup.prepareInstallation(address(dao), _encode(token, shapes[i]));
 
-        assertEq(data.permissions.length, 5, "fresh token => mint permission is also granted");
-
-        // [0] SET_TARGET_CONFIG, [1] MANAGER, [2] CREATE_PROPOSAL, [3] SET_METADATA, [4] MINT
-        PermissionLib.MultiTargetPermission memory mintPerm = data.permissions[4];
-        assertEq(mintPerm.permissionId, keccak256("MINT_PERMISSION"), "third grant must be the mint permission");
-        assertEq(mintPerm.who, address(dao), "mint must be granted to the DAO");
-        assertTrue(mintPerm.who != ANY_ADDR, "mint must NEVER be granted to ANY_ADDR");
+            for (uint256 j = 0; j < data.permissions.length; j++) {
+                assertTrue(
+                    data.permissions[j].permissionId != keccak256("MINT_PERMISSION"),
+                    "no install shape may request a mint permission"
+                );
+                assertTrue(data.permissions[j].where != token, "no permission may target the voting token");
+                assertTrue(
+                    data.permissions[j].where == plugin || data.permissions[j].where == address(dao),
+                    "grants only on the plugin or the DAO"
+                );
+            }
+        }
     }
 
     // --- uninstallation ---

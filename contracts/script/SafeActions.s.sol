@@ -3,6 +3,9 @@ pragma solidity ^0.8.29;
 
 import {Script, console2} from "forge-std/Script.sol";
 
+import {CrispVoting} from "../src/crisp/CrispVoting.sol";
+import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
+
 import {PluginSetupProcessor} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
@@ -336,6 +339,101 @@ contract SafeActionsScript is WireSppScript {
     /// @dev The Safe Transaction Builder writer, shared by the wrapped and direct emitters.
     ///      The printed `to`/`data` is the same bytes the file carries, so a reviewer can check
     ///      the file against the console without trusting the JSON writer.
+    /// @notice Emits the CRISP plugin stack — the `CrispVoting` implementation and
+    ///         `CrispVotingSetup` — as ONE Safe file of two CREATE2 deployments, for the
+    ///         no-EOA flow. The lean setup installs only against an existing IVotes token, so
+    ///         there are no governance-token base contracts to deploy alongside them.
+    /// @dev A Safe cannot issue raw contract creations, so each deployment is a call to the
+    ///      deterministic deployer at 0x4e59b448... with `salt ++ initcode`. Both addresses —
+    ///      including the setup's, whose constructor arg embeds the implementation — depend
+    ///      only on salt and initcode, never on the Safe's nonce, so they are printed here and
+    ///      can be written into the env and independently verified BEFORE anything is signed.
+    ///
+    ///      One file on purpose: the setup's initcode hardcodes the implementation address, so
+    ///      a batch that partially executed would strand a setup pointing at code that never
+    ///      landed. The Transaction Builder executes the two in order and atomically.
+    function deployCrispStack() external {
+        address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        bytes32 salt = vm.envOr("CRISP_STACK_SALT", bytes32("interfold-crisp-v1"));
+
+        bytes memory implCode = type(CrispVoting).creationCode;
+        address impl = vm.computeCreate2Address(salt, keccak256(implCode), deployer);
+
+        bytes memory setupCode = bytes.concat(type(CrispVotingSetup).creationCode, abi.encode(impl));
+        address setup = vm.computeCreate2Address(salt, keccak256(setupCode), deployer);
+
+        address[] memory tos = new address[](2);
+        bytes[] memory datas = new bytes[](2);
+        tos[0] = deployer;
+        tos[1] = deployer;
+        datas[0] = bytes.concat(salt, implCode);
+        datas[1] = bytes.concat(salt, setupCode);
+
+        console2.log("=== CRISP stack via CREATE2 (Safe-signed, one atomic batch) ===");
+        console2.log("CrispVoting implementation:  %s", impl);
+        console2.log("CRISP_SETUP_ADDRESS=%s", setup);
+        console2.log("Write CRISP_SETUP_ADDRESS into the env now; verify code exists at both");
+        console2.log("after execution, then run `make safe-create-repo`.");
+
+        _writeSafeBatchFile(
+            "10-deploy-crisp-stack",
+            "Deploy the CRISP plugin stack via CREATE2",
+            "Two deterministic deployments in one atomic batch: the CrispVoting implementation "
+            "and CrispVotingSetup (whose constructor pins it). Addresses depend only on salt and "
+            "initcode, so they were verifiable before signing. Neither contract holds any "
+            "permission or authority, and the lean setup deploys no token contracts.",
+            tos,
+            datas
+        );
+    }
+
+    /// @dev The multi-transaction sibling of `_writeSafeFile`: one Transaction Builder file whose
+    ///      `transactions` array the Safe executes in order, atomically.
+    function _writeSafeBatchFile(
+        string memory slug,
+        string memory name,
+        string memory description,
+        address[] memory tos,
+        bytes[] memory datas
+    ) internal {
+        address safe = adminDriver();
+        string memory path = string.concat(OUT_DIR, "/", slug, ".json");
+
+        string memory txs = "";
+        for (uint256 i = 0; i < tos.length; i++) {
+            txs = string.concat(
+                txs,
+                i == 0 ? "" : ",\n    ",
+                '{\n      "to": "',
+                vm.toString(tos[i]),
+                '",\n      "value": "0",\n      "data": "',
+                vm.toString(datas[i]),
+                '"\n    }'
+            );
+        }
+
+        string memory json = string.concat(
+            '{\n  "version": "1.0",\n  "chainId": "',
+            vm.toString(block.chainid),
+            '",\n  "createdAt": ',
+            vm.toString(block.timestamp * 1000),
+            ',\n  "meta": {\n    "name": "',
+            name,
+            '",\n    "description": "',
+            description,
+            '",\n    "txBuilderVersion": "1.18.0",\n    "createdFromSafeAddress": "',
+            vm.toString(safe),
+            '"\n  },\n  "transactions": [\n    ',
+            txs,
+            "\n  ]\n}\n"
+        );
+
+        vm.writeFile(path, json);
+
+        console2.log("=== %s", name);
+        console2.log("  file: %s (%s transactions)", path, tos.length);
+    }
+
     function _writeSafeFile(
         string memory slug,
         string memory name,

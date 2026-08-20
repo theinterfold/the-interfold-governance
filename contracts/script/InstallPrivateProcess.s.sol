@@ -92,17 +92,9 @@ contract InstallPrivateProcessScript is WireSppScript {
 
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
-        GovernanceERC20 governanceERC20Base = new GovernanceERC20(
-            IDAO(address(0)),
-            "",
-            "",
-            GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)})
-        );
-        GovernanceWrappedERC20 governanceWrappedERC20Base =
-            new GovernanceWrappedERC20(IERC20Upgradeable(address(0)), "", "");
-        address crispVotingImpl = address(new CrispVoting());
-        CrispVotingSetup crispSetup =
-            new CrispVotingSetup(governanceERC20Base, governanceWrappedERC20Base, crispVotingImpl);
+        // The lean setup: only an existing IVotes token installs, so there are no token base
+        // contracts to deploy alongside the implementation.
+        CrispVotingSetup crispSetup = new CrispVotingSetup(address(new CrispVoting()));
 
         PluginRepo crispRepo = PluginRepoFactory(pluginRepoFactory).
             // Maintainer is the foundation multisig, not the broadcasting EOA. The EOA pays the
@@ -357,11 +349,6 @@ contract InstallPrivateProcessScript is WireSppScript {
             votingSettings: crispEnv.votingSettings
         });
 
-        CrispVotingSetup.TokenSettings memory tokenSettings =
-            CrispVotingSetup.TokenSettings({addr: fold, name: "", symbol: ""});
-        GovernanceERC20.MintSettings memory mintSettings =
-            GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)});
-
-        return abi.encode(params, tokenSettings, mintSettings, false);
+        return abi.encode(params, fold, false);
     }
 }

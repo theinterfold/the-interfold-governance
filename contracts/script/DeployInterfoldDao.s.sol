@@ -169,16 +169,9 @@ contract DeployInterfoldDaoScript is Script {
     // --- CRISP (private) ---
 
     function deployCrispSetup() public returns (CrispVotingSetup) {
-        GovernanceERC20 governanceERC20Base = new GovernanceERC20(
-            IDAO(address(0)),
-            "",
-            "",
-            GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)})
-        );
-        GovernanceWrappedERC20 governanceWrappedERC20Base =
-            new GovernanceWrappedERC20(IERC20Upgradeable(address(0)), "", "");
-        address crispVoting = address(new CrispVoting());
-        return new CrispVotingSetup(governanceERC20Base, governanceWrappedERC20Base, crispVoting);
+        // The lean setup: only an existing IVotes token installs, so there are no token base
+        // contracts to deploy alongside the implementation.
+        return new CrispVotingSetup(address(new CrispVoting()));
     }
 
     function deployCrispRepo(address pluginSetup) public returns (PluginRepo pluginRepo) {
@@ -205,11 +198,6 @@ contract DeployInterfoldDaoScript is Script {
         });
 
         // Existing FOLD: addr != 0 => the setup uses it directly (it is IVotes); no mint.
-        CrispVotingSetup.TokenSettings memory tokenSettings =
-            CrispVotingSetup.TokenSettings({addr: fold, name: "", symbol: ""});
-        GovernanceERC20.MintSettings memory mintSettings =
-            GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)});
-
         // NOTE: no foundation param anymore — the foundation's veto power moved from an
         // execute-gate on the plugin to the SPP's veto stage (configured in wire-spp).
         //
@@ -217,7 +205,7 @@ contract DeployInterfoldDaoScript is Script {
         // EXECUTE on the DAO would let a stage-0 proposal execute without ever reaching the veto
         // stage, which is the whole point of the staged setup. Only a standalone install (the
         // Aragon app's simple-governance path) passes true.
-        bytes memory data = abi.encode(params, tokenSettings, mintSettings, false);
+        bytes memory data = abi.encode(params, fold, false);
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(1, 1), crispRepo), data);
     }
 

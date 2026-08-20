@@ -40,17 +40,9 @@ contract PublishCrispBuild is Script {
         // proxies point at, so publishing a setup built from this source against an
         // implementation deployed from older source would ship a build nobody has tested.
         // Existing DAOs are unaffected — their proxies keep pointing at their own implementation.
-        GovernanceERC20 governanceERC20Base = new GovernanceERC20(
-            IDAO(address(0)),
-            "",
-            "",
-            GovernanceERC20.MintSettings({receivers: new address[](0), amounts: new uint256[](0)})
-        );
-        GovernanceWrappedERC20 governanceWrappedERC20Base =
-            new GovernanceWrappedERC20(IERC20Upgradeable(address(0)), "", "");
         address crispVoting = address(new CrispVoting());
 
-        CrispVotingSetup setup = new CrispVotingSetup(governanceERC20Base, governanceWrappedERC20Base, crispVoting);
+        CrispVotingSetup setup = new CrispVotingSetup(crispVoting);
 
         // Metadata is not resolved on-chain; the app reads its own copy. Kept non-empty so the
         // build is distinguishable in explorers.

@@ -3,55 +3,38 @@
 pragma solidity ^0.8.29;
 
 import {IDAO, DAO} from "@aragon/osx/core/dao/DAO.sol";
-import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IPluginSetup, PluginSetup, PermissionLib} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import {ProxyLib} from "@aragon/osx-commons-contracts/src/utils/deployment/ProxyLib.sol";
 
 import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/utils/IVotesUpgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
-import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/GovernanceWrappedERC20.sol";
 
 import {CrispVoting} from "../CrispVoting.sol";
 import {ICrispVoting} from "../ICrispVoting.sol";
 
 /// @title CrispVotingSetup
 /// @notice Manages the installation and unintallation of the CRISP plugin on a DAO.
-/// @dev Release 1, Build 1
+/// @dev Release 1, Build 1.
+///
+///      Deliberately LEANER than the canonical TokenVotingSetup pattern it descends from: there
+///      is no fresh-token deployment and no GovernanceWrappedERC20 wrap path. The plugin only
+///      installs against an EXISTING IVotes token, and a token that fails the probe REVERTS the
+///      install instead of being silently wrapped — a wrapped voting token would disenfranchise
+///      every holder until they wrapped, which the deployment runbook treats as a bug. Removing
+///      the paths removes the two base contracts they needed and makes the wrong outcome
+///      unrepresentable rather than merely unlikely.
 contract CrispVotingSetup is PluginSetup {
     using Address for address;
-    using Clones for address;
 
     /// @notice The address of the `CrispVoting` base contract.
     // solhint-disable-next-line immutable-vars-naming
     CrispVoting public immutable crispVotingBase;
 
-    /// @notice The address of the `GovernanceERC20` base contract.
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable governanceERC20Base;
-
-    /// @notice The address of the `GovernanceWrappedERC20` base contract.
-    // solhint-disable-next-line immutable-vars-naming
-    address public immutable governanceWrappedERC20Base;
-
     /// @notice The wildcard grantee understood by OSx's `PermissionManager`. Redeclared here
     ///     because the canonical one is `internal` to `PermissionManager` and therefore not
     ///     reachable from a setup contract. Must stay identical to it.
     address internal constant ANY_ADDR = address(type(uint160).max);
-
-    /// @notice Configuration settings for a token used within the governance system.
-    /// @param addr The token address. If set to `address(0)`, a new
-    /// `GovernanceERC20` token is deployed.
-    ///     If the address implements `IVotes`, it will be used directly; otherwise,
-    ///     it is wrapped as `GovernanceWrappedERC20`.
-    /// @param name The name of the token.
-    /// @param symbol The symbol of the token.
-    struct TokenSettings {
-        address addr;
-        string name;
-        string symbol;
-    }
 
     /// @notice Thrown if the passed token address is not a token contract.
     /// @param token The token address
@@ -61,22 +44,18 @@ contract CrispVotingSetup is PluginSetup {
     /// @param token The token address
     error TokenNotERC20(address token);
 
-    /// @notice The contract constructor deploying the plugin implementation contract
-    ///     and receiving the governance token base contracts to clone from.
+    /// @notice Thrown when the voting token does not answer the IVotes probe. There is no wrap
+    /// fallback on purpose: installing a silently wrapped token would leave every holder unable
+    /// to vote until they wrapped, so the install fails loudly instead.
+    /// @param token The token address
+    error TokenNotIVotes(address token);
+
+    /// @notice The contract constructor referencing the plugin implementation contract.
     /// @dev The implementation address is used to deploy UUPS proxies referencing it and
     /// to verify the plugin on the respective block explorers.
-    /// @param _governanceERC20Base The base `GovernanceERC20` contract to create clones from.
-    /// @param _governanceWrappedERC20Base The base `GovernanceWrappedERC20` contract to create
-    /// clones from.
     /// @param _crispVoting The base `CrispVoting` implementation address
-    constructor(
-        GovernanceERC20 _governanceERC20Base,
-        GovernanceWrappedERC20 _governanceWrappedERC20Base,
-        address _crispVoting
-    ) PluginSetup(_crispVoting) {
+    constructor(address _crispVoting) PluginSetup(_crispVoting) {
         crispVotingBase = CrispVoting(IMPLEMENTATION);
-        governanceERC20Base = address(_governanceERC20Base);
-        governanceWrappedERC20Base = address(_governanceWrappedERC20Base);
     }
 
     /// @inheritdoc IPluginSetup
@@ -90,38 +69,23 @@ contract CrispVotingSetup is PluginSetup {
         // parameter rather than a permission granted here and revoked by a later wiring step,
         // because a wiring step that is skipped, reverted or forgotten would leave the veto
         // bypassable — and nothing on-chain would say so.
-        (
-            ICrispVoting.PluginInitParams memory params,
-            TokenSettings memory tokenSettings,
-            GovernanceERC20.MintSettings memory mintSettings,
-            bool grantExecuteOnDao
-        ) = abi.decode(
-            _installationParams, (ICrispVoting.PluginInitParams, TokenSettings, GovernanceERC20.MintSettings, bool)
-        );
+        (ICrispVoting.PluginInitParams memory params, address token, bool grantExecuteOnDao) =
+            abi.decode(_installationParams, (ICrispVoting.PluginInitParams, address, bool));
 
-        address token = tokenSettings.addr;
+        // An EXISTING IVotes token, or no install. `address(0)` fails the contract check, and a
+        // token that cannot answer the IVotes probe reverts rather than being wrapped — the
+        // probe passing is exactly what the post-install `getVotingToken()` runbook check
+        // re-verifies from outside.
+        if (!token.isContract()) {
+            revert TokenNotContract(token);
+        }
 
-        if (tokenSettings.addr != address(0)) {
-            if (!token.isContract()) {
-                revert TokenNotContract(token);
-            }
+        if (!_isERC20(token)) {
+            revert TokenNotERC20(token);
+        }
 
-            if (!_isERC20(token)) {
-                revert TokenNotERC20(token);
-            }
-
-            if (!supportsIVotesInterface(token)) {
-                token = governanceWrappedERC20Base.clone();
-                // User already has a token. We need to wrap it in
-                // GovernanceWrappedERC20 in order to make the token
-                // include governance functionality.
-                GovernanceWrappedERC20(token)
-                    .initialize(IERC20Upgradeable(tokenSettings.addr), tokenSettings.name, tokenSettings.symbol);
-            }
-        } else {
-            // Clone a `GovernanceERC20`.
-            token = governanceERC20Base.clone();
-            GovernanceERC20(token).initialize(IDAO(_dao), tokenSettings.name, tokenSettings.symbol, mintSettings);
+        if (!supportsIVotesInterface(token)) {
+            revert TokenNotIVotes(token);
         }
 
         params.dao = IDAO(_dao);
@@ -130,11 +94,11 @@ contract CrispVotingSetup is PluginSetup {
         // 1) Upgradeable plugin variant
         plugin = ProxyLib.deployUUPSProxy(implementation(), abi.encodeCall(CrispVoting.initialize, params));
 
-        // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER on the plugin (so
-        // governance can point the plugin at the delegatecall Executor and tune voting settings),
-        // plus CREATE_PROPOSAL to ANY_ADDR so the process is usable at all. EXECUTE on the DAO is
-        // added only for a standalone process, and a mint permission only when a fresh token was
-        // deployed.
+        // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER + SET_METADATA on
+        // the plugin (so governance can point the plugin at the delegatecall Executor, tune
+        // voting settings and name the body), plus CREATE_PROPOSAL to ANY_ADDR so the process is
+        // usable at all. EXECUTE on the DAO is added only for a standalone process. There is no
+        // mint permission: this setup never deploys a token.
         //
         // CREATE_PROPOSAL is granted to ANY_ADDR in both shapes: proposal creation is gated by
         // the plugin's own `minProposerVotingPower`, and a proposal created directly on an SPP
@@ -146,7 +110,6 @@ contract CrispVotingSetup is PluginSetup {
         // proposer could execute straight from stage 0 and skip the veto stage entirely.
         uint256 permissionCount = 4;
         if (grantExecuteOnDao) permissionCount++;
-        if (tokenSettings.addr == address(0)) permissionCount++;
 
         PermissionLib.MultiTargetPermission[] memory permissions =
             new PermissionLib.MultiTargetPermission[](permissionCount);
@@ -196,20 +159,6 @@ contract CrispVotingSetup is PluginSetup {
                 who: plugin,
                 condition: PermissionLib.NO_CONDITION,
                 permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID()
-            });
-        }
-
-        // Grant the `MINT_PERMISSION_ID` on the token to the DAO if deploying a new token
-        if (tokenSettings.addr == address(0)) {
-            // Minting is governance-only. This previously granted to ANY_ADDR
-            // (`address(type(uint160).max)`) "for testing", which let anyone mint the
-            // governance token and therefore manufacture voting power at will.
-            permissions[next] = PermissionLib.MultiTargetPermission({
-                operation: PermissionLib.Operation.Grant,
-                where: token,
-                who: _dao,
-                condition: PermissionLib.NO_CONDITION,
-                permissionId: GovernanceERC20(token).MINT_PERMISSION_ID()
             });
         }
 

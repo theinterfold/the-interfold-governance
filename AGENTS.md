@@ -98,7 +98,7 @@ enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build
 | **INV-3** | **`CrispVoting.createProposal` is SPP-only** (`CREATE_PROPOSAL_PERMISSION`, granted to its SPP) and charges the SPP proposal _creator's_ escrow, never the caller's.         | `CrispVotingSpp.t.sol::test_createProposalChargesSppProposalCreator`, `…RevertsWithoutPermission`                                            |
 | **INV-4** | **Nobody can spend someone else's fee credit.** The payer comes from the SPP's own attestation (`metadata = abi.encode(spp, sppProposalId, stageId)`), never a caller field. | `CrispVotingViews.t.sol::test_createProposalRevertsOnWrongLengthMetadata`, `…WhenTheEncodedSppIsNotTheCaller`, `…WhenTheSppReportsNoCreator` |
 | **INV-5** | **Bodies execute via delegatecall to the shared `Executor`** so `reportProposalResult` reaches the SPP _as the body_. Never repoint them at the DAO.                         | `CrispVotingSpp.t.sol::test_executeIsPermissionlessAndReportsAsPlugin`                                                                       |
-| **INV-6** | **Minting the governance token is DAO-only.** It once granted to `ANY_ADDR` "for testing" — anyone could mint voting power.                                                  | `CrispVotingSetup.t.sol::test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr`                                                       |
+| **INV-6** | **The setup can mint no voting power at all.** The fresh-token and wrap paths were removed: only an existing IVotes token installs (anything else reverts), so no install shape may request a mint permission. It once granted mint to `ANY_ADDR` "for testing". | `CrispVotingSetup.t.sol::test_prepareInstallationNeverRequestsAMintPermission`, `…RejectsANonIVotesErc20InsteadOfWrapping`, `…RejectsTheZeroAddressFreshTokenRequest` |
 | **INV-7** | **Install and uninstall are symmetric.** Uninstall must revoke exactly what install granted, or a removed plugin leaves live permissions behind.                             | `CrispVotingSetup.t.sol::test_prepareUninstallationRevokesExactlyWhatInstallGranted`                                                         |
 
 ### Stage configuration (`WireSpp.stagesFor`)
@@ -297,8 +297,9 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   `PINATA_JWT` and `ETHERSCAN_API_KEY` are server-only and are read exclusively by
   `app/pages/api/ipfs/pin.ts` and `app/pages/api/etherscan.ts`; the browser calls those routes.
   CI's `secret-hygiene` job fails the build if this is violated. See [`SECURITY.md`](SECURITY.md).
-- **Minting is DAO-only.** `CrispVotingSetup` grants `MINT_PERMISSION` to the DAO. It once granted
-  to `ANY_ADDR` "for testing" — anyone could mint voting power. Guarded by a test; do not loosen.
+- **The CRISP setup mints nothing.** The fresh-token and wrap paths were removed from
+  `CrispVotingSetup`: only an existing IVotes token installs, anything else reverts, and no
+  install shape may request a mint permission. Guarded by tests; do not reintroduce the paths.
 - **Testnet scaffolding is env-gated.** The faucet button renders only when
   `NEXT_PUBLIC_ENABLE_FAUCET=true`. Anything testnet-only must be gated the same way.
 - **CI lives at the repo root** (`.github/workflows/ci.yml`) and runs contracts + app + secret

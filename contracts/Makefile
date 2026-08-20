@@ -85,6 +85,11 @@ print-private-actions: ## Print the phase-2 actions as proposal calldata (no bro
 # One Safe Transaction Builder file per action, written to out/safe/. Each is loadable on its
 # own, so you sign, verify on chain, then move to the next. The EOA `prepare` steps above are
 # unchanged: they touch nothing the DAO owns and need no signature.
+safe-deploy-crisp-stack: ## Safe action: deploy bases + CrispVoting impl + CrispVotingSetup via CREATE2 (one atomic batch)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "deployCrispStack()" --rpc-url $$RPC_URL
+
 safe-deploy-setup: ## Safe action: deploy a plugin setup via the CREATE2 deployer
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	forge script script/SafeActions.s.sol:SafeActionsScript \
