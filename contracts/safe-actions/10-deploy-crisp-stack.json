@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "chainId": "1",
-  "createdAt": 1787254883000,
+  "createdAt": 1787255435000,
   "meta": {
     "name": "Deploy the CRISP plugin stack via CREATE2",
     "description": "Two deterministic deployments in one atomic batch: the CrispVoting implementation and CrispVotingSetup (whose constructor pins it). Addresses depend only on salt and initcode, so they were verifiable before signing. Neither contract holds any permission or authority, and the lean setup deploys no token contracts.",
