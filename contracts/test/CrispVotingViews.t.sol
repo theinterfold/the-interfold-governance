@@ -98,6 +98,7 @@ contract CrispVotingViewsTest is Test {
         dao.grant(address(p), address(spp), p.CREATE_PROPOSAL_PERMISSION_ID());
         dao.grant(address(p), address(this), p.MANAGER_PERMISSION_ID());
         dao.grant(address(p), address(this), p.SET_TARGET_CONFIG_PERMISSION_ID());
+        dao.grant(address(p), address(this), p.SET_METADATA_PERMISSION_ID());
 
         // Bodies execute via delegatecall to the shared Executor (the SPP-body wiring), not
         // against the DAO — they deliberately hold no EXECUTE_PERMISSION. targetConfig is
@@ -300,6 +301,25 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.minVoterVotingPower(), 12);
         assertEq(plugin.minParticipation(), 13);
         assertEq(plugin.minDuration(), 7200);
+    }
+
+    // --- metadata -------------------------------------------------------------
+
+    /// @notice The body carries the same DAO-governed metadata surface as the SPP and canonical
+    ///         TokenVoting, so the Aragon app can render (and governance later rename) it.
+    function test_setMetadataIsPermissionedAndReadable() public {
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert();
+        plugin.setMetadata(bytes("ipfs://nope"));
+
+        plugin.setMetadata(bytes("ipfs://crisp-body"));
+        assertEq(plugin.getMetadata(), bytes("ipfs://crisp-body"));
+
+        // The extension's interface id must be discoverable, or the app cannot know the
+        // surface exists.
+        assertTrue(
+            plugin.supportsInterface(plugin.setMetadata.selector ^ plugin.getMetadata.selector), "metadata iface"
+        );
     }
 
     // --- updateE3Settings -----------------------------------------------------

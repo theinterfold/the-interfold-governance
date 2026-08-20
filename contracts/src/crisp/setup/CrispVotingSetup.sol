@@ -144,7 +144,7 @@ contract CrispVotingSetup is PluginSetup {
         //
         // INVARIANT: an SPP body must never receive EXECUTE_PERMISSION on the DAO. If it did, a
         // proposer could execute straight from stage 0 and skip the veto stage entirely.
-        uint256 permissionCount = 3;
+        uint256 permissionCount = 4;
         if (grantExecuteOnDao) permissionCount++;
         if (tokenSettings.addr == address(0)) permissionCount++;
 
@@ -177,7 +177,17 @@ contract CrispVotingSetup is PluginSetup {
             permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
         });
 
-        uint256 next = 3;
+        // The DAO names (and can later rename) the body: the same DAO-governed metadata surface
+        // the SPP and canonical TokenVoting expose, read by the Aragon app.
+        permissions[3] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Grant,
+            where: plugin,
+            who: _dao,
+            condition: PermissionLib.NO_CONDITION,
+            permissionId: crispVotingBase.SET_METADATA_PERMISSION_ID()
+        });
+
+        uint256 next = 4;
 
         if (grantExecuteOnDao) {
             permissions[next++] = PermissionLib.MultiTargetPermission({
@@ -215,7 +225,7 @@ contract CrispVotingSetup is PluginSetup {
         // Request reverting the granted permissions. Mirrors `prepareInstallation` exactly: a
         // permission granted there and not revoked here outlives the plugin, and an uninstalled
         // process that still holds EXECUTE on the DAO is a live hole.
-        permissions = new PermissionLib.MultiTargetPermission[](4);
+        permissions = new PermissionLib.MultiTargetPermission[](5);
 
         permissions[0] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Revoke,
@@ -239,6 +249,14 @@ contract CrispVotingSetup is PluginSetup {
             who: ANY_ADDR,
             condition: PermissionLib.NO_CONDITION,
             permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
+        });
+
+        permissions[4] = PermissionLib.MultiTargetPermission({
+            operation: PermissionLib.Operation.Revoke,
+            where: _payload.plugin,
+            who: _dao,
+            condition: PermissionLib.NO_CONDITION,
+            permissionId: crispVotingBase.SET_METADATA_PERMISSION_ID()
         });
 
         // Revoked unconditionally even though an SPP body had it revoked at wiring time: a

@@ -173,7 +173,7 @@ contract CrispVotingSetupTest is Test {
         (address plugin, IPluginSetup.PreparedSetupData memory data) =
             setup.prepareInstallation(address(dao), _encode(token));
 
-        assertEq(data.permissions.length, 3, "existing token, SPP body => settings pair + CREATE_PROPOSAL");
+        assertEq(data.permissions.length, 4, "existing token, SPP body => settings pair + CREATE_PROPOSAL + metadata");
 
         for (uint256 i = 0; i < data.permissions.length; i++) {
             assertEq(uint8(data.permissions[i].operation), uint8(PermissionLib.Operation.Grant), "must be a grant");
@@ -184,9 +184,11 @@ contract CrispVotingSetupTest is Test {
         assertEq(data.permissions[0].who, address(dao), "SET_TARGET_CONFIG is the DAO's");
         assertEq(data.permissions[1].who, address(dao), "MANAGER is the DAO's");
         assertEq(data.permissions[2].who, ANY_ADDR, "CREATE_PROPOSAL is open, subject to voting power");
+        assertEq(data.permissions[3].who, address(dao), "SET_METADATA is the DAO's");
 
         assertEq(data.permissions[0].permissionId, setup.crispVotingBase().SET_TARGET_CONFIG_PERMISSION_ID());
         assertEq(data.permissions[1].permissionId, CrispVoting(plugin).MANAGER_PERMISSION_ID());
+        assertEq(data.permissions[3].permissionId, setup.crispVotingBase().SET_METADATA_PERMISSION_ID());
     }
 
     /// @notice The invariant that makes the SPP veto stage non-bypassable: the body
@@ -259,10 +261,10 @@ contract CrispVotingSetupTest is Test {
     function test_prepareInstallationGrantsMintToTheDaoOnlyNeverToAnyAddr() public {
         (, IPluginSetup.PreparedSetupData memory data) = setup.prepareInstallation(address(dao), _encode(address(0)));
 
-        assertEq(data.permissions.length, 4, "fresh token => mint permission is also granted");
+        assertEq(data.permissions.length, 5, "fresh token => mint permission is also granted");
 
-        // [0] SET_TARGET_CONFIG, [1] MANAGER, [2] CREATE_PROPOSAL, [3] MINT
-        PermissionLib.MultiTargetPermission memory mintPerm = data.permissions[3];
+        // [0] SET_TARGET_CONFIG, [1] MANAGER, [2] CREATE_PROPOSAL, [3] SET_METADATA, [4] MINT
+        PermissionLib.MultiTargetPermission memory mintPerm = data.permissions[4];
         assertEq(mintPerm.permissionId, keccak256("MINT_PERMISSION"), "third grant must be the mint permission");
         assertEq(mintPerm.who, address(dao), "mint must be granted to the DAO");
         assertTrue(mintPerm.who != ANY_ADDR, "mint must NEVER be granted to ANY_ADDR");
@@ -278,7 +280,7 @@ contract CrispVotingSetupTest is Test {
             address(dao), IPluginSetup.SetupPayload({plugin: plugin, currentHelpers: new address[](0), data: bytes("")})
         );
 
-        assertEq(revoked.length, 4, "every permission install grants must be revoked");
+        assertEq(revoked.length, 5, "every permission install grants must be revoked");
         for (uint256 i = 0; i < revoked.length; i++) {
             assertEq(uint8(revoked[i].operation), uint8(PermissionLib.Operation.Revoke), "must be a revoke");
         }
@@ -294,6 +296,10 @@ contract CrispVotingSetupTest is Test {
         assertEq(revoked[2].permissionId, keccak256("CREATE_PROPOSAL_PERMISSION"));
         assertEq(revoked[2].where, plugin);
         assertEq(revoked[2].who, ANY_ADDR);
+
+        assertEq(revoked[4].permissionId, setup.crispVotingBase().SET_METADATA_PERMISSION_ID());
+        assertEq(revoked[4].where, plugin);
+        assertEq(revoked[4].who, address(dao));
 
         // Revoked unconditionally: a no-op for an SPP body that never held it, and the difference
         // between a clean uninstall and a plugin that can still act on the DAO for a standalone one.

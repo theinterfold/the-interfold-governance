@@ -14,6 +14,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+import {
+    MetadataExtensionUpgradeable
+} from "@aragon/osx-commons-contracts/src/utils/metadata/MetadataExtensionUpgradeable.sol";
+
 import {IInterfold} from "./IInterfold.sol";
 import {IE3RefundManager} from "./IE3RefundManager.sol";
 import {IStagedProposalProcessor} from "./IStagedProposalProcessor.sol";
@@ -28,7 +32,11 @@ import {ICRISP} from "./ICRISP.sol";
 /// quorum and winning-option criteria.
 /// @dev In order for executed actions to run, the plugin needs to hold EXECUTE_PERMISSION_ID on the DAO.
 /// @notice This plugin is inspired by MACI's voting plugin - https://github.com/privacy-ethereum/maci-voting-plugin-aragon/blob/main/src/MaciVoting.sol
-contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting {
+/// @dev `MetadataExtensionUpgradeable` gives the body the same DAO-governed `setMetadata`
+/// surface as the SPP and canonical TokenVoting, so the Aragon app can render a name for it —
+/// and rename it later — without a new build. It uses a namespaced storage slot, so inheriting
+/// it costs no storage-layout risk.
+contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExtensionUpgradeable, ICrispVoting {
     /// @notice used to perform safe ERC20 operations
     using SafeERC20 for IERC20;
 
@@ -337,7 +345,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
     function supportsInterface(bytes4 _interfaceId)
         public
         view
-        override(PluginUUPSUpgradeable, ProposalUpgradeable)
+        override(PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExtensionUpgradeable)
         returns (bool)
     {
         return _interfaceId == CRISP_VOTING_INTERFACE_ID || super.supportsInterface(_interfaceId);

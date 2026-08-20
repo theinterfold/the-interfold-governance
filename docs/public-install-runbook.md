@@ -18,8 +18,8 @@ shaped this way.
 | Stage 0             | TokenVoting: 51% support, 2% participation of total FOLD supply, 5-day window, VoteReplacement |
 | Stage 1             | Foundation Safe, **approval mode** (must explicitly approve; silence = expiry), 5-day approve-and-execute deadline |
 | Executor (INV-5)    | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, already on chain; nothing to deploy |
-| Process metadata    | `ipfs://QmVJVnRwZbpXBkkXWMqtih9wnCowPNNeBuYE5zviyGLgTC` ("Public Token Voting", key `PUB`) |
-| Body metadata       | `ipfs://QmW1i5kfZg3ZkjLbJCrZ8joF5k5vrtcd1GmA22hh7Ya44C` ("FOLD Public Voting") |
+| Process metadata    | `ipfs://QmUbcjLvWqemx1AzXfDMYsztwPXypi5ykcMyCnn3btLSVT` ("Interfold Governance Proposal: Public", key `IGPP`) |
+| Body metadata       | `ipfs://Qme5g5x85bsa2ExjsEU3M5rq8rDdk5JJcKhohwZpdVLytX` ("Public Token Voting") |
 
 The install is **two signing rounds**. Round 2's calldata cannot exist before round 1 executes:
 `prepareInstallation` deploys the plugin proxies, and their fresh addresses are inputs to the
