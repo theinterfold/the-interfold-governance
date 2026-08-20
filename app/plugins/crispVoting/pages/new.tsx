@@ -6,7 +6,6 @@ import { useAccount } from "wagmi";
 import { AddActionCard } from "@/components/cards/AddActionCard";
 import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewActionDialog";
 import { Else, ElseIf, If, Then } from "@/components/if";
-import { DurationInput } from "@/components/input/durationInput";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
@@ -36,10 +35,6 @@ export default function Create() {
     isCreating,
     submitProposal,
     durationSeconds,
-    setDuration,
-    minDurationSeconds,
-    maxDurationSeconds,
-    durationError,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,25 +186,14 @@ export default function Create() {
             </span>
           </div>
 
-          {/* Voting duration — creator-chosen per proposal, bounded by the plugin minimum
-              and the stage-0 maxAdvance (minus the tally buffer). */}
-          <div className="mb-6 flex flex-col gap-y-2">
-            <DurationInput
-              durationSeconds={durationSeconds ?? 0}
-              setDurationSeconds={setDuration}
-              minSeconds={minDurationSeconds ?? 0}
-              disabled={isCreating}
-            />
-            {maxDurationSeconds !== undefined ? (
-              <p className="text-sm font-normal leading-normal text-neutral-500">
-                Maximum {Math.floor(maxDurationSeconds / 86400)}d {Math.floor((maxDurationSeconds % 86400) / 3600)}h —
-                the tally must be published before the proposal expires.
-              </p>
-            ) : null}
-            <If true={!!durationError}>
-              <AlertInline message={durationError ?? ""} variant="critical" />
-            </If>
-          </div>
+          {/* Voting window — fixed by the stage configuration, shown for transparency. */}
+          {durationSeconds !== undefined ? (
+            <p className="mb-6 text-sm font-normal leading-normal text-neutral-500">
+              Voting runs for {Math.floor(durationSeconds / 86400)}d{" "}
+              {Math.floor((durationSeconds % 86400) / 3600)}h — the window is set by the governance process, not per
+              proposal.
+            </p>
+          ) : null}
 
           {/* Creator-pays E3 fee escrow */}
           <FeeCreditCard disabled={isCreating} durationSeconds={durationSeconds} />

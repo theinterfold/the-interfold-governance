@@ -10,6 +10,9 @@ export default function StandardHome() {
   const { open } = useWeb3Modal();
 
   const proposalsHref = `/plugins/${plugins[0]?.id ?? "proposals"}/#/`;
+  // The lock page is one of the main ways a FOLD holder can actually participate —
+  // surface it here rather than only on the Voting Power page.
+  const votingPowerHref = `/plugins/${plugins.find((p) => p.id === "lock" || p.id === "members")?.id ?? "lock"}/#/`;
 
   return (
     <section className="mint-slab">
@@ -26,7 +29,7 @@ export default function StandardHome() {
             </span>
           </div>
           <h1>
-            Govern in the <span className="ital">open</span>, or by{" "}
+            Govern in <span className="ital">public</span>, or by{" "}
             <span className="strike">
               traceable
               <svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
@@ -41,16 +44,16 @@ export default function StandardHome() {
         <div className="hero-body-grid">
           <div />
           <p className="lede">
-            <span className="dropcap">T</span>he Interfold is the governance home of The Interfold DAO, built on the
-            Aragon OSx stack. Open a public proposal and let the community vote transparently on-chain, or open a
-            private one — ballots are encrypted in your browser and a committee of independent ciphernodes tallies them
-            with CRISP, without ever exposing an individual vote.
+            <span className="dropcap">T</span>he Interfold DAO supports both transparent onchain voting and private
+            voting with CRISP. Public proposals are voted and tallied openly onchain. For private proposals, ballots
+            are encrypted in your browser and computed under encryption. A committee of independent ciphernodes
+            participates in threshold decryption of the final tally, without exposing individual votes.
           </p>
           <ul className="em-list self-center">
-            <li>Public, on-chain tallies</li>
-            <li>Private, encrypted ballots</li>
-            <li>No trusted tallier</li>
-            <li>Voting power in FOLD</li>
+            <li>Public proposals: votes and tallies visible onchain</li>
+            <li>Private proposals: ballots remain encrypted</li>
+            <li>No trusted tallier: only the final result is decrypted</li>
+            <li>FOLD voting power: voting weight comes from committed FOLD</li>
           </ul>
         </div>
 
@@ -66,10 +69,20 @@ export default function StandardHome() {
               View proposals
             </Button>
           </Link>
+          <Link href={votingPowerHref}>
+            <Button size="lg" variant={isConnected ? "secondary" : "tertiary"}>
+              Lock FOLD for voting power
+            </Button>
+          </Link>
           <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="hero-text-link">
             Learn how private voting works →
           </a>
         </div>
+
+        {/* Quiet infrastructure credit, out of the main paragraph */}
+        <p className="mt-10 text-sm text-neutral-400">
+          Governance infrastructure powered by Aragon OSx, with private voting through CRISP on Interfold.
+        </p>
       </div>
     </section>
   );

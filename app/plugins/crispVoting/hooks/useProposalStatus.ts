@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
 import { useToken } from "./useToken";
 import { usePastSupply } from "./usePastSupply";
-import { computeQuorum } from "../utils/quorum";
+import { computeQuorum, meetsSupportThreshold } from "../utils/quorum";
 
 import type { Proposal } from "../utils/types";
 
@@ -19,18 +19,14 @@ function getTotalVotes(tally: bigint[]): bigint {
 
 /**
  * Mirrors the contract's `_canExecute`: quorum, then yes (index 0) must strictly
- * beat no (index 1). The app is fixed at 3 options, matching `NUM_OPTIONS`.
+ * clear the proposal's FROZEN supportThreshold over yes + no (INV-33). The app is
+ * fixed at 3 options, matching `NUM_OPTIONS`.
  */
-function hasPassed(tally: bigint[]): boolean {
+function hasPassed(tally: bigint[], supportThreshold: bigint): boolean {
   const totalVotes = getTotalVotes(tally);
   if (totalVotes === 0n) return false;
 
-  return (tally[0] ?? BigInt(0)) > (tally[1] ?? BigInt(0));
-}
-
-/** Rejected when no (index 1) is at least yes (index 0) — a tie is a rejection. */
-function isRejected(tally: bigint[]): boolean {
-  return (tally[1] ?? BigInt(0)) >= (tally[0] ?? BigInt(0));
+  return meetsSupportThreshold(tally[0] ?? 0n, tally[1] ?? 0n, supportThreshold);
 }
 
 export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint, e3Failed = false) => {
@@ -50,6 +46,9 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
 
     const tally = proposal.tally ?? [];
     const totalVotes = getTotalVotes(tally);
+    // Frozen at creation (INV-33); default to the simple-majority 50 only if an old
+    // proposal predates the field.
+    const supportThreshold = proposal.parameters.supportThreshold ?? 50n;
 
     // Quorum applies to EVERY proposal, with or without actions — `CrispVoting._canExecute`
     // gates on it unconditionally. Skipping it for "signaling" proposals would make the app
@@ -79,14 +78,14 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       setStatus(ProposalStatus.REJECTED);
     } else if (quorum && !quorum.reached) {
       setStatus(ProposalStatus.REJECTED);
-    } else if (hasPassed(tally) && proposal.actions.length > 0) {
+    } else if (hasPassed(tally, supportThreshold) && proposal.actions.length > 0) {
       setStatus(ProposalStatus.EXECUTABLE);
-    } else if (hasPassed(tally) && proposal.actions.length === 0) {
+    } else if (hasPassed(tally, supportThreshold) && proposal.actions.length === 0) {
       setStatus(ProposalStatus.ACCEPTED);
-    } else if (isRejected(tally)) {
-      setStatus(ProposalStatus.REJECTED);
     } else {
-      setStatus(ProposalStatus.PENDING);
+      // The tally is published and did not pass: below the frozen support threshold
+      // (a tie at the 50 default included) is a rejection, matching `_canExecute`.
+      setStatus(ProposalStatus.REJECTED);
     }
   }, [proposal, effectiveTotalSupply, decimals, e3Failed]);
 

@@ -75,6 +75,7 @@ contract CrispVotingQuorumTest is Test {
                 minProposerVotingPower: 0,
                 minVoterVotingPower: 1,
                 minParticipation: minParticipation,
+                supportThreshold: 50,
                 minDuration: MIN_DURATION
             })
         });
@@ -108,8 +109,7 @@ contract CrispVotingQuorumTest is Test {
             Action({to: address(spp), value: 0, data: abi.encodeCall(MockSpp.reportProposalResult, (0, 1, 1, true))});
 
         vm.prank(sppAddr);
-        proposalId =
-            plugin.createProposal(_sppMetadata(), actions, 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+        proposalId = plugin.createProposal(_sppMetadata(), actions, 0, 0, abi.encode(uint256(0)));
 
         crispProgram.setTally(plugin.getProposal(proposalId).e3Id, counts);
         vm.warp(block.timestamp + MIN_DURATION + 1);
@@ -149,7 +149,11 @@ contract CrispVotingQuorumTest is Test {
         dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
         plugin.updateVotingSettings(
             ICrispVoting.VotingSettings({
-                minProposerVotingPower: 0, minVoterVotingPower: 1, minParticipation: 90, minDuration: MIN_DURATION
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 1,
+                minParticipation: 90,
+                supportThreshold: 50,
+                minDuration: MIN_DURATION
             })
         );
         assertEq(plugin.minParticipation(), 90, "the live setting must have changed");
@@ -165,7 +169,11 @@ contract CrispVotingQuorumTest is Test {
         dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
         plugin.updateVotingSettings(
             ICrispVoting.VotingSettings({
-                minProposerVotingPower: 0, minVoterVotingPower: 1, minParticipation: 1, minDuration: MIN_DURATION
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 1,
+                minParticipation: 1,
+                supportThreshold: 50,
+                minDuration: MIN_DURATION
             })
         );
 
@@ -181,6 +189,69 @@ contract CrispVotingQuorumTest is Test {
         // counts[0] must STRICTLY beat counts[1].
         uint256 proposalId = _createWithTally(_counts(3000, 3000));
         assertFalse(plugin.canExecute(proposalId), "a tie must not pass");
+    }
+
+    // --- supportThreshold ----------------------------------------------------
+
+    /// @dev Raises the live support threshold to `threshold` (like a governance vote would).
+    function _setSupportThreshold(uint32 threshold) internal {
+        dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
+        plugin.updateVotingSettings(
+            ICrispVoting.VotingSettings({
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 1,
+                minParticipation: MIN_PARTICIPATION,
+                supportThreshold: threshold,
+                minDuration: MIN_DURATION
+            })
+        );
+    }
+
+    /// @notice The TokenVoting-style support rule: yes must STRICTLY exceed the threshold share
+    ///         of the decisive votes, `(RATIO_BASE - t) * yes > t * no`. Landing exactly ON the
+    ///         threshold fails — the same strictness as the tie rejection at the 50 default.
+    function test_supportExactlyAtTheThresholdFails() public {
+        _setSupportThreshold(51);
+        // yes/(yes+no) = 5100/10000 = exactly 51%: 49*5100 == 51*4900, not strictly greater.
+        uint256 proposalId = _createWithTally(_counts(5100, 4900));
+        assertFalse(plugin.canExecute(proposalId), "exactly 51% support must fail a 51% threshold");
+    }
+
+    function test_supportOneUnitAboveTheThresholdSucceeds() public {
+        _setSupportThreshold(51);
+        uint256 proposalId = _createWithTally(_counts(5101, 4899));
+        assertTrue(plugin.canExecute(proposalId), "one scaled unit above 51% must pass");
+    }
+
+    /// @notice INV-33 for the support threshold: like the quorum, a proposal settles under the
+    ///         threshold in force WHEN IT WAS CREATED — raising it mid-flight must not
+    ///         retroactively fail an open, encrypted vote.
+    function test_supportThresholdRaisedMidProposalDoesNotAffectAnOpenProposal() public {
+        // Created at the 50 default: 5100 vs 4900 passes (yes > no).
+        uint256 proposalId = _createWithTally(_counts(5100, 4900));
+
+        _setSupportThreshold(60);
+        assertEq(plugin.supportThreshold(), 60, "the live setting must have changed");
+
+        assertTrue(plugin.canExecute(proposalId), "an open proposal settles at the threshold it was created under");
+        assertEq(plugin.getWinningOption(proposalId), 0, "and the reported decision agrees");
+    }
+
+    /// @notice A threshold of RATIO_BASE would make every tally unpassable
+    ///         (`0 * yes > 100 * no` never holds), so it is capped at RATIO_BASE - 1 like
+    ///         TokenVoting's.
+    function test_updateVotingSettingsRevertsWhenSupportThresholdReachesRatioBase() public {
+        dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.RatioOutOfBounds.selector, 99, 100));
+        plugin.updateVotingSettings(
+            ICrispVoting.VotingSettings({
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 1,
+                minParticipation: MIN_PARTICIPATION,
+                supportThreshold: 100,
+                minDuration: MIN_DURATION
+            })
+        );
     }
 
     function test_zeroTurnoutFails() public {

@@ -109,7 +109,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     function initialize(PluginInitParams calldata _params) external initializer {
         __PluginUUPSUpgradeable_init(_params.dao);
 
-        if (_params.interfold == address(0)) {
+        // The E3 program is validated as hard as the interfold reference: it is deliberately not
+        // updatable later (see `updateE3Settings`), so a zero program would brick every tally
+        // read path with nothing short of a reinstall able to fix it.
+        if (_params.interfold == address(0) || _params.crispProgramAddress == address(0)) {
             revert ZeroAddress();
         }
         interfold = IInterfold(_params.interfold);
@@ -198,25 +201,14 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         }
 
         /// @notice Decode the creator params. Governance ballots are fixed to Yes/No/Abstain
-        /// (3 options, CUSTOM token-weighted credits), so only `allowFailureMap`,
-        /// `votingDuration` and `credits` are meaningful.
+        /// (3 options, CUSTOM token-weighted credits), so only `allowFailureMap` is meaningful.
         ///
-        /// The Staged Proposal Processor calls this with `_endDate = startDate +
-        /// stage.voteDuration`, but the CRISP voting window is chosen per-proposal: a non-zero
-        /// `votingDuration` overrides `_endDate`. The SPP advances stage 0 off this proposal's
-        /// tally (`hasSucceeded`), not the stage clock, so the per-proposal window is honoured
-        /// (bounded above by the stage's `maxAdvance` expiry, enforced by the UI).
-        uint256 credits;
-        {
-            uint256 votingDuration;
-            uint256 allowFailureMap;
-            (allowFailureMap, votingDuration, credits) = abi.decode(_data, (uint256, uint256, uint256));
-            proposal.allowFailureMap = allowFailureMap;
-
-            if (votingDuration != 0) {
-                _endDate = (_startDate == 0 ? uint64(block.timestamp) : _startDate) + uint64(votingDuration);
-            }
-        }
+        /// The voting window is NOT creator-chosen: the Staged Proposal Processor calls this with
+        /// `_endDate = startDate + stage.voteDuration`, so every staged proposal runs for the
+        /// stage-configured duration. A per-proposal override used to live here, but an
+        /// unbounded creator window could outlive the stage's `maxAdvance` expiry — a validly
+        /// tallied vote on a proposal that could never execute, with the E3 fee already spent.
+        proposal.allowFailureMap = abi.decode(_data, (uint256));
 
         /// @notice Validate and normalise the dates, enforcing the configured minimum duration.
         /// The validated values feed both the Interfold input window and the stored parameters.
@@ -225,7 +217,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         {
             ICRISP.CreditMode creditMode = ICRISP.CreditMode.CUSTOM;
 
-            IInterfold.E3RequestParams memory requestParams = _buildRequestParams(_startDate, _endDate, credits);
+            IInterfold.E3RequestParams memory requestParams = _buildRequestParams(_startDate, _endDate);
 
             // calculate the E3 fee
             uint256 fee = interfold.getE3Quote(requestParams);
@@ -254,6 +246,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
                 snapshotBlock: _tokenClock() - 1,
                 minVotingPower: votingSettings.minVoterVotingPower,
                 minParticipation: votingSettings.minParticipation,
+                supportThreshold: votingSettings.supportThreshold,
                 creditMode: creditMode
             });
             proposal.targetConfig = getTargetConfig();
@@ -362,6 +355,11 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     }
 
     /// @inheritdoc ICrispVoting
+    function supportThreshold() public view returns (uint32) {
+        return votingSettings.supportThreshold;
+    }
+
+    /// @inheritdoc ICrispVoting
     function minDuration() public view returns (uint64) {
         return votingSettings.minDuration;
     }
@@ -416,7 +414,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @notice Get the custom proposal parameters ABI.
     /// @dev Mirrors the `_data` payload decoded in `createProposal`.
     function customProposalParamsABI() external pure returns (string memory) {
-        return "(uint256 allowFailureMap, uint256 votingDuration, uint256 credits)";
+        return "(uint256 allowFailureMap)";
     }
 
     /// @notice Deposits fee-token credit for `msg.sender`, to be consumed by proposals they
@@ -454,7 +452,15 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
 
         uint256 e3Id = proposals[_proposalId].e3Id;
         address payer = proposalPayer[_proposalId];
-        amount = IE3RefundManager(interfold.e3RefundManager()).claimRequesterRefund(e3Id);
+
+        // Credit what actually ARRIVED in the escrowed fee token, not what the manager claims to
+        // have sent. `interfoldFeeToken` is snapshotted at initialize; if the protocol later
+        // swaps its fee token, a refund paid in the new token must not mint credit that
+        // `withdraw` would pay out of OTHER creators' old-token deposits.
+        uint256 balanceBefore = interfoldFeeToken.balanceOf(address(this));
+        IE3RefundManager(interfold.e3RefundManager()).claimRequesterRefund(e3Id);
+        amount = interfoldFeeToken.balanceOf(address(this)) - balanceBefore;
+
         feeCredits[payer] += amount;
 
         emit RefundClaimed(_proposalId, e3Id, payer, amount);
@@ -464,7 +470,13 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @param _proposalId The id of the proposal
     /// @return The tally result
     function getTally(uint256 _proposalId) external view returns (TallyResults memory) {
-        Proposal memory proposal = proposals[_proposalId];
+        // Guarded like every other reader: an unknown id would otherwise read `e3Id == 0` and
+        // decode the tally of a real, unrelated E3 round as if it were this proposal's result.
+        if (!_proposalExists(_proposalId)) {
+            revert NonexistentProposal(_proposalId);
+        }
+
+        Proposal storage proposal = proposals[_proposalId];
 
         // if it's not executed then we wouldn't have saved the result
         if (!proposal.executed) {
@@ -472,41 +484,45 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
             return TallyResults({counts: counts});
         }
 
-        return proposals[_proposalId].tally;
+        return proposal.tally;
     }
 
     /// @inheritdoc ICrispVoting
     function getWinningOption(uint256 _proposalId) external view returns (uint256) {
+        if (!_proposalExists(_proposalId)) {
+            revert NonexistentProposal(_proposalId);
+        }
+
+        Proposal storage proposal = proposals[_proposalId];
+
         uint256[] memory counts;
-
-        if (proposals[_proposalId].executed) {
-            counts = proposals[_proposalId].tally.counts;
+        if (proposal.executed) {
+            counts = proposal.tally.counts;
         } else {
-            counts = ICRISP(crispProgramAddress).decodeTally(proposals[_proposalId].e3Id);
+            counts = ICRISP(crispProgramAddress).decodeTally(proposal.e3Id);
         }
 
-        uint256 maxCount = 0;
-        uint256 winnerIndex = 0;
-
-        for (uint256 i = 0; i < counts.length;) {
-            if (counts[i] > maxCount) {
-                maxCount = counts[i];
-                winnerIndex = i;
-            }
-            unchecked {
-                ++i;
-            }
-        }
-
-        return winnerIndex;
+        // The ballot's decision, matching `_canExecute` exactly: yes (0) wins only when it
+        // STRICTLY clears the proposal's frozen supportThreshold over yes + no — at the 50
+        // default a tie, an empty tally, or an abstain plurality is a rejection (INV-22).
+        // Abstentions count toward participation, never toward support, so the answer is
+        // always yes or no.
+        return _supported(counts, proposal.parameters.supportThreshold) ? 0 : 1;
     }
 
     /// @notice Validates and stores the voting settings.
     /// @dev `minParticipation` is a ratio expressed against `RATIO_BASE`, so it cannot exceed it.
+    ///      `supportThreshold` must stay BELOW `RATIO_BASE` (like TokenVoting's, which caps at
+    ///      `RATIO_BASE - 1`): at 100 the pass condition `(RATIO_BASE - t) * yes > t * no`
+    ///      degenerates to `0 > 100 * no` and no tally could ever pass.
     /// @param _votingSettings The voting settings to store.
     function _updateVotingSettings(VotingSettings memory _votingSettings) internal {
         if (_votingSettings.minParticipation > RATIO_BASE) {
             revert RatioOutOfBounds({limit: RATIO_BASE, actual: _votingSettings.minParticipation});
+        }
+
+        if (_votingSettings.supportThreshold > RATIO_BASE - 1) {
+            revert RatioOutOfBounds({limit: RATIO_BASE - 1, actual: _votingSettings.supportThreshold});
         }
 
         votingSettings = _votingSettings;
@@ -515,6 +531,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
             _votingSettings.minProposerVotingPower,
             _votingSettings.minVoterVotingPower,
             _votingSettings.minParticipation,
+            _votingSettings.supportThreshold,
             _votingSettings.minDuration
         );
     }
@@ -574,7 +591,10 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @param counts The decoded tally counts for the proposal
     /// @return Returns `true` if the proposal can be executed, otherwise false
     function _canExecute(uint256 _proposalId, uint256[] memory counts) internal view returns (bool) {
-        Proposal memory proposal = proposals[_proposalId];
+        // A storage pointer, not a memory copy: this runs on the SPP's paid stage-advance path
+        // (`hasSucceeded`) and inside `execute`, and a memory copy would deep-copy the unbounded
+        // `actions` array just to read three scalar fields.
+        Proposal storage proposal = proposals[_proposalId];
 
         // can't execute twice
         if (proposal.executed) {
@@ -612,9 +632,21 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
             return false;
         }
 
-        // Fixed 3 options (see NUM_OPTIONS): yes (index 0) must strictly beat no (index 1).
-        // A tie is a rejection.
-        return counts[0] > counts[1];
+        // Fixed 3 options (see NUM_OPTIONS): yes (index 0) must STRICTLY exceed the proposal's
+        // frozen supportThreshold share of the decisive votes (yes + no) — the same
+        // `(1 - t) * yes > t * no` form as TokenVoting, against RATIO_BASE = 100. At the
+        // 50 default this is `yes > no`: a tie is a rejection. Abstain (index 2) counts toward
+        // participation above, never toward support. INV-33: the threshold is the one
+        // snapshotted at creation, so a governance change cannot retroactively decide an open,
+        // encrypted vote.
+        return _supported(counts, proposal.parameters.supportThreshold);
+    }
+
+    /// @notice Whether yes strictly clears the given support threshold over the decisive votes.
+    /// @param counts The decoded tally counts.
+    /// @param threshold The support threshold against `RATIO_BASE`.
+    function _supported(uint256[] memory counts, uint256 threshold) internal pure returns (bool) {
+        return (RATIO_BASE - threshold) * counts[0] > threshold * counts[1];
     }
 
     /// @notice Checks if proposal exists or not.
@@ -628,8 +660,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// 3-option Yes/No/Abstain, CUSTOM token-weighted credits).
     /// @param _startDate The input window start.
     /// @param _endDate The input window end.
-    /// @param _credits The custom credits value from the proposal `_data`.
-    function _buildRequestParams(uint64 _startDate, uint64 _endDate, uint256 _credits)
+    function _buildRequestParams(uint64 _startDate, uint64 _endDate)
         internal
         view
         returns (IInterfold.E3RequestParams memory)
@@ -655,12 +686,16 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         uint256 ballotUnit = _tallyScale();
         if (minVotingPower < ballotUnit) minVotingPower = ballotUnit;
 
+        // Credits are always 0 (token-weighted CUSTOM mode). A creator-supplied credits field
+        // used to pass through here, but `quoteProposalFee` could not see it, so a quote could
+        // understate the fee `createProposal` would actually charge. With both paths building
+        // the identical request, the quote is exact by construction.
         bytes memory customParams = abi.encode(
             address(votingToken),
             minVotingPower,
             NUM_OPTIONS,
             ICRISP.CreditMode.CUSTOM,
-            _credits,
+            uint256(0),
             ICRISP.CensusMode.ONCHAIN,
             uint256(0)
         );
@@ -697,7 +732,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @return The fee-token amount Interfold will charge.
     function quoteProposalFee(uint64 _startDate, uint64 _endDate) external view returns (uint256) {
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
-        return interfold.getE3Quote(_buildRequestParams(_startDate, _endDate, 0));
+        return interfold.getE3Quote(_buildRequestParams(_startDate, _endDate));
     }
 
     /// @notice Resolves the fee payer, and enforces proposer eligibility when there is no SPP to

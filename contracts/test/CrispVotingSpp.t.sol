@@ -73,6 +73,11 @@ contract MockRefundManager {
     mapping(uint256 => uint256) public refunds;
     mapping(uint256 => bool) public claimed;
 
+    /// @notice When set, `claimRequesterRefund` still RETURNS the amount but transfers nothing —
+    /// models a refund paid in a different token after a protocol fee-token swap, so tests can
+    /// assert the plugin credits the measured balance delta, never the reported figure.
+    bool public skipTransfer;
+
     constructor(MockFeeToken _feeToken) {
         feeToken = _feeToken;
     }
@@ -81,12 +86,18 @@ contract MockRefundManager {
         refunds[e3Id] = amount;
     }
 
+    function setSkipTransfer(bool _skip) external {
+        skipTransfer = _skip;
+    }
+
     function claimRequesterRefund(uint256 e3Id) external returns (uint256 amount) {
         require(!claimed[e3Id], "AlreadyClaimed");
         amount = refunds[e3Id];
         require(amount > 0, "NoRefundAvailable");
         claimed[e3Id] = true;
-        feeToken.mint(msg.sender, amount);
+        if (!skipTransfer) {
+            feeToken.mint(msg.sender, amount);
+        }
     }
 }
 
@@ -182,12 +193,8 @@ contract CrispVotingSppTest is Test {
 
     uint64 internal constant MIN_DURATION = 3600;
     uint256 internal constant SPP_PROPOSAL_ID = 777;
-    // (allowFailureMap, votingDuration, credits) — votingDuration 0 => use the SPP/stage window.
-    bytes internal constant DATA = abi.encode(uint256(0), uint256(0), uint256(0));
-
-    function _data(uint256 votingDuration) internal pure returns (bytes memory) {
-        return abi.encode(uint256(0), votingDuration, uint256(0));
-    }
+    // (allowFailureMap) — the voting window comes from the SPP stage config, never from `_data`.
+    bytes internal constant DATA = abi.encode(uint256(0));
 
     function setUp() public {
         vm.roll(100); // snapshotBlock = block.number - 1 must be sane
@@ -218,6 +225,7 @@ contract CrispVotingSppTest is Test {
                 minProposerVotingPower: 1, // deliberately non-zero: must NOT block the SPP anymore
                 minVoterVotingPower: 1,
                 minParticipation: 50,
+                supportThreshold: 50,
                 minDuration: MIN_DURATION
             })
         });
@@ -322,30 +330,38 @@ contract CrispVotingSppTest is Test {
         plugin.createProposal(_sppMetadata(), actions, 0, 0, DATA);
     }
 
-    function test_createProposalHonoursCustomVotingDuration() public {
+    /// @notice The voting window is the deployment-configured one, never creator-chosen. The SPP
+    ///         calls with `_endDate = startDate + stage.voteDuration`, and that window is stored
+    ///         verbatim — `_data` carries only the allowFailureMap, so there is nothing a creator
+    ///         could pass to stretch a window past the stage's `maxAdvance` expiry.
+    function test_createProposalUsesTheSppSuppliedWindowVerbatim() public {
         _depositAs(creator, 100 ether);
 
         Action[] memory actions = new Action[](1);
         actions[0] =
             Action({to: address(spp), value: 0, data: abi.encodeCall(MockSpp.reportProposalResult, (0, 1, 1, true))});
 
-        // Creator picks a 5x-minDuration window; the SPP-supplied endDate (0 here) is overridden.
-        uint64 custom = MIN_DURATION * 5;
+        // The SPP supplies the stage window (5x minDuration here, like the mainnet 5-day stage).
+        uint64 start = uint64(block.timestamp);
+        uint64 end = start + MIN_DURATION * 5;
         vm.prank(sppAddr);
-        uint256 proposalId = plugin.createProposal(_sppMetadata(), actions, 0, 0, _data(custom));
+        uint256 proposalId = plugin.createProposal(_sppMetadata(), actions, start, end, DATA);
 
         ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
-        assertEq(p.parameters.endDate - p.parameters.startDate, custom);
+        assertEq(p.parameters.startDate, start, "the SPP-supplied start is stored");
+        assertEq(p.parameters.endDate, end, "the SPP-supplied end is stored, no per-proposal override");
     }
 
-    function test_createProposalRevertsOnDurationBelowMinimum() public {
+    function test_createProposalRevertsOnWindowBelowMinimum() public {
         _depositAs(creator, 100 ether);
         Action[] memory actions = new Action[](0);
 
-        // A sub-minDuration window must revert (DateOutOfBounds), so the UI can't undercut it.
+        // A sub-minDuration window must revert (DateOutOfBounds): a misconfigured stage cannot
+        // undercut the plugin's own floor.
+        uint64 start = uint64(block.timestamp);
         vm.prank(sppAddr);
         vm.expectRevert();
-        plugin.createProposal(_sppMetadata(), actions, 0, 0, _data(MIN_DURATION - 1));
+        plugin.createProposal(_sppMetadata(), actions, start, start + MIN_DURATION - 1, DATA);
     }
 
     function test_createProposalChargesSppProposalCreator() public {
@@ -390,6 +406,26 @@ contract CrispVotingSppTest is Test {
     function test_claimRefundRevertsForUnknownProposal() public {
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.NonexistentProposal.selector, 123));
         plugin.claimRefund(123);
+    }
+
+    /// @notice The credit is the measured fee-token balance DELTA, never the amount the refund
+    ///         manager reports. If the protocol swaps its fee token after this plugin
+    ///         initialised, a refund arriving in the new token must not mint credit that
+    ///         `withdraw` would pay out of OTHER creators' escrowed old-token deposits.
+    function test_claimRefundCreditsTheMeasuredDeltaNotTheReportedAmount() public {
+        _depositAs(creator, 10 ether);
+        uint256 proposalId = _create();
+        uint256 e3Id = plugin.getProposal(proposalId).e3Id;
+
+        MockRefundManager manager = MockRefundManager(interfold.e3RefundManager());
+        manager.setRefund(e3Id, 10 ether);
+        // The manager reports 10 ether but transfers nothing in the escrowed fee token.
+        manager.setSkipTransfer(true);
+
+        uint256 amount = plugin.claimRefund(proposalId);
+
+        assertEq(amount, 0, "nothing arrived in the escrowed token, so nothing is credited");
+        assertEq(plugin.feeCredits(creator), 0, "no credit minted from a reported-but-unpaid refund");
     }
 
     // --- hasSucceeded (the SPP's tally staticcall) ---

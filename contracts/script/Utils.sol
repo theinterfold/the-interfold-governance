@@ -31,7 +31,8 @@ library Utils {
             minProposerVotingPower: VM.envUint("MINIMUM_PROPOSER_VOTING_POWER"),
             minVoterVotingPower: VM.envUint("MINIMUM_VOTER_VOTING_POWER"),
             minDuration: uint64(VM.envUint("MINIMUM_DURATION")),
-            minParticipation: uint32(VM.envUint("MINIMUM_PARTICIPATION"))
+            minParticipation: uint32(VM.envUint("MINIMUM_PARTICIPATION")),
+            supportThreshold: uint32(VM.envUint("SUPPORT_THRESHOLD"))
         });
         crispEnvVariables.targetConfig = defaultTargetConfig;
         crispEnvVariables.committeeSize = IInterfold.CommitteeSize(uint8(VM.envUint("COMMITTEE_SIZE")));

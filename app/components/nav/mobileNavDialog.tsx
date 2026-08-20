@@ -25,8 +25,8 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
               className="rounded-xl outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
             >
               <span className="flex items-center gap-x-2 py-2 pl-3 pr-4">
-                <img src="/theinterfold-logo.png" height="24" width="24" alt="The Interfold" />
-                The Interfold
+                <img src="/theinterfold-logo.png" height="24" width="24" alt="Interfold Governance" />
+                Interfold Governance
               </span>
             </Link>
           </div>

@@ -1,5 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import { RATIO_BASE, computeQuorum, tallyCountToTokens, voteScale } from "@/plugins/crispVoting/utils/quorum";
+import { RATIO_BASE, computeQuorum, tallyCountToTokens, voteScale, meetsSupportThreshold } from "@/plugins/crispVoting/utils/quorum";
 import { CreditsMode } from "@/plugins/crispVoting/utils/types";
 
 /**
@@ -102,5 +102,24 @@ describe("INVARIANT: tallyCountToTokens reverses the scaling", () => {
 
   test("CONSTANT mode counts are raw credits", () => {
     expect(tallyCountToTokens(42n, CreditsMode.CONSTANT, 18)).toBe(42);
+  });
+});
+
+describe("INVARIANT: meetsSupportThreshold mirrors CrispVoting._supported (INV-22)", () => {
+  test("the 50 default is a strict simple majority — a tie is a rejection", () => {
+    expect(meetsSupportThreshold(7n, 7n, 50n)).toBe(false);
+    expect(meetsSupportThreshold(8n, 7n, 50n)).toBe(true);
+    expect(meetsSupportThreshold(0n, 0n, 50n)).toBe(false);
+  });
+
+  test("landing exactly ON the threshold fails; one unit above passes", () => {
+    // (100 - 51) * 5100 === 51 * 4900 — not strictly greater
+    expect(meetsSupportThreshold(5100n, 4900n, 51n)).toBe(false);
+    expect(meetsSupportThreshold(5101n, 4899n, 51n)).toBe(true);
+  });
+
+  test("abstain never contributes to support (only yes and no enter the formula)", () => {
+    // the helper takes only yes/no by construction; pin the call shape
+    expect(meetsSupportThreshold(5n, 3n, 50n)).toBe(true);
   });
 });

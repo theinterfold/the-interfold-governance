@@ -96,20 +96,23 @@ contract CrispVotingSetup is PluginSetup {
 
         // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER + SET_METADATA on
         // the plugin (so governance can point the plugin at the delegatecall Executor, tune
-        // voting settings and name the body), plus CREATE_PROPOSAL to ANY_ADDR so the process is
-        // usable at all. EXECUTE on the DAO is added only for a standalone process. There is no
-        // mint permission: this setup never deploys a token.
+        // voting settings and name the body). EXECUTE on the DAO and CREATE_PROPOSAL to ANY_ADDR
+        // are added only for a standalone process. There is no mint permission: this setup never
+        // deploys a token.
         //
-        // CREATE_PROPOSAL is granted to ANY_ADDR in both shapes: proposal creation is gated by
-        // the plugin's own `minProposerVotingPower`, and a proposal created directly on an SPP
-        // body is inert, since without EXECUTE it can never act on the DAO. Aragon's SPP wiring
-        // narrows it to the SPP address anyway. Withholding it entirely is what left every
-        // standalone install unusable: nobody could create a proposal on it, ever.
+        // CREATE_PROPOSAL is shape-dependent, and the SPP-body shape grants it to NOBODY here.
+        // The wiring step grants it to the SPP (INV-3: proposals are created on the SPP, which
+        // spawns the sub-proposal). Granting ANY_ADDR "because the wiring narrows it" was wrong
+        // twice over: nothing ever revoked the wildcard, and a direct creator could front-run
+        // the SPP's deterministic sub-proposal id in the same block, bricking the parent
+        // proposal (its creation revert is swallowed by the SPP's try/catch). Only a standalone
+        // install — where no SPP exists to gate creation — gets the ANY_ADDR grant, and there
+        // the plugin's own `minProposerVotingPower` check is the gate.
         //
         // INVARIANT: an SPP body must never receive EXECUTE_PERMISSION on the DAO. If it did, a
         // proposer could execute straight from stage 0 and skip the veto stage entirely.
-        uint256 permissionCount = 4;
-        if (grantExecuteOnDao) permissionCount++;
+        uint256 permissionCount = 3;
+        if (grantExecuteOnDao) permissionCount += 2;
 
         PermissionLib.MultiTargetPermission[] memory permissions =
             new PermissionLib.MultiTargetPermission[](permissionCount);
@@ -132,17 +135,9 @@ contract CrispVotingSetup is PluginSetup {
             permissionId: CrispVoting(plugin).MANAGER_PERMISSION_ID()
         });
 
-        permissions[2] = PermissionLib.MultiTargetPermission({
-            operation: PermissionLib.Operation.Grant,
-            where: plugin,
-            who: ANY_ADDR,
-            condition: PermissionLib.NO_CONDITION,
-            permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
-        });
-
         // The DAO names (and can later rename) the body: the same DAO-governed metadata surface
         // the SPP and canonical TokenVoting expose, read by the Aragon app.
-        permissions[3] = PermissionLib.MultiTargetPermission({
+        permissions[2] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Grant,
             where: plugin,
             who: _dao,
@@ -150,15 +145,21 @@ contract CrispVotingSetup is PluginSetup {
             permissionId: crispVotingBase.SET_METADATA_PERMISSION_ID()
         });
 
-        uint256 next = 4;
-
         if (grantExecuteOnDao) {
-            permissions[next++] = PermissionLib.MultiTargetPermission({
+            permissions[3] = PermissionLib.MultiTargetPermission({
                 operation: PermissionLib.Operation.Grant,
                 where: _dao,
                 who: plugin,
                 condition: PermissionLib.NO_CONDITION,
                 permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID()
+            });
+
+            permissions[4] = PermissionLib.MultiTargetPermission({
+                operation: PermissionLib.Operation.Grant,
+                where: plugin,
+                who: ANY_ADDR,
+                condition: PermissionLib.NO_CONDITION,
+                permissionId: crispVotingBase.CREATE_PROPOSAL_PERMISSION_ID()
             });
         }
 
@@ -192,6 +193,9 @@ contract CrispVotingSetup is PluginSetup {
             permissionId: crispVotingBase.MANAGER_PERMISSION_ID()
         });
 
+        // Revoked unconditionally even though only the standalone shape granted it (the staged
+        // shape's CREATE_PROPOSAL goes to the SPP at wiring time, which governance revokes when
+        // it rewires): revoking a permission that is not held is a no-op.
         permissions[2] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Revoke,
             where: _payload.plugin,

@@ -17,6 +17,7 @@ import { useVeLocks } from "../hooks/useVeLocks";
 import { useCreateLock } from "../hooks/useCreateLock";
 import { useVeDelegation } from "../hooks/useVeDelegation";
 import { useVeWithdraw } from "../hooks/useVeWithdraw";
+import { useVotingPowerBreakdown } from "../hooks/useVotingPowerBreakdown";
 
 const DAY = 86_400;
 
@@ -33,6 +34,7 @@ export default function Locker() {
     }, 1000 * 2);
   };
   const delegation = useVeDelegation(address, escrow.adapter, onChanged);
+  const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes);
   const { balance, createLock, isLocking, error: lockError } = useCreateLock(onChanged);
   const {
     beginWithdrawal,
@@ -80,14 +82,17 @@ export default function Locker() {
       <div className="form-intro">
         <p>Voting power comes from {PUB_TOKEN_SYMBOL} that is committed, not just held:</p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Lock {PUB_TOKEN_SYMBOL} here to mint a position only you can withdraw.</li>
-          <li>Delegate your locks — to yourself or someone you trust — to activate their power.</li>
+          <li>Lock {PUB_TOKEN_SYMBOL} to create a voting position only you can withdraw.</li>
+          <li>Delegate your locked {PUB_TOKEN_SYMBOL} — to yourself or someone you trust — to activate its voting power.</li>
           <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
           <li>
-            Unlock any time: start the withdrawal, wait out the cooldown, claim your {PUB_TOKEN_SYMBOL}. Voting power
-            stops as soon as the withdrawal starts.
+            Unlock any time: start the withdrawal, wait out the {cooldownDays ?? 30}-day cooldown, then claim your{" "}
+            {PUB_TOKEN_SYMBOL}. Voting power stops as soon as the withdrawal starts.
           </li>
         </ul>
+        <p className="mt-3 font-semibold">
+          Each committed {PUB_TOKEN_SYMBOL} counts 1:1 toward voting power, whether locked, bonded, or vesting.
+        </p>
       </div>
 
       {!isConnected || !address ? (
@@ -100,6 +105,13 @@ export default function Locker() {
             <Row label={`${PUB_TOKEN_SYMBOL} balance`} value={fmt(balance)} />
             <Row label="Locked by you" value={fmt(totalLockedByMe)} />
             <Row label="Your total voting power" value={fmt(votingPower)} />
+            {breakdown.available && (
+              <div className="flex flex-col gap-y-1 border-l-2 border-neutral-100 pl-3">
+                <Row label="Locked + delegated" value={fmt(breakdown.lockedAndDelegated)} />
+                <Row label="Bonded" value={fmt(breakdown.bonded)} />
+                <Row label="Vesting" value={fmt(breakdown.vesting)} />
+              </div>
+            )}
             <Row
               label="Lock delegation"
               value={

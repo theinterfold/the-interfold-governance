@@ -106,7 +106,11 @@ contract CrispVotingSetupTest is Test {
             crispProgramAddress: address(0xC0FFEE),
             computeProviderParams: bytes(""),
             votingSettings: ICrispVoting.VotingSettings({
-                minProposerVotingPower: 0, minVoterVotingPower: 0, minParticipation: 50, minDuration: 3600
+                minProposerVotingPower: 0,
+                minVoterVotingPower: 0,
+                minParticipation: 50,
+                supportThreshold: 50,
+                minDuration: 3600
             })
         });
     }
@@ -169,22 +173,17 @@ contract CrispVotingSetupTest is Test {
         (address plugin, IPluginSetup.PreparedSetupData memory data) =
             setup.prepareInstallation(address(dao), _encode(token));
 
-        assertEq(data.permissions.length, 4, "existing token, SPP body => settings pair + CREATE_PROPOSAL + metadata");
+        assertEq(data.permissions.length, 3, "existing token, SPP body => settings pair + metadata, nothing else");
 
         for (uint256 i = 0; i < data.permissions.length; i++) {
             assertEq(uint8(data.permissions[i].operation), uint8(PermissionLib.Operation.Grant), "must be a grant");
             assertEq(data.permissions[i].where, plugin, "must target the plugin");
+            assertEq(data.permissions[i].who, address(dao), "every SPP-body grant is the DAO's");
         }
-
-        // The settings pair is governance-only; proposal creation deliberately is not.
-        assertEq(data.permissions[0].who, address(dao), "SET_TARGET_CONFIG is the DAO's");
-        assertEq(data.permissions[1].who, address(dao), "MANAGER is the DAO's");
-        assertEq(data.permissions[2].who, ANY_ADDR, "CREATE_PROPOSAL is open, subject to voting power");
-        assertEq(data.permissions[3].who, address(dao), "SET_METADATA is the DAO's");
 
         assertEq(data.permissions[0].permissionId, setup.crispVotingBase().SET_TARGET_CONFIG_PERMISSION_ID());
         assertEq(data.permissions[1].permissionId, CrispVoting(plugin).MANAGER_PERMISSION_ID());
-        assertEq(data.permissions[3].permissionId, setup.crispVotingBase().SET_METADATA_PERMISSION_ID());
+        assertEq(data.permissions[2].permissionId, setup.crispVotingBase().SET_METADATA_PERMISSION_ID());
     }
 
     /// @notice The invariant that makes the SPP veto stage non-bypassable: the body
@@ -207,28 +206,37 @@ contract CrispVotingSetupTest is Test {
         }
     }
 
-    /// @notice A standalone process must be able to create proposals AND execute the ones that
-    ///         pass, or installing it through the app produces an inert DAO. This is the case the
-    ///         plugin was never installed in before: every deployment so far went through the SPP.
-    function test_prepareInstallationGrantsCreateProposalToAnyAddrInBothShapes() public {
+    /// @notice CREATE_PROPOSAL is shape-dependent (INV-3). A standalone process grants it to
+    ///         ANY_ADDR (gated by `minProposerVotingPower`) or nobody could ever propose; an SPP
+    ///         body grants it to NOBODY at install — the wiring grants the SPP, and an ANY_ADDR
+    ///         wildcard would let a direct creator front-run the SPP's deterministic sub-proposal
+    ///         id and brick the parent proposal.
+    function test_prepareInstallationGrantsCreateProposalToAnyAddrOnlyStandalone() public {
         bytes32 createProposal = keccak256("CREATE_PROPOSAL_PERMISSION");
         address token = address(new MockVotesErc20());
 
-        bool[2] memory shapes = [false, true];
-        for (uint256 i = 0; i < shapes.length; i++) {
-            (address plugin, IPluginSetup.PreparedSetupData memory data) =
-                setup.prepareInstallation(address(dao), _encode(token, shapes[i]));
-
-            bool found;
-            for (uint256 j = 0; j < data.permissions.length; j++) {
-                if (data.permissions[j].permissionId == createProposal) {
-                    found = true;
-                    assertEq(data.permissions[j].who, address(type(uint160).max), "must be granted to ANY_ADDR");
-                    assertEq(data.permissions[j].where, plugin, "granted on the plugin");
-                }
-            }
-            assertTrue(found, "CREATE_PROPOSAL must be granted in both shapes");
+        // SPP-body shape: no CREATE_PROPOSAL grant of any kind.
+        (, IPluginSetup.PreparedSetupData memory bodyData) = setup.prepareInstallation(address(dao), _encode(token));
+        for (uint256 j = 0; j < bodyData.permissions.length; j++) {
+            assertTrue(
+                bodyData.permissions[j].permissionId != createProposal,
+                "an SPP body must not grant CREATE_PROPOSAL at install; the wiring grants the SPP"
+            );
         }
+
+        // Standalone shape: granted to ANY_ADDR on the plugin.
+        (address plugin, IPluginSetup.PreparedSetupData memory data) =
+            setup.prepareInstallation(address(dao), _encode(token, true));
+
+        bool found;
+        for (uint256 j = 0; j < data.permissions.length; j++) {
+            if (data.permissions[j].permissionId == createProposal) {
+                found = true;
+                assertEq(data.permissions[j].who, address(type(uint160).max), "must be granted to ANY_ADDR");
+                assertEq(data.permissions[j].where, plugin, "granted on the plugin");
+            }
+        }
+        assertTrue(found, "a standalone install must grant CREATE_PROPOSAL to ANY_ADDR");
     }
 
     /// @notice The standalone counterpart of the invariant above: with the flag set, and only

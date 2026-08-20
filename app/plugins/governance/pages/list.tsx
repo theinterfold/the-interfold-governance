@@ -183,7 +183,7 @@ export default function Proposals() {
                 ? "Loading proposals…"
                 : error
                   ? error
-                  : "No proposals have been created yet. Public and private proposals will both appear here."}
+                  : "No active proposals. Public proposals and private CRISP ballots will appear here when created."}
           </MissingContentView>
         </Then>
         <Else>

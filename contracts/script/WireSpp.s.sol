@@ -515,6 +515,22 @@ contract WireSppScript is Script {
                 ? vm.envOr("SPP_PRIVATE_VOTE_DURATION", uint256(3600))
                 : vm.envOr("SPP_PUBLIC_VOTE_DURATION", uint256(3600))
         );
+
+        // INV-37: the private stage window must clear the CRISP plugin's own minDuration
+        // (installed from the same MINIMUM_DURATION env this reads). The window is no longer
+        // per-proposal, so the SPP-supplied `endDate = start + voteDuration` is what
+        // `_validateProposalDates` checks — and a window below the floor makes EVERY private
+        // createProposal revert inside the SPP's try/catch: the outer tx "succeeds" and the
+        // parent proposal is born dead, with nothing on-chain saying why. Refuse to build the
+        // config instead. (The public equivalent is INV-15, guarded in WireSppStages.t.sol.)
+        if (isPrivate) {
+            uint256 crispMinDuration = vm.envOr("MINIMUM_DURATION", uint256(0));
+            require(
+                voteDuration >= crispMinDuration,
+                "SPP_PRIVATE_VOTE_DURATION is below the CRISP MINIMUM_DURATION: every private "
+                "createProposal would revert inside the SPP's try/catch and die silently (INV-37)"
+            );
+        }
         // Window to advance a passed stage-0 before it expires (on top of the vote itself).
         uint64 advanceWindow = uint64(vm.envOr("SPP_ADVANCE_WINDOW", uint256(7 days)));
         // Stage 1 veto window: the proposal is held Active this long for the foundation to veto.

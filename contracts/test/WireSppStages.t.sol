@@ -83,6 +83,8 @@ contract WireSppStagesTest is Test {
         vm.setEnv("SPP_VETO_DURATION", vm.toString(uint256(VETO_DURATION)));
         vm.setEnv("SPP_EXECUTE_WINDOW", vm.toString(uint256(EXECUTE_WINDOW)));
         vm.setEnv("SPP_STAGE1_MODE", stage1Mode);
+        // INV-37 baseline: the CRISP plugin's minDuration the private window must clear.
+        vm.setEnv("MINIMUM_DURATION", vm.toString(uint256(PRIVATE_VOTE_DURATION)));
     }
 
     /// @notice All stage-configuration invariants, asserted sequentially in one test so the
@@ -113,6 +115,17 @@ contract WireSppStagesTest is Test {
 
         // --- INV-15: the public window clears TokenVoting's 1h floor ---
         assertGe(pub[0].voteDuration, 1 hours, "INV-15: public window must clear TokenVoting's 1h floor");
+
+        // --- INV-37: the private window clears CRISP's minDuration, or stagesFor refuses ---
+        // A window below the plugin floor would make every private createProposal revert INSIDE
+        // the SPP's try/catch: the outer tx succeeds and the parent proposal is born dead.
+        assertGe(priv[0].voteDuration, PRIVATE_VOTE_DURATION, "INV-37: private window must clear the CRISP minDuration");
+        vm.setEnv("MINIMUM_DURATION", vm.toString(uint256(PRIVATE_VOTE_DURATION) + 1));
+        vm.expectRevert();
+        harness.stages(BODY, FOUNDATION, true);
+        // The PUBLIC path must stay untouched by the CRISP floor (TokenVoting has its own, INV-15).
+        harness.stages(BODY, FOUNDATION, false);
+        vm.setEnv("MINIMUM_DURATION", vm.toString(uint256(PRIVATE_VOTE_DURATION)));
 
         // --- stage 0 approves, never vetoes ---
         assertEq(pub[0].maxAdvance, PUBLIC_VOTE_DURATION + ADVANCE_WINDOW, "maxAdvance = vote + window");

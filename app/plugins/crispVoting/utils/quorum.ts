@@ -58,6 +58,25 @@ export function computeQuorum(
 }
 
 /**
+ * Whether yes strictly clears the support threshold over the decisive votes,
+ * mirroring `CrispVoting._supported` exactly:
+ *
+ *   (RATIO_BASE - threshold) * yes > threshold * no
+ *
+ * At the 50 default this is `yes > no`: a tie is a rejection (INV-22). Abstain
+ * counts toward participation, never toward support.
+ *
+ * @param yes the (scaled) yes count, tally index 0
+ * @param no the (scaled) no count, tally index 1
+ * @param supportThreshold the proposal's FROZEN threshold (% of RATIO_BASE) — a
+ *        proposal settles under the rules at creation (INV-33), so pass
+ *        `parameters.supportThreshold`, never the live setting.
+ */
+export function meetsSupportThreshold(yes: bigint, no: bigint, supportThreshold: bigint): boolean {
+  return (RATIO_BASE - supportThreshold) * yes > supportThreshold * no;
+}
+
+/**
  * Convert a scaled tally count back into a human-readable token amount.
  * Reverses the `10^(decimals-1)` vote scaling and the token's own decimals:
  *   tokens = scaledCount * voteScale / 10^decimals = scaledCount / 10

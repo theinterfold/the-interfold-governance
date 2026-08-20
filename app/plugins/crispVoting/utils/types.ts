@@ -19,6 +19,8 @@ export type ProposalParameters = {
   snapshotBlock: bigint;
   minVotingPower: bigint;
   minParticipation: bigint;
+  /** Support threshold frozen at creation (% of RATIO_BASE=100): yes must strictly exceed this share of yes+no. */
+  supportThreshold: bigint;
   creditMode: number;
 };
 

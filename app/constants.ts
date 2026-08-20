@@ -69,7 +69,7 @@ export const PUB_IPFS_ENDPOINTS = process.env.NEXT_PUBLIC_IPFS_ENDPOINTS ?? "";
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);
 // Block the FOLD token was deployed at — start of the delegate-event scan.
 export const PUB_TOKEN_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK ?? 0);
-export const PUB_APP_NAME = "The Interfold";
+export const PUB_APP_NAME = "Interfold Governance";
 export const PUB_APP_DESCRIPTION =
   "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
 export const PUB_TOKEN_SYMBOL = "FOLD";
@@ -79,4 +79,4 @@ export const PUB_PROJECT_URL = process.env.NEXT_PUBLIC_PROJECT_URL ?? "https://t
 export const PUB_WALLET_ICON = "https://avatars.githubusercontent.com/u/37784886";
 export const PUB_BLOG_URL = "https://blog.theinterfold.com/";
 export const PUB_SOCIALS_URL = "https://x.com/theinterfold";
-export const PUB_CRISP_INFO_URL = process.env.NEXT_PUBLIC_CRISP_INFO_URL ?? "https://docs.theinterfold.com/";
+export const PUB_CRISP_INFO_URL = process.env.NEXT_PUBLIC_CRISP_INFO_URL ?? "https://docs.theinterfold.com/CRISP/introduction";

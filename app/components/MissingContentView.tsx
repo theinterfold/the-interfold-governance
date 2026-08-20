@@ -1,4 +1,5 @@
-import { Button, IllustrationHuman } from "@aragon/ods";
+import { Button } from "@aragon/ods";
+import { PUB_APP_NAME, PUB_PROJECT_LOGO } from "@/constants";
 import { ReactNode } from "react";
 
 export const MissingContentView = ({
@@ -35,5 +36,6 @@ export const MissingContentView = ({
 };
 
 function Illustration() {
-  return <IllustrationHuman className="mx-auto my-8 max-w-96" body="VOTING" expression="SMILE_WINK" hairs="CURLY" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={PUB_PROJECT_LOGO} alt={PUB_APP_NAME} className="mx-auto my-10 w-24 opacity-60" />;
 }

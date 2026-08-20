@@ -247,7 +247,7 @@ export function useEligibleVoters(
               : "root is zero — nothing binds this set on-chain",
         });
 
-        // INV-31: this app is fixed at 3 options / CUSTOM credits.
+        // INV-34: this app is fixed at 3 options / CUSTOM credits.
         checks.push({
           id: "shape",
           label: "Round is a 3-option token vote",

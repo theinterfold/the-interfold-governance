@@ -40,7 +40,11 @@ contract CrispVotingViewsTest is Test {
     uint256 internal constant SUPPLY = 1000 * 10 ** 18;
 
     event VotingSettingsUpdated(
-        uint256 minProposerVotingPower, uint256 minVoterVotingPower, uint32 minParticipation, uint64 minDuration
+        uint256 minProposerVotingPower,
+        uint256 minVoterVotingPower,
+        uint32 minParticipation,
+        uint32 supportThreshold,
+        uint64 minDuration
     );
     event E3SettingsUpdated(IInterfold.CommitteeSize committeeSize, uint8 paramSet, bytes computeProviderParams);
 
@@ -84,6 +88,7 @@ contract CrispVotingViewsTest is Test {
                 minProposerVotingPower: 7,
                 minVoterVotingPower: 3,
                 minParticipation: minParticipation,
+                supportThreshold: 50,
                 minDuration: MIN_DURATION
             })
         });
@@ -127,8 +132,7 @@ contract CrispVotingViewsTest is Test {
     function _create() internal returns (uint256 proposalId) {
         _depositAs(creator, 100 ether);
         vm.prank(sppAddr);
-        proposalId =
-            plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+        proposalId = plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0)));
     }
 
     function _counts(uint256 yes, uint256 no) internal pure returns (uint256[] memory c) {
@@ -229,6 +233,18 @@ contract CrispVotingViewsTest is Test {
         ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, params));
     }
 
+    /// @notice The E3 program is validated as hard as the interfold reference: it is deliberately
+    ///         not updatable after install (`updateE3Settings` excludes it), so a zero program
+    ///         would brick every tally read path with nothing short of a reinstall able to fix it.
+    function test_initializeRevertsOnZeroCrispProgram() public {
+        ICrispVoting.PluginInitParams memory params = _initParams(address(votesToken), MIN_PARTICIPATION);
+        params.crispProgramAddress = address(0);
+
+        address impl = address(new CrispVoting());
+        vm.expectRevert(ICrispVoting.ZeroAddress.selector);
+        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, params));
+    }
+
     function test_initializeRevertsWhenMinParticipationExceedsRatioBase() public {
         // minParticipation is a percentage of RATIO_BASE (=100), so 101 is out of bounds.
         ICrispVoting.PluginInitParams memory params = _initParams(address(votesToken), 101);
@@ -267,11 +283,13 @@ contract CrispVotingViewsTest is Test {
     /// @notice The `_data` tuple is a three-way contract between `customProposalParamsABI()`,
     ///         `createProposal`'s decode, and the app encoder in
     ///         `plugins/crispVoting/hooks/useCreateProposal.ts`. If this string changes without
-    ///         the other two, proposal creation silently misdecodes.
+    ///         the other two, proposal creation silently misdecodes. It carries ONLY the
+    ///         allowFailureMap: the voting window is the stage-configured one (never
+    ///         creator-chosen) and credits are always 0 (token-weighted CUSTOM mode).
     function test_customProposalParamsAbiMatchesTheDecodedTuple() public view {
         assertEq(
             plugin.customProposalParamsABI(),
-            "(uint256 allowFailureMap, uint256 votingDuration, uint256 credits)",
+            "(uint256 allowFailureMap)",
             "the _data ABI must stay in sync with createProposal and the app encoder"
         );
     }
@@ -280,7 +298,11 @@ contract CrispVotingViewsTest is Test {
 
     function test_updateVotingSettingsRequiresManagerPermission() public {
         ICrispVoting.VotingSettings memory s = ICrispVoting.VotingSettings({
-            minProposerVotingPower: 1, minVoterVotingPower: 1, minParticipation: 10, minDuration: MIN_DURATION
+            minProposerVotingPower: 1,
+            minVoterVotingPower: 1,
+            minParticipation: 10,
+            supportThreshold: 50,
+            minDuration: MIN_DURATION
         });
 
         vm.prank(makeAddr("stranger"));
@@ -290,16 +312,21 @@ contract CrispVotingViewsTest is Test {
 
     function test_updateVotingSettingsStoresAndEmits() public {
         ICrispVoting.VotingSettings memory s = ICrispVoting.VotingSettings({
-            minProposerVotingPower: 11, minVoterVotingPower: 12, minParticipation: 13, minDuration: 7200
+            minProposerVotingPower: 11,
+            minVoterVotingPower: 12,
+            minParticipation: 13,
+            supportThreshold: 55,
+            minDuration: 7200
         });
 
         vm.expectEmit(true, true, true, true, address(plugin));
-        emit VotingSettingsUpdated(11, 12, 13, 7200);
+        emit VotingSettingsUpdated(11, 12, 13, 55, 7200);
         plugin.updateVotingSettings(s);
 
         assertEq(plugin.minProposerVotingPower(), 11);
         assertEq(plugin.minVoterVotingPower(), 12);
         assertEq(plugin.minParticipation(), 13);
+        assertEq(plugin.supportThreshold(), 55);
         assertEq(plugin.minDuration(), 7200);
     }
 
@@ -353,11 +380,7 @@ contract CrispVotingViewsTest is Test {
         _depositAs(creator, 100 ether);
         vm.prank(sppAddr);
         plugin.createProposal(
-            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)),
-            _actions(),
-            0,
-            0,
-            abi.encode(uint256(0), uint256(0), uint256(0))
+            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
         assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Large));
         assertEq(interfold.lastParamSet(), 2);
@@ -366,7 +389,11 @@ contract CrispVotingViewsTest is Test {
 
     function test_updateVotingSettingsRejectsOutOfBoundsParticipation() public {
         ICrispVoting.VotingSettings memory s = ICrispVoting.VotingSettings({
-            minProposerVotingPower: 1, minVoterVotingPower: 1, minParticipation: 101, minDuration: MIN_DURATION
+            minProposerVotingPower: 1,
+            minVoterVotingPower: 1,
+            minParticipation: 101,
+            supportThreshold: 50,
+            minDuration: MIN_DURATION
         });
 
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.RatioOutOfBounds.selector, 100, 101));
@@ -381,21 +408,18 @@ contract CrispVotingViewsTest is Test {
 
         vm.prank(sppAddr);
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, uint64(block.timestamp), past));
-        plugin.createProposal(
-            _sppMetadata(), _actions(), past, past + MIN_DURATION * 2, abi.encode(uint256(0), uint256(0), uint256(0))
-        );
+        plugin.createProposal(_sppMetadata(), _actions(), past, past + MIN_DURATION * 2, abi.encode(uint256(0)));
     }
 
     function test_createProposalRevertsWhenTheSameProposalIsCreatedTwice() public {
         _depositAs(creator, 100 ether);
 
         vm.startPrank(sppAddr);
-        uint256 first =
-            plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+        uint256 first = plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0)));
 
         // Same actions + metadata => same derived id.
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalAlreadyExists.selector, first));
-        plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+        plugin.createProposal(_sppMetadata(), _actions(), 0, 0, abi.encode(uint256(0)));
         vm.stopPrank();
     }
 
@@ -414,9 +438,7 @@ contract CrispVotingViewsTest is Test {
         votesToken.setVotes(proposer, 7); // exactly minProposerVotingPower
 
         vm.prank(proposer);
-        uint256 proposalId = plugin.createProposal(
-            bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0))
-        );
+        uint256 proposalId = plugin.createProposal(bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0)));
 
         assertEq(plugin.proposalPayer(proposalId), proposer, "the direct caller is the payer");
         assertLt(plugin.feeCredits(proposer), 100 ether, "the caller's own escrow funds the fee");
@@ -433,7 +455,7 @@ contract CrispVotingViewsTest is Test {
 
         vm.prank(proposer);
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, proposer));
-        plugin.createProposal(bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0)));
+        plugin.createProposal(bytes("ipfs://direct"), _actions(), 0, 0, abi.encode(uint256(0)));
     }
 
     /// @notice Metadata that is not the SPP encoding falls through to the direct path, where the
@@ -444,9 +466,7 @@ contract CrispVotingViewsTest is Test {
 
         vm.prank(sppAddr);
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
-        plugin.createProposal(
-            abi.encode(sppAddr, SPP_PROPOSAL_ID), _actions(), 0, 0, abi.encode(uint256(0), uint256(0), uint256(0))
-        );
+        plugin.createProposal(abi.encode(sppAddr, SPP_PROPOSAL_ID), _actions(), 0, 0, abi.encode(uint256(0)));
 
         assertEq(plugin.feeCredits(creator), 100 ether, "creator's credit must be untouched");
     }
@@ -458,11 +478,7 @@ contract CrispVotingViewsTest is Test {
         vm.prank(sppAddr);
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.ProposalCreationForbidden.selector, sppAddr));
         plugin.createProposal(
-            abi.encode(makeAddr("otherSpp"), SPP_PROPOSAL_ID, uint16(0)),
-            _actions(),
-            0,
-            0,
-            abi.encode(uint256(0), uint256(0), uint256(0))
+            abi.encode(makeAddr("otherSpp"), SPP_PROPOSAL_ID, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
 
         assertEq(plugin.feeCredits(creator), 100 ether, "creator's credit must be untouched");
@@ -475,11 +491,7 @@ contract CrispVotingViewsTest is Test {
         vm.prank(sppAddr);
         vm.expectRevert(ICrispVoting.InvalidSppMetadata.selector);
         plugin.createProposal(
-            abi.encode(sppAddr, unknownSppProposal, uint16(0)),
-            _actions(),
-            0,
-            0,
-            abi.encode(uint256(0), uint256(0), uint256(0))
+            abi.encode(sppAddr, unknownSppProposal, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
     }
 
@@ -559,11 +571,25 @@ contract CrispVotingViewsTest is Test {
 
         uint256[] memory counts = new uint256[](3);
         counts[0] = 5;
-        counts[1] = 9; // winner
+        counts[1] = 9; // no strictly beats yes => rejection
         counts[2] = 2;
         crispProgram.setTally(plugin.getProposal(proposalId).e3Id, counts);
 
-        assertEq(plugin.getWinningOption(proposalId), 1, "highest count wins");
+        assertEq(plugin.getWinningOption(proposalId), 1, "no wins when yes does not strictly beat it");
+    }
+
+    /// @notice The decision matches `_canExecute` exactly: an abstain plurality does not "win" —
+    ///         abstentions count toward participation, never toward support.
+    function test_getWinningOptionIgnoresAnAbstainPlurality() public {
+        uint256 proposalId = _create();
+
+        uint256[] memory counts = new uint256[](3);
+        counts[0] = 5;
+        counts[1] = 3;
+        counts[2] = 100; // plurality, but only ever participation
+        crispProgram.setTally(plugin.getProposal(proposalId).e3Id, counts);
+
+        assertEq(plugin.getWinningOption(proposalId), 0, "yes strictly beats no, abstain is not a decision");
     }
 
     function test_getWinningOptionAfterExecutionUsesTheStoredTally() public {
@@ -573,12 +599,32 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.getWinningOption(proposalId), 0, "must read the frozen tally, option 0");
     }
 
-    /// @dev `>` (not `>=`) means the first of equal counts wins — pin the behaviour.
-    function test_getWinningOptionBreaksTiesTowardsTheLowestIndex() public {
+    /// @dev INV-22: a tie is a rejection. `getWinningOption` must agree with `_canExecute`,
+    ///      which requires yes to STRICTLY beat no — the UI must never show "Yes" for a tally
+    ///      the chain refuses to execute.
+    function test_getWinningOptionReportsATieAsARejection() public {
         uint256 proposalId = _create();
         crispProgram.setTally(plugin.getProposal(proposalId).e3Id, _counts(7, 7));
 
-        assertEq(plugin.getWinningOption(proposalId), 0, "ties resolve to the lowest index");
+        assertEq(plugin.getWinningOption(proposalId), 1, "a tie is a rejection (INV-22)");
+        assertFalse(plugin.canExecute(proposalId), "and _canExecute agrees");
+    }
+
+    function test_getWinningOptionReportsAnEmptyTallyAsARejection() public {
+        uint256 proposalId = _create();
+        crispProgram.setTally(plugin.getProposal(proposalId).e3Id, _counts(0, 0));
+
+        assertEq(plugin.getWinningOption(proposalId), 1, "no votes is a rejection, never a Yes");
+    }
+
+    function test_getTallyRevertsOnANonexistentProposal() public {
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.NonexistentProposal.selector, uint256(12345)));
+        plugin.getTally(12345);
+    }
+
+    function test_getWinningOptionRevertsOnANonexistentProposal() public {
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.NonexistentProposal.selector, uint256(12345)));
+        plugin.getWinningOption(12345);
     }
 
     // --- fee quoting ----------------------------------------------------------

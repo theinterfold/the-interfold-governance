@@ -65,9 +65,14 @@ interface ICrispVoting {
     /// @param minProposerVotingPower The minimum voting power needed to create a proposal.
     /// @param minVoterVotingPower The minimum voting power needed to be an eligible voter.
     /// @param minParticipation The minimum participation required for quorum.
+    /// @param supportThreshold The support threshold: yes must exceed this share of yes+no.
     /// @param minDuration The minimum duration of a vote.
     event VotingSettingsUpdated(
-        uint256 minProposerVotingPower, uint256 minVoterVotingPower, uint32 minParticipation, uint64 minDuration
+        uint256 minProposerVotingPower,
+        uint256 minVoterVotingPower,
+        uint32 minParticipation,
+        uint32 supportThreshold,
+        uint64 minDuration
     );
 
     /// @notice Emitted when the E3 request parameters are updated. Future proposals only: an
@@ -82,12 +87,18 @@ interface ICrispVoting {
     /// @param minProposerVotingPower The minimum voting power needed to propose a vote.
     /// @param minVoterVotingPower The minimum voting power needed to be an eligible voter. Passed to
     /// Interfold as the per-voter eligibility threshold; holders below it are excluded from the vote.
-    /// @param minParticipation The minimum participation needed to vote.
+    /// @param minParticipation The minimum participation needed to vote, as a percentage of
+    /// `RATIO_BASE` (= 100, so 1 = 1%).
+    /// @param supportThreshold The share of decisive votes (yes / (yes + no)) that yes must
+    /// STRICTLY exceed for a proposal to pass, as a percentage of `RATIO_BASE`. 50 is a simple
+    /// majority (a tie rejects); the same semantics as TokenVoting's ppm `supportThreshold`,
+    /// only against base 100. Abstentions count toward participation, never toward support.
     /// @param minDuration The minimum duration of the vote.
     struct VotingSettings {
         uint256 minProposerVotingPower;
         uint256 minVoterVotingPower;
         uint32 minParticipation;
+        uint32 supportThreshold;
         uint64 minDuration;
     }
 
@@ -107,6 +118,8 @@ interface ICrispVoting {
     /// @param snapshotBlock The number of the block prior to the proposal creation.
     /// @param minVotingPower The minimum voting power needed.
     /// @param minParticipation The minimum participation needed.
+    /// @param supportThreshold The support threshold in force when the proposal was created
+    /// (INV-33: a proposal settles under the rules at creation, never the live settings).
     /// @param creditMode The credit mode for the vote. CONSTANT proposals are signaling-only.
     struct ProposalParameters {
         uint256 numOptions;
@@ -115,6 +128,7 @@ interface ICrispVoting {
         uint256 snapshotBlock;
         uint256 minVotingPower;
         uint256 minParticipation;
+        uint256 supportThreshold;
         ICRISP.CreditMode creditMode;
     }
 
@@ -181,6 +195,11 @@ interface ICrispVoting {
     /// @return The minimum participation needed to vote.
     function minParticipation() external view returns (uint32);
 
+    /// @notice Returns the support threshold yes must strictly exceed over yes+no, against
+    /// `RATIO_BASE` (= 100).
+    /// @return The support threshold future proposals will be created with.
+    function supportThreshold() external view returns (uint32);
+
     /// @notice Returns the minimum duration of the vote.
     /// @return The minimum duration of the vote.
     function minDuration() external view returns (uint64);
@@ -199,10 +218,11 @@ interface ICrispVoting {
     /// @return The tally result
     function getTally(uint256 _proposalId) external view returns (TallyResults memory);
 
-    /// @notice Returns the index of the option with the most votes.
-    /// @dev On a tie, or when no votes have been cast, the lowest index (0) is returned. Callers
-    /// should not treat a return value of 0 as a definitive winner without inspecting the tally.
+    /// @notice Returns the ballot's decision: yes (0) if it clears the proposal's frozen
+    /// `supportThreshold` over yes+no, otherwise no (1). Matches `_canExecute` exactly — at the
+    /// default 50 a tie, an empty tally, or an abstain plurality is a rejection, and abstentions
+    /// count toward participation but never toward support.
     /// @param _proposalId The id of the proposal.
-    /// @return The winning option index.
+    /// @return The winning option index (always 0 or 1).
     function getWinningOption(uint256 _proposalId) external view returns (uint256);
 }

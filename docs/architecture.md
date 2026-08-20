@@ -16,19 +16,19 @@ stage 1  — foundation veto window          (optimistic: passes unless the foun
 
 There are **two SPP instances** — one wrapping the private (CRISP) body, one wrapping the public
 (TokenVoting) body — because a single SPP runs every proposal through the same fixed pipeline and
-can't route a proposal to one body *or* the other. See [Why two SPPs](#why-two-spp-instances).
+can't route a proposal to one body _or_ the other. See [Why two SPPs](#why-two-spp-instances).
 
 ## Plugins on the DAO
 
 `make deploy` installs five plugins in one atomic `createDao`:
 
-| # | Plugin | Role |
-|---|--------|------|
-| 0 | **CrispVoting** (forked, `contracts/src/crisp/`) | Private encrypted voting **body** — stage 0 of the private process |
-| 1 | **TokenVoting v1.4** (Aragon canonical, by address) | Public voting **body** — stage 0 of the public process |
-| 2 | **SPP** (Aragon canonical, by address) | **Private process** — wraps CrispVoting + foundation veto |
-| 3 | **SPP** (Aragon canonical, by address) | **Public process** — wraps TokenVoting + foundation veto |
-| 4 | **Admin** (Aragon canonical, by address) | **Bootstrap only** — lets the deployer wire everything with no vote, then is disarmed (see [Wiring](#wiring-the-admin-bootstrap)) |
+| #   | Plugin                                              | Role                                                                                                                              |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | **CrispVoting** (forked, `contracts/src/crisp/`)    | Private encrypted voting **body** — stage 0 of the private process                                                                |
+| 1   | **TokenVoting v1.4** (Aragon canonical, by address) | Public voting **body** — stage 0 of the public process                                                                            |
+| 2   | **SPP** (Aragon canonical, by address)              | **Private process** — wraps CrispVoting + foundation veto                                                                         |
+| 3   | **SPP** (Aragon canonical, by address)              | **Public process** — wraps TokenVoting + foundation veto                                                                          |
+| 4   | **Admin** (Aragon canonical, by address)            | **Bootstrap only** — lets the deployer wire everything with no vote, then is disarmed (see [Wiring](#wiring-the-admin-bootstrap)) |
 
 The **foundation** is not a plugin — it is a plain address configured as the manual veto body in
 stage 1 of both SPPs.
@@ -58,13 +58,13 @@ stage 1 of both SPPs.
 Set by `make wire-spp` (`WireSpp.stagesFor`), tunable via env, changeable later by the DAO via
 `updateStages`. Defaults:
 
-| | Stage 0 (voting) | Stage 1 (veto) |
-|---|---|---|
-| `voteDuration` | 1h (`SPP_*_VOTE_DURATION`) — voting window / body sub-proposal endDate | 2d (`SPP_VETO_DURATION`) — the veto window |
-| `maxAdvance` (expiry) | `voteDuration + SPP_ADVANCE_WINDOW` (7d) | `vetoDuration + SPP_EXECUTE_WINDOW` (30d) |
-| `minAdvance` | **public: `voteDuration`** · private: 0 (see below) | 0 |
-| `approvalThreshold` | 1 | 0 |
-| `vetoThreshold` | 0 | 1 |
+|                       | Stage 0 (voting)                                                       | Stage 1 (veto)                             |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
+| `voteDuration`        | 1h (`SPP_*_VOTE_DURATION`) — voting window / body sub-proposal endDate | 2d (`SPP_VETO_DURATION`) — the veto window |
+| `maxAdvance` (expiry) | `voteDuration + SPP_ADVANCE_WINDOW` (7d)                               | `vetoDuration + SPP_EXECUTE_WINDOW` (30d)  |
+| `minAdvance`          | **public: `voteDuration`** · private: 0 (see below)                    | 0                                          |
+| `approvalThreshold`   | 1                                                                      | 0                                          |
+| `vetoThreshold`       | 0                                                                      | 1                                          |
 
 ## How the SPP decides a stage passed
 
@@ -74,13 +74,13 @@ approval threshold. It does **not** wait on a stage clock. Two consequences:
 
 - **Private (CRISP):** the tally only exists after the encrypted voting window closes and the
   ciphernodes publish it. Before that, `hasSucceeded` reverts and the SPP treats it as "not yet."
-  So the CRISP window — including a **per-proposal custom duration** — is what gates advancement.
-- **Public (TokenVoting):** `hasSucceeded` uses the *early-reached* support threshold while the
-  vote is open (even in Standard mode — that mode only blocks early *execution*, not
+  So the CRISP window — the stage-configured duration, never a per-proposal choice — is what gates advancement.
+- **Public (TokenVoting):** `hasSucceeded` uses the _early-reached_ support threshold while the
+  vote is open (even in Standard mode — that mode only blocks early _execution_, not
   `hasSucceeded`). That means a mathematically-locked Yes could advance **before** the end date.
-  It is never a *flippable* result (early success requires that no remaining vote can change the
+  It is never a _flippable_ result (early success requires that no remaining vote can change the
   outcome), but to always decide on the **final** tally we set stage-0 **`minAdvance =
-  voteDuration`** on the public SPP — the SPP refuses to advance before the full window elapses,
+voteDuration`** on the public SPP — the SPP refuses to advance before the full window elapses,
   by which point `hasSucceeded` evaluates the final tally. The private path doesn't need this
   (tally availability already enforces the full window).
 
@@ -90,7 +90,7 @@ The voting plugins are **bodies**, not executors. Two wiring facts make that saf
 
 - **Only the SPPs hold `EXECUTE_PERMISSION` on the DAO.** The CRISP setup no longer grants it,
   and the wiring **revokes** TokenVoting's direct `EXECUTE` — otherwise a proposer could bypass
-  the veto stage by executing on the body directly. The bodies can only *report results* to the
+  the veto stage by executing on the body directly. The bodies can only _report results_ to the
   SPP; the SPP executes.
 - **Bodies execute via delegatecall to a shared `Executor`.** The wiring points each body's
   `TargetConfig` at a stateless `Executor` with `operation = DelegateCall`, so when a body
@@ -116,20 +116,23 @@ holds a **per-address prepaid credit** in the Interfold fee token:
 
 Public/TokenVoting proposals are free — no escrow.
 
-### Per-proposal voting duration (private only)
+### The voting window is stage-fixed (never per-proposal)
 
-The CRISP creator picks the voting window per proposal. It flows through the SPP's
-`proposalParams` into the body's `_data` (`(uint256 allowFailureMap, uint256 votingDuration,
-uint256 credits)`) and overrides the SPP-supplied end date. Bounds: `≥ minDuration()` (enforced
-on-chain) and `≤ stage-0 maxAdvance − buffer` (enforced by the UI, so the proposal can't expire
-before its vote finishes). The fee is quoted against the chosen window. The public path stays
-stage-fixed (canonical TokenVoting always uses the SPP-supplied window).
+Both processes vote for exactly the stage-configured window: the SPP creates the sub-proposal
+with `endDate = start + stage.voteDuration` (5 days on mainnet) and the body stores it verbatim.
+The CRISP `_data` payload carries only `(uint256 allowFailureMap)` — there is no creator-chosen
+duration and no credits field (INV-18). A per-proposal override used to exist, but an unbounded
+creator window could outlive the stage's `maxAdvance` expiry: a validly tallied vote on a
+proposal that could never execute, with the E3 fee already burned. Two floors still apply:
+CRISP's own `minDuration()` (the wiring refuses a private stage window below it, INV-37) and
+TokenVoting's 1-hour minimum on the public side (INV-15). The E3 fee is quoted against the
+stage window.
 
 ## Why two SPP instances
 
 A single SPP runs every proposal through its one stage config, and `createProposal` always uses
 the current config — there is no per-proposal "pick the body" parameter. Putting both bodies in
-one stage would spin up *both* a private E3 vote and a public vote for **every** proposal (double
+one stage would spin up _both_ a private E3 vote and a public vote for **every** proposal (double
 fees, wrong semantics). So each voting mode gets its own SPP: `private = [CRISP → veto]`,
 `public = [TokenVoting → veto]`.
 
@@ -145,9 +148,9 @@ permission, so this is the equivalent disarm; the plugin remains listed but powe
 
 Two separate permissions govern the bootstrap, and only the first decides whether it is dangerous:
 
-- `EXECUTE_PERMISSION` on the **DAO**, held by the Admin plugin — whether the bootstrap is *armed*.
+- `EXECUTE_PERMISSION` on the **DAO**, held by the Admin plugin — whether the bootstrap is _armed_.
   Revoked by the final wiring action, or later by `make disarm-admin`.
-- `EXECUTE_PROPOSAL_PERMISSION` on the **Admin plugin**, held by `ADMIN_ADDRESS` — *who may drive*
+- `EXECUTE_PROPOSAL_PERMISSION` on the **Admin plugin**, held by `ADMIN_ADDRESS` — _who may drive_
   an armed bootstrap. `make grant-admin` / `make revoke-admin` rotate it, which is how the phased
   mainnet rollout hands the bootstrap from the deployer EOA to the foundation multisig without
   touching the DAO's own permissions. Rotating is not disarming.
@@ -158,16 +161,16 @@ so the private process can be installed without a vote — see
 
 ## Permission map (after wiring)
 
-| Permission | Where | Holder |
-|---|---|---|
-| `EXECUTE_PERMISSION` | DAO | SPP private, SPP public |
-| `EXECUTE_PERMISSION` | DAO | ~~TokenVoting~~ (revoked), ~~CrispVoting~~ (never granted), ~~Admin~~ (revoked = disarmed) |
-| `EXECUTE_PROPOSAL_PERMISSION` | Admin plugin | `ADMIN_ADDRESS` — deployer EOA, or the foundation multisig after rotation. Moot once disarmed. |
-| `CREATE_PROPOSAL_PERMISSION` | CrispVoting | SPP private |
-| `CREATE_PROPOSAL_PERMISSION` | TokenVoting | SPP public |
-| `UPDATE_STAGES_PERMISSION` | each SPP | DAO |
-| `SET_TARGET_CONFIG` / `MANAGER` | CrispVoting | DAO |
-| stage-1 veto body | each SPP stage config | foundation address |
+| Permission                      | Where                 | Holder                                                                                         |
+| ------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
+| `EXECUTE_PERMISSION`            | DAO                   | SPP private, SPP public                                                                        |
+| `EXECUTE_PERMISSION`            | DAO                   | ~~TokenVoting~~ (revoked), ~~CrispVoting~~ (never granted), ~~Admin~~ (revoked = disarmed)     |
+| `EXECUTE_PROPOSAL_PERMISSION`   | Admin plugin          | `ADMIN_ADDRESS` — deployer EOA, or the foundation multisig after rotation. Moot once disarmed. |
+| `CREATE_PROPOSAL_PERMISSION`    | CrispVoting           | SPP private                                                                                    |
+| `CREATE_PROPOSAL_PERMISSION`    | TokenVoting           | SPP public                                                                                     |
+| `UPDATE_STAGES_PERMISSION`      | each SPP              | DAO                                                                                            |
+| `SET_TARGET_CONFIG` / `MANAGER` | CrispVoting           | DAO                                                                                            |
+| stage-1 veto body               | each SPP stage config | foundation address                                                                             |
 
 ## Deploy flow
 
