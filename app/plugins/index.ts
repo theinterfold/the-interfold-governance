@@ -26,23 +26,25 @@ export const plugins: PluginItem[] = [
     // Informational only — the governance shell talks to both plugin addresses.
     pluginAddress: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
   },
-  {
-    id: "members",
-    folderName: "members",
-    title: "Delegation",
-    icon: IconType.APP_MEMBERS,
-    pluginAddress: PUB_TOKEN_ADDRESS,
-  },
-  // Only when a voting escrow is configured — without one there is nothing to lock into.
+  // With a voting escrow configured, locking and delegation are ONE surface (the adapter), so
+  // they share one page. Without one (testnet), delegation lives on the token and stands alone.
   ...(PUB_ENABLE_LOCKING
     ? [
         {
           id: "lock",
           folderName: "velocker",
-          title: "Lock",
-          icon: IconType.APP_ASSETS,
+          title: "Voting power",
+          icon: IconType.APP_MEMBERS,
           pluginAddress: PUB_VE_LOCKER_ADDRESS,
         },
       ]
-    : []),
+    : [
+        {
+          id: "members",
+          folderName: "members",
+          title: "Delegation",
+          icon: IconType.APP_MEMBERS,
+          pluginAddress: PUB_TOKEN_ADDRESS,
+        },
+      ]),
 ];

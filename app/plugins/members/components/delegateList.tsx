@@ -2,7 +2,7 @@ import { formatUnits } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useAccount } from "wagmi";
 import { Button } from "@aragon/ods";
-import { AddressText } from "@/components/text/address";
+import { EnsMember } from "@/components/text/ensMember";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
@@ -43,8 +43,8 @@ export function DelegateList() {
           >
             <div className="flex min-w-0 items-center gap-x-3">
               <span className="w-6 shrink-0 text-sm text-neutral-400">{i + 1}</span>
-              <div className="min-w-0">
-                <AddressText bold={false}>{d.address}</AddressText>
+              <div className="flex min-w-0 items-center">
+                <EnsMember address={d.address} />
                 {isYou && <span className="ml-2 text-xs text-primary-400">you</span>}
               </div>
             </div>

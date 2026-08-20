@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { Button, InputNumber, InputText, Tag } from "@aragon/ods";
+import { Button, InputText, Tag } from "@aragon/ods";
 import { formatUnits, isAddress, parseUnits, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
@@ -11,6 +11,7 @@ import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
+import { DelegateList } from "@/plugins/members/components/delegateList";
 import { useVeEscrow } from "../hooks/useVeEscrow";
 import { useVeLocks } from "../hooks/useVeLocks";
 import { useCreateLock } from "../hooks/useCreateLock";
@@ -72,16 +73,22 @@ export default function Locker() {
       <div className="page-head w-full">
         <div>
           <div className="kicker mb-3">Membership</div>
-          <h1 className="display-title">Lock {PUB_TOKEN_SYMBOL}</h1>
+          <h1 className="display-title">Voting power</h1>
         </div>
       </div>
 
-      <p className="form-intro">
-        Lock {PUB_TOKEN_SYMBOL} in the voting escrow to gain governance power. A lock mints a position that stays yours
-        — only you can withdraw it — and its voting power counts once delegated (to yourself or someone you trust).
-        Unlocking is a two-step exit: start the withdrawal, wait out the cooldown, then claim your {PUB_TOKEN_SYMBOL}{" "}
-        back. Voting power stops the moment the withdrawal starts.
-      </p>
+      <div className="form-intro">
+        <p>Voting power comes from {PUB_TOKEN_SYMBOL} that is committed, not just held:</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>Lock {PUB_TOKEN_SYMBOL} here to mint a position only you can withdraw.</li>
+          <li>Delegate your locks — to yourself or someone you trust — to activate their power.</li>
+          <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
+          <li>
+            Unlock any time: start the withdrawal, wait out the cooldown, claim your {PUB_TOKEN_SYMBOL}. Voting power
+            stops as soon as the withdrawal starts.
+          </li>
+        </ul>
+      </div>
 
       {!isConnected || !address ? (
         <MissingContentView>
@@ -130,16 +137,32 @@ export default function Locker() {
           <Card>
             <p className="text-base font-semibold text-neutral-800">Lock {PUB_TOKEN_SYMBOL}</p>
             <p className="text-sm text-neutral-500">
-              Locking transfers {PUB_TOKEN_SYMBOL} into the voting escrow and mints a lock position that carries voting
-              power. Unlocking takes two steps: start the withdrawal (voting power stops immediately), then withdraw
-              after the {cooldownDays ?? "—"}-day cooldown.
+              Transfers {PUB_TOKEN_SYMBOL} into the voting escrow. Unlocking later takes a {cooldownDays ?? "—"}-day
+              cooldown.
             </p>
-            <InputNumber
+            <InputText
               placeholder={`Amount of ${PUB_TOKEN_SYMBOL}`}
-              min={0}
+              inputMode="decimal"
               value={amountInput}
-              onChange={(v) => setAmountInput(v ?? "")}
+              onChange={(e) => {
+                const v = e.target.value.replace(",", ".");
+                // digits and at most one decimal point — a plain amount field, no steppers
+                if (/^\d*\.?\d*$/.test(v)) setAmountInput(v);
+              }}
             />
+            <div className="flex items-center gap-x-2 text-sm text-neutral-500">
+              <span>Balance: {fmt(balance)}</span>
+              <button
+                type="button"
+                className="font-semibold text-primary-400 disabled:text-neutral-300"
+                disabled={balance === undefined || decimals === undefined || balance === 0n}
+                onClick={() => {
+                  if (balance !== undefined && decimals !== undefined) setAmountInput(formatUnits(balance, decimals));
+                }}
+              >
+                Max
+              </button>
+            </div>
             {belowMinimum && <p className="text-sm text-critical-600">The minimum lock is {fmt(escrow.minDeposit)}.</p>}
             {aboveBalance && <p className="text-sm text-critical-600">You do not hold that much {PUB_TOKEN_SYMBOL}.</p>}
             {lockError && <p className="text-sm text-critical-600">{lockError}</p>}
@@ -159,9 +182,8 @@ export default function Locker() {
           <Card>
             <p className="text-base font-semibold text-neutral-800">Delegate your locks to someone else</p>
             <p className="text-sm text-neutral-500">
-              Hand your locks&apos; voting power to another address — they vote with it until you change it. Your
-              {" " + PUB_TOKEN_SYMBOL} stays yours: only you can withdraw, and starting a withdrawal takes the power
-              back automatically. All your locks follow one delegate, and future locks follow it too.
+              They vote with your locks&apos; power until you change it. Your {PUB_TOKEN_SYMBOL} stays yours — all your
+              locks, current and future, follow one delegate.
             </p>
             <InputText
               placeholder="0x… delegate address"
@@ -243,6 +265,14 @@ export default function Locker() {
                 ))}
               </div>
             )}
+          </Card>
+
+          <Card>
+            <p className="text-base font-semibold text-neutral-800">Delegates</p>
+            <p className="text-sm text-neutral-500">
+              Addresses with active {PUB_TOKEN_SYMBOL} voting power. Delegate your locks to any of them.
+            </p>
+            <DelegateList />
           </Card>
         </div>
       )}

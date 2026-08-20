@@ -1,6 +1,7 @@
 import { Dialog, type IDialogRootProps } from "@aragon/ods";
 import Link from "next/link";
 import { NavLink, type INavLink } from "./navLink";
+import { PUB_PROJECT_URL } from "@/constants";
 
 interface IMobileNavDialogProps extends IDialogRootProps {
   navLinks: INavLink[];
@@ -20,12 +21,12 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
         <div className="flex items-center justify-between px-4">
           <div className="flex w-full justify-center">
             <Link
-              href="https://aragon.org"
+              href={PUB_PROJECT_URL}
               className="rounded-xl outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
             >
-              <span className="flex py-2 pl-3 pr-4">
-                Governed on&nbsp;
-                <img src="/logo-aragon-text.svg" height="24" alt="Aragon" />
+              <span className="flex items-center gap-x-2 py-2 pl-3 pr-4">
+                <img src="/theinterfold-logo.png" height="24" width="24" alt="The Interfold" />
+                The Interfold
               </span>
             </Link>
           </div>
