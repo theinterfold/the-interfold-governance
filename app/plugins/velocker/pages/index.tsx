@@ -76,6 +76,13 @@ export default function Locker() {
         </div>
       </div>
 
+      <p className="form-intro">
+        Lock {PUB_TOKEN_SYMBOL} in the voting escrow to gain governance power. A lock mints a position that stays yours
+        — only you can withdraw it — and its voting power counts once delegated (to yourself or someone you trust).
+        Unlocking is a two-step exit: start the withdrawal, wait out the cooldown, then claim your {PUB_TOKEN_SYMBOL}{" "}
+        back. Voting power stops the moment the withdrawal starts.
+      </p>
+
       {!isConnected || !address ? (
         <MissingContentView>
           Connect your wallet (top right) to lock {PUB_TOKEN_SYMBOL} and gain voting power.

@@ -35,6 +35,18 @@ export default function Delegation() {
         </div>
       </div>
 
+      <p className="form-intro">
+        {PUB_ENABLE_LOCKING
+          ? `Voting power in the Interfold comes from ${PUB_TOKEN_SYMBOL} that is committed, not just held: ` +
+            `${PUB_TOKEN_SYMBOL} locked in the voting escrow, bonded as ciphernode collateral, or still under a ` +
+            `vesting lock. Locked ${PUB_TOKEN_SYMBOL} votes through delegation — activate it for yourself or hand it ` +
+            `to someone you trust; bonded and vesting ${PUB_TOKEN_SYMBOL} always count for their owner and need no ` +
+            `delegation. Delegating never moves your tokens, and you can change it at any time.`
+          : `Voting power comes from delegated ${PUB_TOKEN_SYMBOL}: delegate to yourself to vote with your own ` +
+            `balance, or hand it to someone you trust. Delegating never moves your tokens, and you can change it at ` +
+            `any time.`}
+      </p>
+
       {!isConnected || !address ? (
         <MissingContentView>
           Connect your wallet (top right) to view and manage your {PUB_TOKEN_SYMBOL} voting power.
@@ -48,7 +60,13 @@ export default function Delegation() {
               label="Delegating to"
               value={
                 notDelegated ? (
-                  "Nobody — no voting power"
+                  // Under the velocker, "nobody" only inactivates LOCK power — bonded and
+                  // vesting-locked FOLD count for their owner regardless of delegation.
+                  PUB_ENABLE_LOCKING ? (
+                    "Nobody — locks not activated"
+                  ) : (
+                    "Nobody — no voting power"
+                  )
                 ) : delegatedToSelf ? (
                   "Yourself"
                 ) : (
