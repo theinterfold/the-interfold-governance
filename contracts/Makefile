@@ -71,6 +71,11 @@ install-private-process: ## Phase 2 step 3: Admin applies both installs + wires 
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
 		--rpc-url $$RPC_URL --broadcast --slow -vvvv
 
+print-crisp-install-data: ## Print CRISP + private-SPP install params for the Safe-only prepare flow (no broadcast)
+	set -a; . ./$(ENV_FILE); set +a; \
+	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
+		--sig "printInstallData()"
+
 print-private-actions: ## Print the phase-2 actions as proposal calldata (no broadcast; use if Admin is already disarmed)
 	set -a; . ./$(ENV_FILE); set +a; \
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \

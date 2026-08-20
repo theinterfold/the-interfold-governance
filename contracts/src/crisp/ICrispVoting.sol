@@ -70,6 +70,14 @@ interface ICrispVoting {
         uint256 minProposerVotingPower, uint256 minVoterVotingPower, uint32 minParticipation, uint64 minDuration
     );
 
+    /// @notice Emitted when the E3 request parameters are updated. Future proposals only: an
+    /// existing proposal made its E3 request at creation, so it is already pinned to the
+    /// parameters in force then.
+    /// @param committeeSize The ciphernode committee size for new requests.
+    /// @param paramSet The BFV parameter-set identifier for new requests.
+    /// @param computeProviderParams The ABI-encoded compute provider parameters for new requests.
+    event E3SettingsUpdated(IInterfold.CommitteeSize committeeSize, uint8 paramSet, bytes computeProviderParams);
+
     /// @notice A struct for the voting settings.
     /// @param minProposerVotingPower The minimum voting power needed to propose a vote.
     /// @param minVoterVotingPower The minimum voting power needed to be an eligible voter. Passed to

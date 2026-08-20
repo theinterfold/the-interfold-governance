@@ -42,6 +42,7 @@ contract CrispVotingViewsTest is Test {
     event VotingSettingsUpdated(
         uint256 minProposerVotingPower, uint256 minVoterVotingPower, uint32 minParticipation, uint64 minDuration
     );
+    event E3SettingsUpdated(IInterfold.CommitteeSize committeeSize, uint8 paramSet, bytes computeProviderParams);
 
     function setUp() public {
         vm.roll(100);
@@ -299,6 +300,48 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.minVoterVotingPower(), 12);
         assertEq(plugin.minParticipation(), 13);
         assertEq(plugin.minDuration(), 7200);
+    }
+
+    // --- updateE3Settings -----------------------------------------------------
+
+    function test_updateE3SettingsRequiresManagerPermission() public {
+        vm.prank(makeAddr("stranger"));
+        vm.expectRevert();
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Large, 2, hex"beef");
+    }
+
+    function test_updateE3SettingsStoresEmitsAndAppliesToFutureProposalsOnly() public {
+        // A proposal created BEFORE the update requested its E3 under the install parameters —
+        // pinned at creation, the same stance the quorum takes (INV-33).
+        _create();
+        assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize(0)));
+        assertEq(interfold.lastParamSet(), 0);
+        assertEq(interfold.lastComputeProviderParams(), bytes(""));
+
+        vm.expectEmit(true, true, true, true, address(plugin));
+        emit E3SettingsUpdated(IInterfold.CommitteeSize.Large, 2, hex"beef");
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Large, 2, hex"beef");
+
+        (IInterfold.CommitteeSize cs, uint8 ps, bytes memory cpp) = plugin.getE3Settings();
+        assertEq(uint8(cs), uint8(IInterfold.CommitteeSize.Large));
+        assertEq(ps, 2);
+        assertEq(cpp, hex"beef");
+
+        // The NEXT proposal's E3 request carries the updated parameters. A fresh SPP sub-proposal
+        // id: proposal ids are hash-derived from the attestation, so reusing one reverts.
+        spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
+        _depositAs(creator, 100 ether);
+        vm.prank(sppAddr);
+        plugin.createProposal(
+            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)),
+            _actions(),
+            0,
+            0,
+            abi.encode(uint256(0), uint256(0), uint256(0))
+        );
+        assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Large));
+        assertEq(interfold.lastParamSet(), 2);
+        assertEq(interfold.lastComputeProviderParams(), hex"beef");
     }
 
     function test_updateVotingSettingsRejectsOutOfBoundsParticipation() public {

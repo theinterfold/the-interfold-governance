@@ -120,6 +120,39 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, ICrispVoting
         _updateVotingSettings(_votingSettings);
     }
 
+    /// @notice Updates the E3 request parameters used by FUTURE proposals: the ciphernode
+    ///         committee size, the BFV parameter set, and the compute provider parameters.
+    ///         Lets a DAO launch on a small committee and light parameters and harden later
+    ///         by governance proposal, without a new plugin build.
+    /// @dev In-flight proposals are untouched by construction: each proposal's E3 request is
+    ///      made at creation, so it is already pinned to the parameters in force then — the
+    ///      same settles-under-creation-rules stance as the quorum (INV-33).
+    ///
+    ///      The E3 program address is deliberately NOT updatable here. Swapping the program
+    ///      swaps the verifier and the trust model, and `getTally` reads results through it —
+    ///      that is a new plugin build to be reviewed and installed, not a parameter tweak.
+    /// @param _committeeSize The ciphernode committee size for new requests.
+    /// @param _paramSet The BFV parameter-set identifier for new requests.
+    /// @param _computeProviderParams The ABI-encoded compute provider parameters for new requests.
+    function updateE3Settings(
+        IInterfold.CommitteeSize _committeeSize,
+        uint8 _paramSet,
+        bytes calldata _computeProviderParams
+    ) external auth(MANAGER_PERMISSION_ID) {
+        committeeSize = _committeeSize;
+        paramSet = _paramSet;
+        computeProviderParams = _computeProviderParams;
+
+        emit E3SettingsUpdated(_committeeSize, _paramSet, _computeProviderParams);
+    }
+
+    /// @notice Returns the E3 request parameters future proposals will be created with.
+    /// @return The committee size, the BFV parameter-set identifier, and the ABI-encoded
+    ///         compute provider parameters.
+    function getE3Settings() external view returns (IInterfold.CommitteeSize, uint8, bytes memory) {
+        return (committeeSize, paramSet, computeProviderParams);
+    }
+
     /// @notice Creates a new E3 request in Interfold
     /// @dev This is a wrapper around the createProposal function as we need it to be payable
     /// as there will be charges for the E3 request in Interfold.

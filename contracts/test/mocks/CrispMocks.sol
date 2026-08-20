@@ -160,6 +160,12 @@ contract MockInterfold {
     ///         unnoticed: the plugin builds a tuple no test ever looked at.
     bytes public lastCustomParams;
 
+    /// @notice The E3 parameters of the most recent request, so tests can assert an
+    ///         `updateE3Settings` really changes what future requests carry.
+    IInterfold.CommitteeSize public lastCommitteeSize;
+    uint8 public lastParamSet;
+    bytes public lastComputeProviderParams;
+
     function request(IInterfold.E3RequestParams calldata params) external returns (uint256 e3Id, E3 memory e3) {
         // Pull the fee like the real coordinator does (the plugin forceApproves us).
         MockFeeToken(feeTokenAddr).transferFrom(msg.sender, address(this), fee);
@@ -167,6 +173,9 @@ contract MockInterfold {
         lastExpectedFeeToken = address(params.expectedFeeToken);
         lastExpectedCryptoConfigId = params.expectedCryptoConfigId;
         lastMaxFee = params.maxFee;
+        lastCommitteeSize = params.committeeSize;
+        lastParamSet = params.paramSet;
+        lastComputeProviderParams = params.computeProviderParams;
         e3Id = nextE3Id++;
     }
 }

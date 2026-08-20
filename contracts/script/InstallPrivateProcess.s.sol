@@ -200,6 +200,19 @@ contract InstallPrivateProcessScript is WireSppScript {
         console2.log("the PSP no longer holds ROOT. Then run `make disarm-admin`.");
     }
 
+    /// @notice Prints the ABI-encoded install params for the Safe-only prepare flow, where
+    ///         `make safe-prepare-install` reads them from `<PREFIX>_INSTALL_DATA`. Byte-identical
+    ///         to what `prepare()` submits, so both flows produce the same prepared setup — and a
+    ///         reviewer can regenerate the hex to check a Safe file against the env.
+    ///         Usage: forge script ... --sig "printInstallData()"
+    function printInstallData() external view {
+        console2.log("CRISP_INSTALL_DATA=%s", vm.toString(crispInstallData(vm.envAddress("FOLD_TOKEN_ADDRESS"))));
+        console2.log(
+            "SPP_PRIVATE_INSTALL_DATA=%s",
+            vm.toString(SppInstall.encode(bytes(vm.envOr("SPP_PRIVATE_METADATA_URI", string("")))))
+        );
+    }
+
     /// @notice Prints the same actions as `run()` WITHOUT broadcasting, for the case where the
     ///         Admin plugin was already disarmed and the install must go through a governance
     ///         proposal on the public SPP instead. Paste each blob as a proposal action.
