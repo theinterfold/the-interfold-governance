@@ -16,6 +16,7 @@ export const votingEscrowAbi = parseAbi([
   "function queue() view returns (address)",
   "function ivotesAdapter() view returns (address)",
 
+  "function ownedTokens(address owner) view returns (uint256[])",
   "function minDeposit() view returns (uint256)",
   "function totalLocked() view returns (uint256)",
   "function locked(uint256 tokenId) view returns ((uint208 amount, uint48 start))",

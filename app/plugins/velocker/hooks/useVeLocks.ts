@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { parseAbiItem, type Address } from "viem";
+import { type Address } from "viem";
 import { usePublicClient } from "wagmi";
-import { PUB_VE_LOCKER_ADDRESS, PUB_VE_LOCKER_DEPLOYMENT_BLOCK } from "@/constants";
-import { scanLogs } from "@/utils/logScan";
+import { PUB_VE_LOCKER_ADDRESS } from "@/constants";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
 import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
-import { lockNftAbi } from "../artifacts/lockNft";
 import { exitQueueAbi } from "../artifacts/exitQueue";
-
-const exitQueuedEvent = parseAbiItem(
-  "event ExitQueued(uint256 indexed tokenId, address indexed holder, uint256 exitDate)"
-);
 
 export type OwnedLock = {
   tokenId: bigint;
@@ -29,18 +23,15 @@ export type QueuedExit = {
 };
 
 /**
- * The connected wallet's lock positions, in both states:
- *  - owned: the lock NFT sits in the wallet (enumerated off the NFT, no events needed);
- *  - queued: `beginWithdrawal` moved the NFT into the escrow, so ownership no longer points at
- *    the wallet — those are recovered from `ExitQueued` logs and confirmed against the live
- *    ticket holder, so a withdrawn or cancelled exit drops out.
+ * The connected wallet's lock positions, in both states — no event scans:
+ *  - owned: `escrow.ownedTokens(account)` walks the lock NFT's enumeration on-chain;
+ *  - queued: `beginWithdrawal` transfers the NFT to the ESCROW and `withdraw` burns it, so
+ *    `escrow.ownedTokens(escrow)` is exactly the current global cooldown queue — filtered
+ *    to this account by each ticket's live `ticketHolder`.
  */
-export function useVeLocks(
-  address: Address | undefined,
-  satellites: { lockNft?: Address; queue?: Address; adapter?: Address }
-) {
+export function useVeLocks(address: Address | undefined, satellites: { queue?: Address; adapter?: Address }) {
   const publicClient = usePublicClient();
-  const { lockNft, queue, adapter } = satellites;
+  const { queue, adapter } = satellites;
   const [ownedLocks, setOwnedLocks] = useState<OwnedLock[]>([]);
   const [queuedExits, setQueuedExits] = useState<QueuedExit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,28 +44,23 @@ export function useVeLocks(
     let cancelled = false;
 
     async function run() {
-      if (!publicClient || !address || !lockNft || !queue || !adapter) return;
+      if (!publicClient || !address || !queue || !adapter) return;
       try {
         setIsLoading(true);
         setError(null);
 
-        // 1. Locks still in the wallet: plain ERC721Enumerable, no log scan.
-        const balance = (await publicClient.readContract({
-          address: lockNft,
-          abi: lockNftAbi,
-          functionName: "balanceOf",
-          args: [address],
-        })) as bigint;
-
-        const indexCalls = Array.from({ length: Number(balance) }, (_, i) => ({
-          address: lockNft,
-          abi: lockNftAbi,
-          functionName: "tokenOfOwnerByIndex",
-          args: [address, BigInt(i)],
-        }));
-        const ownedIds = balance
-          ? ((await publicClient.multicall({ allowFailure: false, contracts: indexCalls as any })) as bigint[])
-          : [];
+        const [ownedIds, escrowHeldIds] = (await publicClient.multicall({
+          allowFailure: false,
+          contracts: [
+            { address: PUB_VE_LOCKER_ADDRESS, abi: votingEscrowAbi, functionName: "ownedTokens", args: [address] },
+            {
+              address: PUB_VE_LOCKER_ADDRESS,
+              abi: votingEscrowAbi,
+              functionName: "ownedTokens",
+              args: [PUB_VE_LOCKER_ADDRESS],
+            },
+          ],
+        })) as [readonly bigint[], readonly bigint[]];
         if (cancelled) return;
 
         const ownedReads = ownedIds.length
@@ -100,26 +86,10 @@ export function useVeLocks(
           };
         });
 
-        // 2. Locks in the exit queue: the NFT was transferred to the escrow, so enumeration by
-        //    owner cannot see them. ExitQueued names the ticket holder; the live ticketHolder
-        //    check drops anything since withdrawn or cancelled.
-        const logs = await scanLogs(
-          publicClient,
-          { address: queue, event: exitQueuedEvent, args: { holder: address } },
-          BigInt(PUB_VE_LOCKER_DEPLOYMENT_BLOCK || 0)
-        );
-        if (cancelled) return;
-        const candidateIds = new Set<bigint>();
-        for (const log of logs) {
-          const tokenId = (log.args as { tokenId?: bigint }).tokenId;
-          if (tokenId !== undefined) candidateIds.add(tokenId);
-        }
-
-        const queuedIds = Array.from(candidateIds);
-        const queuedReads = queuedIds.length
+        const queuedReads = escrowHeldIds.length
           ? ((await publicClient.multicall({
               allowFailure: true,
-              contracts: queuedIds.flatMap((id) => [
+              contracts: escrowHeldIds.flatMap((id) => [
                 { address: queue, abi: exitQueueAbi, functionName: "ticketHolder", args: [id] },
                 { address: queue, abi: exitQueueAbi, functionName: "queue", args: [id] },
                 { address: queue, abi: exitQueueAbi, functionName: "canExit", args: [id] },
@@ -129,7 +99,7 @@ export function useVeLocks(
           : [];
         if (cancelled) return;
 
-        const queued: QueuedExit[] = queuedIds
+        const queued: QueuedExit[] = escrowHeldIds
           .map((tokenId, i) => {
             const holder = queuedReads[i * 4]?.result as Address | undefined;
             const ticket = queuedReads[i * 4 + 1]?.result as { holder: Address; exitDate: bigint } | undefined;
@@ -158,7 +128,7 @@ export function useVeLocks(
     return () => {
       cancelled = true;
     };
-  }, [publicClient, address, lockNft, queue, adapter, refreshKey]);
+  }, [publicClient, address, queue, adapter, refreshKey]);
 
   return { ownedLocks, queuedExits, isLoading, error, refetch };
 }
