@@ -54,7 +54,12 @@ export const PUB_CHAIN = getChain(PUB_CHAIN_NAME);
 export const PUB_CHAIN_ID = PUB_CHAIN.id;
 
 // Network and services
-export const PUB_WEB3_ENDPOINT = process.env.NEXT_PUBLIC_WEB3_ENDPOINT ?? "";
+// Empty/unset => the app talks to its own server-side relay (/api/rpc), which forwards to the
+// server-only WEB3_RPC_URL — so a keyed endpoint never ships in the client bundle (INV-27).
+// Set NEXT_PUBLIC_WEB3_ENDPOINT only for a keyless public endpoint (or local dev shortcuts).
+// (Trailing slash on purpose: next.config sets trailingSlash, and the bare path would cost a
+// 308 redirect on every single RPC request.)
+export const PUB_WEB3_ENDPOINT = process.env.NEXT_PUBLIC_WEB3_ENDPOINT || "/api/rpc/";
 
 export const PUB_WALLET_CONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
 
