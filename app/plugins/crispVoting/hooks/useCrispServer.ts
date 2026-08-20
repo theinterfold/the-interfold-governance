@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
-import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote, prepareBallot } from "@crisp-e3/sdk";
+import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
+import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
@@ -318,10 +319,17 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         numOptions: Number.parseInt(roundState.num_options),
       };
 
-      const prepared = await prepareBallot(
+      // The BFV circuits are preset-bound since SDK 0.18 and must be registered before any
+      // encryption or proving. Loaded lazily so the ~3MB artifacts only download when voting.
+      await ensureCircuits();
+
+      // The SDK's own prepareBallot (not the standalone one): it resolves the slot's head —
+      // previous ciphertext plus its tree index — from the server and threads the pair into the
+      // circuit inputs, which is what lets a re-vote or a mask extend the slot's existing chain.
+      const prepared = await crispSdk.prepareBallot(
         isOnchainCensus
-          ? { ...ballotBase, censusMode: "onchain", votingPower: voteData.balance }
-          : { ...ballotBase, censusMode: "merkle", merkleLeaves, balance: voteData.balance }
+          ? { e3Id, ...ballotBase, censusMode: "onchain", votingPower: voteData.balance }
+          : { e3Id, ...ballotBase, censusMode: "merkle", merkleLeaves, balance: voteData.balance }
       );
 
       // The digest comes from the contract that will verify the ballot, not from a struct rebuilt
