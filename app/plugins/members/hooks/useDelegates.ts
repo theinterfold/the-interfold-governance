@@ -2,9 +2,16 @@ import { useEffect, useState } from "react";
 import { usePublicClient } from "wagmi";
 import { erc20Abi, parseAbiItem, type Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
-import { PUB_TOKEN_ADDRESS, PUB_TOKEN_DEPLOYMENT_BLOCK, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import {
+  PUB_ENABLE_LOCKING,
+  PUB_TOKEN_ADDRESS,
+  PUB_TOKEN_DEPLOYMENT_BLOCK,
+  PUB_VE_LOCKER_ADDRESS,
+  PUB_VOTING_POWER_SOURCE,
+} from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { scanLogs } from "@/utils/logScan";
+import { votingEscrowAbi } from "@/plugins/velocker/artifacts/votingEscrow";
 
 const delegateChangedEvent = parseAbiItem(
   "event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate)"
@@ -33,10 +40,20 @@ export function useDelegates() {
         setIsLoading(true);
         setError(null);
 
-        // 1. Collect every address that has ever been delegated to.
+        // 1. Collect every address that has ever been delegated to. With the velocker enabled,
+        //    delegation lives on the escrow's IVotes adapter (which emits the same
+        //    DelegateChanged) — the token's own delegation feeds a read nothing consumes.
+        let delegationSource: Address = PUB_TOKEN_ADDRESS;
+        if (PUB_ENABLE_LOCKING) {
+          delegationSource = (await publicClient.readContract({
+            address: PUB_VE_LOCKER_ADDRESS,
+            abi: votingEscrowAbi,
+            functionName: "ivotesAdapter",
+          })) as Address;
+        }
         const logs = await scanLogs(
           publicClient,
-          { address: PUB_TOKEN_ADDRESS, event: delegateChangedEvent },
+          { address: delegationSource, event: delegateChangedEvent },
           BigInt(PUB_TOKEN_DEPLOYMENT_BLOCK || 0)
         );
         if (cancelled) return;

@@ -16,7 +16,7 @@ import type { RawAction } from "@/utils/types";
 import { FeeCreditCard } from "../components/feeCreditCard";
 import { type CanCreateProposal, useCanCreateProposal } from "../hooks/useCanCreateProposal";
 import { useCreateProposal } from "../hooks/useCreateProposal";
-import { useDelegate } from "../hooks/useDelegate";
+import { useDelegate } from "@/hooks/useDelegate";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
@@ -297,7 +297,9 @@ const PlaceHolderOr = ({
   children: ReactNode;
 }) => {
   const { open } = useWeb3Modal();
-  const { selfDelegate, isDelegating } = useDelegate(state.votingToken, state.refetch);
+  // The central hook, not the token-targeted one: with the velocker enabled, delegation lives
+  // on the escrow's IVotes adapter — and `delegate()` on the BondedVotes voting token REVERTS.
+  const { delegateToSelf, isConfirming: isDelegating } = useDelegate(() => setTimeout(() => state.refetch(), 1000 * 2));
 
   return (
     <If true={!selfAddress || !isConnected}>
@@ -313,7 +315,7 @@ const PlaceHolderOr = ({
       </ElseIf>
       <ElseIf true={state.needsDelegation}>
         {/* Holds tokens but hasn't delegated — self-delegation activates voting power */}
-        <MissingContentView callToAction="Delegate to myself" isLoading={isDelegating} onClick={() => selfDelegate()}>
+        <MissingContentView callToAction="Delegate to myself" isLoading={isDelegating} onClick={() => delegateToSelf()}>
           You hold voting tokens, but they aren&apos;t delegated yet — so your voting power reads as zero on-chain and
           you can&apos;t create a proposal. Delegate to yourself once to activate it. This is a one-time transaction.
         </MissingContentView>

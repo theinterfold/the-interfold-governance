@@ -1,10 +1,17 @@
 import { iVotesAbi } from "../plugins/crispVoting/artifacts/iVotes";
-import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { PUB_CHAIN, PUB_ENABLE_LOCKING, PUB_TOKEN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { useVeEscrow } from "@/plugins/velocker/hooks/useVeEscrow";
 import { type Address } from "viem";
 import { useReadContracts } from "wagmi";
 
 /** Returns the delegate (if any) for the given address */
 export const useTokenVotes = (address?: Address) => {
+  // With the velocker enabled, delegation state lives on the escrow's IVotes adapter — the
+  // token's own delegation feeds a read nothing consumes. The adapter address is resolved
+  // off the escrow on-chain.
+  const { adapter } = useVeEscrow();
+  const delegationSource = PUB_ENABLE_LOCKING ? adapter : PUB_TOKEN_ADDRESS;
+
   const { data, isLoading, isError, refetch } = useReadContracts({
     contracts: [
       {
@@ -12,11 +19,10 @@ export const useTokenVotes = (address?: Address) => {
         abi: iVotesAbi,
         functionName: "delegates",
         args: [address!],
-        address: PUB_TOKEN_ADDRESS,
+        address: delegationSource!,
       },
-      // Votes and balance come from the adapter: both include FOLD bonded as ciphernode
-      // collateral, which the token alone reports as zero because the registry never delegates
-      // it. `delegates` above stays on the token — the adapter has no delegation state.
+      // Votes and balance come from the BondedVotes adapter: both include FOLD bonded as
+      // ciphernode collateral and escrow-locked FOLD, which the token alone reports as zero.
       {
         chainId: PUB_CHAIN.id,
         abi: iVotesAbi,
@@ -32,7 +38,7 @@ export const useTokenVotes = (address?: Address) => {
         address: PUB_VOTING_POWER_SOURCE,
       },
     ],
-    query: { enabled: !!address },
+    query: { enabled: !!address && !!delegationSource },
   });
 
   return {

@@ -7,7 +7,7 @@ import { MissingContentView } from "@/components/MissingContentView";
 import { AddressText } from "@/components/text/address";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useDelegate } from "@/hooks/useDelegate";
-import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_ENABLE_LOCKING, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
@@ -61,8 +61,9 @@ export default function Delegation() {
           <Card>
             <p className="text-base font-semibold text-neutral-800">Activate your own voting power</p>
             <p className="text-sm text-neutral-500">
-              Delegate to yourself to vote with your {PUB_TOKEN_SYMBOL}. Voting power applies to proposals created after
-              you delegate.
+              {PUB_ENABLE_LOCKING
+                ? `Delegate to yourself to vote with your locked ${PUB_TOKEN_SYMBOL} — locks carry no voting power until delegated. Applies to all your locks, current and future.`
+                : `Delegate to yourself to vote with your ${PUB_TOKEN_SYMBOL}. Voting power applies to proposals created after you delegate.`}
             </p>
             <span>
               <Button
@@ -80,7 +81,9 @@ export default function Delegation() {
           <Card>
             <p className="text-base font-semibold text-neutral-800">Delegate to someone else</p>
             <p className="text-sm text-neutral-500">
-              Hand your voting power to another address. They vote on your behalf until you change it.
+              {PUB_ENABLE_LOCKING
+                ? `Hand your locks' voting power to another address. They vote on your behalf until you change it — your ${PUB_TOKEN_SYMBOL} stays yours, and starting a withdrawal takes the power back automatically.`
+                : "Hand your voting power to another address. They vote on your behalf until you change it."}
             </p>
             <InputText placeholder="0x… delegate address" value={target} onChange={(e) => setTarget(e.target.value)} />
             <span>

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { Button, InputNumber, Tag } from "@aragon/ods";
-import { formatUnits, parseUnits } from "viem";
+import { Button, InputNumber, InputText, Tag } from "@aragon/ods";
+import { formatUnits, isAddress, parseUnits, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PleaseWaitSpinner } from "@/components/please-wait";
@@ -42,6 +42,7 @@ export default function Locker() {
   } = useVeWithdraw(escrow.lockNft, onChanged);
 
   const [amountInput, setAmountInput] = useState("");
+  const [delegateTarget, setDelegateTarget] = useState("");
   const decimals = useTokenDecimals();
 
   const fmt = (v?: bigint) =>
@@ -144,6 +145,31 @@ export default function Locker() {
                 onClick={() => amount !== undefined && void createLock(amount)}
               >
                 Approve and lock
+              </Button>
+            </span>
+          </Card>
+
+          <Card>
+            <p className="text-base font-semibold text-neutral-800">Delegate your locks to someone else</p>
+            <p className="text-sm text-neutral-500">
+              Hand your locks&apos; voting power to another address — they vote with it until you change it. Your
+              {" " + PUB_TOKEN_SYMBOL} stays yours: only you can withdraw, and starting a withdrawal takes the power
+              back automatically. All your locks follow one delegate, and future locks follow it too.
+            </p>
+            <InputText
+              placeholder="0x… delegate address"
+              value={delegateTarget}
+              onChange={(e) => setDelegateTarget(e.target.value)}
+            />
+            <span>
+              <Button
+                size="md"
+                variant="secondary"
+                isLoading={delegation.isConfirming}
+                disabled={!isAddress(delegateTarget)}
+                onClick={() => delegation.delegate(delegateTarget as Address)}
+              >
+                Delegate locks
               </Button>
             </span>
           </Card>
