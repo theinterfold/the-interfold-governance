@@ -3,11 +3,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, IconType } from "@aragon/ods";
 import classNames from "classnames";
 import Link from "next/link";
-import { isAddress } from "viem";
+import { formatUnits, isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
-import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
+import {
+  PUB_DEPLOYMENT_BLOCK,
+  PUB_SPP_PRIVATE_ADDRESS,
+  PUB_SPP_PUBLIC_ADDRESS,
+  PUB_TOKEN_SYMBOL,
+} from "@/constants";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
@@ -36,12 +42,25 @@ const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
 export default function Proposals() {
   const { isConnected } = useAccount();
-  const { canCreate: canCreatePrivate } = useCanCreatePrivate();
-  const canCreatePublic = useCanCreatePublic();
+  const privateCreate = useCanCreatePrivate();
+  const publicCreate = useCanCreatePublic();
+  const decimals = useTokenDecimals();
   // A DAO can exist with no voting process yet (the phased mainnet rollout) — say so
   // explicitly instead of a generic empty state, and offer no create button.
   const noVotingPlugins = !isAddress(PUB_SPP_PRIVATE_ADDRESS) && !isAddress(PUB_SPP_PUBLIC_ADDRESS);
-  const canCreate = (canCreatePrivate || canCreatePublic) && !noVotingPlugins;
+  const canCreate = (privateCreate.canCreate || publicCreate.canCreate) && !noVotingPlugins;
+  const eligibilityKnown = !privateCreate.isLoading && !publicCreate.isLoading;
+  // The lowest configured threshold across the installed processes — the cheapest
+  // path to proposing, and the number worth showing an ineligible holder.
+  const minPower = [privateCreate.minProposerVotingPower, publicCreate.minProposerVotingPower]
+    .filter((v): v is bigint => v !== undefined)
+    .reduce<bigint | undefined>((min, v) => (min === undefined || v < min ? v : min), undefined);
+  const needsDelegation = privateCreate.needsDelegation || publicCreate.needsDelegation;
+  const ineligibleReason = needsDelegation
+    ? `You hold ${PUB_TOKEN_SYMBOL} but haven't delegated your voting power. Delegate (even to yourself) to submit proposals.`
+    : minPower !== undefined && decimals !== undefined
+      ? `Submitting proposals requires at least ${formatUnits(minPower, decimals)} ${PUB_TOKEN_SYMBOL} of delegated voting power.`
+      : `Your delegated voting power is below the minimum required to submit proposals.`;
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -134,13 +153,23 @@ export default function Proposals() {
           <div className="kicker mb-3">Governance</div>
           <h1 className="display-title">Proposals</h1>
         </div>
-        <div className="justify-self-end">
+        <div className="justify-self-end text-right">
           <If true={isConnected && canCreate}>
-            <Link href="#/new">
-              <Button iconLeft={IconType.PLUS} size="md" variant="primary">
-                Submit Proposal
-              </Button>
-            </Link>
+            <Then>
+              <Link href="#/new">
+                <Button iconLeft={IconType.PLUS} size="md" variant="primary">
+                  Submit Proposal
+                </Button>
+              </Link>
+            </Then>
+            <Else>
+              <If true={isConnected && !noVotingPlugins && eligibilityKnown}>
+                <Button iconLeft={IconType.PLUS} size="md" variant="primary" disabled={true}>
+                  Submit Proposal
+                </Button>
+                <p className="mt-2 max-w-xs text-sm text-neutral-500">{ineligibleReason}</p>
+              </If>
+            </Else>
           </If>
         </div>
       </div>

@@ -18,7 +18,7 @@ import { encodeActionsAsJson } from "@/utils/json-actions";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
-  const canCreate = useCanCreateProposal();
+  const { canCreate } = useCanCreateProposal();
   const [addActionType, setAddActionType] = useState<NewActionType>("");
   const {
     title,
