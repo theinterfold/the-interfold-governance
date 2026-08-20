@@ -95,6 +95,11 @@ safe-deploy-setup: ## Safe action: deploy a plugin setup via the CREATE2 deploye
 	forge script script/SafeActions.s.sol:SafeActionsScript \
 		--sig "deploySetupViaCreate2()" --rpc-url $$RPC_URL
 
+safe-deploy-crisp-and-repo: ## Safe action: CRISP impl + setup via CREATE2 + repo mint (one atomic batch)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "deployCrispStackAndRepo()" --rpc-url $$RPC_URL
+
 safe-create-repo: ## Safe action: mint the CRISP plugin repo with the Safe as maintainer
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	forge script script/SafeActions.s.sol:SafeActionsScript \

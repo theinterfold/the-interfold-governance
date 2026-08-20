@@ -23,14 +23,14 @@ export default function CreateProposal() {
             className={classNames("chip", { on: kind === "private" })}
             onClick={() => setKind("private")}
           >
-            Private · CRISP
+            Default · Private
           </button>
           <button
             type="button"
             className={classNames("chip", { on: kind === "public" })}
             onClick={() => setKind("public")}
           >
-            Public · Token
+            Fallback · Public
           </button>
         </div>
         <p className="mt-3 text-sm leading-normal text-neutral-500">

@@ -387,6 +387,63 @@ contract SafeActionsScript is WireSppScript {
         );
     }
 
+    /// @notice The whole CRISP publish — implementation, setup, and the PluginRepo mint — as ONE
+    ///         atomic Safe batch. The CREATE2 addresses are known before signing, so the repo
+    ///         mint can reference the setup that does not exist yet: by the time the third call
+    ///         runs, the first two have deployed it or the batch has reverted.
+    /// @dev The repo mint is a DIRECT call from the Safe, not wrapped in the Admin bootstrap:
+    ///      `createPluginRepoWithFirstVersion` is permissionless and takes the maintainer
+    ///      explicitly, so the caller carries no authority. Only the repo's own address remains
+    ///      unpredictable (the factory deploys it from its nonce) — read CRISP_PLUGIN_REPO from
+    ///      the PluginRepoRegistered event in the receipt.
+    function deployCrispStackAndRepo() external {
+        address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        bytes32 salt = vm.envOr("CRISP_STACK_SALT", bytes32("interfold-crisp-v1"));
+        address factory = vm.envAddress("PLUGIN_REPO_FACTORY_ADDRESS");
+        address safe = vm.envAddress("FOUNDATION_ADDRESS");
+        string memory subdomain = vm.envString("CRISP_REPO_SUBDOMAIN");
+
+        bytes memory implCode = type(CrispVoting).creationCode;
+        address impl = vm.computeCreate2Address(salt, keccak256(implCode), deployer);
+
+        bytes memory setupCode = bytes.concat(type(CrispVotingSetup).creationCode, abi.encode(impl));
+        address setup = vm.computeCreate2Address(salt, keccak256(setupCode), deployer);
+
+        address[] memory tos = new address[](3);
+        bytes[] memory datas = new bytes[](3);
+        tos[0] = deployer;
+        tos[1] = deployer;
+        tos[2] = factory;
+        datas[0] = bytes.concat(salt, implCode);
+        datas[1] = bytes.concat(salt, setupCode);
+        datas[2] = abi.encodeWithSignature(
+            "createPluginRepoWithFirstVersion(string,address,address,bytes,bytes)",
+            subdomain,
+            setup,
+            safe,
+            bytes("1"),
+            bytes("1")
+        );
+
+        console2.log("=== CRISP stack + repo via CREATE2 (Safe-signed, one atomic batch) ===");
+        console2.log("CrispVoting implementation:  %s", impl);
+        console2.log("CRISP_SETUP_ADDRESS=%s", setup);
+        console2.log("Repo subdomain:              %s", subdomain);
+        console2.log("After execution, read CRISP_PLUGIN_REPO from the PluginRepoRegistered event.");
+
+        _writeSafeBatchFile(
+            "10-deploy-crisp-stack-and-repo",
+            string.concat("Deploy the CRISP plugin stack and mint the repo '", subdomain, "'"),
+            "Three calls in one atomic batch: CREATE2-deploy the CrispVoting implementation and "
+            "CrispVotingSetup (whose constructor pins it), then mint the PluginRepo with its "
+            "first version pointing at that setup, maintained by this Safe. The CREATE2 "
+            "addresses depend only on salt and initcode, so they were verifiable before signing; "
+            "the mint reverts if the deploys did not land.",
+            tos,
+            datas
+        );
+    }
+
     /// @dev The multi-transaction sibling of `_writeSafeFile`: one Transaction Builder file whose
     ///      `transactions` array the Safe executes in order, atomically.
     function _writeSafeBatchFile(
