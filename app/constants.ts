@@ -27,6 +27,11 @@ export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_AD
 // Unset => the whole locking section is hidden (deployments where only wallet FOLD votes).
 export const PUB_VE_LOCKER_ADDRESS = (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "") as Address;
 export const PUB_ENABLE_LOCKING = !!PUB_VE_LOCKER_ADDRESS;
+// Block the escrow was deployed at — start of the exit-queue log scan. Falls back to the
+// token's deployment block (correct, just scans velocker-less history for nothing).
+export const PUB_VE_LOCKER_DEPLOYMENT_BLOCK = Number(
+  process.env.NEXT_PUBLIC_VE_LOCKER_DEPLOYMENT_BLOCK ?? process.env.NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK ?? 0
+);
 // Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
 // Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet

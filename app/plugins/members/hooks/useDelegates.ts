@@ -4,13 +4,11 @@ import { erc20Abi, parseAbiItem, type Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
 import { PUB_TOKEN_ADDRESS, PUB_TOKEN_DEPLOYMENT_BLOCK, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
+import { scanLogs } from "@/utils/logScan";
 
 const delegateChangedEvent = parseAbiItem(
   "event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate)"
 );
-
-// Keep each getLogs range small enough for public RPCs that cap eth_getLogs.
-const CHUNK = 9_000n;
 
 export type DelegateEntry = { address: Address; votingPower: bigint };
 
@@ -35,24 +33,17 @@ export function useDelegates() {
         setIsLoading(true);
         setError(null);
 
-        const latest = await publicClient.getBlockNumber();
-        const start = BigInt(PUB_TOKEN_DEPLOYMENT_BLOCK || 0);
-
         // 1. Collect every address that has ever been delegated to.
+        const logs = await scanLogs(
+          publicClient,
+          { address: PUB_TOKEN_ADDRESS, event: delegateChangedEvent },
+          BigInt(PUB_TOKEN_DEPLOYMENT_BLOCK || 0)
+        );
+        if (cancelled) return;
         const candidates = new Set<string>();
-        for (let from = start; from <= latest; from += CHUNK + 1n) {
-          const to = from + CHUNK > latest ? latest : from + CHUNK;
-          const logs = await publicClient.getLogs({
-            address: PUB_TOKEN_ADDRESS,
-            event: delegateChangedEvent,
-            fromBlock: from,
-            toBlock: to,
-          });
-          for (const log of logs) {
-            const toDelegate = (log.args as { toDelegate?: Address }).toDelegate;
-            if (toDelegate && toDelegate !== ADDRESS_ZERO) candidates.add(toDelegate.toLowerCase());
-          }
-          if (cancelled) return;
+        for (const log of logs) {
+          const toDelegate = (log.args as { toDelegate?: Address }).toDelegate;
+          if (toDelegate && toDelegate !== ADDRESS_ZERO) candidates.add(toDelegate.toLowerCase());
         }
 
         const addrs = Array.from(candidates) as Address[];

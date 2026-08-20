@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { parseAbiItem, type Address } from "viem";
 import { usePublicClient } from "wagmi";
-import { PUB_TOKEN_DEPLOYMENT_BLOCK, PUB_VE_LOCKER_ADDRESS } from "@/constants";
+import { PUB_VE_LOCKER_ADDRESS, PUB_VE_LOCKER_DEPLOYMENT_BLOCK } from "@/constants";
+import { scanLogs } from "@/utils/logScan";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
 import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
 import { lockNftAbi } from "../artifacts/lockNft";
@@ -10,9 +11,6 @@ import { exitQueueAbi } from "../artifacts/exitQueue";
 const exitQueuedEvent = parseAbiItem(
   "event ExitQueued(uint256 indexed tokenId, address indexed holder, uint256 exitDate)"
 );
-
-// Keep each getLogs range small enough for public RPCs that cap eth_getLogs.
-const CHUNK = 9_000n;
 
 export type OwnedLock = {
   tokenId: bigint;
@@ -105,23 +103,16 @@ export function useVeLocks(
         // 2. Locks in the exit queue: the NFT was transferred to the escrow, so enumeration by
         //    owner cannot see them. ExitQueued names the ticket holder; the live ticketHolder
         //    check drops anything since withdrawn or cancelled.
-        const latest = await publicClient.getBlockNumber();
-        const start = BigInt(PUB_TOKEN_DEPLOYMENT_BLOCK || 0);
+        const logs = await scanLogs(
+          publicClient,
+          { address: queue, event: exitQueuedEvent, args: { holder: address } },
+          BigInt(PUB_VE_LOCKER_DEPLOYMENT_BLOCK || 0)
+        );
+        if (cancelled) return;
         const candidateIds = new Set<bigint>();
-        for (let from = start; from <= latest; from += CHUNK + 1n) {
-          const to = from + CHUNK > latest ? latest : from + CHUNK;
-          const logs = await publicClient.getLogs({
-            address: queue,
-            event: exitQueuedEvent,
-            args: { holder: address },
-            fromBlock: from,
-            toBlock: to,
-          });
-          for (const log of logs) {
-            const tokenId = (log.args as { tokenId?: bigint }).tokenId;
-            if (tokenId !== undefined) candidateIds.add(tokenId);
-          }
-          if (cancelled) return;
+        for (const log of logs) {
+          const tokenId = (log.args as { tokenId?: bigint }).tokenId;
+          if (tokenId !== undefined) candidateIds.add(tokenId);
         }
 
         const queuedIds = Array.from(candidateIds);
