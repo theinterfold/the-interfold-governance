@@ -51,7 +51,7 @@ export const Navbar: React.FC = () => {
               "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
             )}
           >
-            <img src={PUB_PROJECT_LOGO} className="h-5 w-auto shrink-0" alt={PUB_APP_NAME + " logo"} />
+            <img src={PUB_PROJECT_LOGO} className="h-[17px] w-auto shrink-0" alt={PUB_APP_NAME + " logo"} />
           </Link>
 
           {/* Small center mark (decorative twin of the wordmark, so hidden from readers) */}
@@ -61,7 +61,7 @@ export const Navbar: React.FC = () => {
             tabIndex={-1}
             className="hidden justify-self-center opacity-90 transition-opacity hover:opacity-100 md:block"
           >
-            <img src="/interfold-symbol-on-mint.png" className="h-8 w-auto" alt="" />
+            <img src="/interfold-symbol-on-mint.png" className="h-[35px] w-auto" alt="" />
           </Link>
 
           {/* Links + actions */}

@@ -420,6 +420,17 @@ label div p.leading-tight {
   }
 }
 
+.lede-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--mint-line);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+.lede-link:hover {
+  text-decoration-color: var(--ink);
+}
+
 .hero-text-link {
   font-family: var(--font-mono);
   font-size: 11px;
