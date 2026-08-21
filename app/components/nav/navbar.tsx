@@ -40,55 +40,59 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <nav className="h-30 sticky top-0 z-[var(--hub-navbar-z-index)] flex w-full select-none items-center justify-center border-b border-b-neutral-800 bg-neutral-50">
-        <div className="w-full max-w-[1280px] flex-col gap-2 p-3 md:px-6 md:pb-0 lg:gap-3">
-          <div className="flex w-full items-center justify-between">
-            <div className="pb-3 lg:ml-10">
-              <Link
-                href="/"
-                className={classNames(
-                  "flex items-center gap-x-5 rounded-full py-2 md:rounded-lg",
-                  "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset" // focus styles
-                )}
-              >
-                <img src={PUB_PROJECT_LOGO} width="200" className="shrink-0" alt={PUB_APP_NAME + " logo"} />
-                {/* <span className="text-md leading-tight text-neutral-500">Secret ballots demo on</span>
-                <img src="/logo-aragon-text.svg" alt="Aragon" className="h-6" /> */}
-              </Link>
-              <div className="flex items-center gap-x-2"></div>
-            </div>
+      {/* One 63px bar, theinterfold.com-style: wordmark left, small mark center, links right. */}
+      <nav className="sticky top-0 z-[var(--hub-navbar-z-index)] w-full select-none border-b border-b-[var(--mint-line)] bg-[var(--mint)]">
+        <div className="mx-auto grid h-[63px] w-full max-w-[1440px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-6">
+          {/* Wordmark */}
+          <Link
+            href="/"
+            className={classNames(
+              "justify-self-start",
+              "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
+            )}
+          >
+            <img src={PUB_PROJECT_LOGO} className="h-5 w-auto shrink-0" alt={PUB_APP_NAME + " logo"} />
+          </Link>
 
-            <div className="flex items-center gap-x-2">
-              <If true={PUB_ENABLE_FAUCET}>
-                <div className="shrink-0">
-                  <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
-                    {isConfirming ? <Spinner size="sm" /> : "Faucet"}
-                  </Button>
-                </div>
-              </If>
+          {/* Small center mark (decorative twin of the wordmark, so hidden from readers) */}
+          <Link
+            href="/"
+            aria-hidden="true"
+            tabIndex={-1}
+            className="hidden justify-self-center opacity-90 transition-opacity hover:opacity-100 md:block"
+          >
+            <img src="/interfold-symbol-on-mint.png" className="h-8 w-auto" alt="" />
+          </Link>
+
+          {/* Links + actions */}
+          <div className="col-start-3 flex items-center gap-x-2 justify-self-end lg:gap-x-5">
+            <ul className="hidden items-center gap-x-8 md:flex">
+              {navLinks.map(({ id, name, path }) => (
+                <NavLink name={name} path={path} id={id} key={id} />
+              ))}
+            </ul>
+            <If true={PUB_ENABLE_FAUCET}>
               <div className="shrink-0">
-                <WalletContainer />
+                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
+                  {isConfirming ? <Spinner size="sm" /> : "Faucet"}
+                </Button>
               </div>
-
-              {/* Nav Trigger */}
-              <button
-                onClick={() => setShowMenu(true)}
-                className={classNames(
-                  "rounded-full border border-neutral-100 bg-neutral-0 p-1 md:hidden",
-                  "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset" // focus styles
-                )}
-              >
-                <AvatarIcon size="lg" icon={IconType.MENU} />
-              </button>
+            </If>
+            <div className="shrink-0">
+              <WalletContainer />
             </div>
-          </div>
 
-          {/* Tab wrapper */}
-          <ul className="hidden gap-x-10 md:flex lg:pl-10">
-            {navLinks.map(({ id, name, path }) => (
-              <NavLink name={name} path={path} id={id} key={id} />
-            ))}
-          </ul>
+            {/* Nav Trigger */}
+            <button
+              onClick={() => setShowMenu(true)}
+              className={classNames(
+                "rounded-full border border-neutral-100 bg-neutral-0 p-1 md:hidden",
+                "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
+              )}
+            >
+              <AvatarIcon size="lg" icon={IconType.MENU} />
+            </button>
+          </div>
         </div>
       </nav>
       <MobileNavDialog open={showMenu} navLinks={navLinks} onOpenChange={setShowMenu} />
