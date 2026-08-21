@@ -2,11 +2,10 @@ import { useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
 import { useProposal } from "@/plugins/crispVoting/hooks/useProposal";
 import { useProposalStatus } from "@/plugins/crispVoting/hooks/useProposalStatus";
-import { unixTimestampToDate } from "@/plugins/crispVoting/utils/formatProposalDate";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
 import { statusBucketOf } from "../utils/statusBucket";
-import { ProposalRow, capitalize } from "./proposalRow";
+import { ProposalRow, capitalize, rowTimingLabel } from "./proposalRow";
 
 import type { StatusBucket } from "../utils/statusBucket";
 
@@ -98,8 +97,7 @@ function PrivateRowBody({
   const endDate = Number(proposal.parameters.endDate) * 1000;
   const statusLabel = resolvedLabel ?? "";
   const statusClass = sppOverride?.className ?? (e3Failed ? "failed" : (proposalStatus ?? "").toString().toLowerCase());
-  const rightLabel =
-    isActive && endDate > Date.now() ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}` : statusLabel;
+  const rightLabel = rowTimingLabel({ isActive, endMs: endDate, statusLabel });
 
   const bars =
     totalVotes > 0n

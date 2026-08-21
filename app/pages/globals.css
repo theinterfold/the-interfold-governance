@@ -524,30 +524,47 @@ label div p.leading-tight {
   background: currentColor;
   display: inline-block;
 }
+.badge.pending {
+  background: rgb(var(--ods-color-neutral-100));
+  color: rgb(var(--ods-color-neutral-500));
+}
 .badge.active {
-  background: var(--mint-deep);
-  color: var(--ink-soft);
+  background: rgb(var(--ods-color-success-200));
+  color: rgb(var(--ods-color-success-800));
+}
+/* Stage-1 foundation window (approval or veto mode): amber. */
+.badge.foundation {
+  background: rgb(var(--ods-color-warning-100));
+  color: rgb(var(--ods-color-warning-700));
 }
 .badge.accepted {
   background: rgb(var(--ods-color-success-100));
   color: rgb(var(--ods-color-success-700));
 }
+/* Quieter green than Active: done, not happening. */
 .badge.executed {
-  background: var(--cream-line);
-  color: var(--ink-soft);
+  background: rgb(var(--ods-color-success-100));
+  color: rgb(var(--ods-color-success-600));
 }
 .badge.executable {
   background: rgb(var(--ods-color-info-100));
   color: rgb(var(--ods-color-info-700));
 }
-.badge.failed {
-  background: rgb(var(--ods-color-critical-100));
-  color: rgb(var(--ods-color-critical-700));
-}
+/* Terminal not-happening states: red, but a step down from full DANGER. */
+.badge.failed,
 .badge.rejected,
 .badge.expired {
-  background: rgb(var(--ods-color-warning-100));
-  color: rgb(var(--ods-color-warning-700));
+  background: rgb(var(--ods-color-critical-100));
+  color: rgb(var(--ods-color-critical-600));
+}
+
+.chip-group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
 }
 
 /* ---- Editorial proposal rows (list view) ---- */

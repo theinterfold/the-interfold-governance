@@ -153,14 +153,14 @@ export default function Proposals() {
             <Then>
               <Link href="#/new">
                 <Button iconLeft={IconType.PLUS} size="md" variant="primary">
-                  Submit Proposal
+                  Create proposal
                 </Button>
               </Link>
             </Then>
             <Else>
               <If true={isConnected && !noVotingPlugins && eligibilityKnown}>
                 <Button iconLeft={IconType.PLUS} size="md" variant="primary" disabled={true}>
-                  Submit Proposal
+                  Create proposal
                 </Button>
                 <p className="mt-2 max-w-xs text-sm text-neutral-500">{ineligibleReason}</p>
               </If>
@@ -182,6 +182,7 @@ export default function Proposals() {
           </MissingContentView>
         </Then>
         <Else>
+          <div className="chip-group-label">Type</div>
           <div className="chips">
             {FILTERS.map((f) => (
               <button
@@ -194,7 +195,8 @@ export default function Proposals() {
               </button>
             ))}
           </div>
-          <div className="chips mt-2">
+          <div className="chip-group-label mt-3">Status</div>
+          <div className="chips">
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}

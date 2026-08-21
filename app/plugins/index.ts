@@ -42,7 +42,7 @@ export const plugins: PluginItem[] = [
         {
           id: "members",
           folderName: "members",
-          title: "Delegation",
+          title: "Voting power",
           icon: IconType.APP_MEMBERS,
           pluginAddress: PUB_TOKEN_ADDRESS,
         },

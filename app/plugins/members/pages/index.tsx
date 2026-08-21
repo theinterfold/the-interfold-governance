@@ -31,7 +31,7 @@ export default function Delegation() {
       <div className="page-head w-full">
         <div>
           <div className="kicker mb-3">Membership</div>
-          <h1 className="display-title">Delegation</h1>
+          <h1 className="display-title">Voting power</h1>
         </div>
       </div>
 

@@ -70,6 +70,36 @@ export function ProposalRow(props: ProposalRowProps) {
   );
 }
 
+/** "Ends in 3h" / "Ends in 2d 4h" / "Ends in 12m" — the row's compact countdown. */
+export function formatEndsIn(endMs: number, nowMs = Date.now()): string {
+  const secs = Math.max(0, Math.floor((endMs - nowMs) / 1000));
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return `Ends in ${d}d${h ? ` ${h}h` : ""}`;
+  if (h > 0) return `Ends in ${h}h${m ? ` ${m}m` : ""}`;
+  return `Ends in ${Math.max(1, m)}m`;
+}
+
+/** The compact right-hand state line: countdown while voting, then what the proposal is waiting on. */
+export function rowTimingLabel(opts: {
+  isActive: boolean;
+  endMs: number;
+  statusLabel: string;
+  nowMs?: number;
+}): string {
+  const now = opts.nowMs ?? Date.now();
+  if (opts.isActive && opts.endMs > now) return formatEndsIn(opts.endMs, now);
+  if (opts.statusLabel === "Foundation Approval" || opts.statusLabel === "Veto period") {
+    return "Awaiting Foundation approval";
+  }
+  // Voting closed but no verdict rendered yet (tally pending / stage not advanced).
+  if (opts.endMs <= now && (opts.statusLabel === "Pending" || opts.statusLabel === "Active")) {
+    return "Voting ended";
+  }
+  return opts.statusLabel;
+}
+
 export function capitalize(s?: string): string {
   if (!s) return "";
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();

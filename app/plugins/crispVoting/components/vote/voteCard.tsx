@@ -86,8 +86,8 @@ export const VoteCard = ({
         {error && <p className="text-sm text-critical-500">{error}</p>}
 
         <p className="vp-note">
-          Submit your vote to the CRISP server. You can override it any time during the voting window. Results are
-          tallied by the Interfold network after the period ends.
+          Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
+          after the voting period ends.
         </p>
 
         {(isLoading || txHash || votingStep === "error" || votingStep === "complete") && (
@@ -215,7 +215,7 @@ export const VoteCard = ({
       <div className="privacy">
         <span className="dot" />
         <div>
-          Ballots are encrypted client-side and tallied inside a committee-controlled Encrypted Execution Environment
+          Ballots are encrypted client-side and tallied under encryption within an Encrypted Execution Environment
           (E3). Individual votes are <em>never</em> revealed.
         </div>
       </div>

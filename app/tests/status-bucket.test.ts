@@ -45,8 +45,9 @@ describe("statusBucketOf", () => {
     expect(statusBucketOf("Executed")).toBe("executed");
     expect(statusBucketOf("Executable")).toBe("accepted");
     expect(statusBucketOf("Accepted")).toBe("accepted");
-    expect(statusBucketOf("Veto period")).toBe("active");
-    expect(statusBucketOf("Approval period")).toBe("active");
+    expect(statusBucketOf("Veto period")).toBe("foundation");
+    expect(statusBucketOf("Foundation Approval")).toBe("foundation");
+    expect(statusBucketOf("Approval period")).toBe("foundation"); // legacy label, still bucketed
     expect(statusBucketOf("Vetoed")).toBe("rejected");
     expect(statusBucketOf("Expired")).toBe("rejected");
     expect(statusBucketOf("Canceled")).toBe("rejected");
@@ -75,7 +76,9 @@ describe("statusBucketOf", () => {
   });
 
   test("every declared bucket is reachable from some label", () => {
-    const reachable = new Set(["Pending", "Active", "Accepted", "Executed", "Rejected"].map((l) => statusBucketOf(l)));
+    const reachable = new Set(
+      ["Pending", "Active", "Foundation Approval", "Accepted", "Executed", "Rejected"].map((l) => statusBucketOf(l))
+    );
     for (const b of STATUS_BUCKETS) expect(reachable.has(b.value)).toBe(true);
   });
 });
@@ -111,7 +114,7 @@ describe("getSppStatusOverride", () => {
       { approvals: 0n, vetoes: 5n },
       stage("approval")
     );
-    expect(res?.label).toBe("Approval period");
+    expect(res?.label).toBe("Foundation Approval");
   });
 
   test("labels the open window per stage-1 mode", () => {
@@ -119,7 +122,7 @@ describe("getSppStatusOverride", () => {
       "Veto period"
     );
     expect(getSppStatusOverride(proposal(), SppProposalState.Active, noTally, stage("approval"))?.label).toBe(
-      "Approval period"
+      "Foundation Approval"
     );
   });
 

@@ -61,7 +61,7 @@ export function getSppStatusOverride(
     return { label: "Expired", className: "expired" };
   }
 
-  return { label: approvalMode ? "Approval period" : "Veto period", className: "active" };
+  return { label: approvalMode ? "Foundation Approval" : "Veto period", className: "foundation" };
 }
 
 /**

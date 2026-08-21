@@ -4,15 +4,16 @@
  *
  * Rows label themselves from two sources: the SPP-level override
  * (`getSppStatusOverride` — Executed / Canceled / Vetoed / Executable / Expired /
- * Veto period / Approval period) and, while stage 0 is undecided, the body-level `ProposalStatus`
+ * Veto period / Foundation Approval) and, while stage 0 is undecided, the body-level `ProposalStatus`
  * (Pending / Active / Executed / Executable / Accepted / Rejected). Both funnel
  * through here so private and public rows bucket identically.
  */
-export type StatusBucket = "pending" | "active" | "accepted" | "executed" | "rejected";
+export type StatusBucket = "pending" | "active" | "foundation" | "accepted" | "executed" | "rejected";
 
 export const STATUS_BUCKETS: { label: string; value: StatusBucket }[] = [
   { label: "Pending", value: "pending" },
   { label: "Active", value: "active" },
+  { label: "Foundation Approval", value: "foundation" },
   { label: "Accepted", value: "accepted" },
   { label: "Executed", value: "executed" },
   { label: "Rejected", value: "rejected" },
@@ -28,10 +29,12 @@ export function statusBucketOf(label?: string): StatusBucket | undefined {
     case "pending":
       return "pending";
     case "active":
-    // Stage 1 in flight, under either stage-1 mode.
+      return "active";
+    // Stage 1 in flight, under either stage-1 mode: the foundation window.
     case "veto period":
     case "approval period":
-      return "active";
+    case "foundation approval":
+      return "foundation";
     // Passed the vote but not yet executed on the DAO.
     case "accepted":
     case "executable":
