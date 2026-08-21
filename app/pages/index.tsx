@@ -3,7 +3,7 @@ import { useAccount } from "wagmi";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
 import Link from "next/link";
 import { plugins } from "@/plugins";
-import { PUB_CRISP_INFO_URL } from "@/constants";
+import { PUB_CRISP_INFO_URL, PUB_GET_FOLD_URL } from "@/constants";
 
 export default function StandardHome() {
   const { isConnected } = useAccount();
@@ -19,15 +19,6 @@ export default function StandardHome() {
       <div className="mx-auto w-full max-w-screen-xl px-6 py-20">
         {/* Serif marquee hero */}
         <div className="serif-hero">
-          <div className="rail">
-            <span className="num">№ 01</span>
-            <span className="vline" />
-            <span className="label">
-              Public &
-              <br />
-              private
-            </span>
-          </div>
           <h1>
             Govern in <span className="ital">public</span>, or by{" "}
             <span className="strike">
@@ -45,9 +36,9 @@ export default function StandardHome() {
           <div />
           <p className="lede">
             <span className="dropcap">T</span>he Interfold DAO supports both transparent onchain voting and private
-            voting with CRISP. Public proposals are voted and tallied openly onchain. For private proposals, ballots
-            are encrypted in your browser and computed under encryption. A committee of independent ciphernodes
-            participates in threshold decryption of the final tally, without exposing individual votes.
+            voting with CRISP. Public proposals are voted and tallied openly onchain. For private proposals, ballots are
+            encrypted in your browser and computed under encryption. A committee of independent ciphernodes participates
+            in threshold decryption of the final tally, without exposing individual votes.
           </p>
           <ul className="em-list self-center">
             <li>Public proposals: votes and tallies visible onchain</li>
@@ -57,26 +48,40 @@ export default function StandardHome() {
           </ul>
         </div>
 
-        {/* Actions */}
-        <div className="mt-14 flex flex-wrap items-center gap-3">
+        {/* The path into governance: acquire, activate, participate. */}
+        <div className="mt-14">
           {!isConnected && (
-            <Button size="lg" variant="primary" onClick={() => open()}>
-              Connect wallet
-            </Button>
+            <div className="mb-8">
+              <Button size="lg" variant="primary" onClick={() => open()}>
+                Connect wallet
+              </Button>
+            </div>
           )}
-          <Link href={proposalsHref}>
-            <Button size="lg" variant={isConnected ? "primary" : "tertiary"}>
-              View proposals
-            </Button>
-          </Link>
-          <Link href={votingPowerHref}>
-            <Button size="lg" variant={isConnected ? "secondary" : "tertiary"}>
-              Lock FOLD for voting power
-            </Button>
-          </Link>
-          <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="hero-text-link">
-            Learn how private voting works →
-          </a>
+          <div className="step-strip">
+            <a href={PUB_GET_FOLD_URL} target="_blank" rel="noreferrer" className="step">
+              <span className="step-title">Get FOLD</span>
+              <span className="step-desc">Acquire FOLD on Uniswap.</span>
+            </a>
+            <span className="step-arrow" aria-hidden="true">
+              →
+            </span>
+            <Link href={votingPowerHref} className="step">
+              <span className="step-title">Activate voting power</span>
+              <span className="step-desc">Lock FOLD and delegate it to activate governance weight.</span>
+            </Link>
+            <span className="step-arrow" aria-hidden="true">
+              →
+            </span>
+            <Link href={proposalsHref} className="step">
+              <span className="step-title">Govern</span>
+              <span className="step-desc">Vote on proposals. Eligible voters can also create proposals.</span>
+            </Link>
+          </div>
+          <div className="mt-8">
+            <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="hero-text-link">
+              Learn how private voting works →
+            </a>
+          </div>
         </div>
 
         {/* Quiet infrastructure credit, out of the main paragraph */}

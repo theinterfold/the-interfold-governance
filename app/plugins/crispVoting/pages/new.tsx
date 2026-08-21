@@ -189,9 +189,8 @@ export default function Create() {
           {/* Voting window — fixed by the stage configuration, shown for transparency. */}
           {durationSeconds !== undefined ? (
             <p className="mb-6 text-sm font-normal leading-normal text-neutral-500">
-              Voting runs for {Math.floor(durationSeconds / 86400)}d{" "}
-              {Math.floor((durationSeconds % 86400) / 3600)}h — the window is set by the governance process, not per
-              proposal.
+              Voting runs for {Math.floor(durationSeconds / 86400)}d {Math.floor((durationSeconds % 86400) / 3600)}h —
+              the window is set by the governance process, not per proposal.
             </p>
           ) : null}
 

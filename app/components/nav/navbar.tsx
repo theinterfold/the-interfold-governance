@@ -17,7 +17,7 @@ export const Navbar: React.FC = () => {
   const { addAlert } = useAlerts();
 
   const navLinks: INavLink[] = [
-    { path: "/", id: "dashboard", name: "Dashboard" /*, icon: IconType.APP_DASHBOARD*/ },
+    { path: "/", id: "home", name: "Home" /*, icon: IconType.APP_DASHBOARD*/ },
     ...plugins.map((p) => ({
       id: p.id,
       name: p.title,

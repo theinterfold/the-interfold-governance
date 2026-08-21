@@ -18,6 +18,8 @@ import { useCreateLock } from "../hooks/useCreateLock";
 import { useVeDelegation } from "../hooks/useVeDelegation";
 import { useVeWithdraw } from "../hooks/useVeWithdraw";
 import { useVotingPowerBreakdown } from "../hooks/useVotingPowerBreakdown";
+import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
+import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 
 const DAY = 86_400;
 
@@ -35,6 +37,16 @@ export default function Locker() {
   };
   const delegation = useVeDelegation(address, escrow.adapter, onChanged);
   const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes);
+  // Proposal eligibility mirrors the on-chain create gates (delegated votes vs
+  // minProposerVotingPower); the shown minimum is the cheapest path across the
+  // installed processes, same as the proposals page.
+  const privateCreate = useCanCreatePrivate();
+  const publicCreate = useCanCreatePublic();
+  const eligibilityKnown = !privateCreate.isLoading && !publicCreate.isLoading;
+  const canPropose = privateCreate.canCreate || publicCreate.canCreate;
+  const minProposalPower = [privateCreate.minProposerVotingPower, publicCreate.minProposerVotingPower]
+    .filter((v): v is bigint => v !== undefined)
+    .reduce<bigint | undefined>((min, v) => (min === undefined || v < min ? v : min), undefined);
   const { balance, createLock, isLocking, error: lockError } = useCreateLock(onChanged);
   const {
     beginWithdrawal,
@@ -83,7 +95,9 @@ export default function Locker() {
         <p>Voting power comes from {PUB_TOKEN_SYMBOL} that is committed, not just held:</p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>Lock {PUB_TOKEN_SYMBOL} to create a voting position only you can withdraw.</li>
-          <li>Delegate your locked {PUB_TOKEN_SYMBOL} — to yourself or someone you trust — to activate its voting power.</li>
+          <li>
+            Delegate your locked {PUB_TOKEN_SYMBOL} — to yourself or someone you trust — to activate its voting power.
+          </li>
           <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
           <li>
             Unlock any time: start the withdrawal, wait out the {cooldownDays ?? 30}-day cooldown, then claim your{" "}
@@ -92,6 +106,9 @@ export default function Locker() {
         </ul>
         <p className="mt-3 font-semibold">
           Each committed {PUB_TOKEN_SYMBOL} counts 1:1 toward voting power, whether locked, bonded, or vesting.
+        </p>
+        <p className="mt-1">
+          Voting power determines your weight in governance and whether you meet the threshold to create a proposal.
         </p>
       </div>
 
@@ -112,6 +129,19 @@ export default function Locker() {
                 <Row label="Vesting" value={fmt(breakdown.vesting)} />
               </div>
             )}
+            <Row
+              label="Proposal eligibility"
+              value={
+                !eligibilityKnown ? (
+                  "—"
+                ) : canPropose ? (
+                  <span className="text-success-600">Eligible</span>
+                ) : (
+                  <span className="text-neutral-500">Not eligible</span>
+                )
+              }
+            />
+            <Row label="Minimum required" value={fmt(minProposalPower)} />
             <Row
               label="Lock delegation"
               value={

@@ -7,12 +7,7 @@ import { formatUnits, isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
-import {
-  PUB_DEPLOYMENT_BLOCK,
-  PUB_SPP_PRIVATE_ADDRESS,
-  PUB_SPP_PUBLIC_ADDRESS,
-  PUB_TOKEN_SYMBOL,
-} from "@/constants";
+import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";

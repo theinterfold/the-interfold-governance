@@ -247,36 +247,8 @@ label div p.leading-tight {
 /* Serif marquee hero */
 .serif-hero {
   display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 28px;
+  grid-template-columns: 1fr;
   padding-top: 8px;
-}
-.serif-hero .rail {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-top: 16px;
-}
-.serif-hero .rail .num {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  color: var(--ink-soft);
-}
-.serif-hero .rail .vline {
-  width: 1px;
-  height: 96px;
-  background: var(--rule);
-  margin: 12px 0 12px 14px;
-}
-.serif-hero .rail .label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--muted);
-  max-width: 6ch;
-  line-height: 1.4;
 }
 .serif-hero h1 {
   font-family: var(--font-serif);
@@ -374,21 +346,6 @@ label div p.leading-tight {
 }
 
 @media (max-width: 820px) {
-  .serif-hero {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .serif-hero .rail {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding-top: 0;
-  }
-  .serif-hero .rail .vline {
-    width: 40px;
-    height: 1px;
-    margin: 0 4px;
-  }
   .hero-body-grid {
     grid-template-columns: 1fr;
   }
@@ -418,6 +375,51 @@ label div p.leading-tight {
 }
 
 /* Inline text link beside the hero buttons */
+/* The 01 → 02 → 03 governance path on the homepage. */
+.step-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.step-strip .step {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--rule);
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+.step-strip .step:hover {
+  border-color: var(--ink);
+}
+.step-strip .step-title {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.step-strip .step-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.step-strip .step-arrow {
+  align-self: center;
+  font-family: var(--font-mono);
+  color: var(--ink-soft);
+}
+@media (max-width: 720px) {
+  .step-strip {
+    flex-direction: column;
+  }
+  .step-strip .step-arrow {
+    display: none;
+  }
+}
+
 .hero-text-link {
   font-family: var(--font-mono);
   font-size: 11px;

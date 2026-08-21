@@ -1,5 +1,11 @@
 import { expect, test, describe } from "bun:test";
-import { RATIO_BASE, computeQuorum, tallyCountToTokens, voteScale, meetsSupportThreshold } from "@/plugins/crispVoting/utils/quorum";
+import {
+  RATIO_BASE,
+  computeQuorum,
+  tallyCountToTokens,
+  voteScale,
+  meetsSupportThreshold,
+} from "@/plugins/crispVoting/utils/quorum";
 import { CreditsMode } from "@/plugins/crispVoting/utils/types";
 
 /**

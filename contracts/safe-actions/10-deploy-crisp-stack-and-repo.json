@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "chainId": "1",
-  "createdAt": 1787258747000,
+  "createdAt": 1787267735000,
   "meta": {
     "name": "Deploy the CRISP plugin stack and mint the repo 'interfold-crisp'",
     "description": "Three calls in one atomic batch: CREATE2-deploy the CrispVoting implementation and CrispVotingSetup (whose constructor pins it), then mint the PluginRepo with its first version pointing at that setup, maintained by this Safe. The CREATE2 addresses depend only on salt and initcode, so they were verifiable before signing; the mint reverts if the deploys did not land.",
