@@ -137,6 +137,12 @@ export const VoteCard = ({
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
+        {!onChangeSubmitOnChain && submitOnChain && (
+          <p className="pt-2 text-xs text-neutral-500">
+            Your ballot is encrypted locally and submitted on-chain by your wallet (you pay gas).
+            {canPublishOnChain === false && onChainBlockedReason ? ` ${onChainBlockedReason}` : ""}
+          </p>
+        )}
         {onChangeSubmitOnChain && (
           <div className="flex flex-col gap-y-1 pt-2">
             <label className="flex items-center gap-x-2 text-sm text-neutral-600">

@@ -17,6 +17,15 @@ import { type CanCreateProposal, useCanCreateProposal } from "../hooks/useCanCre
 import { useCreateProposal } from "../hooks/useCreateProposal";
 import { useDelegate } from "@/hooks/useDelegate";
 
+/** "5d", "1d 2h", "20m" — only the units that are non-zero, so short testnet windows stay legible. */
+function formatWindow(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const parts = [d ? `${d}d` : "", h ? `${h}h` : "", m ? `${m}m` : ""].filter(Boolean);
+  return parts.length ? parts.join(" ") : `${seconds}s`;
+}
+
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
   const canCreateState = useCanCreateProposal();
@@ -189,8 +198,8 @@ export default function Create() {
           {/* Voting window — fixed by the stage configuration, shown for transparency. */}
           {durationSeconds !== undefined ? (
             <p className="mb-6 text-sm font-normal leading-normal text-neutral-500">
-              Voting runs for {Math.floor(durationSeconds / 86400)}d {Math.floor((durationSeconds % 86400) / 3600)}h —
-              the window is set by the governance process, not per proposal.
+              Voting runs for {formatWindow(durationSeconds)} — the window is set by the governance process, not per
+              proposal.
             </p>
           ) : null}
 

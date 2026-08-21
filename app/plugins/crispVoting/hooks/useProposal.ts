@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useBlockNumber, useReadContract } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { useMetadata } from "@/hooks/useMetadata";
 import { getAbiItem, fromHex } from "viem";
 import { publicClient } from "../utils/client";
@@ -131,7 +131,10 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
         address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
         event: ProposalCreatedEvent,
         args: { proposalId },
-        fromBlock: snapshotBlock,
+        // INV-19: `snapshotBlock` is in the token's ERC-6372 clock units — a TIMESTAMP for
+        // FOLD (mode=timestamp) — so it must never be used as a block tag. Scan from the
+        // plugin deployment block instead; no proposal can precede it.
+        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
       })
       .then((logs) => {
         if (!logs?.length) return;

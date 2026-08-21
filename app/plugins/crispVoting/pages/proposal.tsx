@@ -1,4 +1,5 @@
 import { useProposal } from "../hooks/useProposal";
+import { PUB_CHAIN } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { BodySection } from "@/components/proposal/proposalBodySection";
@@ -60,7 +61,11 @@ function ProposalDetailBody({
   spp: ReturnType<typeof useSppProposal>;
 }) {
   const { address } = useAccount();
-  const [submitOnChain, setSubmitOnChain] = useState(false);
+  // Mainnet offers no relayer route for now: ballots go on-chain from the voter's wallet,
+  // and the toggle is hidden. Testnets keep the choice.
+  const directOnly = PUB_CHAIN.id === 1;
+  const [submitOnChainChoice, setSubmitOnChainChoice] = useState(false);
+  const submitOnChain = directOnly ? true : submitOnChainChoice;
   const {
     proposal,
     isCommitteeReady,
@@ -171,7 +176,7 @@ function ProposalDetailBody({
                 canPublishOnChain={canPublishOnChain}
                 onChainBlockedReason={onChainBlockedReason}
                 submitOnChain={submitOnChain}
-                onChangeSubmitOnChain={setSubmitOnChain}
+                onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
                 onClickMask={onMask}
                 proposalId={proposalIdx}
                 votingStep={votingStep}
