@@ -197,7 +197,10 @@ contract SafeActionsScript is WireSppScript {
         uint16 build = uint16(vm.envOr(string.concat(prefix, "_BUILD"), uint256(1)));
         bytes memory installData = vm.envBytes(string.concat(prefix, "_INSTALL_DATA"));
 
-        _emit(
+        // DIRECT, not Admin-wrapped: prepareInstallation is permissionless and touches nothing
+        // the DAO owns, so routing it through the bootstrap would spend an Admin proposal for
+        // no benefit — and would stop a plain EOA from broadcasting the emitted calldata.
+        _emitDirect(
             slug,
             string.concat("Prepare installation of ", prefix),
             "Deploys the plugin proxy and records a prepared setup. The DAO is unchanged until the "

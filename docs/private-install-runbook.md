@@ -1,134 +1,125 @@
 # Private process install runbook (mainnet, phase 2)
 
-Installs the **private CRISP process** (CrispVoting body + private SPP) into the live mainnet DAO
-(`0x652a…679e`), driven entirely by the foundation Safe (`0x8B43…F593`). The Admin bootstrap is
-still armed on purpose (INV-29 deferred); every DAO-touching step below is emitted as a Safe
-Transaction Builder file that wraps `admin.executeProposal`.
+Installs the **Interfold Protocol Proposal (IPP)** process — receipt-free secret-ballot voting
+using CRISP — into the live mainnet DAO (`0x652a31c669f9AB37f6040f279139a75D04F2679e`). Two
+stages, mirroring the public process: **5 days of FOLD-holder voting** (encrypted CRISP ballots,
+2% quorum, >51% support, bonded and vesting-locked FOLD carry weight) followed by a **5-day
+Interfold Foundation approval window**. Approved proposals execute on the DAO.
 
-Every `make` command takes `ENV_FILE=.env.mainnet` (your working copy of
-`.env.mainnet.install`). Files land in `contracts/safe-actions/`.
+Everything in this file is self-contained: current on-chain state, what remains, who signs what,
+and how to verify. All `make` commands run from `contracts/` with `ENV_FILE=.env.mainnet` (your
+copy of the committed `.env.mainnet.install`); emitted Safe files land in
+`contracts/safe-actions/`.
 
-## Already done — verified on chain 2026-08-22
+---
 
-- **The CRISP publish is live.** Safe tx
-  `0xc3a6a5d11c1d74d68dd233d326f115f83c1ec59185175f67d996af289c19402b` (block 25804435) executed
-  the atomic batch: `CrispVoting` implementation at
-  `0x8eF90e60d2E7A176D05fc0E6329d00c224cc63a3`, `CrispVotingSetup` at
-  `0x268ea81376dB1f25a44DD8ac4D97487e1DcE8244`, and the `interfold-crisp.plugin.dao.eth` repo at
-  **`0x3C9F0abB016da5c1CCf944DDdfd2A04dd43415a1`** (Safe is maintainer; release 1 build 1
-  verified to point at the setup).
-- **The Interfold coordinator is live**:
-  `INTERFOLD_ADDRESS = 0x28cF63B459e6218C69EA97ea7D90541cf648c715` — `feeToken()` is **USDS**
-  (`0xdC035D45d973E3EC169d2276DDab16f1e407384F`, so the proposal-fee escrow holds USDS),
-  `activeCryptoConfigId` is set, `e3RefundManager` is `0x1940eF168f4E0B3dA24BEca539856684793B0F6e`.
-- All of the above, plus the Sepolia-proven E3 params (`COMMITTEE_SIZE`, `PARAM_SET`,
-  `COMPUTE_PROVIDER_PARAMS` = RISC0) and the private-SPP repo refs, are **already committed in
-  `.env.mainnet.install`**.
+## Current state — verified on chain 2026-08-22
 
-## The ONE remaining blocker
+| What | Where |
+| --- | --- |
+| DAO | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
+| Foundation Safe (Admin driver) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
+| CrispVoting implementation | `0x8eF90e60d2E7A176D05fc0E6329d00c224cc63a3` |
+| CrispVotingSetup | `0x268ea81376dB1f25a44DD8ac4D97487e1DcE8244` |
+| CRISP PluginRepo (`interfold-crisp.plugin.dao.eth`) | `0x3C9F0abB016da5c1CCf944DDdfd2A04dd43415a1` — release 1 build 1 → the setup; Safe is maintainer. Minted in tx `0xc3a6a5d11c1d74d68dd233d326f115f83c1ec59185175f67d996af289c19402b` |
+| Interfold coordinator | `0x28cF63B459e6218C69EA97ea7D90541cf648c715` — `feeToken()` = **USDS** (`0xdC03…384F`), so the proposal-fee escrow holds USDS; `activeCryptoConfigId` set; refund manager `0x1940…0F6e` |
+| CRISP E3 program | `0x847A22303639017bcDB7F7E49EEa4a4629c1169f` — bytecode verified as the same build as the Sepolia program modulo chain immutables; NOT the mock. Pinned at install, not updatable (INV-36) |
+| Process metadata (pinned) | `ipfs://QmSEYaoXRLu2ut2aBkCB527cLQV5ow1JUij4HxkRYXBd2Y` — "Interfold Protocol Proposal", key `IPP` |
+| Prepare files | `safe-actions/22-prepare-crisp.json`, `23-prepare-spp-private.json` — generated, embedded values verified (program, coordinator, BondedVotes, repo, IPP metadata URI, 2% / 51% / 5-day / RISC0 params) |
 
-```bash
-CRISP_PROGRAM_ADDRESS=""   # the REAL CRISP E3 program on mainnet — the ONLY missing value
-```
+Every input above is already committed in `.env.mainnet.install` — including the install-data
+blobs — so the remaining steps are execution, not configuration. The Admin bootstrap is still
+armed on purpose (INV-29 deferred); the final install is one `admin.executeProposal` signed by
+the foundation Safe.
 
-The deployments manifest lists only `MockE3Program`
-(`0x4976E5E47852eFCe6851d35B95A1A2E19456F3D7`, `mocks: true`). **Never point production at the
-mock** — the program address is pinned at install and cannot be updated (INV-36); a wrong value
-means a full reinstall. Also confirm with the Interfold team that the committed E3 params
-(committee size 0, param set 0, RISC0 compute provider) are the intended mainnet values — the
-install data embeds them.
+## Voting rules being installed
 
-### 1. Env additions (`.env.mainnet`)
+- Quorum **2%** of total FOLD supply at the snapshot (`MINIMUM_PARTICIPATION=2`, RATIO_BASE 100).
+- Support: yes must **strictly exceed 51%** of yes+no (`SUPPORT_THRESHOLD=51`); abstain counts
+  toward quorum, never toward support. Public-body parity (TokenVoting runs 510000 ppm).
+- Stage 0: **5 days** of encrypted voting (`SPP_PRIVATE_VOTE_DURATION=432000`, equal to the
+  plugin's own `MINIMUM_DURATION` floor — INV-37), +7 days to advance a passed vote.
+- Stage 1: **5 days** foundation approval (approval mode: 2d + 3d summed into `maxAdvance`;
+  silence past it = expiry = rejection). Both quorum and support are frozen per proposal at
+  creation (INV-33).
 
-```bash
-CRISP_PROGRAM_ADDRESS="0x…"        # the real CRISP E3 program, once deployed
-```
+---
 
-Already present and correct in the committed snapshot — do not change: `MINIMUM_PARTICIPATION="2"`
-(2% quorum), `SUPPORT_THRESHOLD="51"` (>51% of yes+no, public-body parity),
-`MINIMUM_DURATION="432000"` and `SPP_PRIVATE_VOTE_DURATION="432000"` (equal on purpose — INV-37:
-the wiring refuses a stage window below the plugin floor), `MINIMUM_PROPOSER_VOTING_POWER="0"`
-(the SPP's condition gates creators), `CRISP_SETUP_ADDRESS`, `CRISP_REPO_SUBDOMAIN`.
+## Remaining steps
 
-Sanity check before proceeding (any RPC):
+### Step 1 — execute the two prepare transactions
 
-```bash
-cast code $CRISP_PROGRAM_ADDRESS   # must have code, and must NOT be the MockE3Program address
-```
+`22-prepare-crisp.json` and `23-prepare-spp-private.json` are **direct, permissionless**
+`prepareInstallation` calls to the PluginSetupProcessor (`0xE978942c691e43f65c1B7c7F8f1dc8cDF061B13f`).
+They deploy the two plugin proxies and record prepared setups; **the DAO is untouched** until the
+apply in step 3, so nothing here needs DAO authority.
 
-### 2. Metadata — already pinned
+Either channel works — pick one:
 
-`contracts/metadata/private-process.json` is pinned and committed in the env:
-`SPP_PRIVATE_METADATA_URI="ipfs://QmanRRpanrAZ79LDjZDHoSKz4RXYFu3CyUeNh1egN89n9T"`
-("Interfold Governance Proposal: Confidential", key `IGPC` — verified retrievable). Re-pin and
-regenerate only if the JSON changes.
+- **Foundation Safe** (uniform "everything from the Safe" story): load each JSON into the Safe
+  Transaction Builder and execute. No particular order, no bundling needed.
+- **Any funded EOA** (fewer signing ceremonies): `make broadcast-prepares ENV_FILE=.env.mainnet`
+  sends both and prints the tx hashes.
 
-There is no CRISP body metadata at install time (unlike TokenVoting, the setup takes none). The
-body carries the same DAO-governed `setMetadata` surface as the SPP, so it can be named later by
-a governance action if the Aragon app should display one.
+### Step 2 — read the receipts back into the env
 
-### 3. Generate the install data + both prepare files — one command
+The apply re-derives each prepared setup id from the plugin address, permission set and helpers
+hash carried by the `InstallationPrepared` events — these are parsed from the receipts, never
+transcribed by hand:
 
 ```bash
-cd contracts
-make safe-prepare-private ENV_FILE=.env.mainnet
+make read-prepared ENV_FILE=.env.mainnet TX=0x<tx-of-22> PLUGIN_PREFIX=CRISP        >> .env.mainnet
+make read-prepared ENV_FILE=.env.mainnet TX=0x<tx-of-23> PLUGIN_PREFIX=SPP_PRIVATE  >> .env.mainnet
 ```
 
-This refuses to run until `CRISP_PROGRAM_ADDRESS` and `SPP_PRIVATE_METADATA_URI` are set, then
-generates the install data (the CRISP blob embeds the coordinator, program, E3 params and voting
-settings — regenerate if any change) and emits `22-prepare-crisp.json` +
-`23-prepare-spp-private.json`. Append the two printed `*_INSTALL_DATA=` lines to `.env.mainnet`
-for the record.
+(The prepare txs are public; whoever runs this step can take the hashes straight off the block
+explorer.)
 
-### 4. Broadcast the prepares yourself — the foundation is NOT involved
-
-The prepare files are DIRECT, permissionless `psp.prepareInstallation` calls that touch nothing
-the DAO owns, so any funded EOA sends them — no Safe signatures, no round-trip:
-
-```bash
-make broadcast-prepares ENV_FILE=.env.mainnet   # sends both from PRIVATE_KEY, prints the tx hashes
-make read-prepared ENV_FILE=.env.mainnet TX=0x<prepare-crisp-tx>       PLUGIN_PREFIX=CRISP        >> .env.mainnet
-make read-prepared ENV_FILE=.env.mainnet TX=0x<prepare-spp-private-tx> PLUGIN_PREFIX=SPP_PRIVATE  >> .env.mainnet
-```
-
-(`read-prepared` parses the `InstallationPrepared` events, so the values `applyInstallation`
-re-derives its setup id from are never transcribed by hand.)
-
-### 5. ONE atomic apply + wire
+### Step 3 — generate the ONE transaction the foundation signs
 
 ```bash
 make safe-install-private ENV_FILE=.env.mainnet
 ```
 
-Emits `safe-actions/24-install-and-wire-private-process.json` — **the ONE thing the foundation
-receives.** A single `admin.executeProposal` containing, in order: temporary ROOT to the PSP →
-`applyInstallation` (CRISP body) → `applyInstallation` (private SPP) → ROOT revoked → private
-stage config → `CREATE_PROPOSAL` on the body granted to the SPP only (INV-3) → body pointed at
-the delegatecall Executor (INV-5). **Never split these across transactions**: an
-applied-but-unwired SPP holds `EXECUTE` on the DAO with no stage configuration.
+Emits **`safe-actions/24-install-and-wire-private-process.json`** — a single
+`admin.executeProposal` on the Admin plugin (`0xf21E25455988887ee797050080141EBa67b33920`)
+containing, atomically and in order:
 
-Hand them the JSON to load into the Safe Transaction Builder — or, if they prefer raw calldata,
-the command also prints the exact `to` (the Admin plugin) and `data` to the console; the file
-carries the same bytes, so either channel can be verified against the other.
+1. grant ROOT on the DAO → PluginSetupProcessor (opens the install window)
+2. `applyInstallation` — CRISP body
+3. `applyInstallation` — private SPP (the SPP holds `EXECUTE` on the DAO from this instant)
+4. revoke ROOT from the PSP (closes the install window)
+5. `updateStages` on the private SPP — the 5-day vote + 5-day approval config
+6. grant `CREATE_PROPOSAL` on the body to the SPP **only** (INV-3)
+7. point the body at the delegatecall Executor `0x56ce4D8006292Abf418291FaE813C1E3769240A4` (INV-5)
 
-It does **not** disarm the Admin bootstrap.
+**This must stay one transaction.** Split apart, there is a window where the applied SPP holds
+`EXECUTE` on the DAO with no stage configuration. It does **not** disarm the Admin bootstrap.
 
-### 6. Verify (SECURITY.md runbook)
+Hand the foundation the JSON for the Safe Transaction Builder — the command also prints the
+identical `to` + `data` to the console, so raw calldata can be cross-checked against the file.
 
-- `EXECUTE_PERMISSION` on the DAO: **both SPPs true; CRISP body, TokenVoting, Admin plugin,
-  every EOA false.**
-- CRISP body: `getVotingToken()` = BondedVotes (`0x028d…b43E`), `supportThreshold()` = 51,
-  `minParticipation()` = 2, `getTargetConfig()` = (Executor `0x56ce…40A4`, DelegateCall).
-- Private SPP stage 0: `voteDuration` 432000, `minAdvance` 0 (INV-9); stage 1 approval mode
-  (`vetoThreshold` 0, INV-10).
-- **Before real use**: fork-simulate a full private proposal (create → vote → tally → execute)
-  against the live coordinator, the way `simulate-public-governance` covers the public path —
-  the CRISP fee/refund flow has only ever run against mocks and testnet.
+### Step 4 — verify (SECURITY.md runbook)
 
-### 7. Afterwards (separate, deliberate steps)
+After execution, confirm on chain:
 
-- App env: `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS`, `NEXT_PUBLIC_SPP_PRIVATE_ADDRESS` (from
-  the read-prepared values), `NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS`, the CRISP server URL, and the
-  fee-token address — the create flow also needs the CRISP server tracking this deployment.
-- `make disarm-admin ENV_FILE=.env.mainnet` — INV-29's deferred disarm, only once everything is
-  confirmed working. Rotation state first: exactly one driver on the Admin plugin (INV-31).
+- `EXECUTE_PERMISSION` on the DAO: **both SPPs true; CRISP body, TokenVoting, Admin plugin, and
+  every EOA false** (INV-2).
+- CRISP body: `getVotingToken()` = BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`,
+  `supportThreshold()` = 51, `minParticipation()` = 2, `getTargetConfig()` =
+  (`0x56ce…40A4`, DelegateCall).
+- Private SPP stage 0: `voteDuration` 432000, `minAdvance` 0 (INV-9); stage 1:
+  `vetoThreshold` 0 ⇒ approval mode (INV-10), 5-day window.
+- **Before announcing**: fork-simulate one full private proposal (create → vote → tally →
+  execute) against the live coordinator — the USDS fee escrow and refund path have only ever run
+  against mocks and testnet.
+
+### Step 5 — afterwards (separate, deliberate steps)
+
+- **App env**: `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS` and `NEXT_PUBLIC_SPP_PRIVATE_ADDRESS`
+  (the read-prepared values), `NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS=0x847A…169f`,
+  `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS` (USDS), and the production CRISP server URL — the
+  create flow also needs the CRISP server tracking this deployment.
+- **Disarm**: `make disarm-admin ENV_FILE=.env.mainnet` — INV-29's deferred disarm, only once
+  everything is confirmed working. Check rotation state first: exactly one address may hold
+  `EXECUTE_PROPOSAL_PERMISSION` on the armed Admin plugin (INV-31).

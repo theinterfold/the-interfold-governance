@@ -1,7 +1,7 @@
 {
-  "name": "Interfold Governance Proposal: Confidential",
-  "description": "FOLD-holder voting over 5 days — bonded and vesting-locked FOLD carry weight — followed by a 5-day Interfold Foundation approval window. Approved proposals execute on the DAO.",
+  "name": "Interfold Protocol Proposal",
+  "description": "Receipt-free secret-ballot voting using CRISP. FOLD-holder voting over 5 days — bonded and vesting-locked FOLD carry weight — followed by a 5-day Interfold Foundation approval window. Approved proposals execute on the DAO.",
   "links": [],
-  "processKey": "IGPC",
+  "processKey": "IPP",
   "stageNames": ["Token holder voting", "Foundation approval"]
 }
