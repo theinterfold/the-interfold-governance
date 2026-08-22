@@ -11,7 +11,8 @@ import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProc
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import {IAdmin, WireSppScript} from "./WireSpp.s.sol";
+import {IAdmin, ISpp, IPluginTarget, WireSppScript} from "./WireSpp.s.sol";
+import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 
 /// @dev The DAO permission surface this script touches. Declared locally rather than imported so
 ///      the file does not depend on the full DAO interface.
@@ -238,6 +239,96 @@ contract SafeActionsScript is WireSppScript {
             withPrivate ? "Wire the private and public SPP processes" : "Wire the public SPP process",
             "Stages, CREATE_PROPOSAL grants and target config, as one atomic execution. Does NOT "
             "disarm the Admin bootstrap - run that separately once installation is finished.",
+            actions
+        );
+    }
+
+    /// @notice The private sibling of `InstallPublicProcess.emitApplyAndWire`: ONE atomic Safe
+    ///         file that installs AND wires the private process. Ordering:
+    ///           1. grant ROOT on the DAO -> PSP            opens the install window
+    ///           2. applyInstallation(CRISP body)           installs the body (no dangerous grants:
+    ///                                                      the SPP-body shape grants no
+    ///                                                      CREATE_PROPOSAL and no EXECUTE)
+    ///           3. applyInstallation(SPP private)          SPP installed; holds EXECUTE from here
+    ///           4. revoke ROOT on the DAO from PSP         closes the install window
+    ///           5. spp.updateStages(private stages)        an SPP with no stages must never sit
+    ///                                                      applied-but-unwired holding EXECUTE
+    ///           6. grant CREATE_PROPOSAL on body -> SPP    only the SPP may open sub-proposals (INV-3)
+    ///           7. body.setTargetConfig(Executor, delegatecall)  INV-5
+    ///
+    ///      Deliberately ONE `admin.executeProposal`, like the public install: splitting the
+    ///      applies from the wiring leaves a window where the applied SPP holds EXECUTE with no
+    ///      stage configuration. Does NOT disarm the Admin bootstrap — that stays its own step.
+    ///
+    ///      Reads the prepared values from the `CRISP_*` / `SPP_PRIVATE_*` env written by
+    ///      `read-prepared.sh` after the two prepare transactions.
+    function installPrivate() external {
+        address dao = vm.envAddress("DAO_ADDRESS");
+        address psp = vm.envAddress("PLUGIN_SETUP_PROCESSOR_ADDRESS");
+        address executor = vm.envAddress("EXECUTOR_ADDRESS");
+        address foundation = vm.envAddress("FOUNDATION_ADDRESS");
+        require(
+            dao != address(0) && psp != address(0) && executor != address(0) && foundation != address(0),
+            "missing address env"
+        );
+
+        Prepared memory crisp = _loadPrepared("CRISP");
+        Prepared memory spp = _loadPrepared("SPP_PRIVATE");
+
+        IPlugin.TargetConfig memory delegateExecutor =
+            IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
+
+        Action[] memory actions = new Action[](7);
+        actions[0] =
+            Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.grant, (dao, psp, ROOT_PERMISSION_ID))});
+        actions[1] = Action({
+            to: psp,
+            value: 0,
+            data: abi.encodeCall(
+                PluginSetupProcessor.applyInstallation,
+                (
+                    dao,
+                    PluginSetupProcessor.ApplyInstallationParams(
+                        crisp.setupRef, crisp.plugin, crisp.permissions, crisp.helpersHash
+                    )
+                )
+            )
+        });
+        actions[2] = Action({
+            to: psp,
+            value: 0,
+            data: abi.encodeCall(
+                PluginSetupProcessor.applyInstallation,
+                (
+                    dao,
+                    PluginSetupProcessor.ApplyInstallationParams(
+                        spp.setupRef, spp.plugin, spp.permissions, spp.helpersHash
+                    )
+                )
+            )
+        });
+        actions[3] =
+            Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.revoke, (dao, psp, ROOT_PERMISSION_ID))});
+        actions[4] = Action({
+            to: spp.plugin,
+            value: 0,
+            data: abi.encodeCall(ISpp.updateStages, (stagesFor(crisp.plugin, foundation, true)))
+        });
+        actions[5] = Action({
+            to: dao,
+            value: 0,
+            data: abi.encodeCall(IDAOPermissions.grant, (crisp.plugin, spp.plugin, CREATE_PROPOSAL_PERMISSION_ID))
+        });
+        actions[6] = Action({
+            to: crisp.plugin, value: 0, data: abi.encodeCall(IPluginTarget.setTargetConfig, (delegateExecutor))
+        });
+
+        _emitActions(
+            "24-install-and-wire-private-process",
+            "Install and wire the private process (CRISP + SPP)",
+            "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
+            "revoked, then the private stages, the SPP's sole CREATE_PROPOSAL on the body, and "
+            "the delegatecall Executor target. Does NOT disarm the Admin bootstrap.",
             actions
         );
     }

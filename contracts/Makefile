@@ -121,6 +121,38 @@ read-prepared: ## Print the <PREFIX>_* env lines from a prepare transaction rece
 	./script/read-prepared.sh $(TX) $(PLUGIN_PREFIX) $$RPC_URL
 
 # Emitted as ONE file: stages without grants, or grants without stages, is a broken process.
+# ONE command once CRISP_PROGRAM_ADDRESS + SPP_PRIVATE_METADATA_URI are in the env: generates
+# the install data and emits BOTH prepare Safe files (22 + 23). Nothing broadcasts.
+safe-prepare-private: ## Phase 2: install data + both prepare Safe files, in one command
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	test -n "$$CRISP_PROGRAM_ADDRESS" || { echo "ERROR: set CRISP_PROGRAM_ADDRESS in $(ENV_FILE) first"; exit 1; }; \
+	test -n "$$SPP_PRIVATE_METADATA_URI" || { echo "ERROR: set SPP_PRIVATE_METADATA_URI in $(ENV_FILE) first (pin metadata/private-process.json)"; exit 1; }; \
+	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript --sig "printInstallData()" \
+		| grep -E "(CRISP|SPP_PRIVATE)_INSTALL_DATA=" | sed 's/^ *//' > .install-data.tmp; \
+	echo "--- install data (also append these two lines to $(ENV_FILE) for the record) ---"; \
+	cat .install-data.tmp; \
+	set -a; . ./.install-data.tmp; set +a; rm -f .install-data.tmp; \
+	PLUGIN_PREFIX=CRISP PLUGIN_SLUG=22-prepare-crisp \
+	forge script script/SafeActions.s.sol:SafeActionsScript --sig "prepareInstall()" --rpc-url $$RPC_URL; \
+	PLUGIN_PREFIX=SPP_PRIVATE PLUGIN_SLUG=23-prepare-spp-private \
+	forge script script/SafeActions.s.sol:SafeActionsScript --sig "prepareInstall()" --rpc-url $$RPC_URL
+
+# Sends the two emitted prepare files from the EOA (they are DIRECT, permissionless PSP calls —
+# the foundation never signs these). Prints the two tx hashes for `make read-prepared`.
+broadcast-prepares: ## Broadcast 22-prepare-crisp + 23-prepare-spp-private from PRIVATE_KEY
+	set -a; . ./$(ENV_FILE); set +a; \
+	for f in safe-actions/22-prepare-crisp.json safe-actions/23-prepare-spp-private.json; do \
+		TO=$$(python3 -c "import json;print(json.load(open('$$f'))['transactions'][0]['to'])"); \
+		DATA=$$(python3 -c "import json;print(json.load(open('$$f'))['transactions'][0]['data'])"); \
+		echo "sending $$f -> $$TO"; \
+		cast send --rpc-url $$RPC_URL --private-key $$PRIVATE_KEY $$TO $$DATA --json | python3 -c "import json,sys;r=json.load(sys.stdin);print('  tx:',r['transactionHash'],'status:',r['status'])"; \
+	done
+
+safe-install-private: ## Safe action: apply BOTH private installs + wire the private process, in one tx
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "installPrivate()" --rpc-url $$RPC_URL
+
 safe-wire: ## Safe action: SPP stages + CREATE_PROPOSAL grants + target config (atomic)
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	forge script script/SafeActions.s.sol:SafeActionsScript \
