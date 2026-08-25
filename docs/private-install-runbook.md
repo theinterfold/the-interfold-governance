@@ -15,17 +15,17 @@ copy of the committed `.env.mainnet.install`); emitted Safe files land in
 
 ## Current state — verified on chain 2026-08-22
 
-| What | Where |
-| --- | --- |
-| DAO | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
-| Foundation Safe (Admin driver) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
-| CrispVoting implementation | `0x8eF90e60d2E7A176D05fc0E6329d00c224cc63a3` |
-| CrispVotingSetup | `0x268ea81376dB1f25a44DD8ac4D97487e1DcE8244` |
-| CRISP PluginRepo (`interfold-crisp.plugin.dao.eth`) | `0x3C9F0abB016da5c1CCf944DDdfd2A04dd43415a1` — release 1 build 1 → the setup; Safe is maintainer. Minted in tx `0xc3a6a5d11c1d74d68dd233d326f115f83c1ec59185175f67d996af289c19402b` |
-| Interfold coordinator | `0x28cF63B459e6218C69EA97ea7D90541cf648c715` — `feeToken()` = **USDS** (`0xdC03…384F`), so the proposal-fee escrow holds USDS; `activeCryptoConfigId` set; refund manager `0x1940…0F6e` |
-| CRISP E3 program | `0x847A22303639017bcDB7F7E49EEa4a4629c1169f` — bytecode verified as the same build as the Sepolia program modulo chain immutables; NOT the mock. Pinned at install, not updatable (INV-36) |
-| Process metadata (pinned) | `ipfs://QmSEYaoXRLu2ut2aBkCB527cLQV5ow1JUij4HxkRYXBd2Y` — "Interfold Protocol Proposal", key `IPP` |
-| Prepare files | `safe-actions/22-prepare-crisp.json`, `23-prepare-spp-private.json` — generated, embedded values verified (program, coordinator, BondedVotes, repo, IPP metadata URI, 2% / 51% / 5-day / RISC0 params) |
+| What                                                | Where                                                                                                                                                                                                  |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DAO                                                 | `0x652a31c669f9AB37f6040f279139a75D04F2679e`                                                                                                                                                           |
+| Foundation Safe (Admin driver)                      | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593`                                                                                                                                                           |
+| CrispVoting implementation                          | `0x8eF90e60d2E7A176D05fc0E6329d00c224cc63a3`                                                                                                                                                           |
+| CrispVotingSetup                                    | `0x268ea81376dB1f25a44DD8ac4D97487e1DcE8244`                                                                                                                                                           |
+| CRISP PluginRepo (`interfold-crisp.plugin.dao.eth`) | `0x3C9F0abB016da5c1CCf944DDdfd2A04dd43415a1` — release 1 build 1 → the setup; Safe is maintainer. Minted in tx `0xc3a6a5d11c1d74d68dd233d326f115f83c1ec59185175f67d996af289c19402b`                    |
+| Interfold coordinator                               | `0x28cF63B459e6218C69EA97ea7D90541cf648c715` — `feeToken()` = **USDS** (`0xdC03…384F`), so the proposal-fee escrow holds USDS; `activeCryptoConfigId` set; refund manager `0x1940…0F6e`                |
+| CRISP E3 program                                    | `0x847A22303639017bcDB7F7E49EEa4a4629c1169f` — bytecode verified as the same build as the Sepolia program modulo chain immutables; NOT the mock. Pinned at install, not updatable                      |
+| Process metadata (pinned)                           | `ipfs://QmSEYaoXRLu2ut2aBkCB527cLQV5ow1JUij4HxkRYXBd2Y` — "Interfold Protocol Proposal", key `IPP`                                                                                                     |
+| Prepare files                                       | `safe-actions/22-prepare-crisp.json`, `23-prepare-spp-private.json` — generated, embedded values verified (program, coordinator, BondedVotes, repo, IPP metadata URI, 2% / 51% / 5-day / RISC0 params) |
 
 Every input above is already committed in `.env.mainnet.install` — including the install-data
 blobs — so the remaining steps are execution, not configuration. The Admin bootstrap is still

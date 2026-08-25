@@ -87,7 +87,34 @@ The register below is canonical. Every entry states the rule, why it exists, and
 guards it. **If you change behaviour covered here, update the test in the same commit** — CI
 enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build.
 
-`INV-*` ids are stable; reference them in PRs and code comments.
+`INV-*` ids are stable; reference them in PRs and code comments. Ids are never reused or
+renumbered, so gaps left by removed entries are expected.
+
+### What belongs here — and what does not
+
+This register is for properties that a test cannot fully protect. It is NOT a changelog of
+decisions, and it is not a place to describe what the code currently does. An entry earns its
+place only if **all three** hold:
+
+1. **Non-local** — it can be broken by editing a file that never mentions it.
+2. **Silent** — the breakage does not announce itself with a failing test, a revert, or an
+   obvious symptom.
+3. **Consequential** — violating it is a security or correctness failure, not a consistency one.
+
+If a property is fully guarded by a test in the file it constrains, **the test is the
+documentation**: name the test after the property and stop. Tests cannot drift from the code
+without failing; prose can, and does — this register once cited three guard tests for INV-4 when
+only one of them existed.
+
+**Cite the incident, not the intention.** An entry needs a bug that happened, an exploit that is
+reachable, or a review finding. "I just wrote this and it seems important" is a code comment. The
+failure mode this rule exists to stop is self-canonisation: an author adds behaviour, records
+their own choice here as a constraint, and every future reader then preserves it as though it were
+deliberate — growing both the code and this file with compatibility paths nobody asked for.
+
+**Entries are meant to be deleted.** When a constraint becomes locally enforced — made
+unrepresentable by a type, a revert, or a named test in the same file — remove it and keep the
+reasoning where the code is. A register that only grows is failing at its job.
 
 ### Governance structure
 
@@ -146,15 +173,12 @@ enforces 100% coverage on `src/crisp/**`, so an unguarded change fails the build
 
 ### Operational
 
-| Id         | Invariant                                                                                                                                                                                  | Guarded by                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| **INV-27** | **No credential carries a `NEXT_PUBLIC_` prefix.** Next inlines those into the client bundle, making them public to every visitor.                                                         | CI `secret-hygiene` job                                                             |
-| **INV-28** | **Testnet-only UI is env-gated** (`NEXT_PUBLIC_ENABLE_FAUCET`). There is no faucet on mainnet.                                                                                             | `app/constants.ts` (`PUB_ENABLE_FAUCET`)                                            |
-| **INV-29** | **The Admin plugin is disarmed after wiring** and the deployer retains no `ROOT`. An armed Admin executes on the DAO with no vote.                                                         | post-deploy runbook in `SECURITY.md`                                                |
-| **INV-30** | **`src/crisp/**` stays at 100% coverage.** A behaviour change without a test fails the build.                                                                                              | CI `MIN_COVERAGE` gate in `.github/workflows/ci.yml`                                |
-| **INV-31** | **Exactly one address holds `EXECUTE_PROPOSAL_PERMISSION` on an armed Admin plugin**, outside a rotation window. Two means a rotation was started and never finished.                      | post-deploy runbook in `SECURITY.md`                                                |
-| **INV-35** | **`claimRefund` credits the measured fee-token balance delta**, never the amount the refund manager reports — a protocol fee-token swap must not let refunds drain other creators' escrow. | `CrispVotingSpp.t.sol::test_claimRefundCreditsTheMeasuredDeltaNotTheReportedAmount` |
-| **INV-36** | **The E3 program address is validated non-zero at initialize and is not updatable after install** — a wrong program bricks every tally read path and only a reinstall fixes it.            | `CrispVotingViews.t.sol::test_initializeRevertsOnZeroCrispProgram`                  |
+| Id         | Invariant                                                                                                                                                             | Guarded by                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **INV-27** | **No credential carries a `NEXT_PUBLIC_` prefix.** Next inlines those into the client bundle, making them public to every visitor.                                    | CI `secret-hygiene` job                  |
+| **INV-28** | **Testnet-only UI is env-gated** (`NEXT_PUBLIC_ENABLE_FAUCET`). There is no faucet on mainnet.                                                                        | `app/constants.ts` (`PUB_ENABLE_FAUCET`) |
+| **INV-29** | **The Admin plugin is disarmed after wiring** and the deployer retains no `ROOT`. An armed Admin executes on the DAO with no vote.                                    | post-deploy runbook in `SECURITY.md`     |
+| **INV-31** | **Exactly one address holds `EXECUTE_PROPOSAL_PERMISSION` on an armed Admin plugin**, outside a rotation window. Two means a rotation was started and never finished. | post-deploy runbook in `SECURITY.md`     |
 
 INV-29 is **deliberately deferred** during the phased mainnet rollout (`DISARM_ADMIN=false`), from
 phase 1 until phase 3. Treat the armed bootstrap as a dated exception with an intended disarm date,
@@ -324,7 +348,8 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   `CrispVotingSetup.t.sol` (install/uninstall permissions). Shared test doubles live in
   `contracts/test/mocks/CrispMocks.sol` — extend those rather than redeclaring per-file.
 - **`src/crisp/**` is at 100% coverage and CI enforces it** (`MIN_COVERAGE` in `ci.yml`).
-  A behaviour change without a test will fail the build.
+  A behaviour change without a test will fail the build. (Formerly INV-30; it is a build policy
+  that fails loudly, not a silent system property, so it does not belong in the register.)
 - App: match existing style — `If/Then` components, `useTransactionManager`, alerts, `@aragon/ods`.
   Run `bun run build` (typecheck) before committing.
 - Root: `bun run format` / `bun run lint` cover both packages (Prettier + `forge fmt`).

@@ -409,7 +409,8 @@ contract CrispVotingSppTest is Test {
     }
 
     /// @notice The credit is the measured fee-token balance DELTA, never the amount the refund
-    ///         manager reports. If the protocol swaps its fee token after this plugin
+    ///         manager reports. This test IS the specification for that rule — it used to also be
+    ///         recorded in the AGENTS.md register, which duplicated what the name already says. If the protocol swaps its fee token after this plugin
     ///         initialised, a refund arriving in the new token must not mint credit that
     ///         `withdraw` would pay out of OTHER creators' escrowed old-token deposits.
     function test_claimRefundCreditsTheMeasuredDeltaNotTheReportedAmount() public {
