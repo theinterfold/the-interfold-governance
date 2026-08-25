@@ -5,8 +5,6 @@ import Link from "next/link";
 import { plugins } from "@/plugins";
 import { PUB_CRISP_INFO_URL, PUB_GET_FOLD_URL } from "@/constants";
 
-const CIPHERNODES_URL = "https://docs.theinterfold.com/ciphernode-operators";
-
 export default function StandardHome() {
   const { isConnected } = useAccount();
   const { open } = useWeb3Modal();
@@ -21,16 +19,10 @@ export default function StandardHome() {
       <div className="mx-auto w-full max-w-screen-xl px-6 py-20">
         {/* Serif marquee hero */}
         <div className="serif-hero">
-          <h1>
-            Govern in <span className="ital">public</span>, or by{" "}
-            <span className="strike">
-              traceable
-              <svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M2,16 Q60,4 120,10 T198,6" />
-              </svg>
-            </span>{" "}
-            secret ballot.
-          </h1>
+          <h1>Interfold Governance</h1>
+          <p className="hero-sub">
+            Commit FOLD, activate voting power, and take part in decisions about how Interfold evolves.
+          </p>
         </div>
 
         {/* Action first, explanation second: the path into governance. */}
@@ -68,28 +60,25 @@ export default function StandardHome() {
         <div className="hero-body-grid mt-12">
           <div />
           <p className="lede">
-            <span className="dropcap">T</span>he Interfold DAO supports public onchain voting and private voting with{" "}
+            <span className="dropcap">I</span>nterfold governance covers protocol changes, parameters, and other DAO
+            decisions. IPPs use{" "}
             <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="lede-link">
               CRISP
-            </a>
-            . Public votes and tallies are visible onchain, while private ballots are encrypted in your browser and
-            computed under encryption, with only the final tally threshold-decrypted by a committee of{" "}
-            <a href={CIPHERNODES_URL} target="_blank" rel="noreferrer" className="lede-link">
-              ciphernodes
-            </a>
-            . Individual votes are never exposed or traceable.
+            </a>{" "}
+            for receipt-free secret-ballot voting, keeping individual choices private while producing a verifiable
+            result.
           </p>
           <ul className="em-list self-center">
-            <li>Public proposals: votes and tallies visible onchain</li>
-            <li>Private proposals: ballots remain encrypted</li>
-            <li>No trusted tallier: only the final result is decrypted</li>
-            <li>FOLD voting power: voting weight comes from committed FOLD</li>
+            <li>Protocol decisions — help shape how Interfold evolves</li>
+            <li>Secret ballots — individual votes remain private</li>
+            <li>Receipt-free voting — votes are harder to coerce or buy</li>
+            <li>Verifiable outcome — the final tally can be verified</li>
           </ul>
         </div>
 
         <div className="mt-8">
           <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="hero-text-link">
-            Learn how private voting works →
+            Learn how secret ballots work →
           </a>
         </div>
       </div>

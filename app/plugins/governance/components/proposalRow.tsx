@@ -6,7 +6,7 @@ export type RowBar = { width: number; color: string };
 
 export interface ProposalRowProps {
   href: string;
-  /** "Private" | "Public" — drives the editorial number column + tag. */
+  /** "Secret ballot" | "Transparent fallback" — drives the editorial kind column. */
   kindLabel: string;
   loading?: boolean;
   loadingMessage?: string;
@@ -24,7 +24,7 @@ export interface ProposalRowProps {
   hidden?: boolean;
 }
 
-/** Shared presentational row so private (CRISP) and public (TokenVoting) proposals render identically. */
+/** Shared presentational row so secret-ballot (CRISP) and transparent fallback (TokenVoting) proposals render identically. */
 export function ProposalRow(props: ProposalRowProps) {
   if (props.hidden) return null;
 

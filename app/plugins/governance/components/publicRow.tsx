@@ -29,7 +29,7 @@ export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
     return (
       <ProposalRow
         href={href}
-        kindLabel="Public"
+        kindLabel="Transparent fallback"
         loading
         loadingMessage="Sub-proposal creation failed"
         hidden={hidden}
@@ -37,7 +37,15 @@ export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
     );
   }
   if (spp.subProposalId === undefined) {
-    return <ProposalRow href={href} kindLabel="Public" loading loadingMessage="Loading proposal…" hidden={hidden} />;
+    return (
+      <ProposalRow
+        href={href}
+        kindLabel="Transparent fallback"
+        loading
+        loadingMessage="Loading proposal…"
+        hidden={hidden}
+      />
+    );
   }
 
   return (
@@ -83,7 +91,15 @@ function PublicRowBody({
   }, [bucket, onStatus]);
 
   if (loading) {
-    return <ProposalRow href={href} kindLabel="Public" loading loadingMessage="Loading proposal…" hidden={hidden} />;
+    return (
+      <ProposalRow
+        href={href}
+        kindLabel="Transparent fallback"
+        loading
+        loadingMessage="Loading proposal…"
+        hidden={hidden}
+      />
+    );
   }
 
   const { yes, no, abstain } = proposal.tally;
@@ -106,7 +122,7 @@ function PublicRowBody({
   return (
     <ProposalRow
       href={href}
-      kindLabel="Public"
+      kindLabel="Transparent fallback"
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}

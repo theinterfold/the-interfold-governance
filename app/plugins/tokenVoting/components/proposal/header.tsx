@@ -42,7 +42,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }
         <div className="flex w-full flex-col gap-y-2">
           <div className="flex w-full items-center gap-x-4">
             <Heading size="h1">{proposal.title || DEFAULT_PROPOSAL_TITLE}</Heading>
-            <Tag label="Public" variant="info" />
+            <Tag label="Transparent fallback" variant="neutral" />
           </div>
           <p className="text-lg leading-normal text-neutral-500">{proposal.summary || DEFAULT_PROPOSAL_SUMMARY}</p>
         </div>

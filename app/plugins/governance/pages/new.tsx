@@ -6,9 +6,9 @@ import TokenCreate from "@/plugins/tokenVoting/pages/new";
 type Kind = "private" | "public";
 
 /**
- * Single create entry point. The toggle selects which plugin the proposal is
- * created on — CRISP (private / encrypted ballots) or TokenVoting (public).
- * The privacy of a proposal is therefore determined by the plugin used.
+ * Single create entry point. Secret ballot (CRISP) is the normal path; the
+ * transparent on-chain body exists only as a fallback when a secret ballot
+ * cannot run, so the toggle is not two equal modes.
  */
 export default function CreateProposal() {
   const [kind, setKind] = useState<Kind>("private");
@@ -23,20 +23,20 @@ export default function CreateProposal() {
             className={classNames("chip", { on: kind === "private" })}
             onClick={() => setKind("private")}
           >
-            Default · Private
+            Secret ballot
           </button>
           <button
             type="button"
             className={classNames("chip", { on: kind === "public" })}
             onClick={() => setKind("public")}
           >
-            Fallback · Public
+            Transparent fallback
           </button>
         </div>
         <p className="mt-3 text-sm leading-normal text-neutral-500">
           {kind === "private"
-            ? "Private proposals use CRISP: ballots are encrypted client-side and tallied by the Interfold committee without revealing individual votes."
-            : "Public proposals use on-chain TokenVoting: every vote and the running tally are visible on-chain, weighted by FOLD voting power."}
+            ? "The standard path. Ballots are encrypted in the browser with CRISP and tallied without revealing individual votes, so the outcome is verifiable while each choice stays private."
+            : "Fallback only, for when a secret ballot cannot run. Every vote and the running tally are visible on-chain, weighted by FOLD voting power — individual choices are not private."}
         </p>
       </div>
 

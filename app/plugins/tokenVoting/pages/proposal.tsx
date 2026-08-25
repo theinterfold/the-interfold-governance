@@ -205,7 +205,7 @@ function ProposalDetailBody({
             </If>
             <ProposalVoting
               stages={proposalStage}
-              description="Public proposals advance to the foundation veto stage when the support ratio is above the threshold and the minimum participation is met."
+              description="This proposal uses the transparent fallback body: votes are visible on-chain. It advances to the foundation veto stage when the support ratio is above the threshold and the minimum participation is met."
             />
             {/* The actions to be executed on the DAO live on the SPP proposal; the body
                 sub-proposal only carries the internal reportProposalResult callback. */}

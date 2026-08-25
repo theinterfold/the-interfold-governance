@@ -28,7 +28,7 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
     return (
       <ProposalRow
         href={href}
-        kindLabel="Private"
+        kindLabel="Secret ballot"
         loading
         loadingMessage="Sub-proposal creation failed"
         hidden={hidden}
@@ -36,7 +36,9 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
     );
   }
   if (spp.subProposalId === undefined) {
-    return <ProposalRow href={href} kindLabel="Private" loading loadingMessage="Loading proposal…" hidden={hidden} />;
+    return (
+      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+    );
   }
 
   return (
@@ -87,7 +89,9 @@ function PrivateRowBody({
   }, [bucket, onStatus]);
 
   if (loading) {
-    return <ProposalRow href={href} kindLabel="Private" loading loadingMessage="Loading proposal…" hidden={hidden} />;
+    return (
+      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+    );
   }
 
   const tally = Array.from(proposal.tally ?? []);
@@ -110,7 +114,7 @@ function PrivateRowBody({
   return (
     <ProposalRow
       href={href}
-      kindLabel="Private"
+      kindLabel="Secret ballot"
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}

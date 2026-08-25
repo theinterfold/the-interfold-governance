@@ -53,6 +53,8 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal, 
                 decided at all — the encrypted vote could not complete. */}
             {e3Failed && <span className="badge failed">Round failed</span>}
             {isEmergency && <span className="badge failed">Emergency</span>}
+            {/* Secret ballot is the standard path — label it, but keep it quieter than the status. */}
+            <span className="badge kind">Secret ballot</span>
           </div>
           <h1 className="detail-title">{proposal.title || DEFAULT_PROPOSAL_TITLE}</h1>
           <p className="detail-summary">{proposal.summary || DEFAULT_PROPOSAL_SUMMARY}</p>

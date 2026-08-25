@@ -289,6 +289,15 @@ label div p.leading-tight {
   stroke-linecap: round;
 }
 
+.serif-hero .hero-sub {
+  font-family: var(--font-serif);
+  font-size: clamp(17px, 1.6vw, 22px);
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 56ch;
+  margin: 20px 0 0;
+}
+
 .hero-body-grid {
   display: grid;
   grid-template-columns: 88px 1fr 1fr;
@@ -524,6 +533,15 @@ label div p.leading-tight {
   background: currentColor;
   display: inline-block;
 }
+/* Not a status: the proposal's voting kind. Quiet, and no status dot. */
+.badge.kind {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+}
+.badge.kind::before {
+  display: none;
+}
 .badge.pending {
   background: rgb(var(--ods-color-neutral-100));
   color: rgb(var(--ods-color-neutral-500));
@@ -574,7 +592,7 @@ label div p.leading-tight {
 }
 .proposal-row {
   display: grid;
-  grid-template-columns: 72px 1fr auto;
+  grid-template-columns: 116px 1fr auto;
   gap: 24px;
   align-items: start;
   padding: 28px 0;
@@ -593,10 +611,11 @@ label div p.leading-tight {
 }
 .proposal-row .num {
   font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
   color: var(--muted);
-  padding-top: 6px;
+  padding-top: 7px;
 }
 .proposal-row .body {
   min-width: 0;

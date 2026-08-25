@@ -24,8 +24,8 @@ type Entry = { kind: Kind; id: bigint; block: bigint };
 
 const FILTERS: { label: string; value: "all" | Kind }[] = [
   { label: "All", value: "all" },
-  { label: "Public", value: "public" },
-  { label: "Private", value: "private" },
+  { label: "Secret ballot", value: "private" },
+  { label: "Transparent fallback", value: "public" },
 ];
 
 const STATUS_FILTERS: { label: string; value: "all" | StatusBucket }[] = [
@@ -178,7 +178,7 @@ export default function Proposals() {
                 ? "Loading proposals…"
                 : error
                   ? error
-                  : "No active proposals. Public proposals and private CRISP ballots will appear here when created."}
+                  : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
           </MissingContentView>
         </Then>
         <Else>
