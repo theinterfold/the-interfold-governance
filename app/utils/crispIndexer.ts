@@ -128,6 +128,9 @@ export async function fetchDelegates(options: {
    *  adapter. Named explicitly because a directory built entirely against the token would list
    *  the right delegates with the wrong numbers. */
   powerSource?: Address;
+  /** Where `DelegateChanged` is emitted, when that is not the token. With the escrow enabled that
+   *  is its IVotes adapter, and the token's own delegation feeds a read nobody consumes. */
+  delegationSource?: Address;
 }): Promise<ServerDelegates | null> {
   const data = await post<{
     scanned_from: number;
@@ -139,6 +142,9 @@ export async function fetchDelegates(options: {
       token: options.token,
       from_block: options.fromBlock,
       ...(options.powerSource && options.powerSource !== options.token ? { power_source: options.powerSource } : {}),
+      ...(options.delegationSource && options.delegationSource !== options.token
+        ? { delegation_source: options.delegationSource }
+        : {}),
     },
     options.fromBlock
   );

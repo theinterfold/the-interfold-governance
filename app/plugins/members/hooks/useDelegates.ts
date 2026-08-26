@@ -50,31 +50,9 @@ export function useDelegates() {
         if (!hasLoadedOnce.current) setIsLoading(true);
         setError(null);
 
-        // The server holds this token's `DelegateChanged` history already, so ask it before
-        // walking the logs here — one request instead of a scan from the deployment block plus a
-        // `getVotes` multicall, repeated by every client on every visit.
-        //
-        // Skipped entirely with locking enabled: delegation then lives on an adapter resolved on
-        // chain below, and the route scans the contract it is given. Rather than teach it a second
-        // indirection, the local scan handles that case.
-        if (!PUB_ENABLE_LOCKING) {
-          const fromServer = await fetchDelegates({
-            token: PUB_TOKEN_ADDRESS,
-            fromBlock: PUB_TOKEN_DEPLOYMENT_BLOCK,
-            powerSource: PUB_VOTING_POWER_SOURCE,
-          });
-          if (cancelled) return;
-          if (fromServer) {
-            setTotalSupply(fromServer.totalSupply);
-            setDelegates(fromServer.delegates);
-            hasLoadedOnce.current = true;
-            return;
-          }
-        }
-
-        // 1. Collect every address that has ever been delegated to. With the velocker enabled,
-        //    delegation lives on the escrow's IVotes adapter (which emits the same
-        //    DelegateChanged) — the token's own delegation feeds a read nothing consumes.
+        // 1. Where delegation actually lives. With the velocker enabled it is the escrow's
+        //    IVotes adapter (which emits the same DelegateChanged) — the token's own delegation
+        //    feeds a read nothing consumes.
         let delegationSource: Address = PUB_TOKEN_ADDRESS;
         if (PUB_ENABLE_LOCKING) {
           delegationSource = (await publicClient.readContract({
@@ -83,6 +61,32 @@ export function useDelegates() {
             functionName: "ivotesAdapter",
           })) as Address;
         }
+        if (cancelled) return;
+
+        // 2. Ask the server, which already holds that contract's DelegateChanged history.
+        //
+        // Not a nicety: the scan spans ~370k blocks on mainnet, which /chain/rpc windows into
+        // ~184 sequential upstream calls — long enough that a single full-range request times
+        // out, and the chunked fallback below takes minutes. One cached request replaces all of
+        // it, shared by every client for the life of the block.
+        //
+        // All three roles are named because they are three different contracts here: supply from
+        // the token, delegation from the adapter, voting weight from bonded votes.
+        const fromServer = await fetchDelegates({
+          token: PUB_TOKEN_ADDRESS,
+          fromBlock: PUB_TOKEN_DEPLOYMENT_BLOCK,
+          powerSource: PUB_VOTING_POWER_SOURCE,
+          delegationSource,
+        });
+        if (cancelled) return;
+        if (fromServer) {
+          setTotalSupply(fromServer.totalSupply);
+          setDelegates(fromServer.delegates);
+          hasLoadedOnce.current = true;
+          return;
+        }
+
+        // 3. Fallback: build it here, as before the route existed.
         const logs = await scanLogs(
           publicClient,
           { address: delegationSource, event: delegateChangedEvent },
