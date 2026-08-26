@@ -4,7 +4,7 @@ import { normalize } from "viem/ens";
 import { createConfig, useEnsAvatar, useEnsName } from "wagmi";
 import { mainnet } from "wagmi/chains";
 import type { Address } from "viem";
-import { PUB_WEB3_ENDPOINT } from "@/constants";
+
 import { AddressText } from "@/components/text/address";
 
 // ENS lives on Ethereum mainnet regardless of the app's chain, so lookups run against a
@@ -16,7 +16,10 @@ const ensConfig = createConfig({
   client({ chain }) {
     return createClient({
       chain,
-      transport: http(PUB_WEB3_ENDPOINT, { batch: true }),
+      // ENS lives on mainnet, so it cannot come from the chain endpoint above (which points at
+      // this deployment's chain). viem's default mainnet transport needs no key, and a failed
+      // lookup only costs us a raw address in the UI.
+      transport: http(undefined, { batch: true }),
     });
   },
 });

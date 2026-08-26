@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { formatUnits } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useAccount } from "wagmi";
@@ -10,12 +11,37 @@ import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useDelegate } from "@/hooks/useDelegate";
 import { useDelegates } from "../hooks/useDelegates";
 
-export function DelegateList() {
+/**
+ * @param refreshKey - bump to re-scan the directory. The page above holds its own delegate button,
+ *   and this component owns the only copy of the voting-power figures, so a delegation made up
+ *   there has to reach down here or the table silently keeps showing pre-delegation numbers.
+ */
+export function DelegateList({ refreshKey = 0 }: { refreshKey?: number }) {
   const { address } = useAccount();
-  const { delegates, totalSupply, isLoading, error } = useDelegates();
-  const { delegatesTo, refetch } = useTokenVotes(address);
-  const { delegate, isConfirming } = useDelegate(() => setTimeout(() => refetch(), 1000 * 2));
+  const { delegates, totalSupply, isLoading, error, refetch: refetchDelegates } = useDelegates();
+  const { delegatesTo, refetch: refetchMyVotes } = useTokenVotes(address);
+
+  // BOTH have to be refreshed after delegating, and only the first one used to be. `delegatesTo`
+  // drives the "Delegated" label on the button, while every voting-power figure in the table comes
+  // from `useDelegates` — so refreshing just the former flipped the label while the numbers stayed
+  // frozen at their pre-delegation values: your power still counted as yours, and the address you
+  // delegated to never gained it.
+  //
+  // The delay is kept: the node that answers the refetch may not yet have the block the receipt
+  // came from, and re-reading too early just re-reads the old state.
+  const { delegate, isConfirming } = useDelegate(() =>
+    setTimeout(() => {
+      refetchMyVotes();
+      refetchDelegates();
+    }, 1000 * 2)
+  );
   const decimals = useTokenDecimals();
+
+  // Skipped on mount: the hook already scans once on its own, and re-running it here would make
+  // every page load pay for the directory twice.
+  useEffect(() => {
+    if (refreshKey > 0) refetchDelegates();
+  }, [refreshKey, refetchDelegates]);
 
   if (isLoading) {
     return (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePublicClient } from "wagmi";
 import { erc20Abi, parseAbiItem, type Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
@@ -11,6 +11,7 @@ import {
 } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { scanLogs } from "@/utils/logScan";
+import { fetchDelegates } from "@/utils/crispIndexer";
 import { votingEscrowAbi } from "@/plugins/velocker/artifacts/votingEscrow";
 
 const delegateChangedEvent = parseAbiItem(
@@ -30,6 +31,12 @@ export function useDelegates() {
   const [totalSupply, setTotalSupply] = useState<bigint>(0n);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to re-run the scan. Delegating changes both the SET of delegates (the target may be
+  // new) and everyone's voting power, and neither is derivable from what is already on screen.
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const hasLoadedOnce = useRef(false);
+
+  const refetch = useCallback(() => setReloadNonce((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,8 +44,33 @@ export function useDelegates() {
     async function run() {
       if (!publicClient) return;
       try {
-        setIsLoading(true);
+        // The spinner replaces the whole list, which is the right thing on first paint and the
+        // wrong thing on a refresh triggered by delegating — the list would vanish and reappear.
+        // Keep the stale rows visible while the new ones are fetched.
+        if (!hasLoadedOnce.current) setIsLoading(true);
         setError(null);
+
+        // The server holds this token's `DelegateChanged` history already, so ask it before
+        // walking the logs here — one request instead of a scan from the deployment block plus a
+        // `getVotes` multicall, repeated by every client on every visit.
+        //
+        // Skipped entirely with locking enabled: delegation then lives on an adapter resolved on
+        // chain below, and the route scans the contract it is given. Rather than teach it a second
+        // indirection, the local scan handles that case.
+        if (!PUB_ENABLE_LOCKING) {
+          const fromServer = await fetchDelegates({
+            token: PUB_TOKEN_ADDRESS,
+            fromBlock: PUB_TOKEN_DEPLOYMENT_BLOCK,
+            powerSource: PUB_VOTING_POWER_SOURCE,
+          });
+          if (cancelled) return;
+          if (fromServer) {
+            setTotalSupply(fromServer.totalSupply);
+            setDelegates(fromServer.delegates);
+            hasLoadedOnce.current = true;
+            return;
+          }
+        }
 
         // 1. Collect every address that has ever been delegated to. With the velocker enabled,
         //    delegation lives on the escrow's IVotes adapter (which emits the same
@@ -98,6 +130,7 @@ export function useDelegates() {
 
         setTotalSupply(supply);
         setDelegates(entries);
+        hasLoadedOnce.current = true;
       } catch {
         if (!cancelled) setError("Could not load delegates");
       } finally {
@@ -109,7 +142,7 @@ export function useDelegates() {
     return () => {
       cancelled = true;
     };
-  }, [publicClient]);
+  }, [publicClient, reloadNonce]);
 
-  return { delegates, totalSupply, isLoading, error };
+  return { delegates, totalSupply, isLoading, error, refetch };
 }

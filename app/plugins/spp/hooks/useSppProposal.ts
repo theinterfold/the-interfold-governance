@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useBlockNumber, useReadContract } from "wagmi";
 import { fromHex, getAbiItem } from "viem";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { fetchProposals } from "@/utils/crispIndexer";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
 import { SPP_PROPOSAL_WITHOUT_ID, SppProposalState, sppAddressFor } from "../utils/types";
@@ -97,23 +98,33 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   useEffect(() => {
     if (!exists || !publicClient || metadataUri) return;
 
-    publicClient
-      .getLogs({
-        address,
-        event: SppProposalCreatedEvent,
-        args: { proposalId },
-        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
-      })
-      .then((logs) => {
+    void (async () => {
+      // The SPP's `ProposalCreated` has the same seven parameters as every other Aragon plugin
+      // here, so it shares the route; only the address differs.
+      const match = (await fetchProposals({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK, proposalId }))?.[0];
+      if (match) {
+        setMetadataUri(fromHex(match.metadata, "string"));
+        setCreator(match.creator);
+        return;
+      }
+
+      try {
+        const logs = await publicClient.getLogs({
+          address,
+          event: SppProposalCreatedEvent,
+          args: { proposalId },
+          fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
+        });
+
         if (!logs?.length) return;
 
         const args = (logs[0] as unknown as { args: { metadata: Hex; creator: string } }).args;
         setMetadataUri(fromHex(args.metadata, "string"));
         setCreator(args.creator);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Could not fetch the SPP proposal creation event", err);
-      });
+      }
+    })();
   }, [proposalId, exists, metadataUri, address]);
 
   return {

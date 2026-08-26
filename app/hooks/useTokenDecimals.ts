@@ -17,6 +17,10 @@ export function useTokenDecimals(): number | undefined {
     address: PUB_TOKEN_ADDRESS,
     abi: erc20Abi,
     functionName: "decimals",
+    // `decimals` is fixed for the life of the token, so re-reading it as the chain advances only
+    // costs requests. `totalSupply` deliberately does NOT get this treatment: it moves with every
+    // mint and burn.
+    query: { staleTime: Infinity, gcTime: Infinity },
   });
 
   return data === undefined ? undefined : Number(data);

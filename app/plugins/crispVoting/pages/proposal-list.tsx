@@ -14,6 +14,8 @@ import { useCanCreateProposal } from "../hooks/useCanCreateProposal";
 import Link from "next/link";
 import { Else, If, Then } from "@/components/if";
 import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+// Aliased: this file already has a local `fetchProposals` callback.
+import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { ProposalCreatedEvent } from "../hooks/useProposal";
@@ -65,6 +67,19 @@ export default function Proposals() {
     if (lastFetchedBlock.current && fromBlock > blockNumber) return;
 
     try {
+      // The server already holds this plugin's log history, so ask it first. Its answer is the
+      // whole list rather than a delta, which is why the incremental bookkeeping below is skipped
+      // entirely on that path.
+      const fromServer = await fetchProposalsFromServer({
+        plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        fromBlock: PUB_DEPLOYMENT_BLOCK,
+      });
+      if (fromServer) {
+        lastFetchedBlock.current = blockNumber;
+        setProposalIds(fromServer.map((proposal) => BigInt(proposal.proposal_id)));
+        return;
+      }
+
       const logs = await publicClient
         .getLogs({
           address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,

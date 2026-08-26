@@ -59,7 +59,26 @@ export const PUB_CHAIN_ID = PUB_CHAIN.id;
 // Set NEXT_PUBLIC_WEB3_ENDPOINT only for a keyless public endpoint (or local dev shortcuts).
 // (Trailing slash on purpose: next.config sets trailingSlash, and the bare path would cost a
 // 308 redirect on every single RPC request.)
-export const PUB_WEB3_ENDPOINT = process.env.NEXT_PUBLIC_WEB3_ENDPOINT || "/api/rpc/";
+// Preference order: an explicit endpoint, then the CRISP server's read-only JSON-RPC route, then
+// the local proxy. The middle one is the point — the CRISP server already watches these contracts
+// to index rounds, so it can serve their reads too and this app needs no provider account of its
+// own. Writes are unaffected: the user's wallet supplies its own transport.
+export const PUB_WEB3_ENDPOINT =
+  process.env.NEXT_PUBLIC_WEB3_ENDPOINT ||
+  (PUB_CRISP_SERVER_URL ? `${PUB_CRISP_SERVER_URL.replace(/\/$/, "")}/chain/rpc` : "/api/rpc/");
+
+/**
+ * Requests per JSON-RPC batch.
+ *
+ * Must not exceed the CRISP server's `MAX_RPC_BATCH`, which is 64: the server executes a batch
+ * sequentially, so it bounds the fan-out one request can cause, and it rejects an oversized batch
+ * WHOLESALE — every call in it fails, not just the surplus. viem's `batch: true` default is 1000,
+ * and a proposal list resolving a dozen reads per row clears 64 in a single tick, so the default
+ * would turn a busy screen into a page of errors.
+ *
+ * A plain hosted provider has no such limit, so this only ever costs an extra round trip there.
+ */
+export const PUB_RPC_BATCH_SIZE = 64;
 
 export const PUB_WALLET_CONNECT_PROJECT_ID = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ?? "";
 

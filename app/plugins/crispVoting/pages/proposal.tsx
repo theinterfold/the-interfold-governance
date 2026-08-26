@@ -140,6 +140,7 @@ function ProposalDetailBody({
       <ProposalHeader
         proposalIdx={proposalIdx}
         proposal={proposal}
+        isCommitteeReady={isCommitteeReady}
         totalVotingPower={totalVotingPower}
         e3Failed={e3Failed}
       />

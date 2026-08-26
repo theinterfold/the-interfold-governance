@@ -21,12 +21,15 @@ export function useToken() {
     address: PUB_TOKEN_ADDRESS,
     abi: erc20Abi,
     functionName: "symbol",
+    // Immutable for the life of the token — unlike `totalSupply` above.
+    query: { staleTime: Infinity, gcTime: Infinity },
   });
 
   const { data: tokenDecimals } = useReadContract({
     address: PUB_TOKEN_ADDRESS,
     abi: erc20Abi,
     functionName: "decimals",
+    query: { staleTime: Infinity, gcTime: Infinity },
   });
 
   return {

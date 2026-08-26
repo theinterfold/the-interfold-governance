@@ -215,8 +215,8 @@ export const VoteCard = ({
       <div className="privacy">
         <span className="dot" />
         <div>
-          Ballots are encrypted client-side and tallied under encryption within an Encrypted Execution Environment
-          (E3). Individual votes are <em>never</em> revealed.
+          Ballots are encrypted client-side and tallied under encryption within an Encrypted Execution Environment (E3).
+          Individual votes are <em>never</em> revealed.
         </div>
       </div>
     </div>

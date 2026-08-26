@@ -16,7 +16,14 @@ import { DelegateList } from "../components/delegateList";
 export default function Delegation() {
   const { address, isConnected } = useAccount();
   const { balance, votingPower, delegatesTo, refetch } = useTokenVotes(address);
-  const { delegate, delegateToSelf, isConfirming } = useDelegate(() => setTimeout(() => refetch(), 1000 * 2));
+  // Delegating from here changes the directory below too, so both are refreshed.
+  const [delegateListRefreshKey, setDelegateListRefreshKey] = useState(0);
+  const { delegate, delegateToSelf, isConfirming } = useDelegate(() =>
+    setTimeout(() => {
+      refetch();
+      setDelegateListRefreshKey((k) => k + 1);
+    }, 1000 * 2)
+  );
   const [target, setTarget] = useState("");
 
   const delegatedToSelf = !!delegatesTo && !!address && delegatesTo.toLowerCase() === address.toLowerCase();
@@ -122,7 +129,7 @@ export default function Delegation() {
             <p className="text-sm text-neutral-500">
               Addresses with active {PUB_TOKEN_SYMBOL} voting power. Delegate your power to any of them.
             </p>
-            <DelegateList />
+            <DelegateList refreshKey={delegateListRefreshKey} />
           </Card>
         </div>
       )}

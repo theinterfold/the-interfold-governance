@@ -3,6 +3,7 @@ import { useBlockNumber, useReadContract } from "wagmi";
 import { fromHex, getAbiItem } from "viem";
 import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
 import { publicClient } from "../utils/client";
 
@@ -66,23 +67,45 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
     if (override?.metadataUri) return;
     if (!proposalData || !publicClient || creationEvent) return;
 
-    publicClient
-      .getLogs({
-        address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
-        event: ProposalCreatedEvent,
-        args: { proposalId },
-        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
-      })
-      .then((logs) => {
+    void (async () => {
+      // TokenVoting's `ProposalCreated` is byte-identical to CrispVoting's, so the same route
+      // serves it — only the plugin address differs.
+      const match = (
+        await fetchProposals({
+          plugin: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
+          fromBlock: PUB_DEPLOYMENT_BLOCK,
+          proposalId,
+        })
+      )?.[0];
+      if (match) {
+        setCreationEvent({
+          proposalId,
+          creator: match.creator,
+          startDate: BigInt(match.start_date),
+          endDate: BigInt(match.end_date),
+          metadata: match.metadata,
+        } as unknown as ProposalCreatedLogResponse["args"]);
+        setMetadataUri(fromHex(match.metadata, "string"));
+        return;
+      }
+
+      try {
+        const logs = await publicClient.getLogs({
+          address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
+          event: ProposalCreatedEvent,
+          args: { proposalId },
+          fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
+        });
+
         if (!logs?.length) return;
 
         const log = logs[0] as unknown as ProposalCreatedLogResponse;
         setCreationEvent(log.args);
         setMetadataUri(fromHex(log.args.metadata as Hex, "string"));
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Could not fetch the proposal creation event", err);
-      });
+      }
+    })();
   }, [proposalId, !!proposalData, creationEvent, override?.metadataUri]);
 
   // JSON metadata

@@ -8,6 +8,8 @@ import { Else, If, Then } from "@/components/if";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+// Aliased: this file already has a local `fetchProposals` callback.
+import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
@@ -88,8 +90,17 @@ export default function Proposals() {
     try {
       setIsLoading(true);
       const perSource = await Promise.all(
-        sources.map(({ kind, address, event }) =>
-          publicClient
+        sources.map(async ({ kind, address, event }) => {
+          // One request per SPP instead of a log walk each, and the answer is the whole list
+          // rather than a delta — so the incremental `fromBlock` bookkeeping is bypassed.
+          const fromServer = await fetchProposalsFromServer({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK });
+          if (fromServer) {
+            return fromServer.map(
+              (proposal) => ({ kind, id: BigInt(proposal.proposal_id), block: BigInt(proposal.block) }) as Entry
+            );
+          }
+
+          return publicClient
             .getLogs({ address, event, fromBlock, toBlock: blockNumber })
             .then((logs) =>
               logs
@@ -102,8 +113,8 @@ export default function Proposals() {
             .catch((err) => {
               console.error(`Could not fetch ${kind} proposals`, err);
               return [] as Entry[];
-            })
-        )
+            });
+        })
       );
 
       lastFetchedBlock.current = blockNumber;

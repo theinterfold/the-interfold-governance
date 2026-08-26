@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { fetchRoundInputs } from "@/utils/crispIndexer";
 import { publicClient } from "../utils/client";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 
@@ -42,6 +43,23 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         functionName: "getE3",
         args: [e3Id],
       });
+
+      // `/state/lite` reports how MANY inputs a round holds, not when each landed or in which
+      // transaction — which is what this feed links to. The server scans the program's
+      // `InputPublished` history filtered by the indexed `e3Id` and drops the ciphertext, which
+      // nothing here renders.
+      const fromServer = await fetchRoundInputs({
+        roundId: e3Id,
+        fromBlock: PUB_DEPLOYMENT_BLOCK,
+        program: e3.e3Program,
+      });
+      if (fromServer) {
+        return fromServer.map((input) => ({
+          txHash: input.transaction_hash ?? "",
+          index: BigInt(input.index),
+          blockNumber: BigInt(input.block),
+        }));
+      }
 
       const logs = await publicClient.getLogs({
         address: e3.e3Program,

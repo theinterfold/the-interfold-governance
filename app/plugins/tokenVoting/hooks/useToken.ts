@@ -21,6 +21,8 @@ export function useToken() {
     address: PUB_TOKEN_ADDRESS,
     abi: erc20Abi,
     functionName: "symbol",
+    // Immutable for the life of the token — unlike `totalSupply`, which moves with mints/burns.
+    query: { staleTime: Infinity, gcTime: Infinity },
   });
 
   return {
