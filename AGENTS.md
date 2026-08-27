@@ -288,6 +288,22 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
 - **`MINIMUM_PARTICIPATION` is a percentage of `RATIO_BASE = 100`** (CRISP), so 1 = 1% and the
   finest step is 1%. `0` disables quorum (testing). TokenVoting's `TV_MIN_PARTICIPATION` is ppm
   out of 1_000_000 instead.
+- **The indexer RPC only serves addresses it is told about, and the app reaches ones it is not.**
+  `/chain/rpc` on the CRISP server answers `Address not served by this indexer: 0x…` for anything
+  outside `INDEX_CONTRACTS`, and the escrow's satellites (exit queue, lock NFT, IVotes adapter) are
+  read OFF the escrow at runtime — no allowlist could have been configured with them by name. That
+  is why the wagmi transport is a `fallback([indexer, /api/rpc])`: whatever the indexer refuses
+  goes to the generic relay. It cost a lock page rendering "a —-day cooldown" and a permanently
+  empty delegate list to find. `/api/rpc` needs `WEB3_RPC_URL` set server-side for the fallback to
+  land anywhere.
+- **A delegate scan starts where the DELEGATION source was deployed, not the token.** With locking
+  on, `DelegateChanged` comes from the escrow's adapter, which on mainnet is ~306k blocks younger
+  than FOLD (25779726 vs 25473449). `useDelegates` passes `PUB_DELEGATION_DEPLOYMENT_BLOCK` as
+  `from_block`, which is both the range `/members/delegates` scans and the coverage its answer is
+  checked against. With the token's block there instead, the first caller after a server restart
+  waits out a third of a million blocks that cannot contain a matching event — long enough to time
+  out, drop to the client-side scan, and fail as "Could not load delegates" until someone else's
+  request finished the scan and warmed the cache.
 - **Etherscan V1 endpoints are sunset.** All Etherscan reads go through the V2 multichain
   endpoint (`api.etherscan.io/v2/api` + `chainid`); `hooks/useAbi.ts` rides the chainid in with
   the API key because whatsabi 0.14 has no chainid config.

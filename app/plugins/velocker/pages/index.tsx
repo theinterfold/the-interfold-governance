@@ -81,6 +81,9 @@ export default function Locker() {
   const totalLockedByMe =
     locks.ownedLocks.reduce((acc, l) => acc + l.amount, 0n) + locks.queuedExits.reduce((acc, t) => acc + t.amount, 0n);
   const cooldownDays = escrow.cooldown === undefined ? undefined : Math.round(escrow.cooldown / DAY);
+  // Read off the exit queue, so it can be unknown while the read is in flight (or if it fails).
+  // Never fill the gap with a number: a made-up "30-day" is a promise the contract has not made.
+  const cooldownText = cooldownDays === undefined ? "a cooldown" : `a ${cooldownDays}-day cooldown`;
 
   return (
     <MainSection narrow>
@@ -100,8 +103,8 @@ export default function Locker() {
           </li>
           <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
           <li>
-            Unlock any time: start the withdrawal, wait out the {cooldownDays ?? 30}-day cooldown, then claim your{" "}
-            {PUB_TOKEN_SYMBOL}. Voting power stops as soon as the withdrawal starts.
+            Unlock any time: start the withdrawal, wait out {cooldownText}, then claim your {PUB_TOKEN_SYMBOL}. Voting
+            power stops as soon as the withdrawal starts.
           </li>
         </ul>
         <p className="mt-3 font-semibold">
@@ -179,8 +182,7 @@ export default function Locker() {
           <Card>
             <p className="text-base font-semibold text-neutral-800">Lock {PUB_TOKEN_SYMBOL}</p>
             <p className="text-sm text-neutral-500">
-              Transfers {PUB_TOKEN_SYMBOL} into the voting escrow. Unlocking later takes a {cooldownDays ?? "—"}-day
-              cooldown.
+              Transfers {PUB_TOKEN_SYMBOL} into the voting escrow. Unlocking later takes {cooldownText}.
             </p>
             <InputText
               placeholder={`Amount of ${PUB_TOKEN_SYMBOL}`}

@@ -3,9 +3,9 @@ import { usePublicClient } from "wagmi";
 import { erc20Abi, parseAbiItem, type Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
 import {
+  PUB_DELEGATION_DEPLOYMENT_BLOCK,
   PUB_ENABLE_LOCKING,
   PUB_TOKEN_ADDRESS,
-  PUB_TOKEN_DEPLOYMENT_BLOCK,
   PUB_VE_LOCKER_ADDRESS,
   PUB_VOTING_POWER_SOURCE,
 } from "@/constants";
@@ -72,9 +72,13 @@ export function useDelegates() {
         //
         // All three roles are named because they are three different contracts here: supply from
         // the token, delegation from the adapter, voting weight from bonded votes.
+        // `fromBlock` follows the DELEGATION source, not the token: it is both the range the
+        // server scans and the coverage the answer is checked against, and the contract being
+        // scanned is the adapter. Asking from the token's block would demand — and pay for —
+        // history from before the adapter existed.
         const fromServer = await fetchDelegates({
           token: PUB_TOKEN_ADDRESS,
-          fromBlock: PUB_TOKEN_DEPLOYMENT_BLOCK,
+          fromBlock: PUB_DELEGATION_DEPLOYMENT_BLOCK,
           powerSource: PUB_VOTING_POWER_SOURCE,
           delegationSource,
         });
@@ -90,7 +94,7 @@ export function useDelegates() {
         const logs = await scanLogs(
           publicClient,
           { address: delegationSource, event: delegateChangedEvent },
-          BigInt(PUB_TOKEN_DEPLOYMENT_BLOCK || 0)
+          BigInt(PUB_DELEGATION_DEPLOYMENT_BLOCK || 0)
         );
         if (cancelled) return;
         const candidates = new Set<string>();
@@ -135,8 +139,14 @@ export function useDelegates() {
         setTotalSupply(supply);
         setDelegates(entries);
         hasLoadedOnce.current = true;
-      } catch {
-        if (!cancelled) setError("Could not load delegates");
+      } catch (err) {
+        // Say WHICH read failed, not just that something did. Both paths above reach addresses
+        // resolved on chain (the escrow's IVotes adapter) and read through whatever RPC is
+        // configured, so the usual cause is an endpoint that will not serve one of them —
+        // `Address not served by this indexer: 0x…`, which the bare message hid.
+        console.error("useDelegates:", err);
+        const detail = err instanceof Error ? (err as { shortMessage?: string }).shortMessage || err.message : "";
+        if (!cancelled) setError(detail ? `Could not load delegates — ${detail}` : "Could not load delegates");
       } finally {
         if (!cancelled) setIsLoading(false);
       }

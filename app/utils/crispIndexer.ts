@@ -19,29 +19,84 @@ import type { Address, Hex } from "viem";
 /** How far back an answer must reach to be trusted. */
 type Coverage = { scanned_from: number };
 
-async function post<T extends Coverage>(endpoint: string, body: unknown, requiredFrom: number): Promise<T | null> {
-  if (!PUB_CRISP_SERVER_URL || !requiredFrom) return null;
+/**
+ * How patient a call is willing to be.
+ *
+ * Default: none. Most routes here answer from an index that is either warm or not, and a caller
+ * that can scan for itself should not sit waiting. `/members/delegates` is the exception — see
+ * `fetchDelegates`.
+ */
+type Patience = {
+  /** Total tries, including the first. */
+  attempts?: number;
+  /** Per-try cap. A hung request must not leave the caller's spinner up for ever. */
+  timeoutMs?: number;
+};
+
+/** Backoff before try N (1-indexed), in ms. Long enough for a cold scan to finish. */
+const RETRY_DELAYS = [1_000, 4_000, 10_000];
+
+/**
+ * One try. `null` means "the answer is not usable"; `retry` says whether trying again could
+ * change that — a timeout or a 5xx could, a 404 (`not served by this indexer`) never will, and
+ * retrying it just makes a client wait to be told the same thing.
+ */
+async function attempt<T extends Coverage>(
+  endpoint: string,
+  body: unknown,
+  requiredFrom: number,
+  timeoutMs: number
+): Promise<{ data: T | null; retry: boolean }> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${PUB_CRISP_SERVER_URL.replace(/\/$/, "")}/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: abort.signal,
     });
 
-    if (!response.ok) return null;
+    // 5xx and 429 are states the server leaves; 4xx is a verdict on the request itself.
+    if (!response.ok) return { data: null, retry: response.status >= 500 || response.status === 429 };
 
     const data = (await response.json()) as T;
 
     // Trust it only as far as it says it scanned. The server's own coverage starts wherever IT
     // began indexing, so an answer built from a shorter range is missing entries — and for a list,
     // missing entries are indistinguishable from there being none.
-    if (!(data?.scanned_from <= requiredFrom)) return null;
+    if (!(data?.scanned_from <= requiredFrom)) return { data: null, retry: false };
 
-    return data;
+    return { data, retry: false };
   } catch {
-    return null;
+    // Aborted, offline, DNS, CORS — all worth another go.
+    return { data: null, retry: true };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+async function post<T extends Coverage>(
+  endpoint: string,
+  body: unknown,
+  requiredFrom: number,
+  patience: Patience = {}
+): Promise<T | null> {
+  if (!PUB_CRISP_SERVER_URL || !requiredFrom) return null;
+
+  const attempts = patience.attempts ?? 1;
+  const timeoutMs = patience.timeoutMs ?? 15_000;
+
+  for (let i = 0; i < attempts; i++) {
+    if (i > 0) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[i - 1] ?? 10_000));
+
+    const { data, retry } = await attempt<T>(endpoint, body, requiredFrom, timeoutMs);
+    if (data) return data;
+    if (!retry) return null;
+  }
+
+  return null;
 }
 
 export type ServerProposal = {
@@ -120,7 +175,22 @@ export type ServerDelegates = {
   totalSupply: bigint;
 };
 
-/** The delegate directory: every address ever delegated to that still holds power, ranked. */
+/**
+ * The delegate directory: every address ever delegated to that still holds power, ranked.
+ *
+ * The one call here that waits and retries, because its fallback is not a real one. The route
+ * builds the directory by scanning `DelegateChanged` from the token's deployment block, and the
+ * FIRST caller after the server starts pays for that scan inside their request — tens of upstream
+ * windows, long enough to time out in a browser. Every later caller gets it from the server's
+ * cache in milliseconds. So a failure here is nearly always "come back in a moment", not "this
+ * server cannot answer".
+ *
+ * Meanwhile the client-side fallback that failure drops us into scans the same range through the
+ * indexer's own rate-limited RPC, ~40 sequential windowed `eth_getLogs` — slower than waiting,
+ * and in practice it just fails differently. Retrying the route is strictly the better bet, and
+ * a 4xx still returns immediately, so a server that genuinely does not serve this token costs
+ * nothing.
+ */
 export async function fetchDelegates(options: {
   token: Address;
   fromBlock: number;
@@ -146,7 +216,8 @@ export async function fetchDelegates(options: {
         ? { delegation_source: options.delegationSource }
         : {}),
     },
-    options.fromBlock
+    options.fromBlock,
+    { attempts: 4, timeoutMs: 45_000 }
   );
 
   if (!Array.isArray(data?.delegates)) return null;
