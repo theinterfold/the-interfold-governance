@@ -24,6 +24,11 @@ export const votingEscrowAbi = parseAbi([
   "function votingPowerForAccount(address account) view returns (uint256)",
 
   "function createLock(uint256 value) returns (uint256)",
+  // Locks on behalf of another address: the FOLD is pulled from the caller, the lock NFT is
+  // minted to `to`, and the voting power moves to `to`'s delegate. Permissionless on the
+  // deployed escrow (`nonReentrant whenNotPaused`, no caller check), and there is no claw-back:
+  // only the NFT owner can begin or complete a withdrawal.
+  "function createLockFor(uint256 value, address to) returns (uint256)",
   "function beginWithdrawal(uint256 tokenId)",
   "function cancelWithdrawalRequest(uint256 tokenId)",
   "function withdraw(uint256 tokenId)",

@@ -354,7 +354,7 @@ contract CrispVotingViewsTest is Test {
     function test_updateE3SettingsRequiresManagerPermission() public {
         vm.prank(makeAddr("stranger"));
         vm.expectRevert();
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Large, 2, hex"beef");
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 1, hex"beef");
     }
 
     function test_updateE3SettingsStoresEmitsAndAppliesToFutureProposalsOnly() public {
@@ -366,12 +366,12 @@ contract CrispVotingViewsTest is Test {
         assertEq(interfold.lastComputeProviderParams(), bytes(""));
 
         vm.expectEmit(true, true, true, true, address(plugin));
-        emit E3SettingsUpdated(IInterfold.CommitteeSize.Large, 2, hex"beef");
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Large, 2, hex"beef");
+        emit E3SettingsUpdated(IInterfold.CommitteeSize.Small, 1, hex"beef");
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 1, hex"beef");
 
         (IInterfold.CommitteeSize cs, uint8 ps, bytes memory cpp) = plugin.getE3Settings();
-        assertEq(uint8(cs), uint8(IInterfold.CommitteeSize.Large));
-        assertEq(ps, 2);
+        assertEq(uint8(cs), uint8(IInterfold.CommitteeSize.Small));
+        assertEq(ps, 1);
         assertEq(cpp, hex"beef");
 
         // The NEXT proposal's E3 request carries the updated parameters. A fresh SPP sub-proposal
@@ -382,8 +382,8 @@ contract CrispVotingViewsTest is Test {
         plugin.createProposal(
             abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
-        assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Large));
-        assertEq(interfold.lastParamSet(), 2);
+        assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Small));
+        assertEq(interfold.lastParamSet(), 1);
         assertEq(interfold.lastComputeProviderParams(), hex"beef");
     }
 
