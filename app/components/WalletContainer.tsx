@@ -1,5 +1,6 @@
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
+import { useBlockieDataUrl } from "@/utils/blockies";
 import { MemberAvatar } from "@aragon/ods";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
 import classNames from "classnames";
@@ -43,6 +44,10 @@ const WalletContainer = () => {
     query: { enabled: !!ensName },
   });
 
+  // Overrides MemberAvatar's checksum-seeded fallback so the connected account's icon matches
+  // what explorers draw for it. A real ENS avatar still wins.
+  const blockie = useBlockieDataUrl(address);
+
   useEffect(() => {
     if (!chainId) return;
     else if (chainId === PUB_CHAIN.id) return;
@@ -63,7 +68,7 @@ const WalletContainer = () => {
       {isConnected && address && (
         <div className="flex items-center gap-3">
           <span className="hidden md:block">{ensName ?? formatHexString(address)}</span>
-          <MemberAvatar src={ensAvatar ?? ""} address={address} alt="Profile picture" size="md" />
+          <MemberAvatar src={ensAvatar ?? blockie ?? ""} address={address} alt="Profile picture" size="md" />
         </div>
       )}
 
