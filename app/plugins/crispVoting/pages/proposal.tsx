@@ -87,7 +87,7 @@ function ProposalDetailBody({
     onChainBlockedReason,
   } = useCrispServer(proposal?.e3Id);
   const canVote = useCanVote(proposalIdx);
-  const { balance, delegatesTo } = useTokenVotes(address);
+  const { balance, votingPower, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
@@ -119,7 +119,10 @@ function ProposalDetailBody({
     postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain);
   };
 
-  const hasBalance = !!balance && balance > ZERO;
+  // Warn only about power that is NOT already counted. With the velocker, `votingPower` comes from
+  // the BondedVotes adapter and includes FOLD bonded as ciphernode collateral and escrow-locked
+  // FOLD; comparing against a raw balance flagged holders whose power is fully represented.
+  const hasUnrepresentedBalance = !!balance && balance > ZERO && votingPower !== undefined && votingPower < balance;
   const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
   const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
 
@@ -149,7 +152,7 @@ function ProposalDetailBody({
         <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
           <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
             <BodySection body={proposal.description || "No description was provided"} />
-            <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
+            <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
               <NoVotePowerWarning
                 delegatingToSomeoneElse={delegatingToSomeoneElse}
                 delegatesTo={delegatesTo}

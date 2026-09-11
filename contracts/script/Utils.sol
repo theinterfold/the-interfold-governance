@@ -11,6 +11,23 @@ library Utils {
     // the canonical hevm cheat‑code address
     Vm public constant VM = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
+    /// @notice Mainnet refuses the insecure 512-degree parameter set.
+    /// @dev Mirrors `ActiveCryptoConfig.isParamSetSupported`, which accepts SECURE_PARAM_SET(1)
+    ///      only outside Sepolia/local. Caught here so a misconfigured `.env` fails the simulate
+    ///      step rather than reverting mid-broadcast with `UnsupportedCryptoConfig`.
+    error MainnetRequiresSecureParams(uint8 paramSet);
+
+    /// @notice Mainnet refuses committees below the production size.
+    error MainnetRequiresSmallCommittee(IInterfold.CommitteeSize committeeSize);
+
+    /// @notice Mainnet refuses a zero `minDuration`.
+    /// @dev `minDuration` is the only lower bound on a creator-chosen CRISP window, so a zero
+    ///      would let a proposal close in the block it opened.
+    error MainnetDurationTooShort(uint64 minDuration, uint64 required);
+
+    /// @notice The production floor on the creator-chosen CRISP window.
+    uint64 internal constant MAINNET_MINIMUM_DURATION = 1 days;
+
     struct CrispEnvVariables {
         address interfold;
         address crispProgramAddress;
@@ -38,5 +55,21 @@ library Utils {
         crispEnvVariables.committeeSize = IInterfold.CommitteeSize(uint8(VM.envUint("COMMITTEE_SIZE")));
         crispEnvVariables.computeProviderParams = VM.envBytes("COMPUTE_PROVIDER_PARAMS");
         crispEnvVariables.paramSet = uint8(VM.envUint("PARAM_SET"));
+        validateDeploymentPolicy(block.chainid, crispEnvVariables);
+    }
+
+    /// @notice Prevents a production deployment from silently using test cryptography or policy.
+    /// @dev Chain-gated rather than unconditional: Sepolia and local chains legitimately run the
+    ///      insecure preset and a minimum committee, and `ActiveCryptoConfig.isParamSetSupported`
+    ///      allows both there. Only mainnet is constrained.
+    function validateDeploymentPolicy(uint256 chainId, CrispEnvVariables memory config) internal pure {
+        if (chainId != 1) return;
+        if (config.paramSet != 1) revert MainnetRequiresSecureParams(config.paramSet);
+        if (config.committeeSize != IInterfold.CommitteeSize.Small) {
+            revert MainnetRequiresSmallCommittee(config.committeeSize);
+        }
+        if (config.votingSettings.minDuration < MAINNET_MINIMUM_DURATION) {
+            revert MainnetDurationTooShort(config.votingSettings.minDuration, MAINNET_MINIMUM_DURATION);
+        }
     }
 }

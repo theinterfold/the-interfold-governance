@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { Button, InputText, Tag } from "@aragon/ods";
-import { formatUnits, isAddress, parseUnits, type Address } from "viem";
+import { formatUnits, isAddress, isAddressEqual, parseUnits, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PleaseWaitSpinner } from "@/components/please-wait";
@@ -47,7 +47,7 @@ export default function Locker() {
   const minProposalPower = [privateCreate.minProposerVotingPower, publicCreate.minProposerVotingPower]
     .filter((v): v is bigint => v !== undefined)
     .reduce<bigint | undefined>((min, v) => (min === undefined || v < min ? v : min), undefined);
-  const { balance, createLock, isLocking, error: lockError } = useCreateLock(onChanged);
+  const { balance, lockable, lockedByVesting, createLock, isLocking, error: lockError } = useCreateLock(onChanged);
   const {
     beginWithdrawal,
     withdraw,
@@ -57,6 +57,7 @@ export default function Locker() {
   } = useVeWithdraw(escrow.lockNft, onChanged);
 
   const [amountInput, setAmountInput] = useState("");
+  const [lockForInput, setLockForInput] = useState("");
   const [delegateTarget, setDelegateTarget] = useState("");
   const decimals = useTokenDecimals();
 
@@ -72,8 +73,27 @@ export default function Locker() {
     }
   })();
   const belowMinimum = amount !== undefined && escrow.minDeposit !== undefined && amount < escrow.minDeposit;
-  const aboveBalance = amount !== undefined && balance !== undefined && amount > balance;
-  const canLock = amount !== undefined && amount > 0n && !belowMinimum && !aboveBalance;
+  // Checked against what may actually be LOCKED, not what is held: FOLD that has not vested sits
+  // in the wallet and counts toward voting power, but the token refuses to transfer it, so
+  // offering it here would only produce a revert the user cannot act on.
+  const aboveBalance = amount !== undefined && lockable !== undefined && amount > lockable;
+  // True only when vesting is the reason the cap is below the balance.
+  const hasVestingFold = lockable !== undefined && balance !== undefined && lockable < balance;
+  // An empty field means "lock for myself"; anything else must parse as an address before the
+  // button unlocks, because a lock minted to a mistyped address cannot be recovered.
+  const lockForTrimmed = lockForInput.trim();
+  const lockForRecipient = lockForTrimmed === "" ? undefined : (lockForTrimmed as Address);
+  const lockForInvalid = lockForRecipient !== undefined && !isAddress(lockForRecipient);
+  // Guarded on `lockForInvalid` because `isAddressEqual` THROWS `InvalidAddressError` on a
+  // malformed operand rather than returning false. This value is computed during render, so an
+  // unguarded call unmounts the whole page the moment someone types "0x" — before the "not a
+  // valid address" message below ever gets a chance to render.
+  const lockingForSelf =
+    !lockForInvalid &&
+    lockForRecipient !== undefined &&
+    address !== undefined &&
+    isAddressEqual(lockForRecipient, address);
+  const canLock = amount !== undefined && amount > 0n && !belowMinimum && !aboveBalance && !lockForInvalid;
 
   const notActivated = !delegation.delegatesTo || delegation.delegatesTo === ADDRESS_ZERO;
   const delegatedToSelf =
@@ -123,6 +143,7 @@ export default function Locker() {
         <div className="flex flex-col gap-y-6">
           <Card>
             <Row label={`${PUB_TOKEN_SYMBOL} balance`} value={fmt(balance)} />
+            {hasVestingFold && <Row label="Available to lock" value={fmt(lockable)} />}
             <Row label="Locked by you" value={fmt(totalLockedByMe)} />
             <Row label="Your total voting power" value={fmt(votingPower)} />
             {breakdown.available && (
@@ -195,20 +216,49 @@ export default function Locker() {
               }}
             />
             <div className="flex items-center gap-x-2 text-sm text-neutral-500">
-              <span>Balance: {fmt(balance)}</span>
+              <span>Available to lock: {fmt(lockable)}</span>
               <button
                 type="button"
                 className="font-semibold text-primary-400 disabled:text-neutral-300"
-                disabled={balance === undefined || decimals === undefined || balance === 0n}
+                disabled={lockable === undefined || decimals === undefined || lockable === 0n}
                 onClick={() => {
-                  if (balance !== undefined && decimals !== undefined) setAmountInput(formatUnits(balance, decimals));
+                  if (lockable !== undefined && decimals !== undefined) setAmountInput(formatUnits(lockable, decimals));
                 }}
               >
                 Max
               </button>
             </div>
+            {/* Shown whenever the cap is below the wallet balance. Without it the page offered a
+                balance the token refuses to move, and the lock failed with a bare
+                `InsufficientUnlockedBalance` selector that told the user nothing. */}
+            {hasVestingFold && (
+              <p className="text-sm text-neutral-500">
+                You hold {fmt(balance)}, but {fmt(lockedByVesting)} has not vested yet and cannot be locked. Vesting{" "}
+                {PUB_TOKEN_SYMBOL} already counts toward your voting power without being locked — locking is only how
+                you add power from {PUB_TOKEN_SYMBOL} that has vested.
+              </p>
+            )}
             {belowMinimum && <p className="text-sm text-critical-600">The minimum lock is {fmt(escrow.minDeposit)}.</p>}
-            {aboveBalance && <p className="text-sm text-critical-600">You do not hold that much {PUB_TOKEN_SYMBOL}.</p>}
+            {aboveBalance && (
+              <p className="text-sm text-critical-600">
+                {hasVestingFold
+                  ? `Only ${fmt(lockable)} has vested and can be locked right now.`
+                  : `You do not hold that much ${PUB_TOKEN_SYMBOL}.`}
+              </p>
+            )}
+            <InputText
+              placeholder="0x… recipient (optional)"
+              value={lockForInput}
+              onChange={(e) => setLockForInput(e.target.value)}
+            />
+            <p className="text-sm text-neutral-500">
+              Leave empty to lock for yourself. With an address, your {PUB_TOKEN_SYMBOL} is locked and the lock belongs
+              to them: they get the voting power, and only they can withdraw it once unlocked. You cannot take it back.
+            </p>
+            {lockForInvalid && <p className="text-sm text-critical-600">That is not a valid address.</p>}
+            {lockingForSelf && (
+              <p className="text-sm text-neutral-500">That is your own address — this locks for yourself.</p>
+            )}
             {lockError && <p className="text-sm text-critical-600">{lockError}</p>}
             <span>
               <Button
@@ -216,9 +266,16 @@ export default function Locker() {
                 variant="primary"
                 isLoading={isLocking}
                 disabled={!canLock}
-                onClick={() => amount !== undefined && void createLock(amount)}
+                onClick={() => {
+                  if (amount === undefined) return;
+                  // Clear the recipient on success only: a failed lock keeps the form as typed,
+                  // but a completed one must not silently reuse the address on the next lock.
+                  void createLock(amount, lockForRecipient).then((ok) => {
+                    if (ok) setLockForInput("");
+                  });
+                }}
               >
-                Approve and lock
+                {lockForRecipient && !lockingForSelf ? "Approve and lock for them" : "Approve and lock"}
               </Button>
             </span>
           </Card>

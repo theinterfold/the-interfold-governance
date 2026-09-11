@@ -1,27 +1,89 @@
 import { registeredPreset, setCircuits } from "@crisp-e3/sdk";
+import type { CircuitBundle, CircuitPreset } from "@crisp-e3/sdk";
+import type { ThresholdBfvParamsPresetName } from "@interfold/sdk";
 
 // The BFV-shaped circuits ship as their own entry point per preset (~3MB), separate from the
 // SDK's main entry. Loading them through a dynamic import gives the bundler a split point, so
 // the app only pays for them when someone actually votes.
 //
-// This app votes in insecure-512 rounds for now. Switching to the production preset is a
-// change here and nowhere else: import "@crisp-e3/sdk/secure-8192" instead.
-let pending: Promise<void> | null = null;
+// Which preset to load is decided by the ROUND, not by this file. `resolvePresetForParams`
+// already identifies a round's parameter set by comparing `Interfold.paramSetRegistry(paramSet)`
+// against every preset the SDK knows — the same answer the committee-key check is trusted with.
+// Hardcoding a preset here would reintroduce exactly the assumption that check refuses to make:
+// the numeric `paramSet` is a registry key, and nothing stops a deployment registering different
+// parameters under it. It also means enabling secure parameters on chain needs no change here.
+const LOADERS: Record<CircuitPreset, () => Promise<{ loadCircuits: () => Promise<CircuitBundle> }>> = {
+  "insecure-512": () => import("@crisp-e3/sdk/insecure-512"),
+  "secure-8192": () => import("@crisp-e3/sdk/secure-8192"),
+};
 
-/** Install the circuits needed for encrypting and proving, at most once per session. */
-export const ensureCircuits = async (): Promise<void> => {
-  if (registeredPreset()) return;
+/// The two SDKs name the same parameter sets differently: `@interfold/sdk` resolves a round to a
+/// `ThresholdBfvParamsPresetName`, while `@crisp-e3/sdk` keys its circuit bundles by
+/// `CircuitPreset`. Mapping is total in both directions today; an unmapped name is a new preset
+/// this app has no circuits for, which must refuse rather than silently fall back to 512-degree
+/// circuits and produce proofs the verifier rejects.
+const CIRCUIT_PRESET_FOR: Record<ThresholdBfvParamsPresetName, CircuitPreset> = {
+  INSECURE_THRESHOLD_512: "insecure-512",
+  SECURE_THRESHOLD_8192: "secure-8192",
+};
 
-  pending ??= (async () => {
-    try {
-      const { loadCircuits } = await import("@crisp-e3/sdk/insecure-512");
-      setCircuits(await loadCircuits());
-    } catch (error) {
-      // Let the next attempt retry rather than caching a failed fetch for the session.
-      pending = null;
-      throw error;
-    }
-  })();
+const pending: Partial<Record<CircuitPreset, Promise<void>>> = {};
 
-  await pending;
+/**
+ * The preset whose bundle is currently downloading.
+ *
+ * `registeredPreset()` only reports a COMPLETED registration, so it is blind to a load that is
+ * still in flight: two rounds opened seconds apart both see `active === undefined`, both start a
+ * loader, and both reach `setCircuits`. Whichever finishes last wins, and the other vote goes on
+ * to prove against circuits that do not match the ciphertext it just encrypted — silently, because
+ * nothing in the SDK re-checks the preset after registration.
+ */
+let loadingPreset: CircuitPreset | undefined;
+
+/**
+ * Installs the circuits a round needs, at most once per preset per session.
+ *
+ * @param presetName The round's parameter set, from `resolvePresetForParams`.
+ */
+export const ensureCircuits = async (presetName: ThresholdBfvParamsPresetName): Promise<void> => {
+  const preset = CIRCUIT_PRESET_FOR[presetName];
+  if (!preset) {
+    throw new Error(`This round uses parameter set ${presetName}, which this app has no circuits for.`);
+  }
+
+  // Registering a second preset over a live one would leave the SDK proving against circuits that
+  // do not match the ciphertext, so a mismatch is refused rather than swapped underneath.
+  const active = registeredPreset();
+  if (active === preset) return;
+  if (active) {
+    throw new Error(
+      `Circuits for ${active} are already loaded; this round needs ${preset}. Reload the page before voting on it.`
+    );
+  }
+
+  // The same refusal, one step earlier: a different preset already downloading is just as
+  // disqualifying as one already registered, and only this check can see it.
+  if (loadingPreset && loadingPreset !== preset) {
+    throw new Error(`Circuits for ${loadingPreset} are still loading; this round needs ${preset}. Try again shortly.`);
+  }
+
+  if (!pending[preset]) {
+    loadingPreset = preset;
+    pending[preset] = (async () => {
+      try {
+        const { loadCircuits } = await LOADERS[preset]();
+        setCircuits(await loadCircuits());
+      } catch (error) {
+        // Let the next attempt retry rather than caching a failed fetch for the session.
+        pending[preset] = undefined;
+        throw error;
+      } finally {
+        // Only clear our own claim: a concurrent caller for the SAME preset awaits this identical
+        // promise, so it must not be able to release a marker it never set.
+        if (loadingPreset === preset) loadingPreset = undefined;
+      }
+    })();
+  }
+
+  await pending[preset];
 };
