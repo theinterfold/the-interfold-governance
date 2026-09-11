@@ -2,6 +2,8 @@ import { expect, test, describe } from "bun:test";
 import { createImageData, parseOptions } from "blockies-ts";
 import { getAddress } from "viem";
 
+import { blockieDataUrl } from "../utils/blockies";
+
 /**
  * INV: an address icon in this app must match the icon a block explorer draws for the same
  * account, because every address in the UI links straight to that explorer.
@@ -92,5 +94,53 @@ describe("blockies seeding (INV: our icons must match the block explorer's)", ()
   test("different accounts still produce different icons", () => {
     const other = "0x652a31c669f9AB37f6040f279139a75D04F2679e";
     expect(pattern(toSeed(other), ETHERSCAN_SIZE)).not.toEqual(etherscanReference());
+  });
+});
+
+/**
+ * `blockieDataUrl` is the helper every avatar call site uses. It must be SYNCHRONOUS and
+ * canvas-free: an effect-driven value leaves `src` empty on the first paint, and ODS
+ * `MemberAvatar` fills an empty `src` with its own CHECKSUM-seeded blockie — so the user sees the
+ * wrong icon briefly and then watches it change. That visible swap was the reported symptom.
+ */
+describe("blockieDataUrl (INV: correct on the first frame, never swaps)", () => {
+  test("returns a data URL synchronously, with no canvas and no effect", () => {
+    const url = blockieDataUrl(CHECKSUMMED);
+    expect(url).toBeDefined();
+    expect(url?.startsWith("data:image/svg+xml,")).toBe(true);
+  });
+
+  test("is deterministic — repeated calls give byte-identical output", () => {
+    expect(blockieDataUrl(CHECKSUMMED)).toEqual(blockieDataUrl(CHECKSUMMED));
+  });
+
+  test("casing of the input does not matter — both normalise to the explorer seed", () => {
+    expect(blockieDataUrl(CHECKSUMMED)).toEqual(blockieDataUrl(LOWERCASE));
+  });
+
+  test("encodes the explorer's own grid, not a checksum-seeded one", () => {
+    const url = decodeURIComponent(blockieDataUrl(CHECKSUMMED)!);
+    // One <rect> per filled cell, plus one for the background.
+    const rects = (url.match(/<rect /g) ?? []).length;
+    const filled = etherscanReference().filter((v) => v !== 0).length;
+    expect(rects).toBe(filled + 1);
+  });
+
+  test("different accounts yield different data URLs", () => {
+    expect(blockieDataUrl(CHECKSUMMED)).not.toEqual(blockieDataUrl("0x652a31c669f9AB37f6040f279139a75D04F2679e"));
+  });
+
+  test("a missing or malformed address yields undefined instead of a garbage icon", () => {
+    expect(blockieDataUrl(undefined)).toBeUndefined();
+    expect(blockieDataUrl("")).toBeUndefined();
+    expect(blockieDataUrl("0x")).toBeUndefined();
+    expect(blockieDataUrl("0x8837e47c4Bb520ADE83AAB761C3B60679443af")).toBeUndefined();
+    expect(blockieDataUrl("not-an-address")).toBeUndefined();
+  });
+
+  test("generating one icon does not disturb the next — shared PRNG is re-seeded each call", () => {
+    const first = blockieDataUrl(CHECKSUMMED);
+    blockieDataUrl("0x652a31c669f9AB37f6040f279139a75D04F2679e");
+    expect(blockieDataUrl(CHECKSUMMED)).toEqual(first);
   });
 });

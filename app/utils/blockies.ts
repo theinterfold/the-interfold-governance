@@ -1,60 +1,76 @@
-import { useEffect, useState } from "react";
+import { createImageData, parseOptions } from "blockies-ts";
 import { isAddress } from "viem";
-import blockies from "blockies-ts";
 
 /**
- * Identicons that match what block explorers draw for the same account.
+ * Identicons identical to the ones block explorers draw for the same account.
  *
- * Etherscan generates its address icons with (`etherscan.io/jss/blockies.js`, called from
- * `assets/js/custom/combine-js-bottom2.js`):
+ * Etherscan generates its address icon in `assets/js/custom/addresspage4.js`:
  *
  *     blockies.create({ seed: address.toLowerCase(), size: 8, scale: 16 })
  *
- * `blockies-ts` is a port of that exact script — byte-identical PRNG, `createColor`,
- * `createImageData`, and the same call order — so it reproduces an explorer icon precisely as
- * long as the inputs match. Neither library normalises the seed, so the icon is a pure function
- * of (seed string, size) and BOTH have to be right:
+ * and never overrides it with an ENS avatar — the blockie is the icon, always. `blockies-ts` is a
+ * port of the same `etherscan.io/jss/blockies.js` script (byte-identical PRNG, `createColor`,
+ * `createImageData`, same call order), so reusing its helpers reproduces an explorer icon exactly.
  *
- *   - seed MUST be lowercase. A checksummed address yields a completely different icon. This is
- *     the trap: ODS `MemberAvatar` seeds with `getChecksum(address)` internally, so its default
- *     fallback never matches an explorer. Pass `useBlockieDataUrl` into its `src` to override it.
+ * Neither library normalises the seed, so the icon is a pure function of (seed, size) and BOTH
+ * inputs have to be right:
+ *
+ *   - seed MUST be lowercase. A checksummed address yields a completely different icon.
  *   - size MUST be 8. `size` is the grid dimension, not a display scale — changing it changes how
- *     much randomness is drawn and therefore the pattern. `scale` is the cosmetic knob and does
- *     not affect which pixels are set.
+ *     much randomness is drawn. `scale` only sets the rendered pixel size and is free to differ.
  */
 export const EXPLORER_BLOCKIE_SIZE = 8;
 export const EXPLORER_BLOCKIE_SCALE = 16;
 
+/** The seed an explorer uses for an address. Exported so every call site shares one definition. */
+export const toExplorerBlockieSeed = (address?: string): string => (address ?? "").toLowerCase();
+
 /**
- * The explorer-identical blockie for an address, as a PNG data URL.
+ * The explorer-identical blockie for an address, as an SVG data URL.
  *
- * Returns `undefined` during SSR and on the first client render: `blockies-ts` needs a real
- * `<canvas>`, and generating it while rendering on the server would produce a hydration mismatch.
- * Callers should treat `undefined` as "no override" and let their component's own fallback show.
+ * Deliberately SYNCHRONOUS and canvas-free. `blockies-ts`'s `create()` needs a real `<canvas>`, so
+ * it only works in the browser and only after mount — which forces an effect, leaves `src` empty
+ * on the first paint, and makes the icon visibly change once the effect lands. Worse, ODS
+ * `MemberAvatar` renders its OWN checksum-seeded blockie as the fallback whenever `src` is empty,
+ * so that first frame shows the wrong icon.
+ *
+ * `parseOptions` and `createImageData` are pure (they only touch the module-level PRNG), so
+ * building the SVG by hand renders identically on the server and the client: no effect, no
+ * hydration mismatch, no swap, and `src` is populated from the very first frame.
  *
  * @param address The account to draw. Anything that is not a well-formed address yields
  *   `undefined` rather than a garbage icon.
  */
-export const useBlockieDataUrl = (address?: string): string | undefined => {
-  const [dataUrl, setDataUrl] = useState<string>();
+export const blockieDataUrl = (address?: string): string | undefined => {
+  if (!address || !isAddress(address)) {
+    return undefined;
+  }
 
-  useEffect(() => {
-    if (!address || !isAddress(address)) {
-      setDataUrl(undefined);
-      return;
-    }
+  // Seeds the PRNG and draws color/bgcolor/spotcolor, then the grid — the exact order
+  // `blockies.create()` uses, so the same randomness lands in the same place.
+  const opts = parseOptions({
+    seed: toExplorerBlockieSeed(address),
+    size: EXPLORER_BLOCKIE_SIZE,
+    scale: EXPLORER_BLOCKIE_SCALE,
+  });
+  const data = createImageData(opts.size);
 
-    setDataUrl(
-      blockies
-        .create({
-          // Lowercase, exactly as Etherscan seeds it.
-          seed: address.toLowerCase(),
-          size: EXPLORER_BLOCKIE_SIZE,
-          scale: EXPLORER_BLOCKIE_SCALE,
-        })
-        .toDataURL()
-    );
-  }, [address]);
+  const cells = Math.sqrt(data.length);
+  const extent = opts.size * opts.scale;
 
-  return dataUrl;
+  let rects = "";
+  for (let i = 0; i < data.length; i++) {
+    // 0 leaves the background showing, 1 is the foreground, 2 is the spot colour.
+    if (!data[i]) continue;
+    const row = Math.floor(i / cells);
+    const column = i % cells;
+    const fill = data[i] === 1 ? opts.color : opts.spotcolor;
+    rects += `<rect x="${column * opts.scale}" y="${row * opts.scale}" width="${opts.scale}" height="${opts.scale}" fill="${fill}"/>`;
+  }
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${extent}" height="${extent}" shape-rendering="crispEdges">` +
+    `<rect width="${extent}" height="${extent}" fill="${opts.bgcolor}"/>${rects}</svg>`;
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };

@@ -1,6 +1,6 @@
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
-import { useBlockieDataUrl } from "@/utils/blockies";
+import { blockieDataUrl } from "@/utils/blockies";
 import { DataListItem, MemberAvatar, Tag, type IDataListItemProps, type TagVariant } from "@aragon/ods";
 import classNames from "classnames";
 
@@ -21,9 +21,9 @@ export const VotesDataListItemStructure: React.FC<IVotesDataListItemStructurePro
     props;
   const explorerUrl = `${PUB_CHAIN.blockExplorers?.default.url}/address/${address}`;
 
-  // Overrides MemberAvatar's checksum-seeded fallback so the icon matches the explorer this row
-  // already links to. A real ENS avatar still takes precedence.
-  const blockie = useBlockieDataUrl(address);
+  // Always the blockie, matching the explorer this row already links to. Etherscan never
+  // substitutes an ENS avatar, and a synchronous value means no post-paint swap.
+  const blockie = blockieDataUrl(address);
 
   const label = connectedAccount ? "You" : delegate ? "Your delegate" : null;
 
@@ -42,7 +42,7 @@ export const VotesDataListItemStructure: React.FC<IVotesDataListItemStructurePro
       {...otherProps}
     >
       <div className="flex w-full items-center gap-x-3 md:gap-x-4">
-        <MemberAvatar src={ensAvatar ?? blockie ?? ""} address={address} alt="Avatar" className="shrink-0" size="sm" />
+        <MemberAvatar src={blockie ?? ""} address={address} alt="Avatar" className="shrink-0" size="sm" />
         <div className="flex flex-1 flex-col justify-center gap-y-1 md:gap-y-1.5">
           <div className="flex">
             <span className="leading-tight text-neutral-800 md:text-lg">{ensName || formatHexString(address)}</span>

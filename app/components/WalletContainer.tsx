@@ -1,6 +1,6 @@
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
-import { useBlockieDataUrl } from "@/utils/blockies";
+import { blockieDataUrl } from "@/utils/blockies";
 import { MemberAvatar } from "@aragon/ods";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
 import classNames from "classnames";
@@ -36,17 +36,9 @@ const WalletContainer = () => {
     address: address,
   });
 
-  const { data: ensAvatar } = useEnsAvatar({
-    config,
-    name: normalize(ensName!),
-    chainId: mainnet.id,
-    gatewayUrls: ["https://cloudflare-ipfs.com"],
-    query: { enabled: !!ensName },
-  });
-
-  // Overrides MemberAvatar's checksum-seeded fallback so the connected account's icon matches
-  // what explorers draw for it. A real ENS avatar still wins.
-  const blockie = useBlockieDataUrl(address);
+  // Always the blockie, matching how explorers render an address (Etherscan never substitutes an
+  // ENS avatar). Synchronous, so it is correct from the first paint and never swaps.
+  const blockie = blockieDataUrl(address);
 
   useEffect(() => {
     if (!chainId) return;
@@ -68,7 +60,7 @@ const WalletContainer = () => {
       {isConnected && address && (
         <div className="flex items-center gap-3">
           <span className="hidden md:block">{ensName ?? formatHexString(address)}</span>
-          <MemberAvatar src={ensAvatar ?? blockie ?? ""} address={address} alt="Profile picture" size="md" />
+          <MemberAvatar src={blockie ?? ""} address={address} alt="Profile picture" size="md" />
         </div>
       )}
 
