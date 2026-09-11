@@ -84,8 +84,15 @@ export default function Locker() {
   const lockForTrimmed = lockForInput.trim();
   const lockForRecipient = lockForTrimmed === "" ? undefined : (lockForTrimmed as Address);
   const lockForInvalid = lockForRecipient !== undefined && !isAddress(lockForRecipient);
+  // Guarded on `lockForInvalid` because `isAddressEqual` THROWS `InvalidAddressError` on a
+  // malformed operand rather than returning false. This value is computed during render, so an
+  // unguarded call unmounts the whole page the moment someone types "0x" — before the "not a
+  // valid address" message below ever gets a chance to render.
   const lockingForSelf =
-    lockForRecipient !== undefined && address !== undefined && isAddressEqual(lockForRecipient, address);
+    !lockForInvalid &&
+    lockForRecipient !== undefined &&
+    address !== undefined &&
+    isAddressEqual(lockForRecipient, address);
   const canLock = amount !== undefined && amount > 0n && !belowMinimum && !aboveBalance && !lockForInvalid;
 
   const notActivated = !delegation.delegatesTo || delegation.delegatesTo === ADDRESS_ZERO;

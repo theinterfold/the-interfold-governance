@@ -30,6 +30,17 @@ const CIRCUIT_PRESET_FOR: Record<ThresholdBfvParamsPresetName, CircuitPreset> = 
 const pending: Partial<Record<CircuitPreset, Promise<void>>> = {};
 
 /**
+ * The preset whose bundle is currently downloading.
+ *
+ * `registeredPreset()` only reports a COMPLETED registration, so it is blind to a load that is
+ * still in flight: two rounds opened seconds apart both see `active === undefined`, both start a
+ * loader, and both reach `setCircuits`. Whichever finishes last wins, and the other vote goes on
+ * to prove against circuits that do not match the ciphertext it just encrypted — silently, because
+ * nothing in the SDK re-checks the preset after registration.
+ */
+let loadingPreset: CircuitPreset | undefined;
+
+/**
  * Installs the circuits a round needs, at most once per preset per session.
  *
  * @param presetName The round's parameter set, from `resolvePresetForParams`.
@@ -50,16 +61,29 @@ export const ensureCircuits = async (presetName: ThresholdBfvParamsPresetName): 
     );
   }
 
-  pending[preset] ??= (async () => {
-    try {
-      const { loadCircuits } = await LOADERS[preset]();
-      setCircuits(await loadCircuits());
-    } catch (error) {
-      // Let the next attempt retry rather than caching a failed fetch for the session.
-      pending[preset] = undefined;
-      throw error;
-    }
-  })();
+  // The same refusal, one step earlier: a different preset already downloading is just as
+  // disqualifying as one already registered, and only this check can see it.
+  if (loadingPreset && loadingPreset !== preset) {
+    throw new Error(`Circuits for ${loadingPreset} are still loading; this round needs ${preset}. Try again shortly.`);
+  }
+
+  if (!pending[preset]) {
+    loadingPreset = preset;
+    pending[preset] = (async () => {
+      try {
+        const { loadCircuits } = await LOADERS[preset]();
+        setCircuits(await loadCircuits());
+      } catch (error) {
+        // Let the next attempt retry rather than caching a failed fetch for the session.
+        pending[preset] = undefined;
+        throw error;
+      } finally {
+        // Only clear our own claim: a concurrent caller for the SAME preset awaits this identical
+        // promise, so it must not be able to release a marker it never set.
+        if (loadingPreset === preset) loadingPreset = undefined;
+      }
+    })();
+  }
 
   await pending[preset];
 };
