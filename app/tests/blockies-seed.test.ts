@@ -1,66 +1,87 @@
 import { expect, test, describe } from "bun:test";
+import { createImageData, parseOptions } from "blockies-ts";
+import { getAddress } from "viem";
 
 /**
- * react-blockies (dist/main.js) seeds a xorshift PRNG straight from `seed.charCodeAt(i)` and
- * never normalises the string — there is no `toLowerCase` anywhere in the package. So the
- * CHECKSUMMED address viem returns from `getLogs` and the lowercase form Etherscan and the ODS
- * member avatars use generate DIFFERENT icons for the same account.
+ * INV: a voter's icon in the CRISP votes list must match the icon the rest of this app renders
+ * for the same account.
  *
- * The incident: the votes list rendered `seed={veto.voter}` with viem's checksummed value, so a
- * voter's icon in our UI never matched the one Etherscan showed for the same address.
+ * Everything else in the app uses ODS `MemberAvatar`, which generates its fallback with
+ * `blockies.create({ seed: getChecksum(address), scale: 8, size: 8 })` — the CHECKSUMMED address
+ * at size 8. The votes list uses `react-blockies` instead, a different package.
  *
- * This reproduces the library's generator exactly rather than importing it, because the real
- * component renders to a canvas that jsdom does not implement.
+ * The two packages share a byte-identical xorshift PRNG and `createImageData`, and consume
+ * randomness in the same order (color, bgcolor, spotcolor, then the pixel grid). Neither
+ * normalises the seed. So the rendered icon is a pure function of (seed string, size), and BOTH
+ * have to match ODS:
+ *
+ *   - seed: `getAddress()` output, not lowercase. Lowercasing was the original mistake — it makes
+ *     the icon differ from every other avatar in this app.
+ *   - size: 8, not 9. `size` is the grid dimension, not a display scale, so changing it changes
+ *     how much randomness `createImageData` draws and produces a different pattern.
+ *
+ * This drives the real `blockies-ts` (the exact library ODS depends on) rather than a
+ * reimplementation, so the test fails if that dependency ever changes its algorithm.
  */
-function blockiesRand(seed: string): () => number {
-  const randseed = new Array(4).fill(0);
-  for (let i = 0; i < seed.length; i++) {
-    randseed[i % 4] = (randseed[i % 4] << 5) - randseed[i % 4] + seed.charCodeAt(i);
-  }
-  return function rand() {
-    const t = randseed[0] ^ (randseed[0] << 11);
-    randseed[0] = randseed[1];
-    randseed[1] = randseed[2];
-    randseed[2] = randseed[3];
-    randseed[3] = randseed[3] ^ (randseed[3] >> 19) ^ t ^ (t >> 8);
-    return (randseed[3] >>> 0) / ((1 << 31) >>> 0);
-  };
+
+/** The pixel grid ODS/blockies-ts produces, seeding exactly as `MemberAvatar` does. */
+function pattern(seed: string, size: number): number[] {
+  // Re-seeds the shared PRNG and burns the three colour draws, matching ODS's call order.
+  parseOptions({ seed, size, scale: 8 });
+  return createImageData(size);
 }
 
-/** The first draws characterise both the colour palette and the pixel pattern. */
-const fingerprint = (seed: string) => {
-  const rand = blockiesRand(seed);
-  return Array.from({ length: 16 }, () => rand().toFixed(9)).join(",");
-};
+/** What `votes-section.tsx` must hand to react-blockies. */
+const toSeed = (address: string | undefined) => (address && /^0x[0-9a-fA-F]{40}$/.test(address) ? getAddress(address) : "");
 
-/** What the component must do with an address before handing it to react-blockies. */
-const toSeed = (address: string | undefined) => (address ?? "").toLowerCase();
+const ODS_SIZE = 8;
 
 const CHECKSUMMED = "0x8837e47c4Bb520ADE83AAB761C3B60679443af1B";
 const LOWERCASE = "0x8837e47c4bb520ade83aab761c3b60679443af1b";
 
-describe("blockies seeding (INV: our voter icons must match every explorer's)", () => {
-  test("the library's seed is case-sensitive — this is the bug being guarded", () => {
-    // If this ever becomes equal, react-blockies started normalising and the guard is moot.
-    expect(fingerprint(CHECKSUMMED)).not.toEqual(fingerprint(LOWERCASE));
+/** The ODS `MemberAvatar` reference icon for CHECKSUMMED. */
+const odsReference = () => pattern(getAddress(CHECKSUMMED), ODS_SIZE);
+
+describe("blockies seeding (INV: voter icons must match the app's other avatars)", () => {
+  test("our seed + size reproduce the ODS MemberAvatar icon exactly", () => {
+    expect(pattern(toSeed(CHECKSUMMED), ODS_SIZE)).toEqual(odsReference());
   });
 
-  test("a checksummed address is normalised to the same seed as its lowercase form", () => {
-    expect(toSeed(CHECKSUMMED)).toEqual(LOWERCASE);
-    expect(fingerprint(toSeed(CHECKSUMMED))).toEqual(fingerprint(LOWERCASE));
+  test("a lowercase input still yields the ODS icon — getAddress re-checksums it", () => {
+    expect(toSeed(LOWERCASE)).toEqual(CHECKSUMMED);
+    expect(pattern(toSeed(LOWERCASE), ODS_SIZE)).toEqual(odsReference());
   });
 
-  test("normalisation is idempotent — an already-lowercase address is untouched", () => {
-    expect(toSeed(LOWERCASE)).toEqual(LOWERCASE);
-    expect(fingerprint(toSeed(LOWERCASE))).toEqual(fingerprint(toSeed(CHECKSUMMED)));
+  /** The original bug: lowercasing the seed. Guards against reintroducing it. */
+  test("lowercasing the seed does NOT match ODS", () => {
+    expect(pattern(LOWERCASE, ODS_SIZE)).not.toEqual(odsReference());
   });
 
-  test("a missing voter does not throw and yields a stable empty seed", () => {
+  /**
+   * The second half of the bug, and the easier one to miss: `size` is the grid dimension, so
+   * size 9 draws a different amount of randomness and yields a different pattern — it is not a
+   * cosmetic scaling knob.
+   */
+  test("size 9 does NOT match ODS, even with the correct checksummed seed", () => {
+    expect(pattern(getAddress(CHECKSUMMED), 9)).not.toEqual(odsReference());
+  });
+
+  test("the library is case-sensitive — if this ever fails, it started normalising", () => {
+    expect(pattern(CHECKSUMMED, ODS_SIZE)).not.toEqual(pattern(LOWERCASE, ODS_SIZE));
+  });
+
+  test("a missing or malformed voter yields an empty seed instead of throwing", () => {
+    // getAddress throws on malformed input, so the component must guard before calling it.
+    expect(() => toSeed(undefined)).not.toThrow();
     expect(toSeed(undefined)).toEqual("");
+    expect(toSeed("")).toEqual("");
+    expect(toSeed("0x")).toEqual("");
+    expect(toSeed("0x8837e47c4Bb520ADE83AAB761C3B60679443af")).toEqual("");
+    expect(toSeed("not-an-address")).toEqual("");
   });
 
   test("different accounts still produce different icons", () => {
-    const other = "0x652a31c669f9ab37f6040f279139a75d04f2679e";
-    expect(fingerprint(toSeed(other))).not.toEqual(fingerprint(toSeed(CHECKSUMMED)));
+    const other = "0x652a31c669f9AB37f6040f279139a75D04F2679e";
+    expect(pattern(toSeed(other), ODS_SIZE)).not.toEqual(odsReference());
   });
 });

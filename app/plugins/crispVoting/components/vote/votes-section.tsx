@@ -1,6 +1,6 @@
 import Blockies from "react-blockies";
 import type { VoteCastEvent } from "../../utils/types";
-import { formatUnits } from "viem";
+import { formatUnits, getAddress, isAddress } from "viem";
 import { AddressText } from "@/components/text/address";
 import { Card } from "@aragon/ods";
 import { compactNumber } from "@/utils/numbers";
@@ -28,12 +28,15 @@ const VetoCard = function ({ veto }: { veto: VoteCastEvent }) {
     <Card className="p-3">
       <div className="space-between flex flex-row">
         <div className="flex flex-grow">
-          {/* Lowercased deliberately. react-blockies seeds its PRNG from `seed.charCodeAt(i)`
-              with no normalisation, so the CHECKSUMMED address viem returns from logs and the
-              lowercase form every other explorer feeds it produce different icons for the same
-              account. Etherscan, Blockscout and the ODS member avatars all seed with lowercase,
-              so this is what makes our icon match theirs. */}
-          <Blockies className="rounded-3xl" size={9} seed={(veto?.voter ?? "").toLowerCase()} />
+          {/* Seeded with the CHECKSUMMED address at size 8 to match `MemberAvatar`, which is what
+              the rest of this app renders for the same account.
+
+              ODS calls `blockies.create({ seed: getChecksum(address), scale: 8, size: 8 })`, and
+              `blockies-ts` and `react-blockies` share an identical PRNG and `createImageData`,
+              consuming randomness in the same order. Neither normalises the seed, so BOTH the
+              casing and the grid size have to match or the same voter gets two different icons —
+              size 9 is not a scaling difference, it changes the generated pattern. */}
+          <Blockies className="rounded-3xl" size={8} seed={isAddress(veto?.voter ?? "") ? getAddress(veto.voter) : ""} />
           <div className="px-2">
             <AddressText>{veto?.voter}</AddressText>
             <p className="text-sm text-neutral-600">
