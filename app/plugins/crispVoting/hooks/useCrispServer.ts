@@ -68,6 +68,16 @@ interface VoteResponse {
   tx_hash: string | null;
   message: string | null;
   is_vote_update: boolean | null;
+  /**
+   * The ATTESTED `publishInput` payload, present once the server has staged the input.
+   *
+   * This is `InputCommitmentEnvelope` — seven fields, including the
+   * `availabilityAttestationExpiresAt` deadline and the signature the CRISP
+   * `inputAvailabilitySigner` produced over it. A client cannot build it: only the server holds
+   * that key. Submit this verbatim; never re-encode it locally.
+   */
+  encoded_proof?: string | null;
+  job_id?: string | null;
 }
 
 /**
@@ -397,23 +407,16 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setLastActiveStep("broadcasting");
 
       // Everything above this point is identical for both routes: the ballot is encrypted and
-      // proven locally, and `encodedProof` is already the exact payload `publishInput` decodes.
-      // The only difference is who sends the transaction — the voter, or the CRISP server acting
-      // as a relayer.
-      if (submitOnChain) {
-        setStepMessage("Publishing your vote on-chain...");
-
-        const hash = await publishVoteOnChain(encodedProof as `0x${string}`);
-        setTxHash(hash);
-
-        const onChainLabel = isAMask ? "Masking" : "Vote";
-        setVotingStep("complete");
-        setStepMessage(`${onChainLabel} published on-chain!`);
-        addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
-        return;
-      }
-
-      setStepMessage("Broadcasting vote to the network...");
+      // proven locally.
+      // Both routes stage the input with the server first. That is not a relay: staging is what
+      // mints the availability attestation.
+      //
+      // `encodeSolidityProof` builds `InputEnvelope` — six fields, ending in `availabilityProof`.
+      //
+      // On mainnet (`chain_id == 1`) the server never relays: it stages, signs, and answers
+      // `ready_for_commitment` with `encoded_proof` for the voter to submit from their own wallet.
+      // That keeps gas on the voter and removes the griefing surface a funded relay would expose.
+      setStepMessage("Preparing your vote for submission...");
 
       const response = await fetch(`${PUB_CRISP_SERVER_URL}/voting/broadcast`, {
         method: "POST",
@@ -436,6 +439,45 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
+
+      if (submitOnChain) {
+        // Check `tx_hash` BEFORE `encoded_proof`: a job whose commitment was already relayed
+        // reports `pending_availability` with BOTH fields populated, and the payload is exposed
+        // only as a fallback for a client that wants the direct path after a relay failure.
+        // Submitting it anyway would be a second commitment for the same statement, which
+        // `publishInput` rejects with `InputAlreadyCommitted`.
+        if (voteResponse.tx_hash) {
+          setTxHash(voteResponse.tx_hash);
+          setVotingStep("complete");
+          setStepMessage("This vote is already committed on-chain.");
+          addAlert("This vote is already committed on-chain.", { timeout: 3000, type: "success" });
+          return;
+        }
+
+        const attestedPayload = voteResponse.encoded_proof;
+        if (!attestedPayload) {
+          // `pending_commitment` (JobState::Created) carries no payload yet.
+          const reason =
+            voteResponse.message ??
+            "The server has not returned an attested payload for this vote yet. Try again shortly.";
+          setError(reason);
+          setVotingStep("error");
+          setStepMessage(reason);
+          return;
+        }
+
+        setStepMessage("Publishing your vote on-chain...");
+
+        // The ATTESTED payload, not `encodedProof` — see the note above.
+        const hash = await publishVoteOnChain(attestedPayload as `0x${string}`);
+        setTxHash(hash);
+
+        const onChainLabel = isAMask ? "Masking" : "Vote";
+        setVotingStep("complete");
+        setStepMessage(`${onChainLabel} published on-chain!`);
+        addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
+        return;
+      }
 
       if (voteResponse.tx_hash) {
         setTxHash(voteResponse.tx_hash);
