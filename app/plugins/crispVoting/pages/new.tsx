@@ -16,6 +16,7 @@ import { FeeCreditCard } from "../components/feeCreditCard";
 import { type CanCreateProposal, useCanCreateProposal } from "../hooks/useCanCreateProposal";
 import { useCreateProposal } from "../hooks/useCreateProposal";
 import { useDelegate } from "@/hooks/useDelegate";
+import { unixTimestampToDate } from "../utils/formatProposalDate";
 
 /** "5d", "1d 2h", "20m" — only the units that are non-zero, so short testnet windows stay legible. */
 function formatWindow(seconds: number): string {
@@ -44,6 +45,8 @@ export default function Create() {
     isCreating,
     submitProposal,
     durationSeconds,
+    votingStartsAt,
+    availabilityWindowSeconds,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,9 +100,9 @@ export default function Create() {
 
         <PlaceHolderOr selfAddress={selfAddress} state={canCreateState} isConnected={isConnected}>
           <p className="form-intro">
-            A proposal becomes <em>active</em> the moment it is mined. Voters then have the stage-configured window to
-            cast encrypted ballots — tallies decrypt only once that window closes. A passed proposal is then held for
-            the foundation veto window before it can be executed.
+            A proposal first gives the ciphernode committee time to prepare its key. Voting starts at the scheduled time
+            and remains open for the full stage-configured window. Avail finalization, computation, and decryption
+            happen after voting closes. A passed proposal then moves to the foundation stage before execution.
           </p>
           <div className="mb-6">
             <InputText
@@ -195,11 +198,17 @@ export default function Create() {
             </span>
           </div>
 
-          {/* Voting window — fixed by the stage configuration, shown for transparency. */}
+          {/* Voting schedule — fixed by the protocol and stage configuration. */}
           {durationSeconds !== undefined ? (
             <p className="mb-6 text-sm font-normal leading-normal text-neutral-500">
-              Voting runs for {formatWindow(durationSeconds)} — the window is set by the governance process, not per
-              proposal.
+              Voting{" "}
+              {votingStartsAt === undefined
+                ? "starts after committee setup"
+                : `starts no earlier than ${unixTimestampToDate(votingStartsAt)}`}{" "}
+              and runs for {formatWindow(durationSeconds)}. After ballots close,
+              {availabilityWindowSeconds === undefined
+                ? " a separate Avail finalization window begins."
+                : ` ${formatWindow(availabilityWindowSeconds)} is reserved for Avail finalization.`}
             </p>
           ) : null}
 

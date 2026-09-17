@@ -55,7 +55,8 @@ contract WireSppStagesTest is Test {
 
     uint64 internal constant PUBLIC_VOTE_DURATION = 7200;
     uint64 internal constant PRIVATE_VOTE_DURATION = 600;
-    uint64 internal constant ADVANCE_WINDOW = 7 days;
+    uint64 internal constant PUBLIC_ADVANCE_WINDOW = 7 days;
+    uint64 internal constant PRIVATE_ADVANCE_WINDOW = 10 days;
     uint64 internal constant VETO_DURATION = 2 days;
     uint64 internal constant EXECUTE_WINDOW = 30 days;
 
@@ -79,7 +80,9 @@ contract WireSppStagesTest is Test {
     function _setEnv(string memory stage1Mode, uint256 publicVoteDuration) internal {
         vm.setEnv("SPP_PUBLIC_VOTE_DURATION", vm.toString(publicVoteDuration));
         vm.setEnv("SPP_PRIVATE_VOTE_DURATION", vm.toString(uint256(PRIVATE_VOTE_DURATION)));
-        vm.setEnv("SPP_ADVANCE_WINDOW", vm.toString(uint256(ADVANCE_WINDOW)));
+        vm.setEnv("SPP_ADVANCE_WINDOW", vm.toString(uint256(PUBLIC_ADVANCE_WINDOW)));
+        vm.setEnv("SPP_PUBLIC_ADVANCE_WINDOW", vm.toString(uint256(PUBLIC_ADVANCE_WINDOW)));
+        vm.setEnv("SPP_PRIVATE_ADVANCE_WINDOW", vm.toString(uint256(PRIVATE_ADVANCE_WINDOW)));
         vm.setEnv("SPP_VETO_DURATION", vm.toString(uint256(VETO_DURATION)));
         vm.setEnv("SPP_EXECUTE_WINDOW", vm.toString(uint256(EXECUTE_WINDOW)));
         vm.setEnv("SPP_STAGE1_MODE", stage1Mode);
@@ -128,7 +131,14 @@ contract WireSppStagesTest is Test {
         vm.setEnv("MINIMUM_DURATION", vm.toString(uint256(PRIVATE_VOTE_DURATION)));
 
         // --- stage 0 approves, never vetoes ---
-        assertEq(pub[0].maxAdvance, PUBLIC_VOTE_DURATION + ADVANCE_WINDOW, "maxAdvance = vote + window");
+        assertEq(
+            pub[0].maxAdvance, PUBLIC_VOTE_DURATION + PUBLIC_ADVANCE_WINDOW, "public maxAdvance = vote + public window"
+        );
+        assertEq(
+            priv[0].maxAdvance,
+            PRIVATE_VOTE_DURATION + PRIVATE_ADVANCE_WINDOW,
+            "private maxAdvance = vote + CRISP completion window"
+        );
         assertGt(pub[0].maxAdvance, pub[0].minAdvance, "a passed vote must have time to advance");
         assertEq(pub[0].approvalThreshold, 1, "one approval advances stage 0");
         assertEq(pub[0].vetoThreshold, 0, "stage 0 has no veto");

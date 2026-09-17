@@ -134,6 +134,14 @@ contract MockInterfold {
 contract MockCrispProgram {
     mapping(uint256 => uint256[]) internal tallies;
 
+    function earliestVotingStart() external view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function availabilityFinalizationWindow() external pure returns (uint256) {
+        return 3 hours;
+    }
+
     function setTally(uint256 e3Id, uint256[] memory counts) external {
         tallies[e3Id] = counts;
     }

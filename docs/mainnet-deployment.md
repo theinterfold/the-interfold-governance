@@ -501,6 +501,13 @@ Then confirm minting is DAO-only ([INV-6](../AGENTS.md#governance-structure)), a
 throwaway private proposal end to end — create, encrypted vote, tally publication, stage-1
 approval, execution — before opening it up.
 
+For production, set `MINIMUM_DURATION` and `SPP_PRIVATE_VOTE_DURATION` to `432000` (5 days).
+Set `SPP_PRIVATE_ADVANCE_WINDOW` long enough to cover the post-vote Avail, compute and decryption
+timeouts. The supplied mainnet template uses 10 days; `SPP_PUBLIC_ADVANCE_WINDOW` remains 7 days.
+The proposal's displayed end is the ballot deadline. The CRISP body adds the Avail finalization
+window only to Interfold's internal input window. Discard prepare payloads from an older
+CrispVoting build and regenerate them before installation.
+
 Re-run `make sync-env` so `app/.env` picks up the new plugin addresses, and confirm the frontend
 now renders the private path.
 

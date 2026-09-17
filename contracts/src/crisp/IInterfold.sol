@@ -20,7 +20,7 @@ interface IInterfold {
     /// @notice Sizes of committees for E3 computations
     /// @dev The ORDINAL is what crosses the ABI — `E3RequestParams.committeeSize` is a `uint8`,
     ///      and Interfold maps it through `ActiveCryptoConfig.committeeParams` to a concrete
-    ///      (honest, total) pair: 0 -> Minimum (2 of 3), 1 -> Micro (5 of 9), 2 -> Small (10 of 19).
+    ///      (honest, total) pair: 0 -> Minimum (2 of 3), 1 -> Micro (5 of 9), 2 -> Small (14 of 19).
     ///      Any variant not in that set is rejected with `UnsupportedCryptoConfig`, so this list
     ///      must track the coordinator exactly. It previously read `Micro, Small, Medium, Large`,
     ///      which silently renamed every ordinal: a config asking for "Micro" requested a 3-node

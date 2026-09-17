@@ -13,6 +13,7 @@ import {IProposal} from "@aragon/osx-commons-contracts/src/plugin/extensions/pro
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {
     MetadataExtensionUpgradeable
@@ -39,6 +40,7 @@ import {ICRISP} from "./ICRISP.sol";
 contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExtensionUpgradeable, ICrispVoting {
     /// @notice used to perform safe ERC20 operations
     using SafeERC20 for IERC20;
+    using SafeCast for uint256;
 
     /// @notice The manager permission id
     bytes32 public constant MANAGER_PERMISSION_ID = keccak256("MANAGER_PERMISSION");
@@ -164,6 +166,16 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         return (committeeSize, paramSet, computeProviderParams);
     }
 
+    /// @inheritdoc ICrispVoting
+    function earliestVotingStart() public view override returns (uint64) {
+        return ICRISP(crispProgramAddress).earliestVotingStart().toUint64();
+    }
+
+    /// @inheritdoc ICrispVoting
+    function availabilityFinalizationWindow() public view override returns (uint256) {
+        return ICRISP(crispProgramAddress).availabilityFinalizationWindow();
+    }
+
     /// @notice Creates a new E3 request in Interfold
     /// @dev This is a wrapper around the createProposal function as we need it to be payable
     /// as there will be charges for the E3 request in Interfold.
@@ -210,8 +222,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         /// tallied vote on a proposal that could never execute, with the E3 fee already spent.
         proposal.allowFailureMap = abi.decode(_data, (uint256));
 
-        /// @notice Validate and normalise the dates, enforcing the configured minimum duration.
-        /// The validated values feed both the Interfold input window and the stored parameters.
+        /// @notice Validate and normalise the voting dates.
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
 
         {
@@ -537,8 +548,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     }
 
     /// @notice Validates and returns the proposal vote dates, enforcing the minimum duration.
-    /// @param _start The start date of the proposal vote. If 0, the current timestamp is used
-    /// and the vote starts immediately.
+    /// @param _start The start date of the proposal vote. If 0, the earliest safe voting start is used.
     /// @param _end The end date of the proposal vote. If 0, `_start + minDuration` is used.
     /// @return startDate The validated start date of the proposal vote.
     /// @return endDate The validated end date of the proposal vote.
@@ -547,17 +557,15 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         view
         returns (uint64 startDate, uint64 endDate)
     {
-        // block.timestamp cannot exceed uint64 for ~580 billion years, so the cast is safe.
-        uint64 currentTimestamp = uint64(block.timestamp);
+        uint64 earliestStartDate = earliestVotingStart();
 
         if (_start == 0) {
-            startDate = currentTimestamp;
+            startDate = earliestStartDate;
         } else {
             startDate = _start;
 
-            // the vote cannot start in the past, otherwise the minimum duration is meaningless
-            if (startDate < currentTimestamp) {
-                revert DateOutOfBounds({limit: currentTimestamp, actual: startDate});
+            if (startDate < earliestStartDate) {
+                revert DateOutOfBounds({limit: earliestStartDate, actual: startDate});
             }
         }
 
@@ -658,8 +666,8 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
 
     /// @notice Builds the Interfold E3 request params for a governance proposal (fixed
     /// 3-option Yes/No/Abstain, CUSTOM token-weighted credits).
-    /// @param _startDate The input window start.
-    /// @param _endDate The input window end.
+    /// @param _startDate The voting window start.
+    /// @param _endDate The voting window end.
     function _buildRequestParams(uint64 _startDate, uint64 _endDate)
         internal
         view
@@ -702,7 +710,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
 
         return IInterfold.E3RequestParams({
             committeeSize: committeeSize,
-            inputWindow: [uint256(_startDate), uint256(_endDate)],
+            inputWindow: [uint256(_startDate), uint256(_endDate) + availabilityFinalizationWindow()],
             e3Program: IE3Program(crispProgramAddress),
             computeProviderParams: computeProviderParams,
             customParams: customParams,
@@ -724,15 +732,23 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     }
 
     /// @notice Quotes the Interfold E3 fee a creator must have escrowed (see `deposit`) for a
-    /// proposal with the given voting window. UIs should preflight `feeCredits[creator] >=
-    /// quoteProposalFee(...)` before creating the SPP proposal — otherwise the SPP treats the
-    /// failed sub-proposal creation as non-fatal and the CRISP stage is silently dead.
-    /// @param _startDate The start date of the proposal (0 means "now", like `createProposal`).
+    /// proposal with the given voting window. UIs should preflight the creator's fee credit
+    /// before creating the SPP proposal. A failed sub-proposal is non-fatal to the SPP and leaves
+    /// the CRISP stage unable to advance.
+    /// @param _startDate The start date of the proposal (0 means the earliest safe voting start).
     /// @param _endDate The end date of the proposal (0 means start + minDuration).
     /// @return The fee-token amount Interfold will charge.
     function quoteProposalFee(uint64 _startDate, uint64 _endDate) external view returns (uint256) {
         (_startDate, _endDate) = _validateProposalDates(_startDate, _endDate);
         return interfold.getE3Quote(_buildRequestParams(_startDate, _endDate));
+    }
+
+    /// @inheritdoc ICrispVoting
+    function quoteProposalFeeForDuration(uint64 _votingDuration) external view override returns (uint256) {
+        uint64 startDate = earliestVotingStart();
+        uint64 endDate = startDate + _votingDuration;
+        (startDate, endDate) = _validateProposalDates(startDate, endDate);
+        return interfold.getE3Quote(_buildRequestParams(startDate, endDate));
     }
 
     /// @notice Resolves the fee payer, and enforces proposer eligibility when there is no SPP to

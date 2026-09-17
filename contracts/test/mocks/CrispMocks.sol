@@ -150,6 +150,8 @@ contract MockInterfold {
     address public lastExpectedFeeToken;
     bytes32 public lastExpectedCryptoConfigId;
     uint256 public lastMaxFee;
+    uint256 public lastInputWindowStart;
+    uint256 public lastInputWindowEnd;
 
     function getE3Quote(IInterfold.E3RequestParams calldata) external view returns (uint256) {
         return fee;
@@ -173,6 +175,8 @@ contract MockInterfold {
         lastExpectedFeeToken = address(params.expectedFeeToken);
         lastExpectedCryptoConfigId = params.expectedCryptoConfigId;
         lastMaxFee = params.maxFee;
+        lastInputWindowStart = params.inputWindow[0];
+        lastInputWindowEnd = params.inputWindow[1];
         lastCommitteeSize = params.committeeSize;
         lastParamSet = params.paramSet;
         lastComputeProviderParams = params.computeProviderParams;
@@ -182,6 +186,20 @@ contract MockInterfold {
 
 contract MockCrispProgram {
     mapping(uint256 => uint256[]) internal tallies;
+    uint256 public votingStartDelay;
+    uint256 public availabilityFinalizationWindow = 3 hours;
+
+    function setVotingStartDelay(uint256 delay) external {
+        votingStartDelay = delay;
+    }
+
+    function setAvailabilityFinalizationWindow(uint256 window) external {
+        availabilityFinalizationWindow = window;
+    }
+
+    function earliestVotingStart() external view returns (uint256) {
+        return block.timestamp + votingStartDelay;
+    }
 
     function setTally(uint256 e3Id, uint256[] memory counts) external {
         tallies[e3Id] = counts;

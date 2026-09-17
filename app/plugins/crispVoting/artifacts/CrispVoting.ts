@@ -71,6 +71,19 @@ export const CrispVotingAbi = [
   },
   {
     type: "function",
+    name: "availabilityFinalizationWindow",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "canExecute",
     inputs: [
       {
@@ -201,6 +214,19 @@ export const CrispVotingAbi = [
     ],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "earliestVotingStart",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -786,6 +812,25 @@ export const CrispVotingAbi = [
       },
       {
         name: "_endDate",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "quoteProposalFeeForDuration",
+    inputs: [
+      {
+        name: "_votingDuration",
         type: "uint64",
         internalType: "uint64",
       },

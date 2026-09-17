@@ -13,7 +13,7 @@ contract MainnetEnvValuesTest is Test {
     // The literals below mirror contracts/.env.mainnet. Update both together.
     uint8 internal constant ENV_PARAM_SET = 1; // secure-8192
     IInterfold.CommitteeSize internal constant ENV_COMMITTEE_SIZE = IInterfold.CommitteeSize.Small; // ordinal 2
-    uint64 internal constant ENV_MINIMUM_DURATION = 86_400; // 1 day
+    uint64 internal constant ENV_MINIMUM_DURATION = 432_000; // 5 days
     uint64 internal constant ENV_SPP_PRIVATE_VOTE_DURATION = 432_000; // 5 days
 
     function _config() internal pure returns (Utils.CrispEnvVariables memory config) {
@@ -42,7 +42,7 @@ contract MainnetEnvValuesTest is Test {
     }
 
     function test_envMinimumDurationClearsTheMainnetFloor() public pure {
-        assertGe(ENV_MINIMUM_DURATION, Utils.MAINNET_MINIMUM_DURATION, "minDuration below the 1-day mainnet floor");
+        assertGe(ENV_MINIMUM_DURATION, Utils.MAINNET_MINIMUM_DURATION, "minDuration below the 5-day mainnet floor");
     }
 
     /// @dev INV-37: a private stage window under CRISP's `minDuration` makes every private

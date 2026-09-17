@@ -11,6 +11,10 @@ and how to verify. All `make` commands run from `contracts/` with `ENV_FILE=.env
 copy of the committed `.env.mainnet.install`); emitted Safe files land in
 `contracts/safe-actions/`.
 
+> **Do not execute the pinned build-1 prepare files after the voting-schedule upgrade.** Publish
+> the next CRISP plugin build and regenerate both private-process prepare files first. The old
+> implementation does not separate the five-day ballot window from Avail finalization.
+
 ---
 
 ## Current state — verified on chain 2026-08-22

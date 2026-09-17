@@ -16,12 +16,10 @@ export function applyFeeBuffer(amount: bigint): bigint {
 }
 
 /**
- * CRISP creator-pays fee escrow: quotes the fee of a proposal created now with the
- * creator-chosen voting window, tracks the connected wallet's credit on the plugin,
- * and exposes deposit/withdraw actions on the escrow.
+ * CRISP creator-pays fee escrow: quotes the fee for the stage-configured voting duration,
+ * tracks the connected wallet's credit on the plugin, and exposes deposit/withdraw actions.
  *
- * @param chosenDurationSeconds The creator-selected voting window (seconds). The fee is
- *   quoted against `now + chosenDurationSeconds`; the quote is disabled until it is known.
+ * @param chosenDurationSeconds The stage-configured voting duration in seconds.
  */
 export function useFeeCredits(chosenDurationSeconds?: number) {
   const { address } = useAccount();
@@ -40,18 +38,12 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     setError(undefined);
   }, [address]);
 
-  // Quote with the creator's chosen window: the sub-proposal's end date is start + duration,
-  // and the Interfold fee scales with the input-window length. Quoting (0, 0) would fall back
-  // to the plugin's minDuration and under-quote a longer window.
-  const quoteEndDate =
-    chosenDurationSeconds !== undefined ? BigInt(Math.floor(Date.now() / 1000)) + BigInt(chosenDurationSeconds) : 0n;
-
   const { data: quoteData } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
-    functionName: "quoteProposalFee",
-    args: [0n, quoteEndDate],
+    functionName: "quoteProposalFeeForDuration",
+    args: [BigInt(chosenDurationSeconds ?? 0)],
     query: { enabled: chosenDurationSeconds !== undefined },
   });
 

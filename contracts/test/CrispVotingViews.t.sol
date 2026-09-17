@@ -35,6 +35,8 @@ contract CrispVotingViewsTest is Test {
     address internal creator;
 
     uint64 internal constant MIN_DURATION = 3600;
+    uint64 internal constant VOTING_START_DELAY = 6 hours;
+    uint64 internal constant AVAILABILITY_WINDOW = 3 hours;
     uint256 internal constant SPP_PROPOSAL_ID = 777;
     uint32 internal constant MIN_PARTICIPATION = 50;
     uint256 internal constant SUPPLY = 1000 * 10 ** 18;
@@ -183,6 +185,46 @@ contract CrispVotingViewsTest is Test {
         // floor and still scale to zero weight, so the plugin raises it to exactly one unit.
         assertEq(plugin.minVoterVotingPower(), 3, "DAO setting is untouched");
         assertEq(minVotingPower, 10 ** 17, "floor raised to one ballot unit");
+    }
+
+    function test_createSchedulesAFullVotingWindowAfterDkgAndBeforeAvailability() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        crispProgram.setAvailabilityFinalizationWindow(AVAILABILITY_WINDOW);
+
+        uint256 proposalId = _create();
+        ICrispVoting.Proposal memory proposal = plugin.getProposal(proposalId);
+        uint256 expectedStart = block.timestamp + VOTING_START_DELAY;
+        uint256 expectedVotingEnd = expectedStart + MIN_DURATION;
+
+        assertEq(proposal.parameters.startDate, expectedStart, "stored start is the voting start");
+        assertEq(proposal.parameters.endDate, expectedVotingEnd, "stored end is the voting end");
+        assertEq(interfold.lastInputWindowStart(), expectedStart, "E3 starts with voting");
+        assertEq(
+            interfold.lastInputWindowEnd(),
+            expectedVotingEnd + AVAILABILITY_WINDOW,
+            "E3 reserves availability after voting"
+        );
+    }
+
+    function test_explicitStartCannotPrecedeTheEarliestSafeVotingStart() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        uint64 earliestStart = uint64(block.timestamp + VOTING_START_DELAY);
+        uint64 requestedStart = earliestStart - 1;
+
+        _depositAs(creator, 100 ether);
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, earliestStart, requestedStart));
+        vm.prank(sppAddr);
+        plugin.createProposal(
+            _sppMetadata(), _actions(), requestedStart, requestedStart + MIN_DURATION, abi.encode(uint256(0))
+        );
+    }
+
+    function test_scheduleViewsComeFromThePinnedCrispProgram() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        crispProgram.setAvailabilityFinalizationWindow(AVAILABILITY_WINDOW);
+
+        assertEq(plugin.earliestVotingStart(), block.timestamp + VOTING_START_DELAY, "earliest start");
+        assertEq(plugin.availabilityFinalizationWindow(), AVAILABILITY_WINDOW, "availability window");
     }
 
     /// @notice Pins the vendored `E3RequestParams` against the deployed coordinator's shape.
@@ -636,6 +678,21 @@ contract CrispVotingViewsTest is Test {
         interfold.setFee(5 ether);
         uint64 start = uint64(block.timestamp + 100);
         assertEq(plugin.quoteProposalFee(start, start + MIN_DURATION * 2), 5 ether, "explicit window");
+    }
+
+    function test_quoteProposalFeeForDurationUsesTheScheduledWindow() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        interfold.setFee(4 ether);
+
+        assertEq(plugin.quoteProposalFeeForDuration(MIN_DURATION * 2), 4 ether, "duration quote");
+    }
+
+    function test_quoteProposalFeeForDurationRejectsAShortVote() public {
+        uint64 earliestStart = plugin.earliestVotingStart();
+        uint64 earliestEnd = earliestStart + MIN_DURATION;
+
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, earliestEnd, earliestEnd - 1));
+        plugin.quoteProposalFeeForDuration(MIN_DURATION - 1);
     }
 
     function test_quoteProposalFeeRejectsAStartDateInThePast() public {
