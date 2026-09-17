@@ -8,7 +8,7 @@ import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_CONSTITUTION_URL, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
 import { DelegateList } from "@/plugins/members/components/delegateList";
@@ -204,6 +204,14 @@ export default function Locker() {
             <p className="text-base font-semibold text-neutral-800">Lock {PUB_TOKEN_SYMBOL}</p>
             <p className="text-sm text-neutral-500">
               Transfers {PUB_TOKEN_SYMBOL} into the voting escrow. Unlocking later takes {cooldownText}.
+            </p>
+            {/* Constitution art. 3.2: locking in the VE Locker IS the opt-in, so it is disclosed
+                here — before the lock — rather than anywhere after the fact. */}
+            <p className="text-sm text-neutral-500">
+              By locking {PUB_TOKEN_SYMBOL} in the Interfold DAO, you opt in to the Interfold Constitution.{" "}
+              <a href={PUB_CONSTITUTION_URL} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                Read the Constitution →
+              </a>
             </p>
             <InputText
               placeholder={`Amount of ${PUB_TOKEN_SYMBOL}`}

@@ -134,8 +134,15 @@ contract MockInterfold {
 contract MockCrispProgram {
     mapping(uint256 => uint256[]) internal tallies;
 
+    /// @dev A NON-ZERO shift on purpose. Returning `block.timestamp` here collapses the floor
+    ///      onto the SPP-supplied `start`, so `_validateProposalDates`' early-start branch is
+    ///      never exercised and a strict revert looks safe in tests while rejecting every staged
+    ///      proposal on-chain. The live program's shift is
+    ///      `randomnessRequestTimeout + sortitionSubmissionWindow + dkgWindow` (1660s on sepolia).
+    uint256 public constant VOTING_START_SHIFT = 1660;
+
     function earliestVotingStart() external view returns (uint256) {
-        return block.timestamp;
+        return block.timestamp + VOTING_START_SHIFT;
     }
 
     function availabilityFinalizationWindow() external pure returns (uint256) {
@@ -342,7 +349,11 @@ contract CrispVotingSppTest is Test {
     ///         calls with `_endDate = startDate + stage.voteDuration`, and that window is stored
     ///         verbatim — `_data` carries only the allowFailureMap, so there is nothing a creator
     ///         could pass to stretch a window past the stage's `maxAdvance` expiry.
-    function test_createProposalUsesTheSppSuppliedWindowVerbatim() public {
+    /// @notice The SPP's stage DURATION is honoured verbatim; the START is lifted to the
+    ///         program's floor. The SPP always passes `start = block.timestamp`, which is below
+    ///         `earliestVotingStart()` by the committee-formation shift, so storing it verbatim
+    ///         would schedule a ballot before its decryption key can exist.
+    function test_createProposalPreservesTheSppStageDurationFromTheEarliestSafeStart() public {
         _depositAs(creator, 100 ether);
 
         Action[] memory actions = new Action[](1);
@@ -351,13 +362,15 @@ contract CrispVotingSppTest is Test {
 
         // The SPP supplies the stage window (5x minDuration here, like the mainnet 5-day stage).
         uint64 start = uint64(block.timestamp);
-        uint64 end = start + MIN_DURATION * 5;
+        uint64 duration = MIN_DURATION * 5;
+        uint64 end = start + duration;
         vm.prank(sppAddr);
         uint256 proposalId = plugin.createProposal(_sppMetadata(), actions, start, end, DATA);
 
         ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
-        assertEq(p.parameters.startDate, start, "the SPP-supplied start is stored");
-        assertEq(p.parameters.endDate, end, "the SPP-supplied end is stored, no per-proposal override");
+        uint64 expectedStart = start + uint64(crispProgram.VOTING_START_SHIFT());
+        assertEq(p.parameters.startDate, expectedStart, "the start is lifted to the earliest safe voting start");
+        assertEq(p.parameters.endDate - p.parameters.startDate, duration, "the stage votes for its full duration");
     }
 
     function test_createProposalRevertsOnWindowBelowMinimum() public {
@@ -486,7 +499,8 @@ contract CrispVotingSppTest is Test {
         uint256 stagedProposalId = plugin.createProposal(_sppMetadata(), actions, 0, 0, DATA);
         crispProgram.setTally(plugin.getProposal(stagedProposalId).e3Id, counts);
 
-        vm.warp(block.timestamp + MIN_DURATION + 1);
+        // The window now starts at the program's floor, so warp past the SHIFTED end.
+        vm.warp(block.timestamp + crispProgram.VOTING_START_SHIFT() + MIN_DURATION + 1);
 
         // anyone can execute — no permission gate anymore
         vm.prank(makeAddr("randomExecutor"));

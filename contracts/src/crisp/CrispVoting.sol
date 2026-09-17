@@ -559,28 +559,41 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     {
         uint64 earliestStartDate = earliestVotingStart();
 
-        if (_start == 0) {
+        // CLAMP, never revert on an early start. The SPP computes each stage window from the
+        // CURRENT block and calls sub-bodies with `start = block.timestamp`, while
+        // `earliestVotingStart()` is `block.timestamp + randomnessRequestTimeout +
+        // sortitionSubmissionWindow + dkgWindow` (1660s on sepolia, 8700s before the retune).
+        // So an SPP-supplied start is ALWAYS below the floor, and reverting here kills every
+        // staged proposal inside the SPP's try/catch — silently, leaving the stage unable to
+        // advance. Unit tests miss this whenever the CRISP mock returns `block.timestamp` for
+        // the floor, which collapses the comparison to `start == earliest`.
+        if (_start == 0 || _start < earliestStartDate) {
             startDate = earliestStartDate;
         } else {
             startDate = _start;
-
-            if (startDate < earliestStartDate) {
-                revert DateOutOfBounds({limit: earliestStartDate, actual: startDate});
-            }
         }
 
+        // Preserve the REQUESTED DURATION rather than the requested end instant: lifting the
+        // start without shifting the end would silently shorten the ballot (3600s requested
+        // becomes 1940s at the sepolia shift, breaching CRISPProgram.MIN_VOTING_DURATION) and a
+        // long enough shift would put the end behind the start entirely. Every staged proposal
+        // therefore votes for exactly its configured stage duration.
         // checked arithmetic: an absurdly large `minDuration` simply reverts here, and the caller
         // can pick another date. Bounding `minDuration` on update would tighten this further.
         uint64 earliestEndDate = startDate + votingSettings.minDuration;
 
         if (_end == 0) {
             endDate = earliestEndDate;
+        } else if (_end > _start) {
+            endDate = startDate + (_end - _start);
         } else {
-            endDate = _end;
+            endDate = earliestEndDate;
+        }
 
-            if (endDate < earliestEndDate) {
-                revert DateOutOfBounds({limit: earliestEndDate, actual: endDate});
-            }
+        // A caller-chosen window shorter than the floor is still a misconfiguration, not
+        // something to paper over: keep the explicit revert so a bad stage config fails loudly.
+        if (endDate < earliestEndDate) {
+            revert DateOutOfBounds({limit: earliestEndDate, actual: endDate});
         }
     }
 

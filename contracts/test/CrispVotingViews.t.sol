@@ -206,16 +206,26 @@ contract CrispVotingViewsTest is Test {
         );
     }
 
-    function test_explicitStartCannotPrecedeTheEarliestSafeVotingStart() public {
+    /// @notice An early explicit start is CLAMPED to the floor, not rejected — the SPP always
+    ///         supplies `start = block.timestamp`, which is below `earliestVotingStart()` by the
+    ///         committee-formation shift, so reverting here would kill every staged proposal
+    ///         silently inside the SPP's try/catch. The requested DURATION survives the clamp.
+    function test_explicitStartIsClampedToTheEarliestSafeVotingStart() public {
         crispProgram.setVotingStartDelay(VOTING_START_DELAY);
         uint64 earliestStart = uint64(block.timestamp + VOTING_START_DELAY);
         uint64 requestedStart = earliestStart - 1;
+        uint64 requestedDuration = MIN_DURATION;
 
         _depositAs(creator, 100 ether);
-        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, earliestStart, requestedStart));
         vm.prank(sppAddr);
-        plugin.createProposal(
-            _sppMetadata(), _actions(), requestedStart, requestedStart + MIN_DURATION, abi.encode(uint256(0))
+        uint256 proposalId = plugin.createProposal(
+            _sppMetadata(), _actions(), requestedStart, requestedStart + requestedDuration, abi.encode(uint256(0))
+        );
+
+        ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
+        assertEq(p.parameters.startDate, earliestStart, "start lifted to the floor");
+        assertEq(
+            p.parameters.endDate - p.parameters.startDate, requestedDuration, "the requested duration is preserved"
         );
     }
 
@@ -444,13 +454,23 @@ contract CrispVotingViewsTest is Test {
 
     // --- date validation ------------------------------------------------------
 
-    function test_createProposalRejectsAStartDateInThePast() public {
+    /// @notice A past start date is clamped forward rather than rejected. The floor is the
+    ///         program's `earliestVotingStart()`, so the stored window can never begin in the
+    ///         past even though the caller asked for it.
+    function test_createProposalClampsAStartDateInThePast() public {
         _depositAs(creator, 100 ether);
         uint64 past = uint64(block.timestamp - 1);
+        uint64 requestedDuration = MIN_DURATION * 2;
 
         vm.prank(sppAddr);
-        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, uint64(block.timestamp), past));
-        plugin.createProposal(_sppMetadata(), _actions(), past, past + MIN_DURATION * 2, abi.encode(uint256(0)));
+        uint256 proposalId =
+            plugin.createProposal(_sppMetadata(), _actions(), past, past + requestedDuration, abi.encode(uint256(0)));
+
+        ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
+        assertGe(p.parameters.startDate, uint64(block.timestamp), "the window never starts in the past");
+        assertEq(
+            p.parameters.endDate - p.parameters.startDate, requestedDuration, "the requested duration is preserved"
+        );
     }
 
     function test_createProposalRevertsWhenTheSameProposalIsCreatedTwice() public {
@@ -695,10 +715,13 @@ contract CrispVotingViewsTest is Test {
         plugin.quoteProposalFeeForDuration(MIN_DURATION - 1);
     }
 
-    function test_quoteProposalFeeRejectsAStartDateInThePast() public {
+    /// @notice The quote path clamps a past start the same way `createProposal` does, so a UI
+    ///         preflight quotes the window the chain will actually use.
+    function test_quoteProposalFeeClampsAStartDateInThePast() public view {
         uint64 past = uint64(block.timestamp - 1);
-        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, uint64(block.timestamp), past));
-        plugin.quoteProposalFee(past, past + MIN_DURATION * 2);
+        uint256 clamped = plugin.quoteProposalFee(past, past + MIN_DURATION * 2);
+        uint256 atFloor = plugin.quoteProposalFee(0, uint64(block.timestamp) + MIN_DURATION * 2);
+        assertEq(clamped, atFloor, "a past start quotes as if it started at the floor");
     }
 
     // --- token clock ----------------------------------------------------------
