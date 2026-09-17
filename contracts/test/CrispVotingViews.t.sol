@@ -724,6 +724,24 @@ contract CrispVotingViewsTest is Test {
         assertEq(clamped, atFloor, "a past start quotes as if it started at the floor");
     }
 
+    /// @notice A non-zero `_end` at or before `_start` is a degenerate window, not a duration.
+    ///         Carrying `_end - _start` through the clamp would underflow (or, at equality,
+    ///         request a zero-length ballot), so the window falls back to the minimum duration
+    ///         measured from the clamped start — the same result `_end == 0` produces.
+    ///
+    ///         The SPP never sends this shape, but `createProposal` is externally callable and
+    ///         `_end` is caller-supplied, so the fallback is reachable from outside.
+    function test_quoteProposalFeeFallsBackWhenTheEndIsNotAfterTheStart() public view {
+        uint64 start = uint64(block.timestamp + 100);
+        uint256 atMinimum = plugin.quoteProposalFee(start, 0);
+
+        // _end == _start: zero-length window requested.
+        assertEq(plugin.quoteProposalFee(start, start), atMinimum, "equal start/end falls back to minDuration");
+
+        // _end < _start: inverted window, would underflow if carried through the clamp.
+        assertEq(plugin.quoteProposalFee(start, start - 1), atMinimum, "an inverted window falls back too");
+    }
+
     // --- token clock ----------------------------------------------------------
 
     /// @notice FOLD is an ERC-6372 `mode=timestamp` token, so the snapshot timepoint is a
