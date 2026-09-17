@@ -105,6 +105,13 @@ safe-create-repo: ## Safe action: mint the CRISP plugin repo with the Safe as ma
 	forge script script/SafeActions.s.sol:SafeActionsScript \
 		--sig "createRepo()" --rpc-url $$RPC_URL
 
+# Once the repo EXISTS, publishing a new build is a different call: `createVersion` on the repo,
+# not `createPluginRepoWithFirstVersion` on the factory (which would revert AlreadyRegistered).
+safe-publish-crisp-build: ## Safe action: CRISP impl + setup via CREATE2 + createVersion on the EXISTING repo
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "publishCrispBuild()" --rpc-url $$RPC_URL
+
 # Read the InstallationPrepared event from the receipt afterwards: applyInstallation needs the
 # plugin address, permissions and helpers hash it emits, and they cannot be predicted.
 safe-prepare-install: ## Safe action: prepareInstallation for one plugin (see PLUGIN_PREFIX)

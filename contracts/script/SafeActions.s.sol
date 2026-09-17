@@ -538,6 +538,62 @@ contract SafeActionsScript is WireSppScript {
         );
     }
 
+    /// @notice Emit a NEW BUILD into the EXISTING CRISP repo: CREATE2-deploy the implementation
+    ///         and setup, then `createVersion` on the repo this Safe already maintains.
+    ///
+    /// @dev Use this, not `deployCrispStackAndRepo`, once the repo exists. The factory's
+    ///      `createPluginRepoWithFirstVersion` mints a subdomain, so a second call for the same
+    ///      name reverts `AlreadyRegistered(node, owner)` and the whole batch is wasted.
+    ///
+    ///      `createVersion` authorises on MAINTAINER_PERMISSION_ID, held by this Safe, so the
+    ///      call goes DIRECT — routing it through the Admin plugin would spend the bootstrap for
+    ///      no benefit and would fail the repo's `auth` check, which tests `msg.sender`.
+    ///
+    ///      The build number is assigned by the repo (previous + 1); it is not an argument, so
+    ///      nothing here can collide with a build published in the meantime.
+    function publishCrispBuild() external {
+        address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        bytes32 salt = vm.envOr("CRISP_STACK_SALT", bytes32("interfold-crisp-v1"));
+        address repo = vm.envAddress("CRISP_PLUGIN_REPO");
+        uint8 release = uint8(vm.envOr("CRISP_RELEASE", uint256(1)));
+        require(repo != address(0), "CRISP_PLUGIN_REPO not set");
+
+        bytes memory implCode = type(CrispVoting).creationCode;
+        address impl = vm.computeCreate2Address(salt, keccak256(implCode), deployer);
+
+        bytes memory setupCode = bytes.concat(type(CrispVotingSetup).creationCode, abi.encode(impl));
+        address setup = vm.computeCreate2Address(salt, keccak256(setupCode), deployer);
+
+        address[] memory tos = new address[](3);
+        bytes[] memory datas = new bytes[](3);
+        tos[0] = deployer;
+        tos[1] = deployer;
+        tos[2] = repo;
+        datas[0] = bytes.concat(salt, implCode);
+        datas[1] = bytes.concat(salt, setupCode);
+        datas[2] = abi.encodeWithSignature(
+            "createVersion(uint8,address,bytes,bytes)", release, setup, bytes("ipfs://crisp-build"), bytes("ipfs://crisp-release")
+        );
+
+        console2.log("=== Publish a new CRISP build into the existing repo (Safe-signed) ===");
+        console2.log("Repo:                        %s", repo);
+        console2.log("CrispVoting implementation:  %s", impl);
+        console2.log("CRISP_SETUP_ADDRESS=%s", setup);
+        console2.log("Release:                     %s", release);
+        console2.log("After execution, read the new build number from the VersionCreated event.");
+
+        _writeSafeBatchFile(
+            "12-publish-crisp-build",
+            "Publish a new CRISP build into the existing repo",
+            "Three calls in one atomic batch: CREATE2-deploy the CrispVoting implementation and "
+            "CrispVotingSetup (whose constructor pins it), then publish them as a new build of "
+            "the existing repo. The CREATE2 addresses depend only on salt and initcode, so they "
+            "are verifiable before signing; createVersion reverts if the setup did not land.",
+            tos,
+            datas
+        );
+    }
+
     /// @dev The multi-transaction sibling of `_writeSafeFile`: one Transaction Builder file whose
     ///      `transactions` array the Safe executes in order, atomically.
     function _writeSafeBatchFile(
