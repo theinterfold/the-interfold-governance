@@ -46,7 +46,7 @@ export const PUB_CRISP_PROGRAM_ADDRESS = (process.env.NEXT_PUBLIC_CRISP_PROGRAM_
 export const PUB_BRIDGE_ADDRESS = (process.env.NEXT_PUBLIC_BRIDGE_ADDRESS ?? "") as Address;
 
 export const PUBLIC_SECONDS_PER_BLOCK = Number(process.env.NEXT_PUBLIC_SECONDS_PER_BLOCK ?? 1); // ETH Mainnet block takes ~12s
-export const MINIMUM_START_DELAY_IN_SECONDS = Number(process.env.NEXT_PUBLIC_MINIMUM_START_DELAY_IN_SECONDS ?? 30);
+export const MINIMUM_START_DELAY_IN_SECONDS = Number(process.env.NEXT_PUBLIC_MINIMUM_START_DELAY_IN_SECONDS ?? 300);
 
 // Target chain
 export const PUB_CHAIN_NAME = (process.env.NEXT_PUBLIC_CHAIN_NAME ?? "holesky") as ChainName;
@@ -130,6 +130,10 @@ export const PUB_PROJECT_URL = process.env.NEXT_PUBLIC_PROJECT_URL ?? "https://t
 export const PUB_WALLET_ICON = "https://avatars.githubusercontent.com/u/37784886";
 export const PUB_BLOG_URL = "https://blog.theinterfold.com/";
 export const PUB_SOCIALS_URL = "https://x.com/theinterfold";
+/** The DAO Constitution. Locking FOLD is an opt-in to it (Constitution art. 3.2), so the lock
+ *  flow links here as well as the footer. */
+export const PUB_CONSTITUTION_URL =
+  process.env.NEXT_PUBLIC_CONSTITUTION_URL ?? "https://docs.theinterfold.com/constitution";
 export const PUB_GET_FOLD_URL =
   process.env.NEXT_PUBLIC_GET_FOLD_URL ??
   "https://app.uniswap.org/swap?outputCurrency=0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904&chain=mainnet";

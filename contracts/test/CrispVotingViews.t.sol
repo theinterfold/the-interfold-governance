@@ -35,6 +35,8 @@ contract CrispVotingViewsTest is Test {
     address internal creator;
 
     uint64 internal constant MIN_DURATION = 3600;
+    uint64 internal constant VOTING_START_DELAY = 6 hours;
+    uint64 internal constant AVAILABILITY_WINDOW = 3 hours;
     uint256 internal constant SPP_PROPOSAL_ID = 777;
     uint32 internal constant MIN_PARTICIPATION = 50;
     uint256 internal constant SUPPLY = 1000 * 10 ** 18;
@@ -183,6 +185,56 @@ contract CrispVotingViewsTest is Test {
         // floor and still scale to zero weight, so the plugin raises it to exactly one unit.
         assertEq(plugin.minVoterVotingPower(), 3, "DAO setting is untouched");
         assertEq(minVotingPower, 10 ** 17, "floor raised to one ballot unit");
+    }
+
+    function test_createSchedulesAFullVotingWindowAfterDkgAndBeforeAvailability() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        crispProgram.setAvailabilityFinalizationWindow(AVAILABILITY_WINDOW);
+
+        uint256 proposalId = _create();
+        ICrispVoting.Proposal memory proposal = plugin.getProposal(proposalId);
+        uint256 expectedStart = block.timestamp + VOTING_START_DELAY;
+        uint256 expectedVotingEnd = expectedStart + MIN_DURATION;
+
+        assertEq(proposal.parameters.startDate, expectedStart, "stored start is the voting start");
+        assertEq(proposal.parameters.endDate, expectedVotingEnd, "stored end is the voting end");
+        assertEq(interfold.lastInputWindowStart(), expectedStart, "E3 starts with voting");
+        assertEq(
+            interfold.lastInputWindowEnd(),
+            expectedVotingEnd + AVAILABILITY_WINDOW,
+            "E3 reserves availability after voting"
+        );
+    }
+
+    /// @notice An early explicit start is CLAMPED to the floor, not rejected — the SPP always
+    ///         supplies `start = block.timestamp`, which is below `earliestVotingStart()` by the
+    ///         committee-formation shift, so reverting here would kill every staged proposal
+    ///         silently inside the SPP's try/catch. The requested DURATION survives the clamp.
+    function test_explicitStartIsClampedToTheEarliestSafeVotingStart() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        uint64 earliestStart = uint64(block.timestamp + VOTING_START_DELAY);
+        uint64 requestedStart = earliestStart - 1;
+        uint64 requestedDuration = MIN_DURATION;
+
+        _depositAs(creator, 100 ether);
+        vm.prank(sppAddr);
+        uint256 proposalId = plugin.createProposal(
+            _sppMetadata(), _actions(), requestedStart, requestedStart + requestedDuration, abi.encode(uint256(0))
+        );
+
+        ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
+        assertEq(p.parameters.startDate, earliestStart, "start lifted to the floor");
+        assertEq(
+            p.parameters.endDate - p.parameters.startDate, requestedDuration, "the requested duration is preserved"
+        );
+    }
+
+    function test_scheduleViewsComeFromThePinnedCrispProgram() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        crispProgram.setAvailabilityFinalizationWindow(AVAILABILITY_WINDOW);
+
+        assertEq(plugin.earliestVotingStart(), block.timestamp + VOTING_START_DELAY, "earliest start");
+        assertEq(plugin.availabilityFinalizationWindow(), AVAILABILITY_WINDOW, "availability window");
     }
 
     /// @notice Pins the vendored `E3RequestParams` against the deployed coordinator's shape.
@@ -402,13 +454,23 @@ contract CrispVotingViewsTest is Test {
 
     // --- date validation ------------------------------------------------------
 
-    function test_createProposalRejectsAStartDateInThePast() public {
+    /// @notice A past start date is clamped forward rather than rejected. The floor is the
+    ///         program's `earliestVotingStart()`, so the stored window can never begin in the
+    ///         past even though the caller asked for it.
+    function test_createProposalClampsAStartDateInThePast() public {
         _depositAs(creator, 100 ether);
         uint64 past = uint64(block.timestamp - 1);
+        uint64 requestedDuration = MIN_DURATION * 2;
 
         vm.prank(sppAddr);
-        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, uint64(block.timestamp), past));
-        plugin.createProposal(_sppMetadata(), _actions(), past, past + MIN_DURATION * 2, abi.encode(uint256(0)));
+        uint256 proposalId =
+            plugin.createProposal(_sppMetadata(), _actions(), past, past + requestedDuration, abi.encode(uint256(0)));
+
+        ICrispVoting.Proposal memory p = plugin.getProposal(proposalId);
+        assertGe(p.parameters.startDate, uint64(block.timestamp), "the window never starts in the past");
+        assertEq(
+            p.parameters.endDate - p.parameters.startDate, requestedDuration, "the requested duration is preserved"
+        );
     }
 
     function test_createProposalRevertsWhenTheSameProposalIsCreatedTwice() public {
@@ -638,10 +700,46 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.quoteProposalFee(start, start + MIN_DURATION * 2), 5 ether, "explicit window");
     }
 
-    function test_quoteProposalFeeRejectsAStartDateInThePast() public {
+    function test_quoteProposalFeeForDurationUsesTheScheduledWindow() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        interfold.setFee(4 ether);
+
+        assertEq(plugin.quoteProposalFeeForDuration(MIN_DURATION * 2), 4 ether, "duration quote");
+    }
+
+    function test_quoteProposalFeeForDurationRejectsAShortVote() public {
+        uint64 earliestStart = plugin.earliestVotingStart();
+        uint64 earliestEnd = earliestStart + MIN_DURATION;
+
+        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, earliestEnd, earliestEnd - 1));
+        plugin.quoteProposalFeeForDuration(MIN_DURATION - 1);
+    }
+
+    /// @notice The quote path clamps a past start the same way `createProposal` does, so a UI
+    ///         preflight quotes the window the chain will actually use.
+    function test_quoteProposalFeeClampsAStartDateInThePast() public view {
         uint64 past = uint64(block.timestamp - 1);
-        vm.expectRevert(abi.encodeWithSelector(ICrispVoting.DateOutOfBounds.selector, uint64(block.timestamp), past));
-        plugin.quoteProposalFee(past, past + MIN_DURATION * 2);
+        uint256 clamped = plugin.quoteProposalFee(past, past + MIN_DURATION * 2);
+        uint256 atFloor = plugin.quoteProposalFee(0, uint64(block.timestamp) + MIN_DURATION * 2);
+        assertEq(clamped, atFloor, "a past start quotes as if it started at the floor");
+    }
+
+    /// @notice A non-zero `_end` at or before `_start` is a degenerate window, not a duration.
+    ///         Carrying `_end - _start` through the clamp would underflow (or, at equality,
+    ///         request a zero-length ballot), so the window falls back to the minimum duration
+    ///         measured from the clamped start — the same result `_end == 0` produces.
+    ///
+    ///         The SPP never sends this shape, but `createProposal` is externally callable and
+    ///         `_end` is caller-supplied, so the fallback is reachable from outside.
+    function test_quoteProposalFeeFallsBackWhenTheEndIsNotAfterTheStart() public view {
+        uint64 start = uint64(block.timestamp + 100);
+        uint256 atMinimum = plugin.quoteProposalFee(start, 0);
+
+        // _end == _start: zero-length window requested.
+        assertEq(plugin.quoteProposalFee(start, start), atMinimum, "equal start/end falls back to minDuration");
+
+        // _end < _start: inverted window, would underflow if carried through the clamp.
+        assertEq(plugin.quoteProposalFee(start, start - 1), atMinimum, "an inverted window falls back too");
     }
 
     // --- token clock ----------------------------------------------------------

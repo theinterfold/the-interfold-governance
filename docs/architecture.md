@@ -61,7 +61,7 @@ Set by `make wire-spp` (`WireSpp.stagesFor`), tunable via env, changeable later 
 |                       | Stage 0 (voting)                                                       | Stage 1 (veto)                             |
 | --------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
 | `voteDuration`        | 1h (`SPP_*_VOTE_DURATION`) — voting window / body sub-proposal endDate | 2d (`SPP_VETO_DURATION`) — the veto window |
-| `maxAdvance` (expiry) | `voteDuration + SPP_ADVANCE_WINDOW` (7d)                               | `vetoDuration + SPP_EXECUTE_WINDOW` (30d)  |
+| `maxAdvance` (expiry) | `voteDuration + SPP_*_ADVANCE_WINDOW`                                  | `vetoDuration + SPP_EXECUTE_WINDOW` (30d)  |
 | `minAdvance`          | **public: `voteDuration`** · private: 0 (see below)                    | 0                                          |
 | `approvalThreshold`   | 1                                                                      | 0                                          |
 | `vetoThreshold`       | 0                                                                      | 1                                          |
@@ -126,7 +126,14 @@ creator window could outlive the stage's `maxAdvance` expiry: a validly tallied 
 proposal that could never execute, with the E3 fee already burned. Two floors still apply:
 CRISP's own `minDuration()` (the wiring refuses a private stage window below it, INV-37) and
 TokenVoting's 1-hour minimum on the public side (INV-15). The E3 fee is quoted against the
-stage window.
+stage voting duration plus the CRISP availability tail.
+
+The private SPP schedules its body proposal at `CRISPProgram.earliestVotingStart()`. This leaves
+the full VRF, ticket-selection and DKG budget before voting. The proposal's displayed `endDate`
+is the ballot deadline. CrispVoting extends only the Interfold E3 input window by
+`availabilityFinalizationWindow()`, so Avail finalization runs after voting without making the
+DAO appear open for ballots. `SPP_PRIVATE_ADVANCE_WINDOW` then leaves time for Avail, compute and
+decryption before the parent proposal expires.
 
 ## Why two SPP instances
 

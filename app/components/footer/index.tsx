@@ -1,4 +1,11 @@
-import { PUB_APP_NAME, PUB_BLOG_URL, PUB_SOCIALS_URL, PUB_PROJECT_URL, PUB_CHAIN } from "@/constants";
+import {
+  PUB_APP_NAME,
+  PUB_BLOG_URL,
+  PUB_SOCIALS_URL,
+  PUB_PROJECT_URL,
+  PUB_CHAIN,
+  PUB_CONSTITUTION_URL,
+} from "@/constants";
 
 export const Footer = () => {
   const year = new Date().getFullYear();
@@ -13,6 +20,11 @@ export const Footer = () => {
           <li>
             <a href={PUB_PROJECT_URL} target="_blank" rel="noreferrer">
               {PUB_APP_NAME}
+            </a>
+          </li>
+          <li>
+            <a href={PUB_CONSTITUTION_URL} target="_blank" rel="noreferrer">
+              DAO Constitution
             </a>
           </li>
           <li>

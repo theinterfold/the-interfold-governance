@@ -86,7 +86,7 @@ function ProposalDetailBody({
     canPublishOnChain,
     onChainBlockedReason,
   } = useCrispServer(proposal?.e3Id);
-  const canVote = useCanVote(proposalIdx);
+  const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
@@ -164,7 +164,8 @@ function ProposalDetailBody({
             {/* Voting lives in the main column, mirroring the public (TokenVoting) page layout. */}
             {proposalStatus === ProposalStatus.ACTIVE && (
               <VoteCard
-                error={canVote === false ? "You cannot vote on this proposal" : undefined}
+                error={voteBlockIsTimingOnly ? undefined : cannotVoteMessage}
+                notice={voteBlockIsTimingOnly ? cannotVoteMessage : undefined}
                 voteStartDate={Number(proposal?.parameters.startDate)}
                 voteEndDate={Number(proposal?.parameters.endDate)}
                 isCommitteeReady={isCommitteeReady}
@@ -269,7 +270,9 @@ const NoVotePowerWarning = ({
       message={
         delegatingToSomeoneElse
           ? "Your voting power is currently delegated"
-          : canVote
+          : // `canVote` true here means the voter CAN vote on this proposal (their snapshot power
+            // is fine) but holds an unrepresented balance that will not count on future ones.
+            canVote
             ? "You cannot vote on new proposals"
             : "You cannot vote"
       }

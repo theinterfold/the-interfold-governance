@@ -204,6 +204,17 @@ interface ICrispVoting {
     /// @return The minimum duration of the vote.
     function minDuration() external view returns (uint64);
 
+    /// @notice Returns the earliest safe start for a new CRISP vote.
+    function earliestVotingStart() external view returns (uint64);
+
+    /// @notice Returns the time reserved after voting for data-availability finalization.
+    function availabilityFinalizationWindow() external view returns (uint256);
+
+    /// @notice Quotes the E3 fee for a vote with the given duration.
+    /// @param _votingDuration The duration of the voting window.
+    /// @return The fee-token amount Interfold will charge.
+    function quoteProposalFeeForDuration(uint64 _votingDuration) external view returns (uint256);
+
     /// @notice Updates the voting settings. Requires the `MANAGER_PERMISSION`.
     /// @param _votingSettings The new voting settings.
     function updateVotingSettings(VotingSettings calldata _votingSettings) external;

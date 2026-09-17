@@ -51,7 +51,7 @@ contract MainnetDeploymentPolicyTest is Test {
         config.votingSettings = ICrispVoting.VotingSettings({
             minProposerVotingPower: 1,
             minVoterVotingPower: 1,
-            minDuration: 1 days,
+            minDuration: 5 days,
             minParticipation: 10,
             supportThreshold: 50
         });
@@ -104,13 +104,13 @@ contract MainnetDeploymentPolicyTest is Test {
         harness.check(MAINNET, config);
     }
 
-    /// @dev `minDuration` is the only lower bound on a creator-chosen CRISP window.
+    /// @dev Mainnet private governance requires a full five-day voting window.
     function test_mainnetRejectsADurationBelowTheFloor() public {
         Utils.CrispEnvVariables memory config = _validMainnetConfig();
-        config.votingSettings.minDuration = 1 days - 1;
+        config.votingSettings.minDuration = 5 days - 1;
 
         vm.expectRevert(
-            abi.encodeWithSelector(Utils.MainnetDurationTooShort.selector, uint64(1 days - 1), uint64(1 days))
+            abi.encodeWithSelector(Utils.MainnetDurationTooShort.selector, uint64(5 days - 1), uint64(5 days))
         );
         harness.check(MAINNET, config);
     }
@@ -119,7 +119,7 @@ contract MainnetDeploymentPolicyTest is Test {
         Utils.CrispEnvVariables memory config = _validMainnetConfig();
         config.votingSettings.minDuration = 0;
 
-        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetDurationTooShort.selector, uint64(0), uint64(1 days)));
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetDurationTooShort.selector, uint64(0), uint64(5 days)));
         harness.check(MAINNET, config);
     }
 

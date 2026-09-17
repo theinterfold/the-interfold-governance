@@ -1,7 +1,9 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
+import { usePublicClient, useReadContract } from "wagmi";
 import {
+  MINIMUM_START_DELAY_IN_SECONDS,
   PUB_APP_NAME,
   PUB_CHAIN,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
@@ -16,6 +18,8 @@ import { URL_PATTERN } from "@/utils/input-values";
 import { uploadToPinata } from "@/utils/ipfs";
 import type { ProposalMetadata, RawAction } from "@/utils/types";
 import { applyFeeBuffer, useFeeCredits } from "./useFeeCredits";
+import { CrispVotingAbi } from "../artifacts/CrispVoting";
+import { scheduleVotingStart } from "../utils/votingSchedule";
 
 const UrlRegex = new RegExp(URL_PATTERN);
 
@@ -38,6 +42,7 @@ export function useCreateProposal() {
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
+  const publicClient = usePublicClient();
 
   // The voting window is the stage-configured one (5 days on mainnet), never creator-chosen:
   // the SPP creates the sub-proposal with endDate = start + stage.voteDuration, and the
@@ -45,6 +50,28 @@ export function useCreateProposal() {
   // to quote the E3 fee against the real window.
   const { votingStage } = useSppStages("private");
   const durationSeconds = votingStage ? Number(votingStage.voteDuration) : undefined;
+  const startBufferSeconds = Math.max(0, Math.floor(MINIMUM_START_DELAY_IN_SECONDS));
+
+  const { data: earliestVotingStartData } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    abi: CrispVotingAbi,
+    functionName: "earliestVotingStart",
+  });
+
+  const { data: availabilityWindowData } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    abi: CrispVotingAbi,
+    functionName: "availabilityFinalizationWindow",
+  });
+
+  const votingStartsAt =
+    earliestVotingStartData === undefined
+      ? undefined
+      : Number(scheduleVotingStart(earliestVotingStartData as bigint, startBufferSeconds));
+  const availabilityWindowSeconds =
+    availabilityWindowData === undefined ? undefined : Number(availabilityWindowData as bigint);
 
   // Creator-pays E3 fee escrow on the CRISP plugin — quoted against the stage window.
   const { quote, credit, deposit, refetchCredit } = useFeeCredits(durationSeconds);
@@ -93,6 +120,12 @@ export function useCreateProposal() {
         type: "error",
       });
     }
+    if (!publicClient) {
+      return addAlert("Voting schedule unavailable", {
+        description: "Could not connect to the chain. Please try again.",
+        type: "error",
+      });
+    }
     if (quote === undefined || credit === undefined) {
       return addAlert("Fee quote unavailable", {
         description: "Could not read the proposal fee from the plugin. Please try again.",
@@ -133,12 +166,21 @@ export function useCreateProposal() {
       // _proposalParams is indexed [stageIdx][bodyIdx]; stage 1 (veto) is manual.
       const proposalParams: `0x${string}`[][] = [[crispData], []];
 
+      // Read the schedule again immediately before submission. Uploading metadata and depositing
+      // a fee can take long enough for an earlier value to become invalid.
+      const earliestVotingStart = await publicClient.readContract({
+        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        abi: CrispVotingAbi,
+        functionName: "earliestVotingStart",
+      });
+      const scheduledStart = scheduleVotingStart(earliestVotingStart as bigint, startBufferSeconds);
+
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
         abi: StagedProposalProcessorAbi,
         address: PUB_SPP_PRIVATE_ADDRESS,
         functionName: "createProposal",
-        args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
+        args: [toHex(ipfsPin), actions, scheduledStart, 0n, proposalParams],
         gas: CREATE_PROPOSAL_GAS_LIMIT,
       });
     } catch (err) {
@@ -162,5 +204,7 @@ export function useCreateProposal() {
     submitProposal,
     /** The stage-configured voting window (seconds); undefined until the stage config loads. */
     durationSeconds,
+    votingStartsAt,
+    availabilityWindowSeconds,
   };
 }

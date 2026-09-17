@@ -39,7 +39,7 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
     claim,
   } = useClaimRefund(proposalId, e3Id);
   // Fee-token symbol/decimals only — the quote is irrelevant here, so the hook is called
-  // without a duration and its `quoteProposalFee` read stays disabled.
+  // without a duration and its proposal-fee read stays disabled.
   const { symbol, decimals } = useFeeCredits();
 
   // A second claim reverts inside the refund manager, so once the on-chain `RefundClaimed` event

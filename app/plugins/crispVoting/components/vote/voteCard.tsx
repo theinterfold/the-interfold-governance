@@ -6,7 +6,10 @@ import { useState } from "react";
 import VotingStepIndicator from "./voteProgress";
 
 export interface VoteCardProps {
+  /** A genuine eligibility problem: the voter cannot fix it by waiting. Rendered as an error. */
   error?: string;
+  /** A timing-only explanation (not open yet, already closed). Rendered as neutral information. */
+  notice?: string;
   options: string[];
   voteStartDate: number;
   voteEndDate: number;
@@ -38,6 +41,7 @@ function getColor(index: number): string {
 
 export const VoteCard = ({
   error,
+  notice,
   options,
   voteStartDate,
   disabled,
@@ -84,11 +88,20 @@ export const VoteCard = ({
 
       <div className="vp-body">
         {error && <p className="text-sm text-critical-500">{error}</p>}
+        {notice && !error && (
+          <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+            {notice}
+          </p>
+        )}
 
-        <p className="vp-note">
-          Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
-          after the voting period ends.
-        </p>
+        {/* Only promise ballot-casting when the voter can actually act. Showing this above a
+            "you cannot vote" line was the contradiction that made the card unreadable. */}
+        {!error && !notice && (
+          <p className="vp-note">
+            Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
+            after the voting period ends.
+          </p>
+        )}
 
         {(isLoading || txHash || votingStep === "error" || votingStep === "complete") && (
           <VotingStepIndicator
@@ -99,7 +112,10 @@ export const VoteCard = ({
           />
         )}
 
-        {notStarted && (
+        {/* `notice` already states the start time when voting has not opened, so repeating it
+            here produced two copies of the same sentence. Only show this when the caller passed
+            no notice (e.g. a wallet-less visitor). */}
+        {notStarted && !notice && (
           <p className="vp-foot-note" style={{ textAlign: "left" }}>
             The vote will start on {unixTimestampToDate(voteStartDate)}
           </p>

@@ -88,7 +88,9 @@ predecessor gives up the only key. `grantAdminTo()` requires the successor to be
 | Var | Default | Meaning |
 |-----|---------|---------|
 | `SPP_PRIVATE_VOTE_DURATION` / `SPP_PUBLIC_VOTE_DURATION` | 3600 (1h) | stage-0 voting window |
-| `SPP_ADVANCE_WINDOW` | 604800 (7d) | extra time to advance a passed stage 0 before it expires |
+| `SPP_ADVANCE_WINDOW` | 604800 (7d) | fallback stage-0 advancement window |
+| `SPP_PRIVATE_ADVANCE_WINDOW` | `SPP_ADVANCE_WINDOW` | private time for Avail, compute, decryption and advancement |
+| `SPP_PUBLIC_ADVANCE_WINDOW` | `SPP_ADVANCE_WINDOW` | public time to advance a passed vote |
 | `SPP_VETO_DURATION` | 172800 (2d) | stage-1 foundation veto window |
 | `SPP_EXECUTE_WINDOW` | 2592000 (30d) | time to execute after the veto window before expiry |
 

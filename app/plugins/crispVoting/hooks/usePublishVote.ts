@@ -4,6 +4,7 @@ import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
 import { E3Stage } from "./useE3Status";
+import { isVotingOpenAt } from "../utils/votingSchedule";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 
@@ -15,6 +16,7 @@ const interfoldAbi = parseAbi([
 
 const crispProgramAbi = parseAbi([
   "function publishInput(uint256 e3Id, bytes data)",
+  "function inputCommitmentDeadline(uint256 e3Id) view returns (uint256)",
   "function getRoundData(uint256 e3Id) view returns (uint256 merkleRoot, bytes32 paramsHash, uint256 numOptions, uint8 creditMode, uint256 inputRoot, uint40 numberOfVotes)",
   "function censusModeOf(uint256 e3Id) view returns (uint8)",
 ]);
@@ -105,6 +107,15 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     query: { enabled: enabled && !!programAddress },
   });
 
+  const { data: commitmentDeadline } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: programAddress,
+    abi: crispProgramAbi,
+    functionName: "inputCommitmentDeadline",
+    args: [e3Id ?? 0n],
+    query: { enabled: enabled && !!programAddress },
+  });
+
   // An on-chain census never posts a root: `_eligibility` reads power from the token per input and
   // never consults `merkleRoot`. Requiring one would block publishing forever on exactly the mode
   // that removes the census, and report a missing root the round is never going to have.
@@ -114,7 +125,8 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     enabled &&
     (stageRaw === undefined ||
       e3 === undefined ||
-      (!!programAddress && (roundData === undefined || censusModeRaw === undefined)));
+      (!!programAddress &&
+        (roundData === undefined || censusModeRaw === undefined || commitmentDeadline === undefined)));
 
   /**
    * Mirrors every guard in `publishInput` so the UI can refuse before spending gas on a revert,
@@ -129,10 +141,10 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     if (requiresMerkleRoot && merkleRoot === 0n) {
       return "The census merkle root has not been set for this round yet.";
     }
-    if (inputWindow) {
+    if (inputWindow && commitmentDeadline !== undefined) {
       const now = BigInt(Math.floor(Date.now() / 1000));
       if (now < inputWindow[0]) return "The voting window has not opened yet.";
-      if (now > inputWindow[1]) return "The voting window has closed.";
+      if (!isVotingOpenAt(now, inputWindow[0], commitmentDeadline)) return "The voting window has closed.";
     }
     return undefined;
   })();

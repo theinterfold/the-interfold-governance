@@ -21,12 +21,11 @@ library Utils {
     error MainnetRequiresSmallCommittee(IInterfold.CommitteeSize committeeSize);
 
     /// @notice Mainnet refuses a zero `minDuration`.
-    /// @dev `minDuration` is the only lower bound on a creator-chosen CRISP window, so a zero
-    ///      would let a proposal close in the block it opened.
+    /// @dev The private SPP window must meet this floor before it can be wired.
     error MainnetDurationTooShort(uint64 minDuration, uint64 required);
 
-    /// @notice The production floor on the creator-chosen CRISP window.
-    uint64 internal constant MAINNET_MINIMUM_DURATION = 1 days;
+    /// @notice The production floor on the CRISP voting window.
+    uint64 internal constant MAINNET_MINIMUM_DURATION = 5 days;
 
     struct CrispEnvVariables {
         address interfold;

@@ -532,7 +532,13 @@ contract WireSppScript is Script {
             );
         }
         // Window to advance a passed stage-0 before it expires (on top of the vote itself).
-        uint64 advanceWindow = uint64(vm.envOr("SPP_ADVANCE_WINDOW", uint256(7 days)));
+        // The private body needs enough time for Avail, compute and decryption after voting.
+        uint256 sharedAdvanceWindow = vm.envOr("SPP_ADVANCE_WINDOW", uint256(7 days));
+        uint64 advanceWindow = uint64(
+            isPrivate
+                ? vm.envOr("SPP_PRIVATE_ADVANCE_WINDOW", sharedAdvanceWindow)
+                : vm.envOr("SPP_PUBLIC_ADVANCE_WINDOW", sharedAdvanceWindow)
+        );
         // Stage 1 veto window: the proposal is held Active this long for the foundation to veto.
         uint64 vetoDuration = uint64(vm.envOr("SPP_VETO_DURATION", uint256(2 days)));
         // Window to execute after the veto window lapses, before the proposal expires.
