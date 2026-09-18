@@ -82,6 +82,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     isDead: e3Failed,
     isFailurePending: e3FailurePending,
     failureReason: e3FailureReason,
+    inputDeadline: e3InputDeadline,
   } = useE3Status(proposalRaw?.e3Id, !isTallied);
 
   const tally: Tally = useMemo(() => {
@@ -190,6 +191,8 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     e3Failed,
     e3FailurePending,
     e3FailureReason,
+    /** When the settlement window closes and the tally becomes due. */
+    e3InputDeadline,
     status: {
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",

@@ -33,7 +33,9 @@ export enum E3FailureReason {
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 const interfoldAbi = parseAbi([
+  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bool proofAggregationEnabled; }",
   "function getE3Stage(uint256 e3Id) view returns (uint8)",
+  "function getE3(uint256 e3Id) view returns (E3 memory e3)",
   "function getFailureReason(uint256 e3Id) view returns (uint8)",
   "function checkFailureCondition(uint256 e3Id) view returns (bool canFail, uint8 reason)",
 ]);
@@ -123,6 +125,26 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
 
   const [canFail, pendingReasonRaw] = (pending as readonly [boolean, number] | undefined) ?? [];
 
+  /**
+   * The input window's close is when the tally is scheduled, NOT when voting closes.
+   *
+   * Voting ends at the proposal's `endDate`, but the round stays open afterwards so every ballot
+   * can be published to Avail and finalized by the VectorX bridge. The server only attempts the
+   * tally once this deadline passes. Without showing it, a round sits visibly idle for hours
+   * between "voting closed" and any result, which reads as a stall.
+   */
+  const { data: e3 } = useReadContract({
+    chainId: PUB_CHAIN_ID,
+    address: interfold as Address | undefined,
+    abi: interfoldAbi,
+    functionName: "getE3",
+    args: [e3Id ?? 0n],
+    query: { enabled: active && !!interfold && !isFailed },
+  });
+
+  const inputWindow = (e3 as { inputWindow?: readonly [bigint, bigint] } | undefined)?.inputWindow;
+  const inputDeadline = inputWindow?.[1];
+
   /** Terminal either way: the round can never produce a tally. */
   const isDead = isFailed || canFail === true;
 
@@ -137,5 +159,10 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
     /** The failure condition is met but nobody has sent `markE3Failed` yet. */
     isFailurePending: !isFailed && canFail === true,
     isDead,
+    /**
+     * Unix seconds when the input window closes — the moment the tally becomes due. Undefined
+     * while the read is in flight or for a round already marked failed.
+     */
+    inputDeadline,
   };
 }

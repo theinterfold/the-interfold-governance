@@ -26,6 +26,7 @@ import { MissingContentView } from "@/components/MissingContentView";
 import { VotingPower } from "@/plugins/tokenVoting/components/votingPower";
 import { ParticipationCard } from "../components/participationCard";
 import { ActivityCard } from "../components/activityCard";
+import { SettlementProgressCard } from "../components/settlementProgressCard";
 
 const ZERO = BigInt(0);
 
@@ -73,6 +74,7 @@ function ProposalDetailBody({
     e3Failed,
     e3FailurePending,
     e3FailureReason,
+    e3InputDeadline,
     status: proposalFetchStatus,
   } = useProposal(proposalIdx, { metadataUri: spp.metadataUri, creator: spp.creator });
   const {
@@ -194,6 +196,17 @@ function ProposalDetailBody({
               <div className="border border-critical-200 bg-critical-100 px-4 py-3">
                 <p className="text-sm text-critical-600">{error}</p>
               </div>
+            )}
+            {proposalStatus !== ProposalStatus.ACTIVE && (
+              <SettlementProgressCard
+                // Derive from the clock, not the status. A round whose voting has closed but which
+                // has no tally yet reads as PENDING — exactly the window this card explains — so
+                // gating on the status hid it precisely when it was needed.
+                votingClosed={Number(proposal.parameters.endDate) * 1000 < Date.now()}
+                isTallied={proposal.isTallied}
+                isDead={e3Failed || e3FailurePending}
+                inputDeadline={e3InputDeadline}
+              />
             )}
             {proposalStatus !== ProposalStatus.ACTIVE && (
               <VoteResultCard
