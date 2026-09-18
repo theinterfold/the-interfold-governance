@@ -363,7 +363,7 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   quorum), `CrispVotingViews.t.sol` (read surface, settings, revert paths),
   `CrispVotingSetup.t.sol` (install/uninstall permissions). Shared test doubles live in
   `contracts/test/mocks/CrispMocks.sol` — extend those rather than redeclaring per-file.
-- **`src/crisp/**` is at 100% coverage and CI enforces it** (`MIN_COVERAGE` in `ci.yml`).
+- **`src/crisp/**` is at 100% coverage and CI enforces it** (`MIN_COVERAGE`in`ci.yml`).
   A behaviour change without a test will fail the build. (Formerly INV-30; it is a build policy
   that fails loudly, not a silent system property, so it does not belong in the register.)
 - App: match existing style — `If/Then` components, `useTransactionManager`, alerts, `@aragon/ods`.

@@ -572,7 +572,11 @@ contract SafeActionsScript is WireSppScript {
         datas[0] = bytes.concat(salt, implCode);
         datas[1] = bytes.concat(salt, setupCode);
         datas[2] = abi.encodeWithSignature(
-            "createVersion(uint8,address,bytes,bytes)", release, setup, bytes("ipfs://crisp-build"), bytes("ipfs://crisp-release")
+            "createVersion(uint8,address,bytes,bytes)",
+            release,
+            setup,
+            bytes("ipfs://crisp-build"),
+            bytes("ipfs://crisp-release")
         );
 
         console2.log("=== Publish a new CRISP build into the existing repo (Safe-signed) ===");

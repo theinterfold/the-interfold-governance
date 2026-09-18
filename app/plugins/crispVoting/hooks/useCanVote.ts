@@ -118,11 +118,7 @@ export function useCanVote(proposalId: bigint): CanVoteResult {
     );
   }
   if (now >= proposal.parameters.endDate) {
-    return blocked(
-      "ended",
-      `Voting closed on ${unixTimestampToDate(proposal.parameters.endDate)}.`,
-      true
-    );
+    return blocked("ended", `Voting closed on ${unixTimestampToDate(proposal.parameters.endDate)}.`, true);
   }
 
   // Eligibility is measured at the snapshot, not now, so a wallet funded or self-delegated after
