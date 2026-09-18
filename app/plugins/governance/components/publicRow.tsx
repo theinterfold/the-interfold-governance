@@ -30,8 +30,7 @@ export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
       <ProposalRow
         href={href}
         kindLabel="Transparent fallback"
-        loading
-        loadingMessage="Sub-proposal creation failed"
+        failedMessage="The voting round could not be created for this proposal, so no vote can be held on it. The staged process recorded the failure when the proposal was created and there is no retry — a new proposal is needed."
         hidden={hidden}
       />
     );

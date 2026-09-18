@@ -7,6 +7,7 @@ import { capitalizeFirstLetter } from "@/utils/text";
 import { AddressText } from "@/components/text/address";
 import { useEffect, useState } from "react";
 import { e3RoundNumber } from "../../utils/ballotDigest";
+import { unixTimestampToDate } from "../../utils/formatProposalDate";
 
 const DEFAULT_PROPOSAL_TITLE = "(No proposal title)";
 const DEFAULT_PROPOSAL_SUMMARY = "(No proposal summary)";
@@ -31,21 +32,23 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
 }) => {
   const proposalStatus = useProposalStatus(proposal, totalVotingPower, e3Failed);
   const countdown = useCountdown(Number(proposal.parameters.endDate) * 1000);
+  const startCountdown = useCountdown(Number(proposal.parameters.startDate) * 1000);
 
   const statusClass = (proposalStatus ?? "").toString().toLowerCase();
   const isEmergency = proposal.parameters.startDate === 0n;
   const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
+  const hasNotStarted = !isEmergency && Number(proposal.parameters.startDate) * 1000 > Date.now();
 
   let endLabel: string;
   if (e3Failed) endLabel = "Round failed";
   else if (proposalStatus === ProposalStatus.ACCEPTED) endLabel = "Accepted";
   else if (proposalStatus === ProposalStatus.REJECTED) endLabel = "Rejected";
   else if (endDateIsInThePast) endLabel = "Voting closed";
-  // A countdown promises there is something to do before it runs out. Until the committee
-  // publishes its key there is no key to encrypt against, so the round is open on chain and
-  // unvotable in practice — and the vote panel below already says exactly that. Checked after the
-  // closed cases: a finished round is not "forming", it is over.
-  else if (!isCommitteeReady) endLabel = "Forming committee";
+  // "Forming committee" only once voting has actually opened. Before the start the protocol
+  // deliberately sizes the gap to cover sortition and DKG, so a committee still forming is on
+  // schedule, not late — saying otherwise contradicted the vote panel, which states the start
+  // time. After the start, an unpublished key IS the blocker and this is the honest label.
+  else if (!hasNotStarted && !isCommitteeReady) endLabel = "Forming committee";
   else endLabel = `Ends in ${countdown}`;
 
   return (
@@ -86,8 +89,21 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
             <div className="lbl">Status</div>
             <div className="val">{proposalStatus ? capitalizeFirstLetter(proposalStatus) : "—"}</div>
           </div>
+          {/* Before the start, "Ends in 1h 31m" is true but answers the wrong question: the reader
+              wants to know when they can vote, and an end time alone implies voting is already
+              open. Show the start explicitly until it passes, then drop it — a start date on a
+              closed round is noise. */}
+          {hasNotStarted && (
+            <div className="item">
+              <div className="lbl">Voting starts</div>
+              <div className="val">
+                {unixTimestampToDate(proposal.parameters.startDate)}
+                <span className="text-neutral-400"> · in {startCountdown}</span>
+              </div>
+            </div>
+          )}
           <div className="item">
-            <div className="lbl">{endDateIsInThePast ? "Window" : "Ends"}</div>
+            <div className="lbl">{endDateIsInThePast ? "Window" : hasNotStarted ? "Voting ends" : "Ends"}</div>
             <div className="val">{endLabel}</div>
           </div>
         </div>

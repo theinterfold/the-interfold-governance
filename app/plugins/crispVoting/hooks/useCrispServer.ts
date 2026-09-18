@@ -10,6 +10,7 @@ import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
+import { readServerRejection } from "../utils/readServerRejection";
 import {
   CensusMode,
   ballotTypedData,
@@ -432,9 +433,16 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // over a vote the server accepted and went on to publish on-chain. Accept every 2xx;
       // anything else is a real rejection and carries the server's reason.
       if (!response.ok) {
-        setError("Failed to broadcast vote");
+        // Every rejection path in the server's `/voting/broadcast` sets a specific `message`:
+        // "Too many votes from this address, slow down", "The vote commitment deadline has
+        // passed", "The availability service is temporarily unavailable", and so on. Discarding
+        // it for a flat "Failed to broadcast vote" throws away the one thing that tells the voter
+        // whether to wait, retry, or stop — and it is the difference between a rate limit and a
+        // closed ballot.
+        const reason = await readServerRejection(response);
+        setError(reason);
         setVotingStep("error");
-        setStepMessage("Failed to broadcast vote");
+        setStepMessage(reason);
         return;
       }
 

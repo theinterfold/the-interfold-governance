@@ -24,13 +24,20 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
   const spp = useSppProposal("private", proposalId);
   const href = `#/proposals/private/${proposalId}`;
 
+  // A failed sub-proposal is a terminal outcome, so report it to the list's filter. Without this
+  // the row reports no bucket at all and escapes every filter — a dead proposal would show up
+  // even under "Active".
+  const subProposalFailed = spp.subProposalFailed;
+  useEffect(() => {
+    if (subProposalFailed) onStatus?.("rejected");
+  }, [subProposalFailed, onStatus]);
+
   if (spp.subProposalFailed) {
     return (
       <ProposalRow
         href={href}
         kindLabel="Secret ballot"
-        loading
-        loadingMessage="Sub-proposal creation failed"
+        failedMessage="The encrypted voting round could not be created for this proposal, so no vote can be held on it. The staged process recorded the failure when the proposal was created and there is no retry — a new proposal is needed."
         hidden={hidden}
       />
     );

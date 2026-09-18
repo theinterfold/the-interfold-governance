@@ -2,6 +2,7 @@ import { AlertCard, Button } from "@aragon/ods";
 import { formatUnits } from "viem";
 import { useClaimRefund } from "../../hooks/useClaimRefund";
 import { useFeeCredits } from "../../hooks/useFeeCredits";
+import { formatSettlementOpensAt } from "../../utils/formatSettlementOpensAt";
 import { AddressText } from "@/components/text/address";
 
 /**
@@ -33,6 +34,8 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
     isCalculated,
     refundAmount,
     pendingSteps,
+    isSettlementBlocked,
+    settlementOpensAt,
     error,
     isReady,
     isClaiming,
@@ -104,6 +107,22 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
             : "Requires one transaction."}
       </p>
 
+      {/* The refund is time-locked, not unavailable. Interfold freezes the payer snapshot while a
+          committee member can still be accused, so settling early reverts `SettlementBlocked()`
+          and the caller pays gas for nothing. Say so, with the time, instead of offering a button
+          that fails. */}
+      {isReady && isSettlementBlocked && (
+        <AlertCard
+          variant="warning"
+          message="The refund cannot be settled yet"
+          description={
+            settlementOpensAt
+              ? `Interfold holds the fee while a challenge against the round's committee can still be filed. Settlement opens ${formatSettlementOpensAt(settlementOpensAt)}, after which anyone can complete the steps above.`
+              : "Interfold holds the fee while a challenge against the round's committee can still be filed. Settlement opens once that window closes, after which anyone can complete the steps above."
+          }
+        />
+      )}
+
       {/* Settlement failures surface here rather than only in the console: several of them
           (preflight, reverted receipt) never reach the transaction manager's alerts. */}
       {error && (
@@ -119,10 +138,16 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
           size="md"
           variant="secondary"
           isLoading={isClaiming}
-          disabled={isClaiming || !isReady}
+          disabled={isClaiming || !isReady || isSettlementBlocked}
           onClick={() => void claim()}
         >
-          {!isReady ? "Checking…" : isMarkedFailed ? "Settle refund" : "Mark failed and refund"}
+          {!isReady
+            ? "Checking…"
+            : isSettlementBlocked
+              ? "Refund locked"
+              : isMarkedFailed
+                ? "Settle refund"
+                : "Mark failed and refund"}
         </Button>
       </div>
     </div>

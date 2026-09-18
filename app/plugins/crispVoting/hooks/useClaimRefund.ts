@@ -19,8 +19,20 @@ const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 const interfoldAbi = parseAbi([
   "function getE3Stage(uint256 e3Id) view returns (uint8)",
   "function e3RefundManager() view returns (address)",
+  "function slashingManager() view returns (address)",
   "function markE3Failed(uint256 e3Id) returns (uint8)",
   "function processE3Failure(uint256 e3Id)",
+]);
+
+/**
+ * `processE3Failure` freezes the payer snapshot, so the slashing manager refuses it while a
+ * committee-affecting accusation can still be filed (the ZEN2-04 guard). The refund is therefore
+ * TIME-LOCKED after a round fails, and a claim sent early reverts `SettlementBlocked()` — the
+ * caller pays gas to learn that they must wait.
+ */
+const slashingManagerAbi = parseAbi([
+  "function settlementOpen(uint256 e3Id) view returns (bool)",
+  "function accusationSubmissionDeadline(uint256 e3Id) view returns (uint64)",
 ]);
 
 const refundManagerAbi = parseAbi([
@@ -101,9 +113,51 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
     query: { enabled: active && !!refundManager },
   });
 
+  const { data: slashingManager } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: interfoldAddress,
+    abi: interfoldAbi,
+    functionName: "slashingManager",
+    query: { enabled: active && !!interfoldAddress },
+  });
+
+  const slashingManagerAddress = slashingManager as Address | undefined;
+
+  const { data: settlementOpenRaw, refetch: refetchSettlement } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: slashingManagerAddress,
+    abi: slashingManagerAbi,
+    functionName: "settlementOpen",
+    args: [e3Id ?? 0n],
+    query: { enabled: active && !!slashingManagerAddress },
+  });
+
+  const { data: accusationDeadlineRaw } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: slashingManagerAddress,
+    abi: slashingManagerAbi,
+    functionName: "accusationSubmissionDeadline",
+    args: [e3Id ?? 0n],
+    query: { enabled: active && !!slashingManagerAddress },
+  });
+
   const isMarkedFailed = stageRaw !== undefined && Number(stageRaw) === E3Stage.Failed;
   const isCalculated = (distribution as { calculated?: boolean } | undefined)?.calculated === true;
   const refundAmount = (distribution as { requesterAmount?: bigint } | undefined)?.requesterAmount;
+
+  /**
+   * Whether `processE3Failure` would be accepted right now.
+   *
+   * Only meaningful while the refund is still uncalculated: once `isCalculated` is true that step
+   * is behind us and the remaining claim does not consult the slashing manager at all. Treated as
+   * open when the read has not resolved, so a slow RPC never hides an action that would succeed.
+   */
+  const isSettlementOpen = settlementOpenRaw === undefined ? true : Boolean(settlementOpenRaw);
+  const isSettlementBlocked = !isCalculated && !isSettlementOpen;
+
+  /** When the accusation window closes, in seconds. `0` means the manager recorded no deadline. */
+  const settlementOpensAt =
+    accusationDeadlineRaw !== undefined && accusationDeadlineRaw !== 0n ? Number(accusationDeadlineRaw) : undefined;
 
   /**
    * Every read `claim()` branches on must have resolved.
@@ -210,6 +264,9 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
     // Belt and braces alongside the disabled button: acting on unresolved reads re-sends a
     // completed step and burns the caller's gas on a revert.
     if (!isReady) return;
+    // The slashing manager would refuse `processE3Failure` with `SettlementBlocked()`. Stop here
+    // rather than let the wallet prompt for a transaction that cannot succeed yet.
+    if (isSettlementBlocked) return;
 
     setError(undefined);
 
@@ -257,7 +314,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
       // Settlement is several transactions and an earlier one may have landed before the
       // failure. Re-read on-chain state so a retry resumes from where it stopped instead of
       // repeating a step that would now revert.
-      await Promise.all([refetchStage(), refetchDistribution(), checkClaimed()]);
+      await Promise.all([refetchStage(), refetchDistribution(), refetchSettlement(), checkClaimed()]);
     } finally {
       setIsClaiming(false);
     }
@@ -280,6 +337,13 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
     refundAmount,
     /** How many transactions `claim()` will send from the current state. */
     pendingSteps: (isMarkedFailed ? 0 : 1) + (isCalculated ? 0 : 1) + 1,
+    /**
+     * The accusation window is still open, so `processE3Failure` would revert
+     * `SettlementBlocked()`. The refund is not lost — it is time-locked.
+     */
+    isSettlementBlocked,
+    /** Unix seconds after which settlement opens, when the manager recorded a deadline. */
+    settlementOpensAt,
     /** Why the last settlement attempt failed, if it did. */
     error,
     /** Every read `claim()` branches on has resolved; see the definition above. */

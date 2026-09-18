@@ -1,4 +1,5 @@
 import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } from "viem";
+import { explainContractError } from "@/utils/explainContractError";
 
 export type FriendlyError = {
   /** Alert title. */
@@ -90,6 +91,20 @@ export function decodeTxError(error: unknown, fallbackTitle = "Transaction faile
   }
 
   // Plain revert reason string (require/revert with message), if any.
+  //
+  // Before falling back, try the selector table. viem can only name an error that appears in the
+  // ABI it was handed, so a revert thrown by a DIFFERENT contract in the call path — Interfold,
+  // the slashing manager, the refund manager — arrives here as raw hex with no `errorName`. That
+  // is the common case for this app, and `0xf51125bb` tells a user nothing.
+  const explained = explainContractError(error);
+  if (explained) {
+    return {
+      title: explained.title,
+      description: explained.detail,
+      isUserRejection: false,
+    };
+  }
+
   const shortMessage = (error as { shortMessage?: string })?.shortMessage;
   return {
     title: fallbackTitle,

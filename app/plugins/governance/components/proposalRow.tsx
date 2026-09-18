@@ -10,6 +10,14 @@ export interface ProposalRowProps {
   kindLabel: string;
   loading?: boolean;
   loadingMessage?: string;
+  /**
+   * A permanent, non-recoverable state for this row — render it as settled, not pending.
+   *
+   * Distinct from `loading`: a failed sub-proposal never resolves, so showing a spinner beside
+   * its explanation tells the reader to keep waiting for something that will never arrive. The
+   * SPP writes its failure sentinel once at creation and offers no retry path.
+   */
+  failedMessage?: string;
   title?: string;
   summary?: string;
   creator?: string;
@@ -27,6 +35,23 @@ export interface ProposalRowProps {
 /** Shared presentational row so secret-ballot (CRISP) and transparent fallback (TokenVoting) proposals render identically. */
 export function ProposalRow(props: ProposalRowProps) {
   if (props.hidden) return null;
+
+  // Checked before `loading`: a row can be handed both while its reads settle, and the permanent
+  // state is the one worth showing.
+  if (props.failedMessage) {
+    return (
+      <Link href={props.href} className="proposal-row">
+        <div className="num">{props.kindLabel}</div>
+        <div className="body">
+          <div className="meta">
+            <span className="badge failed">Failed</span>
+          </div>
+          <p className="text-sm text-neutral-500">{props.failedMessage}</p>
+        </div>
+        <div className="right" />
+      </Link>
+    );
+  }
 
   if (props.loading) {
     return (
