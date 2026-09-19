@@ -9,7 +9,8 @@ import { useAccount } from "wagmi";
 import { useCanCreateProposal } from "../hooks/useCanCreateProposal";
 import { MissingContentView } from "@/components/MissingContentView";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
-import { Address } from "viem";
+import { Address, formatEther } from "viem";
+import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { NewActionDialog, NewActionType } from "@/components/dialogs/NewActionDialog";
 import { AddActionCard } from "@/components/cards/AddActionCard";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
@@ -18,7 +19,7 @@ import { encodeActionsAsJson } from "@/utils/json-actions";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
-  const { canCreate } = useCanCreateProposal();
+  const { canCreate, needsDelegation, hasNoTokens, isLoading, minProposerVotingPower, votes } = useCanCreateProposal();
   const [addActionType, setAddActionType] = useState<NewActionType>("");
   const {
     title,
@@ -82,7 +83,16 @@ export default function Create() {
           Create Proposal
         </h1>
 
-        <PlaceHolderOr selfAddress={selfAddress} canCreate={canCreate} isConnected={isConnected}>
+        <PlaceHolderOr
+          selfAddress={selfAddress}
+          canCreate={canCreate}
+          isConnected={isConnected}
+          needsDelegation={needsDelegation}
+          hasNoTokens={hasNoTokens}
+          isLoading={isLoading}
+          minProposerVotingPower={minProposerVotingPower}
+          votes={votes}
+        >
           <div className="mb-6">
             <InputText
               className=""
@@ -261,13 +271,27 @@ const PlaceHolderOr = ({
   isConnected,
   canCreate,
   children,
+  needsDelegation,
+  hasNoTokens,
+  isLoading,
+  minProposerVotingPower,
+  votes,
 }: {
   selfAddress: Address | undefined;
   isConnected: boolean;
   canCreate: boolean | undefined;
   children: ReactNode;
+  needsDelegation?: boolean;
+  hasNoTokens?: boolean;
+  isLoading?: boolean;
+  minProposerVotingPower?: bigint;
+  votes?: bigint;
 }) => {
   const { open } = useWeb3Modal();
+  const threshold =
+    minProposerVotingPower === undefined ? undefined : `${formatEther(minProposerVotingPower)} ${PUB_TOKEN_SYMBOL}`;
+  const current = votes === undefined ? undefined : `${formatEther(votes)} ${PUB_TOKEN_SYMBOL}`;
+
   return (
     <If true={!selfAddress || !isConnected}>
       <Then>
@@ -276,10 +300,31 @@ const PlaceHolderOr = ({
           Please connect your wallet to continue.
         </MissingContentView>
       </Then>
-      <ElseIf true={!canCreate}>
-        {/* Not a member */}
+      <ElseIf true={isLoading}>
+        {/* Still reading the on-chain gate — do not accuse anyone before we know. */}
+        <MissingContentView>Checking whether your account can create proposals…</MissingContentView>
+      </ElseIf>
+      <ElseIf true={!canCreate && needsDelegation}>
+        {/* Holds enough tokens, but never delegated: self-delegation fixes it. */}
         <MissingContentView>
-          You cannot create proposals on the multisig because you are not currently defined as a member.
+          {`You hold enough ${PUB_TOKEN_SYMBOL} to create a proposal, but your voting power is not delegated. ` +
+            `Proposal creation counts delegated voting power${threshold ? ` (${threshold} required)` : ""}, ` +
+            `so delegate to yourself on the Members page and then return here.`}
+        </MissingContentView>
+      </ElseIf>
+      <ElseIf true={!canCreate && hasNoTokens}>
+        {/* No tokens at all. */}
+        <MissingContentView>
+          {`Creating a proposal requires${threshold ? ` ${threshold} of` : ""} delegated voting power, ` +
+            `and this account holds no ${PUB_TOKEN_SYMBOL}.`}
+        </MissingContentView>
+      </ElseIf>
+      <ElseIf true={!canCreate}>
+        {/* Below the threshold: say by how much rather than calling them "not a member". */}
+        <MissingContentView>
+          {`Creating a proposal requires${threshold ? ` ${threshold} of` : ""} delegated voting power` +
+            `${current ? `, and this account has ${current}` : ""}. ` +
+            `Voting power counts delegated votes, so check that your ${PUB_TOKEN_SYMBOL} is delegated.`}
         </MissingContentView>
       </ElseIf>
       <Else>{children}</Else>
