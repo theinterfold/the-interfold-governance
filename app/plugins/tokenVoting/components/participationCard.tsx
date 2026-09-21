@@ -1,7 +1,8 @@
 import { useReadContract } from "wagmi";
 import { formatUnits, parseAbi } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+import { useVotingToken } from "@/hooks/useVotingToken";
+import { PUB_CHAIN, PUB_TOKEN_SYMBOL, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 
 import type { Proposal } from "../utils/types";
@@ -17,10 +18,12 @@ const votesAbi = parseAbi(["function getPastTotalSupply(uint256 timepoint) view 
 export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const snapshotTimepoint = proposal.parameters.snapshotTimepoint;
   const decimals = useTokenDecimals();
+  const votingToken = useVotingToken(PUB_TOKEN_VOTING_PLUGIN_ADDRESS);
 
   const { data: totalSupply } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_TOKEN_ADDRESS,
+    // Quorum is measured against the VOTING token's supply, the same one the tally accrues in.
+    address: votingToken,
     abi: votesAbi,
     functionName: "getPastTotalSupply",
     args: [snapshotTimepoint ?? 0n],

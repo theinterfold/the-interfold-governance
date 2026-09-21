@@ -24,7 +24,7 @@ import { ADDRESS_ZERO } from "@/utils/evm";
 import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
-import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_TOKEN_SYMBOL, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
@@ -212,7 +212,7 @@ function ProposalDetailBody({
             <ProposalActions actions={[...(spp.proposal?.actions ?? [])]} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
+            <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} plugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS} />
             <ParticipationCard proposal={proposal} />
             <VetoStageCard
               kind="public"

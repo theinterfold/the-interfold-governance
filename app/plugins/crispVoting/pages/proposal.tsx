@@ -1,5 +1,5 @@
 import { useProposal } from "../hooks/useProposal";
-import { PUB_CHAIN } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { BodySection } from "@/components/proposal/proposalBodySection";
@@ -229,7 +229,7 @@ function ProposalDetailBody({
             <ProposalActions actions={sppActions} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} />
+            <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} plugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS} />
             <ParticipationCard proposal={proposal} />
             <ActivityCard e3Id={proposal.e3Id} />
             <VetoStageCard

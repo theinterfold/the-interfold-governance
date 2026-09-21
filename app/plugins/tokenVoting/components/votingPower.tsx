@@ -1,7 +1,8 @@
 import { useAccount, useReadContract } from "wagmi";
-import { formatUnits, parseAbi } from "viem";
+import { formatUnits, parseAbi, type Address } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+import { useVotingToken } from "@/hooks/useVotingToken";
+import { PUB_CHAIN, PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 
 // Single getPastVotes overload to avoid the ambiguous selector in iVotesAbi.
@@ -10,13 +11,24 @@ const votesAbi = parseAbi([
   "function getPastTotalSupply(uint256 timepoint) view returns (uint256)",
 ]);
 
-/** Shows the connected account's voting power and the total, both at the proposal's snapshot. */
-export function VotingPower({ snapshotTimepoint }: { snapshotTimepoint?: bigint }) {
+/**
+ * Shows the connected account's voting power and the total, both at the proposal's snapshot.
+ *
+ * Reads the VOTING token named by the plugin, not the raw governance token. A holder whose power
+ * comes from an escrow position has no delegated FOLD at all, so reading FOLD here showed them
+ * "0 FOLD" on a proposal they are fully eligible for. The two disagree in the common case, not
+ * the rare one: on this deployment nobody has delegated FOLD directly.
+ *
+ * @param snapshotTimepoint The proposal's snapshot, in the token's clock units.
+ * @param plugin The governance plugin whose voting token applies.
+ */
+export function VotingPower({ snapshotTimepoint, plugin }: { snapshotTimepoint?: bigint; plugin?: Address }) {
   const { address } = useAccount();
+  const votingToken = useVotingToken(plugin);
 
   const { data: total } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_TOKEN_ADDRESS,
+    address: votingToken,
     abi: votesAbi,
     functionName: "getPastTotalSupply",
     args: [snapshotTimepoint ?? 0n],
@@ -25,7 +37,7 @@ export function VotingPower({ snapshotTimepoint }: { snapshotTimepoint?: bigint 
 
   const { data: yours } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_TOKEN_ADDRESS,
+    address: votingToken,
     abi: votesAbi,
     functionName: "getPastVotes",
     args: [address!, snapshotTimepoint ?? 0n],
