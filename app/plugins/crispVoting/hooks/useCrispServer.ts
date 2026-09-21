@@ -12,6 +12,7 @@ import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
 import { readServerRejection } from "../utils/readServerRejection";
+import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
   CensusMode,
   ballotTypedData,
@@ -206,6 +207,14 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // won't match the server's merkle tree. `blockNumber` (on-chain snapshotBlock) is unused here.
       const snapshotTimestamp = BigInt(roundState.start_time) - 1n;
 
+      // The block the snapshot timepoint falls in. `getBlockAtTimestamp` returns the block at or
+      // *before* the timepoint, whose own timestamp can precede it — reading there reverts with
+      // `ERC5805FutureLookup`, so take the next block.
+      const snapshotBlock = await crispSdk
+        .getBlockAtTimestamp(snapshotTimestamp)
+        .then((r) => snapshotReadBlock(BigInt(r.blockNumber), BigInt(r.timestamp), snapshotTimestamp))
+        .catch(() => undefined);
+
       // Ask the plugin which token carries voting power rather than trusting an env constant:
       // this must match the server's census and the tally exactly, or the voter's leaf will not
       // match the server's merkle tree. Falls back to the configured source if the read fails.
@@ -222,6 +231,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         abi: iVotesAbi,
         functionName: "getPastVotes",
         args: [address as `0x${string}`, snapshotTimestamp],
+        // Evaluated at the snapshot block, not at chain head. `BondedVotes.getPastVotes` mixes a
+        // checkpointed history with a live `_lockedVotes` walk, so the same timepoint answers
+        // differently once the voter's locks change — and a leaf built from today's answer would
+        // not match the tree the server built at the snapshot.
+        ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
       });
 
       const decimals = await publicClient.readContract({

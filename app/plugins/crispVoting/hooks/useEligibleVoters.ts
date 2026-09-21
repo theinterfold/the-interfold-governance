@@ -1,9 +1,15 @@
 import { parseAbi } from "viem";
 import { useQuery } from "@tanstack/react-query";
-import { PUB_CHAIN, PUB_CRISP_PROGRAM_ADDRESS, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import {
+  PUB_CHAIN,
+  PUB_CRISP_PROGRAM_ADDRESS,
+  PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+  PUB_VOTING_POWER_SOURCE,
+} from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { generateMerkleTree, getScaledBalance, hashLeaf } from "@crisp-e3/sdk";
+import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import { crispSdk } from "../utils/crispSdk";
 import { voteScale } from "../utils/quorum";
 
@@ -132,6 +138,28 @@ export function useEligibleVoters(
       // Prefer the snapshot the server declares; fall back to the on-chain one so the
       // read still happens when the server does not report it.
       const snapshot = serverSnapshot ?? chainSnapshot;
+
+      // Resolve the snapshot TIMEPOINT to the block the reads must be evaluated at.
+      //
+      // `BondedVotes.getPastVotes` is not a pure historical lookup: two of its three terms are
+      // checkpointed, but `_lockedVotes` walks the account's CURRENT locks and evaluates them
+      // against the timepoint (see `BondedVotes.sol`, "UNLIKE the other two halves this is not a
+      // checkpointed history"). Asked at chain head it therefore answers with today's locks, and
+      // every holder who changed a lock since the snapshot reads as a mismatch against a census
+      // that was correct when it was taken.
+      //
+      // The block must be the first one AT OR AFTER the timepoint. `getBlockAtTimestamp` returns
+      // the block at or *before* it, whose own timestamp can precede the snapshot — evaluating
+      // there reverts with `ERC5805FutureLookup(timepoint, clock)` because the timepoint is still
+      // in that block's future.
+      let snapshotBlock: bigint | undefined;
+      if (snapshot !== undefined) {
+        snapshotBlock = await crispSdk
+          .getBlockAtTimestamp(snapshot)
+          .then((r) => snapshotReadBlock(BigInt(r.blockNumber), BigInt(r.timestamp), snapshot))
+          .catch(() => undefined);
+      }
+
       // Scaling comes from the SDK so the per-row check and the leaf recomputation below
       // can never drift from each other (or from the server).
       const scaleDown = (raw: bigint) => getScaledBalance(raw, BigInt(decimals!));
@@ -140,6 +168,8 @@ export function useEligibleVoters(
         for (let i = 0; i < rows.length; i += MULTICALL_BATCH) {
           const batch = rows.slice(i, i + MULTICALL_BATCH);
           const results = await publicClient.multicall({
+            // Evaluated at the snapshot block, not at chain head — see the note above.
+            ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
             contracts: batch.map((r) => ({
               // The census measures the plugin's VOTING TOKEN (BondedVotes on this deployment),
               // read from the contract above — not the raw governance token. Reading FOLD here
@@ -172,6 +202,8 @@ export function useEligibleVoters(
             abi: pastSupplyAbi,
             functionName: "getPastTotalSupply",
             args: [snapshot],
+            // Pinned for the same reason as the per-row reads above.
+            ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
           })) as unknown as bigint;
         } catch {
           totalVotingPower = undefined;
