@@ -178,9 +178,9 @@ export const EligibleVotersDialog = ({
       <tr className="border-b border-neutral-100 last:border-b-0">
         <td className="py-2">
           <span className="flex items-center gap-x-2">
-            <AddressText bold={false} asLink={false}>
-              {row.address}
-            </AddressText>
+            {/* Not nested inside another anchor here, so link out to the explorer: these rows are
+                the main reason someone opens this dialog (checking a specific voter's weight). */}
+            <AddressText bold={false}>{row.address}</AddressText>
             {isYou && <span className="text-xs text-primary-400">you</span>}
           </span>
         </td>
