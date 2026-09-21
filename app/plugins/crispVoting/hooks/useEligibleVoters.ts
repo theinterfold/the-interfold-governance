@@ -1,6 +1,6 @@
 import { parseAbi } from "viem";
 import { useQuery } from "@tanstack/react-query";
-import { PUB_CHAIN, PUB_CRISP_PROGRAM_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_PROGRAM_ADDRESS, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { generateMerkleTree, getScaledBalance, hashLeaf } from "@crisp-e3/sdk";
@@ -11,6 +11,8 @@ import type { Address } from "viem";
 import type { CreditsMode } from "../utils/types";
 
 const pastSupplyAbi = parseAbi(["function getPastTotalSupply(uint256 timepoint) view returns (uint256)"]);
+/** The plugin is authoritative about which token carries voting power. */
+const votingTokenAbi = parseAbi(["function getVotingToken() view returns (address)"]);
 
 /**
  * Bump when the shape or content of the report changes.
@@ -97,14 +99,28 @@ export function useEligibleVoters(
     queryFn: async () => {
       const id = BigInt(e3Id!);
 
-      const [holders, leafHashes, tokenDetails, onChainRound] = await Promise.all([
+      const [holders, leafHashes, tokenDetails, onChainRound, pluginVotingToken] = await Promise.all([
         crispSdk.getEligibleAddresses(id),
         crispSdk.getTokenHolderHashes(id).catch(() => [] as string[]),
         crispSdk.getRoundTokenDetails(id).catch(() => undefined),
         PUB_CRISP_PROGRAM_ADDRESS
           ? crispSdk.getOnChainRoundData(PUB_CRISP_PROGRAM_ADDRESS, id, PUB_CHAIN.id).catch(() => undefined)
           : undefined,
+        // The PLUGIN decides which token carries voting power; env constants only mirror it and
+        // can drift. Ask the contract, and fall back to the configured source if the read fails.
+        publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+          ? publicClient
+              .readContract({
+                address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+                abi: votingTokenAbi,
+                functionName: "getVotingToken",
+              })
+              .catch(() => undefined)
+          : undefined,
       ]);
+
+      // Authoritative source for every voting-power read below.
+      const votingToken = (pluginVotingToken as Address | undefined) ?? PUB_VOTING_POWER_SOURCE;
 
       const rows: EligibleVoterRow[] = holders.map((h) => ({
         address: h.address as Address,
@@ -125,7 +141,11 @@ export function useEligibleVoters(
           const batch = rows.slice(i, i + MULTICALL_BATCH);
           const results = await publicClient.multicall({
             contracts: batch.map((r) => ({
-              address: PUB_TOKEN_ADDRESS,
+              // The census measures the plugin's VOTING TOKEN (BondedVotes on this deployment),
+              // read from the contract above — not the raw governance token. Reading FOLD here
+              // made every row disagree: a bonded holder has BondedVotes power and zero FOLD
+              // votes, so all 158 leaves failed the comparison.
+              address: votingToken,
               abi: iVotesAbi,
               functionName: "getPastVotes",
               args: [r.address, snapshot],
@@ -148,7 +168,7 @@ export function useEligibleVoters(
       if (snapshot !== undefined && publicClient) {
         try {
           totalVotingPower = (await publicClient.readContract({
-            address: PUB_TOKEN_ADDRESS,
+            address: votingToken,
             abi: pastSupplyAbi,
             functionName: "getPastTotalSupply",
             args: [snapshot],
@@ -214,12 +234,15 @@ export function useEligibleVoters(
       }
 
       if (tokenDetails?.tokenAddress) {
-        const same = tokenDetails.tokenAddress.toLowerCase() === PUB_TOKEN_ADDRESS.toLowerCase();
+        // Compare against the token the PLUGIN names, not an env constant: that is the same
+        // authority the server and the tally use, so a config drift shows up here as a failure
+        // rather than silently passing.
+        const same = tokenDetails.tokenAddress.toLowerCase() === votingToken.toLowerCase();
         checks.push({
           id: "token",
           label: "Server read the configured governance token",
           status: same ? "pass" : "fail",
-          detail: same ? PUB_TOKEN_ADDRESS : `server used ${tokenDetails.tokenAddress}`,
+          detail: same ? votingToken : `server used ${tokenDetails.tokenAddress}, plugin names ${votingToken}`,
         });
       }
 

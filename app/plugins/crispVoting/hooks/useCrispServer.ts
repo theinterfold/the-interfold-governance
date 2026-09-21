@@ -1,4 +1,4 @@
-import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
@@ -6,6 +6,7 @@ import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from 
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
+import { parseAbi } from "viem";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
@@ -21,6 +22,9 @@ import {
 } from "../utils/ballotDigest";
 import { usePublishVote } from "./usePublishVote";
 import { useCommitteeKeyCheck } from "./useCommitteeKeyCheck";
+
+/** The plugin is authoritative about which token carries voting power. */
+const votingTokenAbi = parseAbi(["function getVotingToken() view returns (address)"]);
 
 /**
  * Converts the server's `committee_public_key` to bytes, or `undefined` if it is not the byte array
@@ -202,15 +206,26 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // won't match the server's merkle tree. `blockNumber` (on-chain snapshotBlock) is unused here.
       const snapshotTimestamp = BigInt(roundState.start_time) - 1n;
 
+      // Ask the plugin which token carries voting power rather than trusting an env constant:
+      // this must match the server's census and the tally exactly, or the voter's leaf will not
+      // match the server's merkle tree. Falls back to the configured source if the read fails.
+      const votingToken = ((await publicClient
+        .readContract({
+          address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+          abi: votingTokenAbi,
+          functionName: "getVotingToken",
+        })
+        .catch(() => undefined)) ?? PUB_VOTING_POWER_SOURCE) as `0x${string}`;
+
       const balance = await publicClient.readContract({
-        address: PUB_TOKEN_ADDRESS,
+        address: votingToken,
         abi: iVotesAbi,
         functionName: "getPastVotes",
         args: [address as `0x${string}`, snapshotTimestamp],
       });
 
       const decimals = await publicClient.readContract({
-        address: PUB_TOKEN_ADDRESS,
+        address: votingToken,
         abi: iVotesAbi,
         functionName: "decimals",
       });
