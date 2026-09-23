@@ -37,24 +37,18 @@ export const NavLink: React.FC<INavLinkProps> = (props) => {
     selected = pathname.startsWith(path);
   }
 
-  const containerClasses = classNames(
-    "group relative md:-mb-0.25 md:border-b md:hover:border-b-neutral-800", // base styles
-    {
-      "md:border-b-transparent md:active:border-b-primary-400": !selected, // unselected link styles
-      "md:border-b-primary-400 md:hover:border-b-primary-400": selected, // base selected link styles
-
-      // using after so that the size of the links don't change when one is selected and active
-      "md:after:bg-primary-400 md:after:content-[attr(aria-current)] md:active:after:hidden": selected,
-      "md:after:absolute md:after:-bottom-0 md:after:left-0 md:after:right-0 md:after:h-[1px]": selected,
-    }
-  );
+  // The desktop rule is drawn by `.interfold-top-nav-link::after` (globals.css,
+  // copied from theinterfold.com) rather than a border on this element: the site
+  // insets the line to the link's own padding so it matches the width of the WORD,
+  // and animates it in. A border-b here would run the full padded box.
+  const containerClasses = "group relative";
 
   const anchorClasses = classNames(
-    "w-full py-3", // base styles
-    "group-hover:text-neutral-800", // hover styles
-    "outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset", // focus styles
-    "flex h-12 flex-1 items-center justify-between gap-3 rounded-xl px-4 leading-tight", // mobile styles
-    "md:h-11 md:rounded-none md:px-0 md:leading-normal" // desktop nav styles
+    // `interfold-top-nav-link` owns the horizontal padding on purpose — the
+    // underline insets by the same custom property, so the two cannot drift.
+    "interfold-top-nav-link inline-flex items-center gap-3 text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]",
+    { "is-active": selected },
+    "outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
   );
 
   return (
@@ -71,10 +65,17 @@ export const NavLink: React.FC<INavLinkProps> = (props) => {
         )}
         <span
           className={classNames(
-            "flex-1 truncate text-[13px] uppercase tracking-[0.12em] text-neutral-500 group-hover:text-neutral-800",
-            {
-              "text-neutral-800": selected,
-            }
+            // Desktop matches the marketing site's nav exactly: Gramercy at 22px,
+            // sentence case, -0.66px tracking, with the governance ink palette.
+            // NOT `truncate`: it carries overflow:hidden, and at 22px/1.05 the line box is
+            // 23px against 32px of type — which sliced 4px off the bottom, i.e. the
+            // descender of the "g" in "Voting power". The marketing site lets its nav
+            // links run wide instead of clipping them.
+            // The site's mobile menu is Gramercy too (-1.08px at 36px = the same -0.03em),
+            // not a small uppercase label — so the burger menu reads like the bar it replaces.
+            "flex-1 whitespace-nowrap text-[22px] leading-[1.05] tracking-[-0.03em] transition-colors",
+            "xl:tracking-[-0.66px]",
+            "text-[var(--accent)] group-hover:text-[var(--accent-hover)]"
           )}
         >
           {name}

@@ -24,6 +24,7 @@ export const votingEscrowAbi = parseAbi([
   "function votingPowerForAccount(address account) view returns (uint256)",
 
   "function createLock(uint256 value) returns (uint256)",
+  "function createLockFor(uint256 value, address to) returns (uint256)",
   "function beginWithdrawal(uint256 tokenId)",
   "function cancelWithdrawalRequest(uint256 tokenId)",
   "function withdraw(uint256 tokenId)",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { formatUnits } from "viem";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
@@ -21,6 +21,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const pastSupply = usePastSupply(proposal.parameters.snapshotBlock);
   const { decimals } = useToken();
   const [showVoters, setShowVoters] = useState(false);
+  const votersTriggerRef = useRef<HTMLButtonElement>(null);
 
   const creditMode = proposal.parameters.creditMode;
   const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
@@ -88,6 +89,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
       {/* Anyone can audit who was eligible and with what weight — the dialog re-derives
           each entry from the token at the snapshot rather than trusting the server. */}
       <button
+        ref={votersTriggerRef}
         type="button"
         className="mt-1 text-left text-sm text-primary-400 hover:underline"
         onClick={() => setShowVoters(true)}
@@ -96,6 +98,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
       </button>
 
       <EligibleVotersDialog
+        triggerRef={votersTriggerRef}
         open={showVoters}
         onClose={() => setShowVoters(false)}
         e3Id={proposal.e3Id}

@@ -8,6 +8,7 @@ import { statusBucketOf } from "../utils/statusBucket";
 import { ProposalRow, capitalize, rowTimingLabel } from "./proposalRow";
 
 import type { StatusBucket } from "../utils/statusBucket";
+import ProposalDetail from "@/plugins/tokenVoting/pages/proposal";
 
 const YES_COLOR = "#2f8a4f";
 const NO_COLOR = "#a84932";
@@ -17,11 +18,12 @@ interface PublicRowProps {
   proposalId: bigint;
   /** Reports the resolved status bucket up to the list, which filters on it. */
   onStatus?: (bucket: StatusBucket | undefined) => void;
+  onSearchText?: (text: string) => void;
   hidden?: boolean;
 }
 
 /** `proposalId` is the SPP (staged process) proposal id; the TokenVoting sub-proposal id is resolved on-chain. */
-export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
+export function PublicRow({ proposalId, onStatus, onSearchText, hidden }: PublicRowProps) {
   const spp = useSppProposal("public", proposalId);
   const href = `#/proposals/public/${proposalId}`;
 
@@ -51,11 +53,13 @@ export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
   return (
     <PublicRowBody
       href={href}
+      proposalId={proposalId}
       subProposalId={spp.subProposalId}
       metadataUri={spp.metadataUri}
       creator={spp.creator}
       spp={spp}
       onStatus={onStatus}
+      onSearchText={onSearchText}
       hidden={hidden}
     />
   );
@@ -63,19 +67,23 @@ export function PublicRow({ proposalId, onStatus, hidden }: PublicRowProps) {
 
 function PublicRowBody({
   href,
+  proposalId,
   subProposalId,
   metadataUri,
   creator,
   spp,
   onStatus,
+  onSearchText,
   hidden,
 }: {
   href: string;
+  proposalId: bigint;
   subProposalId: bigint;
   metadataUri?: string;
   creator?: string;
   spp: ReturnType<typeof useSppProposal>;
   onStatus?: (bucket: StatusBucket | undefined) => void;
+  onSearchText?: (text: string) => void;
   hidden?: boolean;
 }) {
   const { proposal, status } = useProposal(subProposalId, false, { metadataUri, creator });
@@ -89,6 +97,13 @@ function PublicRowBody({
   useEffect(() => {
     onStatus?.(bucket);
   }, [bucket, onStatus]);
+
+  const searchText = proposal
+    ? `${proposal.title ?? ""} ${proposal.summary ?? ""} ${proposal.creator ?? ""}`
+    : undefined;
+  useEffect(() => {
+    if (searchText !== undefined) onSearchText?.(searchText);
+  }, [searchText, onSearchText]);
 
   if (loading) {
     return (
@@ -113,9 +128,9 @@ function PublicRowBody({
   const bars =
     total > 0n
       ? [
-          { width: Number((yes * 10000n) / total) / 100, color: YES_COLOR },
-          { width: Number((no * 10000n) / total) / 100, color: NO_COLOR },
-          { width: Number((abstain * 10000n) / total) / 100, color: ABSTAIN_COLOR },
+          { width: Number((yes * 10000n) / total) / 100, color: YES_COLOR, label: "Yes" },
+          { width: Number((no * 10000n) / total) / 100, color: NO_COLOR, label: "No" },
+          { width: Number((abstain * 10000n) / total) / 100, color: ABSTAIN_COLOR, label: "Abstain" },
         ]
       : [];
 
@@ -130,6 +145,9 @@ function PublicRowBody({
       statusClass={statusClass}
       rightLabel={rightLabel}
       bars={bars}
+      resultLabel={isActive ? "Live vote share" : endDate <= Date.now() ? "Final vote share" : "Voting results"}
+      resultMessage={total === 0n ? "No votes recorded." : undefined}
+      details={<ProposalDetail index={proposalId} embedded={true} />}
       hidden={hidden}
     />
   );

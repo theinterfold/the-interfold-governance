@@ -1,4 +1,5 @@
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
+import { DESIGN_PREVIEW, DEMO_MESSAGE } from "@/dev/previewMode";
 import { useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
@@ -230,6 +231,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   ) => {
     setIsLoading(true);
     try {
+      if (DESIGN_PREVIEW) throw new Error(DEMO_MESSAGE);
       if (!address) {
         setError("No wallet address found");
         setVotingStep("error");

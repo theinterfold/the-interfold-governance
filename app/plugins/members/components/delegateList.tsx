@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { formatUnits } from "viem";
+import { formatUnits, type Address } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useAccount } from "wagmi";
-import { Button } from "@aragon/ods";
+import { Button, IconType } from "@aragon/ods";
 import { EnsMember } from "@/components/text/ensMember";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
@@ -16,7 +16,23 @@ import { useDelegates } from "../hooks/useDelegates";
  *   and this component owns the only copy of the voting-power figures, so a delegation made up
  *   there has to reach down here or the table silently keeps showing pre-delegation numbers.
  */
-export function DelegateList({ refreshKey = 0 }: { refreshKey?: number }) {
+export function DelegateList({
+  refreshKey = 0,
+  layout = "default",
+  onSelect,
+  search = "",
+  allowCurrentSelection = false,
+  excludeAddress,
+  selectedAddress,
+}: {
+  refreshKey?: number;
+  layout?: "default" | "table" | "picker";
+  onSelect?: (address: Address) => void;
+  search?: string;
+  allowCurrentSelection?: boolean;
+  excludeAddress?: Address;
+  selectedAddress?: Address;
+}) {
   const { address } = useAccount();
   const { delegates, totalSupply, isLoading, error, refetch: refetchDelegates } = useDelegates();
   const { delegatesTo, refetch: refetchMyVotes } = useTokenVotes(address);
@@ -55,27 +71,56 @@ export function DelegateList({ refreshKey = 0 }: { refreshKey?: number }) {
     return <p className="text-sm text-neutral-500">No delegates yet — be the first by delegating to yourself above.</p>;
   }
 
-  const pct = (v: bigint) => (totalSupply > 0n ? `${(Number((v * 10000n) / totalSupply) / 100).toFixed(1)}%` : "—");
+  const pct = (v: bigint) => {
+    if (totalSupply <= 0n) return "—";
+    const percentage = (Number(v) / Number(totalSupply)) * 100;
+    return percentage > 0 && percentage < 0.01 ? "<0.01%" : `${percentage.toFixed(2)}%`;
+  };
+  const visibleDelegates = delegates.filter(
+    (d) =>
+      d.address.toLowerCase() !== excludeAddress?.toLowerCase() &&
+      d.address.toLowerCase().includes(search.trim().toLowerCase())
+  );
+  if (!visibleDelegates.length)
+    return <p className="power-help py-6">{search.trim() ? "No matching delegates." : "No other delegates yet."}</p>;
 
   return (
-    <div className="flex flex-col">
-      {delegates.map((d, i) => {
+    <div
+      className={
+        layout === "table" ? "power-delegate-list" : layout === "picker" ? "delegate-picker-list" : "flex flex-col"
+      }
+    >
+      {layout === "table" && (
+        <div className="power-delegate-head">
+          <span>Delegate</span>
+          <span>Voting power</span>
+          <span className="power-position-action">Action</span>
+        </div>
+      )}
+      {visibleDelegates.map((d, i) => {
         const isYou = !!address && d.address.toLowerCase() === address.toLowerCase();
         const alreadyDelegated = !!delegatesTo && delegatesTo.toLowerCase() === d.address.toLowerCase();
+        const alreadySelected = selectedAddress?.toLowerCase() === d.address.toLowerCase();
         return (
           <div
             key={d.address}
-            className="flex items-center justify-between gap-x-4 border-t border-neutral-100 py-3 first:border-t-0"
+            className={
+              layout === "picker"
+                ? "delegate-picker-row"
+                : layout === "table"
+                  ? "power-delegate-row"
+                  : "flex items-center justify-between gap-x-4 border-t border-neutral-100 py-3 first:border-t-0"
+            }
           >
-            <div className="flex min-w-0 items-center gap-x-3">
+            <div className="power-delegate-identity flex min-w-0 items-center gap-x-3">
               <span className="w-6 shrink-0 text-sm text-neutral-400">{i + 1}</span>
               <div className="flex min-w-0 items-center">
                 <EnsMember address={d.address} />
                 {isYou && <span className="ml-2 text-xs text-primary-400">you</span>}
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-x-4">
-              <div className="text-right">
+            <div className={layout === "table" ? "power-delegate-data" : "flex shrink-0 items-center gap-x-4"}>
+              <div className="power-delegate-votes text-right">
                 <div className="text-sm font-semibold text-neutral-800">
                   {decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}{" "}
                   {PUB_TOKEN_SYMBOL}
@@ -84,12 +129,23 @@ export function DelegateList({ refreshKey = 0 }: { refreshKey?: number }) {
               </div>
               <Button
                 size="sm"
-                variant="tertiary"
+                variant={layout === "table" ? "secondary" : "tertiary"}
+                className={layout === "table" ? "power-action power-action-open" : undefined}
+                iconRight={layout === "table" && onSelect ? IconType.CHEVRON_RIGHT : undefined}
+                aria-haspopup={onSelect && layout === "table" ? "dialog" : undefined}
                 isLoading={isConfirming}
-                disabled={!address || alreadyDelegated}
-                onClick={() => delegate(d.address)}
+                disabled={!address || alreadySelected || (alreadyDelegated && !allowCurrentSelection)}
+                onClick={() => (onSelect ? onSelect(d.address) : delegate(d.address))}
               >
-                {alreadyDelegated ? "Delegated" : "Delegate"}
+                {alreadySelected
+                  ? "Selected"
+                  : alreadyDelegated && !allowCurrentSelection
+                    ? "Delegated"
+                    : onSelect
+                      ? layout === "picker"
+                        ? "Select"
+                        : "Select delegate"
+                      : "Delegate"}
               </Button>
             </div>
           </div>

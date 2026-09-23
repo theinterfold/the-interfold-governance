@@ -1,3 +1,5 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AlertProvider } from "./Alerts";
 import type { ReactNode } from "react";
 import { QueryClient } from "@tanstack/react-query";
@@ -26,28 +28,35 @@ const persister = createAsyncStoragePersister({
 });
 
 // Create modal
-createWeb3Modal({
-  wagmiConfig: config,
-  projectId: PUB_WALLET_CONNECT_PROJECT_ID,
-  enableAnalytics: false, // Optional - defaults to your Cloud configuration
-  enableOnramp: false, // Optional
-  themeMode: "light",
-  allWallets: "SHOW",
-  featuredWalletIds: [
-    "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
-    "1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369",
-    "18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd4127a6d01fd1",
-    "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0",
-  ],
-});
+if (!DESIGN_PREVIEW)
+  createWeb3Modal({
+    wagmiConfig: config,
+    projectId: PUB_WALLET_CONNECT_PROJECT_ID,
+    enableAnalytics: false, // Optional - defaults to your Cloud configuration
+    enableOnramp: false, // Optional
+    themeMode: "light",
+    allWallets: "SHOW",
+    featuredWalletIds: [
+      "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
+      "1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369",
+      "18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd4127a6d01fd1",
+      "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0",
+    ],
+  });
 
 export function RootContextProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <OdsModulesProvider wagmiConfig={config} queryClient={queryClient} coreProviderValues={odsCoreProviderValues}>
-        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
-          <AlertProvider>{children}</AlertProvider>
-        </PersistQueryClientProvider>
+        {DESIGN_PREVIEW ? (
+          <QueryClientProvider client={queryClient}>
+            <AlertProvider>{children}</AlertProvider>
+          </QueryClientProvider>
+        ) : (
+          <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+            <AlertProvider>{children}</AlertProvider>
+          </PersistQueryClientProvider>
+        )}
       </OdsModulesProvider>
     </WagmiProvider>
   );

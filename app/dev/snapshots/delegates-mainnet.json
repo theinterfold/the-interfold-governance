@@ -1,0 +1,127 @@
+{
+  "capturedAt": "2026-09-23T00:49:03.646Z",
+  "sourcePage": "https://governance.theinterfold.com/plugins/lock/#/",
+  "endpoint": "https://crisp-api.theinterfold.com/members/delegates",
+  "request": {
+    "token": "0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904",
+    "from_block": 25779726,
+    "power_source": "0x028deEA644258c78b1B5B2eacF469F5D781Fb43E",
+    "delegation_source": "0x8f141B4D294d39e7D1530916A3eD65B3970C6FEc"
+  },
+  "data": {
+    "token": "0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904",
+    "power_source": "0x028deEA644258c78b1B5B2eacF469F5D781Fb43E",
+    "delegation_source": "0x8f141B4D294d39e7D1530916A3eD65B3970C6FEc",
+    "block": 26036708,
+    "scanned_from": 25779726,
+    "scanned_to": 26036708,
+    "indexed_head": 26036707,
+    "total_supply": "1200000000000000000000000000",
+    "delegates": [
+      {
+        "address": "0xB8Adfee40e1DEfBB8314d3FeC3C622Be2F624901",
+        "voting_power": "2021678902843431459950533"
+      },
+      {
+        "address": "0xB8Fbd9A43cc0CeB3d9ddd58b752979a77e6f0c1D",
+        "voting_power": "1939633832318619989852867"
+      },
+      {
+        "address": "0x665F3D71912da57662002ba1a8DE68CdfCA1cD4e",
+        "voting_power": "1160191867890340000000000"
+      },
+      {
+        "address": "0x4c82cfF7398f3D43b36e41B10fF6F42b14DD9385",
+        "voting_power": "1000000000000000000000000"
+      },
+      {
+        "address": "0x34aA3F359A9D614239015126635CE7732c18fDF3",
+        "voting_power": "232755939878234398782344"
+      },
+      {
+        "address": "0xE0b6865d3AFeB897D37760b2cec945949a27f52d",
+        "voting_power": "111027427191599186193077"
+      },
+      {
+        "address": "0x6f9BB7e454f5B3eb2310343f0E99269dC2BB8A1d",
+        "voting_power": "110000000000000000000000"
+      },
+      {
+        "address": "0x95F615C88f791351b414322a0a7F9cc7354ae19f",
+        "voting_power": "45000000000000000000000"
+      },
+      {
+        "address": "0x8577fBE7bb7A2c1ca7616d50E9adE57ebebD8e79",
+        "voting_power": "44005237171084828417367"
+      },
+      {
+        "address": "0x8Dcb4a4e9621C492A82c0e3E105aB69124c401a2",
+        "voting_power": "39611512073420700000000"
+      },
+      {
+        "address": "0xcb6ce8C3a16DeF797167e8A2aED7998A065f2513",
+        "voting_power": "39000000000000000000000"
+      },
+      {
+        "address": "0xBb66Ff0728ec074f3E374947246e8Daa7e6AA587",
+        "voting_power": "38815349431227500000000"
+      },
+      {
+        "address": "0x91eF5700F6D6771fe78dCB026f169320993AB122",
+        "voting_power": "33382698753648690388407"
+      },
+      {
+        "address": "0xd714Dd60e22BbB1cbAFD0e40dE5Cfa7bBDD3F3C8",
+        "voting_power": "26000833491773363720353"
+      },
+      {
+        "address": "0x03118e02cE007a0F0d1C9D806c2a7D5Ae2F26995",
+        "voting_power": "24150000000000000000000"
+      },
+      {
+        "address": "0x27182495BFb15d5B356a8Ae3b3639456Ad5f23B6",
+        "voting_power": "17800000000000000000000"
+      },
+      {
+        "address": "0x6BA00ecB3561F7e550927Fa049e80373ebC2Af95",
+        "voting_power": "12426000000000000000000"
+      },
+      {
+        "address": "0x7043Cf6c32f7802bC01B7533Cf9549DE668B048b",
+        "voting_power": "12100000000000000000000"
+      },
+      {
+        "address": "0xAd649f52a7d6f106f3a69a0Bc542E885e67FeE6b",
+        "voting_power": "7200000000000000000000"
+      },
+      {
+        "address": "0xF9f924065C92eedDDB72b7ffb01b968b028a0e66",
+        "voting_power": "1467667461049679678495"
+      },
+      {
+        "address": "0x62826b3131899184dE1751242A1fb60B470bf631",
+        "voting_power": "1111000000000000000000"
+      },
+      {
+        "address": "0xf8F1b64dC62dEEa43a7f0601D35Fa65a24dA7a55",
+        "voting_power": "1000000000000000000000"
+      },
+      {
+        "address": "0x83B5ac8e7323CCb87AEBeddA78E0068Bc6A5f0f8",
+        "voting_power": "935005013109195293744"
+      },
+      {
+        "address": "0x3c6eA1A4952bE5a85Fc8DdAF2364df71b9Aa3B58",
+        "voting_power": "500000000000000000000"
+      },
+      {
+        "address": "0x680921b11dD10982FAa868ceb0AD16dd2239137A",
+        "voting_power": "100000000000000000000"
+      },
+      {
+        "address": "0x5ECc25D1f658Af69D9b59FcaEdB2D9Ee38254036",
+        "voting_power": "50000000000000000000"
+      }
+    ]
+  }
+}

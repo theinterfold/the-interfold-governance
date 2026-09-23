@@ -6,18 +6,20 @@ export function useUrl() {
   const [url, setUrl] = useState(typeof window != "undefined" ? window.location.href : "");
 
   useEffect(() => {
-    const urlChanged = (path: string) => {
-      setUrl(location.protocol + "//" + location.host + path);
-    };
-
-    router.events.on("hashChangeStart", urlChanged);
-    router.events.on("routeChangeStart", urlChanged);
+    const urlChanged = () => setUrl(window.location.href);
+    urlChanged();
+    router.events.on("hashChangeComplete", urlChanged);
+    router.events.on("routeChangeComplete", urlChanged);
+    window.addEventListener("hashchange", urlChanged);
+    window.addEventListener("popstate", urlChanged);
 
     return () => {
-      router.events.off("hashChangeStart", urlChanged);
-      router.events.off("routeChangeStart", urlChanged);
+      router.events.off("hashChangeComplete", urlChanged);
+      router.events.off("routeChangeComplete", urlChanged);
+      window.removeEventListener("hashchange", urlChanged);
+      window.removeEventListener("popstate", urlChanged);
     };
-  }, []);
+  }, [router.events]);
 
-  return new URL(url);
+  return new URL(url || "http://localhost");
 }

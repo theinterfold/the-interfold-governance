@@ -1,3 +1,5 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { demoIndexer } from "@/dev/fixtures";
 import { PUB_CRISP_SERVER_URL } from "@/constants";
 
 import type { Address, Hex } from "viem";
@@ -83,6 +85,7 @@ async function post<T extends Coverage>(
   requiredFrom: number,
   patience: Patience = {}
 ): Promise<T | null> {
+  if (DESIGN_PREVIEW) return demoIndexer(endpoint, body) as unknown as T;
   if (!PUB_CRISP_SERVER_URL || !requiredFrom) return null;
 
   const attempts = patience.attempts ?? 1;

@@ -1,12 +1,19 @@
+import { DESIGN_PREVIEW, previewAddress } from "./dev/previewMode";
 import { getChain } from "./utils/chains";
 
 import type { Address } from "viem";
 import type { ChainName } from "./utils/chains";
 
 // Contract Addresses
-export const PUB_DAO_ADDRESS = (process.env.NEXT_PUBLIC_DAO_ADDRESS ?? "") as Address;
-export const PUB_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_ADDRESS ?? "") as Address;
-export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS ?? "") as Address;
+export const PUB_DAO_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53761) : (process.env.NEXT_PUBLIC_DAO_ADDRESS ?? "")
+) as Address;
+export const PUB_TOKEN_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53762) : (process.env.NEXT_PUBLIC_TOKEN_ADDRESS ?? "")
+) as Address;
+export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53763) : (process.env.NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS ?? "")
+) as Address;
 // `BondedVotes`: the IVotes adapter that reports wallet FOLD *plus* FOLD bonded as ciphernode
 // collateral. Bonded FOLD sits in the BondingRegistry, which never delegates it, so reading the
 // token directly reports zero weight for an operator who has bonded everything — while that same
@@ -17,7 +24,9 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 //
 // Falls back to the token when unset, which keeps the app working against a deployment that has
 // no adapter — it just cannot see bonded weight.
-export const PUB_BONDED_VOTES_ADDRESS = (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "") as Address;
+export const PUB_BONDED_VOTES_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53764) : (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "")
+) as Address;
 /// The address to read balances and voting power from.
 export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_ADDRESS) as Address;
 // VotingEscrow ("velocker"): lock FOLD to gain voting power. Only the escrow address is
@@ -25,7 +34,9 @@ export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_AD
 // app can never pair a locker with the wrong satellites. Locked votes are delegated on the
 // ADAPTER, not the token; a lock with no adapter delegation carries no voting power.
 // Unset => the whole locking section is hidden (deployments where only wallet FOLD votes).
-export const PUB_VE_LOCKER_ADDRESS = (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "") as Address;
+export const PUB_VE_LOCKER_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53765) : (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "")
+) as Address;
 export const PUB_ENABLE_LOCKING = !!PUB_VE_LOCKER_ADDRESS;
 // Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
@@ -33,15 +44,25 @@ export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "")
 // and the button would point at a non-existent contract.
 export const PUB_ENABLE_FAUCET =
   (process.env.NEXT_PUBLIC_ENABLE_FAUCET ?? "").toLowerCase() === "true" && !!PUB_FAUCET_ADDRESS;
-export const PUB_CRISP_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS ?? "") as Address;
-export const PUB_TOKEN_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS ?? "") as Address;
+export const PUB_CRISP_VOTING_PLUGIN_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53766) : (process.env.NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS ?? "")
+) as Address;
+export const PUB_TOKEN_VOTING_PLUGIN_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53767) : (process.env.NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS ?? "")
+) as Address;
 // Staged Proposal Processor (SPP) instances — proposals are created here; the bodies above are stage-0 sub-bodies.
-export const PUB_SPP_PRIVATE_ADDRESS = (process.env.NEXT_PUBLIC_SPP_PRIVATE_ADDRESS ?? "") as Address;
-export const PUB_SPP_PUBLIC_ADDRESS = (process.env.NEXT_PUBLIC_SPP_PUBLIC_ADDRESS ?? "") as Address;
+export const PUB_SPP_PRIVATE_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53768) : (process.env.NEXT_PUBLIC_SPP_PRIVATE_ADDRESS ?? "")
+) as Address;
+export const PUB_SPP_PUBLIC_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53769) : (process.env.NEXT_PUBLIC_SPP_PUBLIC_ADDRESS ?? "")
+) as Address;
 export const PUB_CRISP_SERVER_URL = (process.env.NEXT_PUBLIC_CRISP_SERVER_URL ?? "") as string;
 // The CRISP program (Crisp.sol). `CrispVoting` stores it privately with no getter, so the
 // app needs it from env to read a round's on-chain data (merkle root, numOptions, ...).
-export const PUB_CRISP_PROGRAM_ADDRESS = (process.env.NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS ?? "") as Address;
+export const PUB_CRISP_PROGRAM_ADDRESS = (
+  DESIGN_PREVIEW ? previewAddress(53770) : (process.env.NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS ?? "")
+) as Address;
 
 export const PUB_BRIDGE_ADDRESS = (process.env.NEXT_PUBLIC_BRIDGE_ADDRESS ?? "") as Address;
 

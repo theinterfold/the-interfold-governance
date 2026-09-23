@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type RefObject } from "react";
 import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
 import { Button, DialogContent, DialogHeader, DialogRoot, InputText } from "@aragon/ods";
@@ -8,6 +8,7 @@ import { AddressText } from "@/components/text/address";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useEligibleVoters } from "../hooks/useEligibleVoters";
+import { FluidHeight } from "@/components/motion/FluidHeight";
 
 import type { CreditsMode } from "../utils/types";
 import type { EligibleVoterRow, VerificationCheck } from "../hooks/useEligibleVoters";
@@ -17,6 +18,7 @@ const PAGE_SIZE = 100;
 
 interface EligibleVotersDialogProps {
   open: boolean;
+  triggerRef?: RefObject<HTMLButtonElement>;
   onClose: () => void;
   e3Id?: bigint;
   chainSnapshot?: bigint;
@@ -47,6 +49,7 @@ const STATUS_CLASS: Record<VerificationCheck["status"], string> = {
  */
 export const EligibleVotersDialog = ({
   open,
+  triggerRef,
   onClose,
   e3Id,
   chainSnapshot,
@@ -86,89 +89,110 @@ export const EligibleVotersDialog = ({
   };
 
   return (
-    <DialogRoot open={open} containerClassName="!max-w-[760px]">
+    <DialogRoot
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) onClose();
+      }}
+      containerClassName="interfold-dialog !max-w-[760px]"
+      overlayClassName="interfold-dialog-overlay"
+      onCloseAutoFocus={(event) => {
+        if (triggerRef?.current) {
+          event.preventDefault();
+          triggerRef.current.focus({ preventScroll: true });
+        }
+      }}
+    >
       <DialogHeader title="Eligible voters" onCloseClick={onClose} onBackClick={onClose} />
-      <DialogContent className="flex flex-col gap-y-4">
-        <p className="text-sm text-neutral-500">
-          Voting power is snapshotted when the proposal is created. Ballots stay encrypted — this shows{" "}
-          <em>who could vote and with how much weight</em>, never how anyone voted. Every entry is re-read from the
-          token on-chain and compared with what the CRISP server served.
-        </p>
+      <DialogContent>
+        <FluidHeight>
+          <div className="flex flex-col gap-y-4">
+            <p className="text-sm text-neutral-500">
+              Voting power is snapshotted when the proposal is created. Ballots stay encrypted — this shows{" "}
+              <em>who could vote and with how much weight</em>, never how anyone voted. Every entry is re-read from the
+              token on-chain and compared with what the CRISP server served.
+            </p>
 
-        <If true={isLoading}>
-          <div className="py-8">
-            <PleaseWaitSpinner fullMessage="Loading and verifying the voter set…" />
-          </div>
-        </If>
-
-        <If true={!!error}>
-          <p className="text-sm text-critical-600">Could not load the eligible voters from the CRISP server.</p>
-        </If>
-
-        <If true={!!data && !isLoading}>
-          {/* Verification summary */}
-          <div className="flex flex-col gap-y-2 rounded-xl border border-neutral-200 p-4">
-            {data?.checks.map((c) => (
-              <div key={c.id} className="flex items-start justify-between gap-x-4 text-sm">
-                <span className="flex items-start gap-x-2">
-                  <span className={`font-mono ${STATUS_CLASS[c.status]}`}>{STATUS_MARK[c.status]}</span>
-                  <span className="text-neutral-800">{c.label}</span>
-                </span>
-                <span className="font-mono shrink-0 text-right text-xs text-neutral-500">{c.detail}</span>
+            <If true={isLoading}>
+              <div className="py-8">
+                <PleaseWaitSpinner fullMessage="Loading and verifying the voter set…" />
               </div>
-            ))}
-          </div>
+            </If>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm text-neutral-500">
-              {data?.rows.length ?? 0} eligible {data?.rows.length === 1 ? "voter" : "voters"}
-              {data?.chainSnapshot !== undefined && (
-                <>
-                  {" · "}snapshot <span className="font-mono text-xs">{data.chainSnapshot.toString()}</span>{" "}
-                  <span className="text-neutral-400">(token clock)</span>
-                </>
-              )}
-            </span>
-            <InputText
-              placeholder="Filter by address…"
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setLimit(PAGE_SIZE);
-              }}
-            />
-          </div>
+            <If true={!!error}>
+              <p className="text-sm text-critical-600">Could not load the eligible voters from the CRISP server.</p>
+            </If>
 
-          <div className="max-h-[45vh] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-neutral-0">
-                <tr className="border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
-                  <th className="py-2">Address</th>
-                  <th className="py-2 text-right">Voting power</th>
-                  <th className="py-2 text-right">Share</th>
-                  <th className="py-2 text-right">Verified</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.slice(0, limit).map((row) => (
-                  <VoterRow key={row.address} row={row} isYou={row.address.toLowerCase() === address?.toLowerCase()} />
+            <If true={!!data && !isLoading}>
+              {/* Verification summary */}
+              <div className="flex flex-col gap-y-2 rounded-xl border border-neutral-200 p-4">
+                {data?.checks.map((c) => (
+                  <div key={c.id} className="flex items-start justify-between gap-x-4 text-sm">
+                    <span className="flex items-start gap-x-2">
+                      <span className={`font-mono ${STATUS_CLASS[c.status]}`}>{STATUS_MARK[c.status]}</span>
+                      <span className="text-neutral-800">{c.label}</span>
+                    </span>
+                    <span className="font-mono shrink-0 text-right text-xs text-neutral-500">{c.detail}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
 
-            <If true={filtered.length > limit}>
-              <div className="py-3 text-center">
-                <Button size="sm" variant="tertiary" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
-                  Show more ({filtered.length - limit} remaining)
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm text-neutral-500">
+                  {data?.rows.length ?? 0} eligible {data?.rows.length === 1 ? "voter" : "voters"}
+                  {data?.chainSnapshot !== undefined && (
+                    <>
+                      {" · "}snapshot <span className="font-mono text-xs">{data.chainSnapshot.toString()}</span>{" "}
+                      <span className="text-neutral-400">(token clock)</span>
+                    </>
+                  )}
+                </span>
+                <InputText
+                  placeholder="Filter by address…"
+                  value={filter}
+                  onChange={(e) => {
+                    setFilter(e.target.value);
+                    setLimit(PAGE_SIZE);
+                  }}
+                />
+              </div>
+
+              <div className="max-h-[45vh] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-neutral-0">
+                    <tr className="border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
+                      <th className="py-2">Address</th>
+                      <th className="py-2 text-right">Voting power</th>
+                      <th className="py-2 text-right">Share</th>
+                      <th className="py-2 text-right">Verified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.slice(0, limit).map((row) => (
+                      <VoterRow
+                        key={row.address}
+                        row={row}
+                        isYou={row.address.toLowerCase() === address?.toLowerCase()}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+
+                <If true={filtered.length > limit}>
+                  <div className="py-3 text-center">
+                    <Button size="sm" variant="tertiary" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
+                      Show more ({filtered.length - limit} remaining)
+                    </Button>
+                  </div>
+                </If>
+
+                <If true={!filtered.length}>
+                  <p className="py-6 text-center text-sm text-neutral-500">No addresses match that filter.</p>
+                </If>
               </div>
             </If>
-
-            <If true={!filtered.length}>
-              <p className="py-6 text-center text-sm text-neutral-500">No addresses match that filter.</p>
-            </If>
           </div>
-        </If>
+        </FluidHeight>
       </DialogContent>
     </DialogRoot>
   );

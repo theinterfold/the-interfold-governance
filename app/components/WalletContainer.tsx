@@ -1,7 +1,9 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { DemoWallet } from "@/dev/DemoWallet";
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
 import { MemberAvatar } from "@aragon/ods";
-import { useWeb3Modal } from "@web3modal/wagmi/react";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import classNames from "classnames";
 import { useEffect } from "react";
 import { createClient, http } from "viem";
@@ -25,7 +27,7 @@ const config = createConfig({
 
 // TODO: update with ODS wallet module - [https://linear.app/aragon/issue/RD-198/create-ods-walletmodule]
 const WalletContainer = () => {
-  const { open } = useWeb3Modal();
+  const { open } = useWalletModal();
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
 
@@ -53,7 +55,8 @@ const WalletContainer = () => {
   return (
     <button
       className={classNames(
-        "shrink-none flex h-12 items-center rounded-xl border border-neutral-100 bg-neutral-0 leading-tight text-neutral-500",
+        // Preserve the brand button shape with the governance ink palette.
+        "shrink-none flex h-[41px] items-center rounded-[6px] bg-[var(--ink)] px-1 leading-tight text-[var(--paper)] transition-colors hover:bg-[var(--accent-hover)]",
         "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset", // focus styles
         { "px-1 md:px-0 md:pl-4 md:pr-1": isConnected },
         { "px-4": !isConnected }
@@ -72,4 +75,4 @@ const WalletContainer = () => {
   );
 };
 
-export default WalletContainer;
+export default DESIGN_PREVIEW ? DemoWallet : WalletContainer;

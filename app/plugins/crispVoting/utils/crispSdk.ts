@@ -1,3 +1,5 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { demoSdk } from "@/dev/fixtures";
 import { PUB_CRISP_SERVER_URL } from "@/constants";
 import { CrispSDK } from "@crisp-e3/sdk";
 
@@ -5,4 +7,4 @@ import { CrispSDK } from "@crisp-e3/sdk";
 // the CRISP server's `/chain/rpc` route needs an SDK release carrying the constructor's `rpcUrl`
 // parameter — the pinned version has none, so passing one is a type error. Everything wagmi reads
 // already goes through PUB_WEB3_ENDPOINT; this is the remaining gap.
-export const crispSdk = new CrispSDK(PUB_CRISP_SERVER_URL);
+export const crispSdk = DESIGN_PREVIEW ? demoSdk() : new CrispSDK(PUB_CRISP_SERVER_URL);

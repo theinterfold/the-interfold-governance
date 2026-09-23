@@ -3,7 +3,6 @@ import { formatHexString } from "@/utils/evm";
 import {
   AccordionContainer,
   AccordionItem,
-  AccordionItemContent,
   AccordionItemHeader,
   AvatarIcon,
   Button,
@@ -18,12 +17,14 @@ import { Else, ElseIf, If, Then } from "../if";
 import { useAction } from "@/hooks/useAction";
 import { decodeCamelCase } from "@/utils/case";
 import { formatEther } from "viem";
+import { AccordionContent } from "@/components/motion/AccordionContent";
 
 const DEFAULT_DESCRIPTION =
   "When the proposal passes the community vote, the following actions will be executable by the DAO.";
 const DEFAULT_EMPTY_LIST_DESCRIPTION = "The proposal has no actions defined, it will behave as a signaling poll.";
 
 interface IProposalActionsProps {
+  compact?: boolean;
   description?: string;
   emptyListDescription?: string;
   actions?: RawAction[];
@@ -31,7 +32,7 @@ interface IProposalActionsProps {
 }
 
 export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
-  const { actions, description, emptyListDescription, onRemove } = props;
+  const { actions, description, emptyListDescription, onRemove, compact = false } = props;
 
   let message: string;
   if (actions?.length) {
@@ -41,14 +42,16 @@ export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
   }
 
   return (
-    <div className="overflow-hidden border border-neutral-800 bg-neutral-0 pb-2">
+    <div className={compact ? "composer-action-list" : "overflow-hidden border border-neutral-800 bg-neutral-0 pb-2"}>
       {/* Header */}
-      <div className="flex flex-col gap-y-2 px-4 py-4 md:gap-y-3 md:px-6 md:py-6">
-        <div className="flex justify-between gap-x-2 gap-y-2">
-          <p className="text-xl leading-tight text-neutral-800 md:text-2xl">Actions</p>
+      {!compact && (
+        <div className="flex flex-col gap-y-2 px-4 py-4 md:gap-y-3 md:px-6 md:py-6">
+          <div className="flex justify-between gap-x-2 gap-y-2">
+            <p className="text-xl leading-tight text-neutral-800 md:text-2xl">Actions</p>
+          </div>
+          <p className="md:text-md text-base leading-normal text-neutral-500">{message}</p>
         </div>
-        <p className="md:text-md text-base leading-normal text-neutral-500">{message}</p>
-      </div>
+      )}
 
       {/* Content */}
       <If lengthOf={actions} above={0}>
@@ -111,7 +114,7 @@ const ActionItem = ({ index, rawAction, onRemove }: { index: number; rawAction: 
         </div>
       </AccordionItemHeader>
 
-      <AccordionItemContent className="!overflow-none">
+      <AccordionContent>
         <div className="flex flex-col gap-y-4">
           <If not={action?.functionAbi}>
             <Then>
@@ -146,7 +149,7 @@ const ActionItem = ({ index, rawAction, onRemove }: { index: number; rawAction: 
             </div>
           </If>
         </div>
-      </AccordionItemContent>
+      </AccordionContent>
     </AccordionItem>
   );
 };

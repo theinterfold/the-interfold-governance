@@ -1,8 +1,8 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
-import type { ProposalMetadata, RawAction } from "@/utils/types";
+import type { ProposalMetadata } from "@/utils/types";
 import { useAlerts } from "@/context/Alerts";
-import { PUB_APP_NAME, PUB_CHAIN, PUB_PROJECT_URL, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
+import { PUB_CHAIN, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
 import { uploadToPinata } from "@/utils/ipfs";
 import { URL_PATTERN } from "@/utils/input-values";
 import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
@@ -10,6 +10,8 @@ import { VoteOption } from "../utils/types";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
 import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
+
+import { useProposalDraft, type ProposalDraft } from "@/plugins/governance/hooks/useProposalDraft";
 
 const UrlRegex = new RegExp(URL_PATTERN);
 
@@ -21,17 +23,23 @@ const UrlRegex = new RegExp(URL_PATTERN);
  */
 const CREATE_PROPOSAL_GAS_LIMIT = 3_000_000n;
 
-export function useCreateProposal() {
+export function useCreateProposal(draft?: ProposalDraft) {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
-  const [title, setTitle] = useState<string>("");
-  const [summary, setSummary] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
-  const [actions, setActions] = useState<RawAction[]>([]);
-  const [resources, setResources] = useState<{ name: string; url: string }[]>([
-    { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
-  ]);
+  const localDraft = useProposalDraft();
+  const {
+    title,
+    summary,
+    description,
+    actions,
+    resources,
+    setTitle,
+    setSummary,
+    setDescription,
+    setActions,
+    setResources,
+  } = draft ?? localDraft;
 
   // The voting window is governed by the SPP stage config, not the form.
   const { votingStage } = useSppStages("public");

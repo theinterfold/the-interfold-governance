@@ -1,8 +1,12 @@
-import { type Address } from "viem";
-import { useReadContracts } from "wagmi";
+import { useEffect, useRef, useState } from "react";
+import { isAddress, type Address } from "viem";
+import { usePublicClient, useReadContracts } from "wagmi";
 import { PUB_CHAIN } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
+import { ADDRESS_ZERO } from "@/utils/evm";
+import { awaitSuccessfulReceipt } from "@/plugins/crispVoting/utils/awaitReceipt";
+import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
 
 /**
  * Delegation state on the escrow's IVotes adapter — NOT the token. An undelegated lock
@@ -11,6 +15,11 @@ import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
  * locks auto-delegate to the same delegatee.
  */
 export function useVeDelegation(address: Address | undefined, adapter: Address | undefined, onChanged?: () => void) {
+  const client = usePublicClient({ chainId: PUB_CHAIN.id });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>();
+  const submitting = useRef(false);
+  useEffect(() => setError(undefined), [address]);
   const { data, refetch } = useReadContracts({
     contracts: [
       { chainId: PUB_CHAIN.id, address: adapter, abi: escrowAdapterAbi, functionName: "delegates", args: [address!] },
@@ -19,24 +28,36 @@ export function useVeDelegation(address: Address | undefined, adapter: Address |
     query: { enabled: !!address && !!adapter },
   });
 
-  const { writeContract, isConfirming } = useTransactionManager({
+  const { writeContractAsync } = useTransactionManager({
     onSuccessMessage: "Lock voting power delegated",
     onErrorMessage: "Could not delegate the lock voting power",
-    onSuccess: () => {
-      void refetch();
-      onChanged?.();
-    },
   });
 
-  const delegate = (target: Address) => {
-    if (!adapter) return;
-    writeContract({
-      chainId: PUB_CHAIN.id,
-      abi: escrowAdapterAbi,
-      address: adapter,
-      functionName: "delegate",
-      args: [target],
-    });
+  const delegate = async (target: Address): Promise<boolean> => {
+    if (!adapter || !address || !isAddress(target) || target === ADDRESS_ZERO || submitting.current) return false;
+    submitting.current = true;
+    setPending(true);
+    setError(undefined);
+    try {
+      if (!client) throw new Error("No RPC client available");
+      const hash = await writeContractAsync({
+        chainId: PUB_CHAIN.id,
+        abi: escrowAdapterAbi,
+        address: adapter,
+        functionName: "delegate",
+        args: [target],
+      });
+      await awaitSuccessfulReceipt(client, hash, "The delegation");
+      void refetch();
+      onChanged?.();
+      return true;
+    } catch (err) {
+      setError(describeFailure(err, "The delegation could not be completed"));
+      return false;
+    } finally {
+      submitting.current = false;
+      setPending(false);
+    }
   };
 
   return {
@@ -46,7 +67,8 @@ export function useVeDelegation(address: Address | undefined, adapter: Address |
     lockVotes: data?.[1].result as bigint | undefined,
     delegate,
     delegateToSelf: () => address && delegate(address),
-    isConfirming,
+    isConfirming: pending,
+    error,
     refetch,
   };
 }

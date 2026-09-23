@@ -1,11 +1,9 @@
 import { useAccount, useBlockNumber } from "wagmi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, IconType } from "@aragon/ods";
-import classNames from "classnames";
 import Link from "next/link";
 import { formatUnits, isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
-import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 // Aliased: this file already has a local `fetchProposals` callback.
@@ -25,13 +23,13 @@ type Kind = "private" | "public";
 type Entry = { kind: Kind; id: bigint; block: bigint };
 
 const FILTERS: { label: string; value: "all" | Kind }[] = [
-  { label: "All", value: "all" },
+  { label: "All voting methods", value: "all" },
   { label: "Secret ballot", value: "private" },
   { label: "Transparent fallback", value: "public" },
 ];
 
 const STATUS_FILTERS: { label: string; value: "all" | StatusBucket }[] = [
-  { label: "All", value: "all" },
+  { label: "All statuses", value: "all" },
   ...STATUS_BUCKETS,
 ];
 
@@ -65,6 +63,8 @@ export default function Proposals() {
   const [isLoading, setIsLoading] = useState(false);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | StatusBucket>("all");
+  const [search, setSearch] = useState("");
+  const [searchTexts, setSearchTexts] = useState<Record<string, string>>({});
   // Status lives in the per-row hooks (metadata + tally + SPP state), so rows
   // report it back up here and the list filters on what they resolved.
   const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
@@ -72,6 +72,10 @@ export default function Proposals() {
 
   const reportStatus = useCallback((key: string, bucket: StatusBucket | undefined) => {
     setStatuses((prev) => (prev[key] === bucket ? prev : { ...prev, [key]: bucket }));
+  }, []);
+
+  const reportSearchText = useCallback((key: string, text: string) => {
+    setSearchTexts((prev) => (prev[key] === text ? prev : { ...prev, [key]: text }));
   }, []);
 
   const fetchProposals = useCallback(async () => {
@@ -138,26 +142,44 @@ export default function Proposals() {
   }, [blockNumber, fetchProposals]);
 
   // Stable per-row reporters so the rows' effects don't re-fire on every render.
-  const statusHandlers = useMemo(() => {
-    const map: Record<string, (bucket: StatusBucket | undefined) => void> = {};
+  const rowHandlers = useMemo(() => {
+    const map: Record<
+      string,
+      { onStatus: (bucket: StatusBucket | undefined) => void; onSearchText: (text: string) => void }
+    > = {};
     for (const e of entries) {
       const key = entryKey(e);
-      map[key] = (bucket) => reportStatus(key, bucket);
+      map[key] = {
+        onStatus: (bucket) => reportStatus(key, bucket),
+        onSearchText: (text) => reportSearchText(key, text),
+      };
     }
     return map;
-  }, [entries, reportStatus]);
+  }, [entries, reportStatus, reportSearchText]);
 
-  const visible = entries.filter((e) => kindFilter === "all" || e.kind === kindFilter);
-  // Rows stay mounted when filtered out (their hooks are what resolve the status),
-  // so "nothing matches" is counted here rather than by an empty render.
-  const matchCount = visible.filter((e) => statusFilter === "all" || statuses[entryKey(e)] === statusFilter).length;
+  const searchTerm = search.trim().toLowerCase();
+  const matches = (e: Entry) =>
+    (kindFilter === "all" || e.kind === kindFilter) &&
+    (statusFilter === "all" || statuses[entryKey(e)] === statusFilter) &&
+    (!searchTerm || `${e.id} ${searchTexts[entryKey(e)] ?? ""}`.toLowerCase().includes(searchTerm));
+  const matchCount = entries.filter(matches).length;
+  const resolving = entries.some((e) => searchTexts[entryKey(e)] === undefined);
+  const hasFilters = kindFilter !== "all" || statusFilter !== "all" || !!searchTerm;
+  const clearFilters = () => {
+    setKindFilter("all");
+    setStatusFilter("all");
+    setSearch("");
+  };
 
   return (
-    <MainSection narrow={true}>
-      <div className="page-head w-full">
+    <div className="proposals-page">
+      <div className="page-head proposals-page-head w-full">
         <div>
           <div className="kicker mb-3">Governance</div>
           <h1 className="display-title">Proposals</h1>
+          <p className="proposals-intro">
+            Explore the decisions shaping Interfold. Open a proposal to read and vote here.
+          </p>
         </div>
         <div className="justify-self-end text-right">
           <If true={isConnected && canCreate}>
@@ -193,48 +215,72 @@ export default function Proposals() {
           </MissingContentView>
         </Then>
         <Else>
-          <div className="chip-group-label">Type</div>
-          <div className="chips">
-            {FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                className={classNames("chip", { on: kindFilter === f.value })}
-                onClick={() => setKindFilter(f.value)}
+          <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
+            <label className="proposal-filter proposal-search">
+              <span>Search</span>
+              <input
+                type="search"
+                placeholder="Title, proposer or proposal ID"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <label className="proposal-filter">
+              <span>Status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
               >
-                {f.label}
-              </button>
-            ))}
+                {STATUS_FILTERS.map((filter) => (
+                  <option key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="proposal-filter">
+              <span>Voting method</span>
+              <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}>
+                {FILTERS.map((filter) => (
+                  <option key={filter.value} value={filter.value}>
+                    {filter.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <div className="chip-group-label mt-3">Status</div>
-          <div className="chips">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                className={classNames("chip", { on: statusFilter === f.value })}
-                onClick={() => setStatusFilter(f.value)}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="proposal-list-caption">
+            <p role="status">
+              {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
+              {hasFilters ? ` of ${entries.length}` : ""}
+            </p>
+            <div>
+              {hasFilters && (
+                <button type="button" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              )}
+              <span>Newest first</span>
+            </div>
           </div>
           <If not={matchCount}>
-            <MissingContentView>No proposals match the selected filters.</MissingContentView>
+            <MissingContentView>
+              {resolving ? "Checking proposals…" : "No proposals match your search and filters."}
+            </MissingContentView>
           </If>
           <div className="proposal-list">
-            {visible.map((e) => {
+            {entries.map((e) => {
               const key = entryKey(e);
-              const hidden = statusFilter !== "all" && statuses[key] !== statusFilter;
+              const hidden = !matches(e);
               return e.kind === "private" ? (
-                <PrivateRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
+                <PrivateRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
               ) : (
-                <PublicRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
+                <PublicRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
               );
             })}
           </div>
         </Else>
       </If>
-    </MainSection>
+    </div>
   );
 }

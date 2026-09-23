@@ -1,26 +1,28 @@
 import { type RawAction } from "@/utils/types";
 import { type FC, useEffect, useState } from "react";
 import { InputText, InputNumber, AlertInline } from "@aragon/ods";
-import { type Address, parseEther } from "viem";
+import { type Address } from "viem";
 import { isAddress } from "@/utils/evm";
 import { ElseIf, If, Then } from "../if";
+import { parseActionValue } from "@/utils/action-value";
 import { PUB_CHAIN } from "@/constants";
 
 interface IWithdrawalFormProps {
-  onChange: (action: RawAction) => any;
+  onChange: (action: RawAction | null) => any;
   onSubmit?: () => any;
 }
 
 export const WithdrawalForm: FC<IWithdrawalFormProps> = ({ onChange, onSubmit }) => {
   const coinName = PUB_CHAIN.nativeCurrency.symbol;
   const [to, setTo] = useState<Address>();
-  const [value, setValue] = useState<string>("");
+  const [value, setValue] = useState<bigint | null>(null);
 
   useEffect(() => {
-    if (!isAddress(to)) return;
-    else if (!value) return;
-
-    onChange({ to, value: BigInt(value), data: "" } as unknown as RawAction);
+    if (!to || !isAddress(to) || value === null) {
+      onChange(null);
+      return;
+    }
+    onChange({ to, value, data: "0x" });
   }, [to, value]);
 
   const handleTo = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +53,7 @@ export const WithdrawalForm: FC<IWithdrawalFormProps> = ({ onChange, onSubmit })
           label={`${coinName} amount`}
           placeholder="1.234"
           min={0}
-          onChange={(val: string) => setValue(parseEther(val).toString())}
+          onChange={(val: string) => setValue(parseActionValue(val))}
           onKeyDown={(e) => (e.key === "Enter" ? onSubmit?.() : null)}
         />
       </div>

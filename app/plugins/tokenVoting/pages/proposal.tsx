@@ -37,7 +37,13 @@ const VOTE_YES_VALUE = 2;
 const VOTE_NO_VALUE = 3;
 
 /** `index` is the SPP (staged process) proposal id; the TokenVoting sub-proposal id is resolved on-chain. */
-export default function ProposalDetail({ index: sppProposalId }: { index: bigint }) {
+export default function ProposalDetail({
+  index: sppProposalId,
+  embedded = false,
+}: {
+  index: bigint;
+  embedded?: boolean;
+}) {
   const spp = useSppProposal("public", sppProposalId);
 
   if (spp.subProposalFailed) {
@@ -49,23 +55,27 @@ export default function ProposalDetail({ index: sppProposalId }: { index: bigint
   }
   if (spp.subProposalId === undefined) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
-  return <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} />;
+  return (
+    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} />
+  );
 }
 
 function ProposalDetailBody({
   proposalIdx,
   sppProposalId,
   spp,
+  embedded,
 }: {
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
+  embedded: boolean;
 }) {
   const { address } = useAccount();
   const { voteProposal, isConfirming: isConfirmingVote } = useProposalVoting(proposalIdx);
@@ -180,19 +190,19 @@ function ProposalDetailBody({
 
   if (!proposal || showProposalLoading) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
   return (
-    <section className="flex w-screen min-w-full max-w-full flex-col items-center">
-      <ProposalHeader proposalIdx={proposalIdx} proposal={proposal} />
+    <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
+      {!embedded && <ProposalHeader proposalIdx={proposalIdx} proposal={proposal} />}
 
-      <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10">
-        <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
-          <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
+      <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
+        <div className="proposal-detail-grid">
+          <div className="flex min-w-0 flex-col gap-y-6">
             <BodySection body={proposal.description || "No description was provided"} />
             <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
               <NoVotePowerWarning
@@ -211,7 +221,7 @@ function ProposalDetailBody({
                 sub-proposal only carries the internal reportProposalResult callback. */}
             <ProposalActions actions={[...(spp.proposal?.actions ?? [])]} />
           </div>
-          <div className="flex flex-col gap-y-6 md:w-[33%]">
+          <div className="flex min-w-0 flex-col gap-y-6">
             <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
             <ParticipationCard proposal={proposal} />
             <VetoStageCard

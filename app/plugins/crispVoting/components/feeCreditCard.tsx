@@ -1,71 +1,92 @@
-import { Button, Tag } from "@aragon/ods";
-import { If } from "@/components/if";
+import { useId, useState } from "react";
+import { Button } from "@aragon/ods";
+import { Disclosure } from "@/components/motion/Disclosure";
 import { applyFeeBuffer, useFeeCredits } from "../hooks/useFeeCredits";
 
-/**
- * Creator-pays fee escrow widget: shows the fee quote of a proposal created
- * now, the wallet's current credit on the plugin, and deposit/withdraw actions.
- */
-export const FeeCreditCard = ({ disabled, durationSeconds }: { disabled?: boolean; durationSeconds?: number }) => {
-  const { quote, credit, shortfall, format, depositShortfall, withdraw, isDepositing, isWithdrawing } =
+/** Fee details stay visible; escrow management is a secondary disclosure. */
+export const FeeCreditCard = ({
+  disabled = false,
+  durationSeconds,
+}: {
+  disabled?: boolean;
+  durationSeconds?: number;
+}) => {
+  const { quote, credit, shortfall, format, symbol, error, depositShortfall, withdraw, isDepositing, isWithdrawing } =
     useFeeCredits(durationSeconds);
-
-  const covered = shortfall === 0n && quote !== undefined && credit !== undefined;
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const loaded = quote !== undefined && credit !== undefined;
+  const covered = loaded && shortfall === 0n;
+  const amount = (value?: bigint) => `${format(value)}${symbol && value !== undefined ? ` ${symbol}` : ""}`;
 
   return (
-    <div className="mb-6 flex flex-col gap-y-2 md:gap-y-3">
-      <div className="flex flex-col gap-0.5 md:gap-1">
-        <div className="flex items-center gap-x-3">
-          <p className="field-section-label">Proposal fee credit</p>
-          <Tag label={covered ? "Covered" : "Deposit required"} variant={covered ? "success" : "warning"} />
-        </div>
-        <p className="text-sm font-normal leading-normal text-neutral-500 md:text-base">
-          Encrypted proposals pay an E3 computation fee. The fee is charged from your escrowed credit on the plugin when
-          the proposal is created.
-        </p>
+    <section className="composer-fee">
+      <div className="composer-summary-line">
+        <h2>Estimated fee</h2>
+        <span>{amount(quote)}</span>
       </div>
-      <div className="flex flex-col gap-y-4 rounded-xl border border-neutral-100 bg-neutral-0 p-4">
-        <div className="flex flex-col gap-y-1 text-sm font-normal leading-normal text-neutral-800 md:text-base">
-          <div className="flex justify-between">
-            <span className="text-neutral-500">Estimated fee</span>
-            <span>{format(quote)}</span>
+      <p className="composer-help">
+        {covered
+          ? "Covered by your fee credit."
+          : loaded
+            ? "A credit deposit is needed before creation."
+            : "Loading your fee credit…"}
+      </p>
+      <button
+        type="button"
+        className="composer-text-button composer-credit-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+      >
+        Manage fee credit <span className="composer-plus" data-open={open} aria-hidden="true" />
+      </button>
+      <Disclosure open={open} id={id}>
+        <div className="composer-credit-details">
+          <div className="composer-summary-line">
+            <span>Your credit</span>
+            <span>{amount(credit)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-500">Your credit</span>
-            <span>{format(credit)}</span>
-          </div>
-          <If true={shortfall > 0n}>
-            <div className="flex justify-between">
-              <span className="text-neutral-500">Shortfall (incl. 10% buffer)</span>
-              <span>{format(applyFeeBuffer(shortfall))}</span>
-            </div>
-          </If>
-        </div>
-        <div className="flex gap-x-3">
-          <If true={shortfall > 0n}>
+          <p className="composer-help">The encryption fee is charged from this credit when the proposal is created.</p>
+          {shortfall > 0n && (
+            <>
+              <div className="composer-summary-line">
+                <span>
+                  Deposit needed
+                  <br />
+                  <small>Includes 10% buffer</small>
+                </span>
+                <span>{amount(applyFeeBuffer(shortfall))}</span>
+              </div>
+              <Button
+                size="md"
+                variant="secondary"
+                disabled={disabled || isWithdrawing}
+                isLoading={isDepositing}
+                onClick={() => depositShortfall()}
+              >
+                Deposit shortfall
+              </Button>
+            </>
+          )}
+          {credit !== undefined && credit > 0n && (
             <Button
-              size="md"
-              variant="secondary"
-              disabled={disabled}
-              isLoading={isDepositing}
-              onClick={() => depositShortfall()}
-            >
-              Deposit shortfall
-            </Button>
-          </If>
-          <If true={!!credit && credit > 0n}>
-            <Button
-              size="md"
+              size="sm"
               variant="tertiary"
-              disabled={disabled}
+              disabled={disabled || isDepositing}
               isLoading={isWithdrawing}
               onClick={() => withdraw()}
             >
               Withdraw credit
             </Button>
-          </If>
+          )}
+          {error && (
+            <p className="composer-help text-critical-600" role="alert">
+              {error}
+            </p>
+          )}
         </div>
-      </div>
-    </div>
+      </Disclosure>
+    </section>
   );
 };

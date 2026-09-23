@@ -8,15 +8,24 @@ export default function Document() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=3" />
         <link rel="shortcut icon" href="/favicon.ico?v=3" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=3" />
-        {/* Interfold typography: Source Serif 4 (display/editorial) + JetBrains Mono (labels) */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* Inter for the application UI; Gramercy for display titles and Office Code Pro for labels. */}
+        <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400;1,8..60,500&display=swap"
-          rel="stylesheet"
+          rel="preload"
+          href="/fonts/ABCGramercy-Regular.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/OfficeCodePro-Medium.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
         />
       </Head>
-      <body className="bg-neutral-50">
+      <body>
         <Main />
         <NextScript />
       </body>

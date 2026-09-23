@@ -1,17 +1,22 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { useAccount } from "wagmi";
-import { Button, InputText, Tag } from "@aragon/ods";
-import { formatUnits, isAddress, parseUnits, type Address } from "viem";
-import { MainSection } from "@/components/layout/main-section";
+import { formatUnits, parseUnits, type Address } from "viem";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
+import { useMemberName } from "@/hooks/useMemberName";
+import { DelegateList } from "@/plugins/members/components/delegateList";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
-import { DelegateList } from "@/plugins/members/components/delegateList";
+import { DelegateDialog } from "../components/delegateDialog";
+import { VotingPowerInfo } from "../components/votingPowerInfo";
+import { PowerAction } from "../components/powerAction";
+import { LockForm } from "../components/lockForm";
+import { WithdrawalDialog, type WithdrawalAction } from "../components/withdrawalDialog";
 import { useVeEscrow } from "../hooks/useVeEscrow";
 import { useVeLocks } from "../hooks/useVeLocks";
 import { useCreateLock } from "../hooks/useCreateLock";
@@ -28,14 +33,20 @@ export default function Locker() {
   const escrow = useVeEscrow();
   const locks = useVeLocks(address, escrow);
   const { votingPower, refetch: refetchVotes } = useTokenVotes(address);
+  const [delegateRefreshKey, setDelegateRefreshKey] = useState(0);
   const onChanged = () => {
+    setWithdrawalAction(undefined);
     // Give the RPC a beat to index the new state before refetching.
     setTimeout(() => {
       locks.refetch();
       void refetchVotes();
+      setDelegateRefreshKey((key) => key + 1);
     }, 1000 * 2);
   };
-  const delegation = useVeDelegation(address, escrow.adapter, onChanged);
+  const delegation = useVeDelegation(address, escrow.adapter, () => {
+    setDelegateDialogOpen(false);
+    onChanged();
+  });
   const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes);
   // Proposal eligibility mirrors the on-chain create gates (delegated votes vs
   // minProposerVotingPower); the shown minimum is the cheapest path across the
@@ -57,8 +68,40 @@ export default function Locker() {
   } = useVeWithdraw(escrow.lockNft, onChanged);
 
   const [amountInput, setAmountInput] = useState("");
-  const [delegateTarget, setDelegateTarget] = useState("");
+  const [lockOpen, setLockOpen] = useState(false);
+  const lockTrigger = useRef<HTMLElement | null>(null);
+  const [delegateDialogOpen, setDelegateDialogOpen] = useState(false);
+  const [delegateChoice, setDelegateChoice] = useState<Address>();
+  const delegateTrigger = useRef<HTMLElement | null>(null);
   const decimals = useTokenDecimals();
+  const { open: openWallet } = useWalletModal();
+  const withdrawalTrigger = useRef<HTMLElement | null>(null);
+  const [withdrawalAction, setWithdrawalAction] = useState<WithdrawalAction>();
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
+  const [withdrawalAttempted, setWithdrawalAttempted] = useState(false);
+  const busy = isLocking || delegation.isConfirming || pendingTokenId !== undefined || withdrawalSubmitting;
+  const openWithdrawal = (action: WithdrawalAction, trigger: HTMLElement) => {
+    withdrawalTrigger.current = trigger;
+    setWithdrawalAttempted(false);
+    setWithdrawalAction(action);
+  };
+  const confirmWithdrawal = async () => {
+    if (!withdrawalAction || busy) return;
+    setWithdrawalAttempted(true);
+    setWithdrawalSubmitting(true);
+    try {
+      if (withdrawalAction.kind === "start") await beginWithdrawal(withdrawalAction.tokenId);
+      else if (withdrawalAction.kind === "cancel") await cancelWithdrawal(withdrawalAction.tokenId);
+      else await withdraw(withdrawalAction.tokenId);
+    } finally {
+      setWithdrawalSubmitting(false);
+    }
+  };
+  const selectDelegate = (target?: Address) => {
+    delegateTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDelegateChoice(target);
+    setDelegateDialogOpen(true);
+  };
 
   const fmt = (v?: bigint) =>
     v === undefined || decimals === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
@@ -75,252 +118,346 @@ export default function Locker() {
   const aboveBalance = amount !== undefined && balance !== undefined && amount > balance;
   const canLock = amount !== undefined && amount > 0n && !belowMinimum && !aboveBalance;
 
-  const notActivated = !delegation.delegatesTo || delegation.delegatesTo === ADDRESS_ZERO;
+  const delegationKnown = delegation.delegatesTo !== undefined;
+  const notActivated = delegationKnown && delegation.delegatesTo === ADDRESS_ZERO;
   const delegatedToSelf =
     !!delegation.delegatesTo && !!address && delegation.delegatesTo.toLowerCase() === address.toLowerCase();
-  const totalLockedByMe =
-    locks.ownedLocks.reduce((acc, l) => acc + l.amount, 0n) + locks.queuedExits.reduce((acc, t) => acc + t.amount, 0n);
+  const delegateName = useMemberName(delegatedToSelf ? undefined : delegation.delegatesTo);
+  const locksKnown = !locks.isLoading && !locks.error;
+  const committedByMe = locks.ownedLocks.reduce((acc, lock) => acc + lock.amount, 0n);
+  const totalLockedByMe = committedByMe + locks.queuedExits.reduce((acc, ticket) => acc + ticket.amount, 0n);
+  const needsActivation = notActivated && locksKnown && committedByMe > 0n;
   const cooldownDays = escrow.cooldown === undefined ? undefined : Math.round(escrow.cooldown / DAY);
   // Read off the exit queue, so it can be unknown while the read is in flight (or if it fails).
   // Never fill the gap with a number: a made-up "30-day" is a promise the contract has not made.
   const cooldownText = cooldownDays === undefined ? "a cooldown" : `a ${cooldownDays}-day cooldown`;
 
+  const compact = (value?: bigint) =>
+    value === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(value, decimals));
+  const delegationLabel = !delegationKnown
+    ? "Loading…"
+    : notActivated
+      ? "Not activated"
+      : delegatedToSelf
+        ? "Yourself"
+        : (delegateName ?? <AddressText bold={false}>{delegation.delegatesTo}</AddressText>);
+  const lockCount = locks.ownedLocks.length + locks.queuedExits.length;
+
   return (
-    <MainSection narrow>
-      <div className="page-head w-full">
-        <div>
-          <div className="kicker mb-3">Membership</div>
-          <h1 className="display-title">Voting power</h1>
-        </div>
-      </div>
-
-      <div className="form-intro">
-        <p>Voting power comes from {PUB_TOKEN_SYMBOL} that is committed, not just held:</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>Lock {PUB_TOKEN_SYMBOL} to create a voting position only you can withdraw.</li>
-          <li>
-            Delegate your locked {PUB_TOKEN_SYMBOL} — to yourself or someone you trust — to activate its voting power.
-          </li>
-          <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
-          <li>
-            Unlock any time: start the withdrawal, wait out {cooldownText}, then claim your {PUB_TOKEN_SYMBOL}. Voting
-            power stops as soon as the withdrawal starts.
-          </li>
-        </ul>
-        <p className="mt-3 font-semibold">
-          Each committed {PUB_TOKEN_SYMBOL} counts 1:1 toward voting power, whether locked, bonded, or vesting.
-        </p>
-        <p className="mt-1">
-          Voting power determines your weight in governance and whether you meet the threshold to create a proposal.
-        </p>
-      </div>
-
-      {!isConnected || !address ? (
-        <MissingContentView>
-          Connect your wallet (top right) to lock {PUB_TOKEN_SYMBOL} and gain voting power.
-        </MissingContentView>
-      ) : (
-        <div className="flex flex-col gap-y-6">
-          <Card>
-            <Row label={`${PUB_TOKEN_SYMBOL} balance`} value={fmt(balance)} />
-            <Row label="Locked by you" value={fmt(totalLockedByMe)} />
-            <Row label="Your total voting power" value={fmt(votingPower)} />
-            {breakdown.available && (
-              <div className="flex flex-col gap-y-1 border-l-2 border-neutral-100 pl-3">
-                <Row label="Locked + delegated" value={fmt(breakdown.lockedAndDelegated)} />
-                <Row label="Bonded" value={fmt(breakdown.bonded)} />
-                <Row label="Vesting" value={fmt(breakdown.vesting)} />
-              </div>
-            )}
-            <Row
-              label="Proposal eligibility"
-              value={
-                !eligibilityKnown ? (
-                  "—"
-                ) : canPropose ? (
-                  <span className="text-success-600">Eligible</span>
-                ) : (
-                  <span className="text-neutral-500">Not eligible</span>
-                )
-              }
-            />
-            <Row label="Minimum required" value={fmt(minProposalPower)} />
-            <Row
-              label="Lock delegation"
-              value={
-                notActivated ? (
-                  "Not activated — locks carry no voting power yet"
-                ) : delegatedToSelf ? (
-                  "Yourself"
-                ) : (
-                  <AddressText bold={false}>{delegation.delegatesTo}</AddressText>
-                )
-              }
-            />
-          </Card>
-
-          {notActivated && (
-            <Card>
-              <p className="text-base font-semibold text-neutral-800">Activate your lock voting power</p>
-              <p className="text-sm text-neutral-500">
-                Locked {PUB_TOKEN_SYMBOL} only counts once you delegate it. Delegate to yourself to vote with your own
-                locks — done once, future locks activate automatically.
-              </p>
-              <span>
-                <Button
-                  size="md"
-                  variant="primary"
-                  isLoading={delegation.isConfirming}
-                  onClick={() => delegation.delegateToSelf()}
-                >
-                  Delegate to myself
-                </Button>
-              </span>
-            </Card>
-          )}
-
-          <Card>
-            <p className="text-base font-semibold text-neutral-800">Lock {PUB_TOKEN_SYMBOL}</p>
-            <p className="text-sm text-neutral-500">
-              Transfers {PUB_TOKEN_SYMBOL} into the voting escrow. Unlocking later takes {cooldownText}.
-            </p>
-            <InputText
-              placeholder={`Amount of ${PUB_TOKEN_SYMBOL}`}
-              inputMode="decimal"
-              value={amountInput}
-              onChange={(e) => {
-                const v = e.target.value.replace(",", ".");
-                // digits and at most one decimal point — a plain amount field, no steppers
-                if (/^\d*\.?\d*$/.test(v)) setAmountInput(v);
+    <div className="power-page">
+      <section className="power-block power-overview" aria-labelledby="power-page-title">
+        <header className="power-dashboard-header">
+          <div className="page-head power-page-head">
+            <h1 id="power-page-title" className="display-title">
+              Voting power
+            </h1>
+            <VotingPowerInfo cooldownText={cooldownText} />
+          </div>
+          {isConnected && address && (
+            <PowerAction
+              intent="create"
+              size="lg"
+              affordance="plus"
+              aria-haspopup="dialog"
+              disabled={busy}
+              onClick={(event) => {
+                lockTrigger.current = event.currentTarget;
+                setLockOpen(true);
               }}
-            />
-            <div className="flex items-center gap-x-2 text-sm text-neutral-500">
-              <span>Balance: {fmt(balance)}</span>
-              <button
-                type="button"
-                className="font-semibold text-primary-400 disabled:text-neutral-300"
-                disabled={balance === undefined || decimals === undefined || balance === 0n}
-                onClick={() => {
-                  if (balance !== undefined && decimals !== undefined) setAmountInput(formatUnits(balance, decimals));
-                }}
-              >
-                Max
-              </button>
+            >
+              Lock FOLD
+            </PowerAction>
+          )}
+        </header>
+        {isConnected && address ? (
+          <>
+            <dl className="power-metrics" aria-label="Your voting power">
+              <div className="power-metric-total">
+                <dt>Total voting power</dt>
+                <dd>
+                  {compact(votingPower)}
+                  <span>FOLD</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Locks delegated to you</dt>
+                <dd>{compact(breakdown.available ? breakdown.lockedAndDelegated : undefined)}</dd>
+              </div>
+              <div>
+                <dt>Bonded</dt>
+                <dd>{compact(breakdown.available ? breakdown.bonded : undefined)}</dd>
+              </div>
+              <div>
+                <dt>Vesting</dt>
+                <dd>{compact(breakdown.available ? breakdown.vesting : undefined)}</dd>
+              </div>
+            </dl>
+            <div className="power-account-foot">
+              <div className="power-eligibility" aria-label="Proposal eligibility">
+                <div className="power-eligibility-heading">
+                  <p>Creating proposals</p>
+                  <span className={`badge ${eligibilityKnown && canPropose ? "active" : "pending"}`}>
+                    {!eligibilityKnown ? "Loading…" : canPropose ? "Eligible" : "Not eligible"}
+                  </span>
+                </div>
+                <p className="power-eligibility-requirement">Minimum {fmt(minProposalPower)} voting power</p>
+              </div>
+              <p className="power-wallet-balance">
+                Available to lock <strong>{fmt(balance)}</strong>
+              </p>
             </div>
-            {belowMinimum && <p className="text-sm text-critical-600">The minimum lock is {fmt(escrow.minDeposit)}.</p>}
-            {aboveBalance && <p className="text-sm text-critical-600">You do not hold that much {PUB_TOKEN_SYMBOL}.</p>}
-            {lockError && <p className="text-sm text-critical-600">{lockError}</p>}
-            <span>
-              <Button
+          </>
+        ) : (
+          <div className="power-connect">
+            <MissingContentView callToAction="Connect wallet" onClick={() => openWallet()}>
+              Connect your wallet to view your voting power and manage your {PUB_TOKEN_SYMBOL}.
+            </MissingContentView>
+          </div>
+        )}
+      </section>
+      {isConnected && address && (
+        <>
+          <section className="power-block power-delegation-block" aria-labelledby="power-delegation-heading">
+            <h2 id="power-delegation-heading">Delegation</h2>
+            <div className="power-delegation-identity">
+              <p className="power-label">Current voting delegate</p>
+              <p className="power-current-delegate-name">{delegationLabel}</p>
+              {delegationKnown && !notActivated && !delegatedToSelf && (
+                <code className="delegate-address">{delegation.delegatesTo}</code>
+              )}
+              <p className="power-current-delegate-note">
+                {needsActivation
+                  ? `${fmt(committedByMe)} is locked. Choose a delegate to activate its voting power.`
+                  : notActivated
+                    ? "Choose who votes with your locked FOLD."
+                    : delegatedToSelf
+                      ? "You vote with your locked FOLD."
+                      : "Votes with your locked FOLD. You keep ownership and control withdrawals."}
+              </p>
+            </div>
+            <div className="power-current-delegate-actions">
+              <PowerAction
                 size="md"
-                variant="primary"
-                isLoading={isLocking}
-                disabled={!canLock}
-                onClick={() => amount !== undefined && void createLock(amount)}
+                affordance="next"
+                aria-haspopup="dialog"
+                disabled={!delegationKnown || busy}
+                onClick={() => selectDelegate()}
               >
-                Approve and lock
-              </Button>
-            </span>
-          </Card>
-
-          <Card>
-            <p className="text-base font-semibold text-neutral-800">Delegate your locks to someone else</p>
-            <p className="text-sm text-neutral-500">
-              They vote with your locks&apos; power until you change it. Your {PUB_TOKEN_SYMBOL} stays yours — all your
-              locks, current and future, follow one delegate.
-            </p>
-            <InputText
-              placeholder="0x… delegate address"
-              value={delegateTarget}
-              onChange={(e) => setDelegateTarget(e.target.value)}
-            />
-            <span>
-              <Button
-                size="md"
-                variant="secondary"
-                isLoading={delegation.isConfirming}
-                disabled={!isAddress(delegateTarget)}
-                onClick={() => delegation.delegate(delegateTarget as Address)}
-              >
-                Delegate locks
-              </Button>
-            </span>
-          </Card>
-
-          <Card>
-            <p className="text-base font-semibold text-neutral-800">Your locks</p>
-            {withdrawError && <p className="text-sm text-critical-600">{withdrawError}</p>}
+                {notActivated ? "Choose delegate" : "Change delegate"}
+              </PowerAction>
+              {delegationKnown && !notActivated && !delegatedToSelf && (
+                <button
+                  type="button"
+                  className="power-remove-delegate"
+                  disabled={busy}
+                  onClick={() => selectDelegate(address)}
+                >
+                  Remove delegate
+                </button>
+              )}
+            </div>
+          </section>
+          <section className="power-block power-positions" aria-labelledby="power-positions-heading">
+            <div className="power-section-head">
+              <div>
+                <h2 id="power-positions-heading">Your locks</h2>
+                <p className="power-section-meta">
+                  {locks.isLoading
+                    ? "Loading locks…"
+                    : locks.error
+                      ? "Locks unavailable"
+                      : `${fmt(totalLockedByMe)} across ${lockCount} ${lockCount === 1 ? "lock" : "locks"}`}
+                </p>
+              </div>
+            </div>
             {locks.isLoading ? (
               <PleaseWaitSpinner />
-            ) : locks.ownedLocks.length === 0 && locks.queuedExits.length === 0 ? (
-              <p className="text-sm text-neutral-500">No locks yet.</p>
+            ) : locks.error ? (
+              <p className="power-feedback" role="alert">
+                {locks.error}
+              </p>
+            ) : lockCount === 0 ? (
+              <p className="power-empty">No locks yet. Use Lock FOLD to create your first lock.</p>
             ) : (
-              <div className="flex flex-col gap-y-3">
+              <div className="power-position-list" role="table" aria-label="Your FOLD locks">
+                <div className="power-position-head" role="row">
+                  <span role="columnheader">Lock ID</span>
+                  <span role="columnheader">Amount</span>
+                  <span role="columnheader">Status</span>
+                  <span role="columnheader">Voting delegate</span>
+                  <span role="columnheader">Available to withdraw</span>
+                  <span role="columnheader" className="power-position-action">
+                    Action
+                  </span>
+                </div>
                 {locks.ownedLocks.map((lock) => (
-                  <LockRow key={lock.tokenId.toString()}>
-                    <div className="flex items-center gap-x-3">
-                      <span className="font-semibold text-neutral-800">{fmt(lock.amount)}</span>
-                      <Tag
-                        label={lock.delegated ? "Active" : "Not delegated"}
-                        variant={lock.delegated ? "success" : "warning"}
-                      />
+                  <div className="power-position-row" role="row" key={lock.tokenId.toString()}>
+                    <div className="power-position-id" role="cell">
+                      #{lock.tokenId.toString()}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="tertiary"
-                      isLoading={pendingTokenId === lock.tokenId}
-                      onClick={() => void beginWithdrawal(lock.tokenId)}
-                    >
-                      Begin withdrawal
-                    </Button>
-                  </LockRow>
+                    <div className="power-position-amount" role="cell">
+                      <span>{compact(lock.amount)}</span>{" "}
+                      <span className="power-position-unit">{PUB_TOKEN_SYMBOL}</span>
+                    </div>
+                    <div className="power-position-status" role="cell">
+                      <span className={`badge ${lock.delegated ? "active" : "foundation"}`}>
+                        {lock.delegated ? "Active" : "Not delegated"}
+                      </span>
+                    </div>
+                    <div className="power-position-delegate" role="cell">
+                      <span className="power-position-mobile-label" aria-hidden="true">
+                        Voting delegate
+                      </span>
+                      <span>{lock.delegated ? delegationLabel : "Not delegated"}</span>
+                    </div>
+                    <div className="power-position-date" role="cell">
+                      No withdrawal started
+                    </div>
+                    <div className="power-position-action" role="cell">
+                      <PowerAction
+                        size="sm"
+                        affordance="next"
+                        aria-haspopup="dialog"
+                        disabled={busy}
+                        onClick={(event) =>
+                          openWithdrawal(
+                            { kind: "start", tokenId: lock.tokenId, amount: lock.amount },
+                            event.currentTarget
+                          )
+                        }
+                      >
+                        Start withdrawal
+                      </PowerAction>
+                    </div>
+                  </div>
                 ))}
                 {locks.queuedExits.map((ticket) => (
-                  <LockRow key={ticket.tokenId.toString()}>
-                    <div className="flex items-center gap-x-3">
-                      <span className="font-semibold text-neutral-800">{fmt(ticket.amount)}</span>
-                      <Tag
-                        label={ticket.canExit ? "Withdrawable" : `In cooldown until ${formatDate(ticket.exitDate)}`}
-                        variant={ticket.canExit ? "success" : "info"}
-                      />
+                  <div className="power-position-row" role="row" key={ticket.tokenId.toString()}>
+                    <div className="power-position-id" role="cell">
+                      #{ticket.tokenId.toString()}
                     </div>
-                    <div className="flex gap-x-2">
+                    <div className="power-position-amount" role="cell">
+                      <span>{compact(ticket.amount)}</span>{" "}
+                      <span className="power-position-unit">{PUB_TOKEN_SYMBOL}</span>
+                    </div>
+                    <div className="power-position-status" role="cell">
+                      <span className={`badge ${ticket.canExit ? "power-ready" : "executable"}`}>
+                        {ticket.canExit ? "Withdrawable" : "In cooldown"}
+                      </span>
+                    </div>
+                    <div className="power-position-delegate" role="cell">
+                      <span className="power-position-mobile-label" aria-hidden="true">
+                        Voting delegate
+                      </span>
+                      <span className="power-position-inactive">No voting power</span>
+                    </div>
+                    <div className="power-position-date" role="cell">
                       {ticket.canExit ? (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          isLoading={pendingTokenId === ticket.tokenId}
-                          onClick={() => void withdraw(ticket.tokenId)}
-                        >
-                          Withdraw
-                        </Button>
+                        "Available now"
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          isLoading={pendingTokenId === ticket.tokenId}
-                          onClick={() => void cancelWithdrawal(ticket.tokenId)}
-                        >
-                          Cancel and re-lock
-                        </Button>
+                        <time dateTime={new Date(ticket.exitDate * 1000).toISOString()}>
+                          {formatDate(ticket.exitDate)}
+                        </time>
                       )}
                     </div>
-                  </LockRow>
+                    <div className="power-position-action" role="cell">
+                      <PowerAction
+                        size="sm"
+                        affordance="next"
+                        aria-haspopup="dialog"
+                        disabled={busy}
+                        onClick={(event) =>
+                          openWithdrawal(
+                            {
+                              kind: ticket.canExit ? "withdraw" : "cancel",
+                              tokenId: ticket.tokenId,
+                              amount: ticket.amount,
+                            },
+                            event.currentTarget
+                          )
+                        }
+                      >
+                        {ticket.canExit ? `Withdraw ${PUB_TOKEN_SYMBOL}` : "Cancel withdrawal"}
+                      </PowerAction>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
-          </Card>
-
-          <Card>
-            <p className="text-base font-semibold text-neutral-800">Delegates</p>
-            <p className="text-sm text-neutral-500">
-              Addresses with active {PUB_TOKEN_SYMBOL} voting power. Delegate your locks to any of them.
+            <p className="power-help power-positions-note">
+              Withdrawals stop voting power immediately. Claim your {PUB_TOKEN_SYMBOL} after {cooldownText}.
             </p>
-            <DelegateList />
-          </Card>
-        </div>
+          </section>
+
+          <LockForm
+            key={address}
+            open={lockOpen}
+            onClose={() => setLockOpen(false)}
+            triggerRef={lockTrigger}
+            value={amountInput}
+            onValueChange={setAmountInput}
+            balance={fmt(balance)}
+            minimum={fmt(escrow.minDeposit)}
+            cooldownDays={cooldownDays}
+            account={address}
+            currentDelegate={delegation.delegatesTo}
+            existingLockedAmount={fmt(locksKnown ? committedByMe : undefined)}
+            hasExistingLocks={!locksKnown || committedByMe > 0n}
+            canDelegate={!!escrow.adapter && locksKnown}
+            refreshKey={delegateRefreshKey}
+            onDelegate={delegation.delegate}
+            delegationError={delegation.error}
+            belowMinimum={belowMinimum}
+            aboveBalance={aboveBalance}
+            canLock={canLock}
+            canUseMax={balance !== undefined && decimals !== undefined && balance > 0n}
+            onMax={() => {
+              if (balance !== undefined && decimals !== undefined) setAmountInput(formatUnits(balance, decimals));
+            }}
+            pending={busy}
+            error={lockError}
+            onConfirm={(owner) =>
+              amount !== undefined && canLock ? createLock(amount, owner) : Promise.resolve(false)
+            }
+          />
+
+          <WithdrawalDialog
+            action={withdrawalAction}
+            amount={withdrawalAction && decimals !== undefined ? exactAmount(withdrawalAction.amount, decimals) : "—"}
+            cooldownDays={cooldownDays}
+            pending={withdrawalSubmitting || pendingTokenId !== undefined}
+            error={withdrawalAttempted ? withdrawError : undefined}
+            triggerRef={withdrawalTrigger}
+            onClose={() => setWithdrawalAction(undefined)}
+            onConfirm={() => void confirmWithdrawal()}
+          />
+          <DelegateDialog
+            open={delegateDialogOpen}
+            selected={delegateChoice}
+            account={address}
+            currentDelegate={delegation.delegatesTo}
+            lockedAmount={fmt(locksKnown ? committedByMe : undefined)}
+            pending={delegation.isConfirming}
+            error={delegation.error}
+            canDelegate={!!escrow.adapter}
+            refreshKey={delegateRefreshKey}
+            triggerRef={delegateTrigger}
+            onSelect={setDelegateChoice}
+            onClose={() => setDelegateDialogOpen(false)}
+            onConfirm={(target) => delegation.delegate(target)}
+          />
+        </>
       )}
-    </MainSection>
+      <section className="power-block power-delegates" aria-labelledby="power-delegates-heading">
+        <div className="power-section-head">
+          <div>
+            <h2 id="power-delegates-heading">Delegates</h2>
+            <p className="power-section-meta">Highest voting power first</p>
+          </div>
+        </div>
+        <DelegateList layout="table" refreshKey={delegateRefreshKey} onSelect={selectDelegate} />
+      </section>
+    </div>
   );
 }
 
@@ -332,21 +469,8 @@ function formatDate(unixSeconds: number) {
   });
 }
 
-function Card({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">{children}</div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-neutral-500">{label}</span>
-      <span className="font-semibold text-neutral-800">{value}</span>
-    </div>
-  );
-}
-
-function LockRow({ children }: { children: ReactNode }) {
-  return <div className="flex items-center justify-between rounded-lg border border-neutral-100 p-3">{children}</div>;
+function exactAmount(value: bigint, decimals: number) {
+  const [whole, fraction] = formatUnits(value, decimals).split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return fraction ? `${grouped}.${fraction}` : grouped;
 }

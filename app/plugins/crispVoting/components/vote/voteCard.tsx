@@ -3,6 +3,8 @@ import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import type { VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useState } from "react";
+import { FluidHeight } from "@/components/motion/FluidHeight";
+import { useInert } from "@/components/motion/useInert";
 import VotingStepIndicator from "./voteProgress";
 
 export interface VoteCardProps {
@@ -55,21 +57,32 @@ export const VoteCard = ({
   txHash,
 }: VoteCardProps) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [isMasking, setIsMasking] = useState<boolean>(false);
-  const [hasVoted, setHasVoted] = useState<boolean>(false);
+  const [mode, setMode] = useState<"vote" | "mask">("vote");
+  const [submittedMode, setSubmittedMode] = useState<"vote" | "mask" | null>(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const isMasking = mode === "mask";
+  const ballotRef = useInert(isMasking);
+  const maskRef = useInert(!isMasking);
+  const feedbackVisible =
+    showFeedback && (isLoading || !!txHash || votingStep === "error" || votingStep === "complete");
+  const feedbackRef = useInert(!feedbackVisible);
 
   const handleVote = () => {
     if (selectedOption === null) return;
-    setIsMasking(false);
-    setHasVoted(true);
+    setSubmittedMode("vote");
+    setShowFeedback(true);
     onClickVote(selectedOption);
   };
 
   const handleMask = () => {
-    setSelectedOption(null);
-    setIsMasking(true);
-    setHasVoted(true);
+    setSubmittedMode("mask");
+    setShowFeedback(true);
     onClickMask();
+  };
+
+  const changeMode = () => {
+    setMode(isMasking ? "vote" : "mask");
+    setShowFeedback(false);
   };
 
   const isDisabled = disabled || isLoading;
@@ -77,27 +90,17 @@ export const VoteCard = ({
   const started = voteStartDate < Math.round(Date.now() / 1000);
 
   return (
-    <div className="vote-panel">
+    <div className="vote-panel" data-vote-mode={mode}>
       <div className="vp-head">
-        <h3>Cast ballot</h3>
+        <h3 aria-live="polite">
+          <span key={mode} className="vp-label-change">
+            {isMasking ? "Mask ballot" : "Cast ballot"}
+          </span>
+        </h3>
       </div>
 
       <div className="vp-body">
         {error && <p className="text-sm text-critical-500">{error}</p>}
-
-        <p className="vp-note">
-          Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
-          after the voting period ends.
-        </p>
-
-        {(isLoading || txHash || votingStep === "error" || votingStep === "complete") && (
-          <VotingStepIndicator
-            step={txHash && !isLoading ? "complete" : votingStep}
-            lastActiveStep={lastActiveStep}
-            message={txHash && !isLoading ? "Vote submitted successfully!" : stepMessage}
-            txHash={txHash}
-          />
-        )}
 
         {notStarted && (
           <p className="vp-foot-note" style={{ textAlign: "left" }}>
@@ -113,27 +116,54 @@ export const VoteCard = ({
           </div>
         )}
 
-        {/* Choices */}
-        <div className="vote-choices">
-          {options.map((option, index) => {
-            const isSelected = selectedOption === index;
-            return (
-              <button
-                key={index}
-                type="button"
-                disabled={isDisabled}
-                onClick={() => setSelectedOption(index)}
-                className={`vote-choice ${isSelected ? "selected" : ""}`}
-              >
-                <span className="label">
-                  <span className="swatch" style={{ background: getColor(index) }} />
-                  <span className="truncate">{option}</span>
+        <FluidHeight>
+          <div className="vp-mode-views">
+            <div
+              className="vp-mode-view vp-ballot-view"
+              data-active={!isMasking}
+              aria-hidden={isMasking}
+              ref={ballotRef}
+            >
+              <p className="vp-note">
+                Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are
+                tallied after the voting period ends.
+              </p>
+              <div className="vote-choices">
+                {options.map((option, index) => {
+                  const isSelected = selectedOption === index;
+                  return (
+                    <button
+                      key={index}
+                      type="button"
+                      disabled={isDisabled}
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedOption(index)}
+                      className={`vote-choice ${isSelected ? "selected" : ""}`}
+                    >
+                      <span className="label">
+                        <span className="swatch" style={{ background: getColor(index) }} />
+                        <span className="truncate">{option}</span>
+                      </span>
+                      <span className="mark">{isSelected ? "●" : "○"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="vp-mode-view vp-mask-view" data-active={isMasking} aria-hidden={!isMasking} ref={maskRef}>
+              <p className="vp-note">Add cover for other voters with an encrypted, zero-weight ballot.</p>
+              <div className="vp-mask-explanation">
+                <span className="vp-mask-symbol" aria-hidden="true">
+                  ○
                 </span>
-                <span className="mark">{isSelected ? "●" : "○"}</span>
-              </button>
-            );
-          })}
-        </div>
+                <div>
+                  <p>A mask adds no voting weight.</p>
+                  <p>It does not select Yes, No or Abstain, and does not replace a vote you have already cast.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </FluidHeight>
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
@@ -168,47 +198,78 @@ export const VoteCard = ({
             className="w-full"
             size="lg"
             variant="primary"
-            disabled={isDisabled || selectedOption === null}
-            onClick={handleVote}
+            disabled={isDisabled || (!isMasking && selectedOption === null)}
+            onClick={isMasking ? handleMask : handleVote}
           >
-            {isLoading && hasVoted && !isMasking ? (
-              <PleaseWaitSpinner fullMessage="Encrypting ballot…" />
-            ) : selectedOption !== null ? (
-              `Submit encrypted ballot · ${options[selectedOption]}`
-            ) : (
-              "Select an option"
-            )}
+            <span className="vp-label-change" key={isLoading ? "loading" : `${mode}-${selectedOption}`}>
+              {isLoading ? (
+                <PleaseWaitSpinner fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"} />
+              ) : isMasking ? (
+                "Submit mask ballot"
+              ) : selectedOption !== null ? (
+                `Submit encrypted ballot · ${options[selectedOption]}`
+              ) : (
+                "Select an option"
+              )}
+            </span>
           </Button>
 
-          <button
-            type="button"
-            disabled={isDisabled}
-            onClick={handleMask}
-            className="vp-foot-note flex items-center justify-center gap-2 py-1"
-            style={{ cursor: isDisabled ? "not-allowed" : "pointer", background: "none", border: 0 }}
-          >
-            {isLoading && isMasking ? (
-              <PleaseWaitSpinner fullMessage="Masking…" />
-            ) : (
-              <>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-                <span>Mask vote instead</span>
-              </>
-            )}
+          <button type="button" disabled={isDisabled} onClick={changeMode} className="vp-foot-note vp-mode-toggle">
+            <span className="vp-mode-icon" aria-hidden="true">
+              <svg
+                className="vp-eye-icon"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+              <svg
+                className="vp-back-icon"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 5-7 7 7 7M5 12h14" />
+              </svg>
+            </span>
+            <span key={mode} className="vp-label-change">
+              {isMasking ? "Back to ballot" : "Mask vote instead"}
+            </span>
           </button>
+        </div>
+
+        {/* Feedback grows below the controls, keeping the option and action in place. */}
+        <div
+          className="proposal-disclosure vp-feedback"
+          data-open={feedbackVisible}
+          aria-hidden={!feedbackVisible}
+          ref={feedbackRef}
+        >
+          <div className="proposal-disclosure-clip">
+            {submittedMode && (
+              <FluidHeight>
+                <VotingStepIndicator
+                  step={votingStep}
+                  lastActiveStep={lastActiveStep}
+                  message={stepMessage}
+                  txHash={txHash}
+                />
+              </FluidHeight>
+            )}
+          </div>
         </div>
       </div>
 

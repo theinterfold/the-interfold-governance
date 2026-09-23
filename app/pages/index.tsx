@@ -1,14 +1,8 @@
-import { Button } from "@aragon/ods";
-import { useAccount } from "wagmi";
-import { useWeb3Modal } from "@web3modal/wagmi/react";
 import Link from "next/link";
 import { plugins } from "@/plugins";
 import { PUB_CRISP_INFO_URL, PUB_GET_FOLD_URL } from "@/constants";
 
 export default function StandardHome() {
-  const { isConnected } = useAccount();
-  const { open } = useWeb3Modal();
-
   const proposalsHref = `/plugins/${plugins[0]?.id ?? "proposals"}/#/`;
   // The lock page is one of the main ways a FOLD holder can actually participate —
   // surface it here rather than only on the Voting Power page.
@@ -16,7 +10,10 @@ export default function StandardHome() {
 
   return (
     <section className="mint-slab">
-      <div className="mx-auto w-full max-w-screen-xl px-6 py-20">
+      {/* max-w-[1440px] px-4/md:px-6 — the navbar/footer's own container, not
+          max-w-screen-xl (1280px): at 1440px wide that put the hero 80px to the
+          right of the wordmark sitting directly above it. */}
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-20 md:px-6">
         {/* Serif marquee hero */}
         <div className="serif-hero">
           <h1>Interfold Governance</h1>
@@ -27,41 +24,61 @@ export default function StandardHome() {
 
         {/* Action first, explanation second: the path into governance. */}
         <div className="mt-14">
-          {!isConnected && (
-            <div className="mb-8">
-              <Button size="lg" variant="primary" onClick={() => open()}>
-                Connect wallet
-              </Button>
-            </div>
-          )}
+          {/* No second Connect here. The navbar already carries the wallet control at
+              all times, and it is the one that also shows the connected address — two
+              connect buttons a screen apart read as two different actions. The three
+              cards below are this page's actions. */}
           <div className="step-strip">
-            <a href={PUB_GET_FOLD_URL} target="_blank" rel="noreferrer" className="step">
-              <span className="step-title">Get FOLD ↗</span>
-              <span className="step-desc">Acquire FOLD on Uniswap.</span>
-            </a>
-            <span className="step-arrow" aria-hidden="true">
-              →
-            </span>
-            <Link href={votingPowerHref} className="step">
-              <span className="step-title">Activate voting power →</span>
-              <span className="step-desc">Lock FOLD and delegate it to activate governance weight.</span>
-            </Link>
-            <span className="step-arrow" aria-hidden="true">
-              →
-            </span>
-            <Link href={proposalsHref} className="step">
-              <span className="step-title">Govern →</span>
-              <span className="step-desc">Vote on proposals. Eligible voters can also create proposals.</span>
-            </Link>
+            <div className="step-track">
+              <span className="step-num">01</span>
+              <a href={PUB_GET_FOLD_URL} target="_blank" rel="noreferrer" className="step">
+                <div className="step-media">
+                  {/* Plain img on purpose: these are decorative keyvis files already
+                  exported at 900px webp for a 451px slot, the CSS box reserves
+                  their ratio so nothing shifts, and next/image would put the
+                  optimizer route in front of three static assets. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/get-fold.webp" alt="" width={900} height={678} loading="lazy" />
+                </div>
+                <div className="step-body">
+                  <span className="step-title">Get FOLD ↗</span>
+                  <span className="step-desc">Acquire FOLD on Uniswap.</span>
+                </div>
+              </a>
+            </div>
+            <div className="step-track">
+              <span className="step-num">02</span>
+              <Link href={votingPowerHref} className="step">
+                <div className="step-media">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/activate-voting-power.webp" alt="" width={900} height={678} loading="lazy" />
+                </div>
+                <div className="step-body">
+                  <span className="step-title">Activate voting power →</span>
+                  <span className="step-desc">Lock FOLD and delegate it to activate governance weight.</span>
+                </div>
+              </Link>
+            </div>
+            <div className="step-track">
+              <span className="step-num">03</span>
+              <Link href={proposalsHref} className="step">
+                <div className="step-media">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/govern.webp" alt="" width={900} height={678} loading="lazy" />
+                </div>
+                <div className="step-body">
+                  <span className="step-title">Govern →</span>
+                  <span className="step-desc">Vote on proposals. Eligible voters can also create proposals.</span>
+                </div>
+              </Link>
+            </div>
           </div>
         </div>
 
         {/* Lede */}
         <div className="hero-body-grid mt-12">
-          <div />
           <p className="lede">
-            <span className="dropcap">I</span>nterfold governance covers protocol changes, parameters, and other DAO
-            decisions. IPPs use{" "}
+            Interfold governance covers protocol changes, parameters, and other DAO decisions. IPPs use{" "}
             <a href={PUB_CRISP_INFO_URL} target="_blank" rel="noreferrer" className="lede-link">
               CRISP
             </a>{" "}

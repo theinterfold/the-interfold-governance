@@ -1,5 +1,7 @@
-import { CardCollapsible, DocumentParser } from "@aragon/ods";
+import { DocumentParser } from "@aragon/ods";
 import classNames from "classnames";
+import { useId, useRef, useState } from "react";
+import { FluidHeight } from "@/components/motion/FluidHeight";
 
 interface IBodySectionProps {
   body: string;
@@ -7,21 +9,62 @@ interface IBodySectionProps {
 
 export const BodySection: React.FC<IBodySectionProps> = (props) => {
   let { body } = props;
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const contentId = useId();
+  const cardRef = useRef<HTMLElement>(null);
+
+  const toggle = () => {
+    if (expanded && (cardRef.current?.getBoundingClientRect().top ?? 0) < 80) {
+      cardRef.current?.scrollIntoView({
+        block: "start",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
+    }
+    setExpanded(!expanded);
+  };
 
   if (!body.trim() || body === "<p></p>") body = "No description was provided";
 
   return (
-    <CardCollapsible
-      buttonLabelClosed="Read full description"
-      buttonLabelOpened="Read less"
-      collapsedSize="md"
-      className="w-full !rounded-none !border !border-neutral-800 !shadow-none"
-    >
-      <div className="detail-body flex flex-col gap-y-4">
-        <p className="section-label">— Description</p>
-        <DocumentParser document={body} className={proseClasses} />
+    <section ref={cardRef} className="proposal-description" data-expanded={expanded}>
+      <div className="proposal-description-content" data-truncated={overflows && !expanded}>
+        <FluidHeight
+          id={contentId}
+          expanded={expanded}
+          collapsedHeight={256}
+          onOverflowChange={setOverflows}
+          onFocusCapture={() => setExpanded(true)}
+        >
+          <div className="detail-body flex flex-col gap-y-4">
+            <p className="section-label">— Description</p>
+            <DocumentParser document={body} className={proseClasses} />
+          </div>
+        </FluidHeight>
       </div>
-    </CardCollapsible>
+      {overflows && (
+        <button
+          type="button"
+          className="description-toggle"
+          onClick={toggle}
+          aria-expanded={expanded}
+          aria-controls={contentId}
+        >
+          <span>{expanded ? "Read less" : "Read full description"}</span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <path d="m4 6 4 4 4-4" />
+          </svg>
+        </button>
+      )}
+    </section>
   );
 };
 

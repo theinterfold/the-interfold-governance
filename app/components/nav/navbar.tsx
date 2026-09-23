@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
-import { AvatarIcon, Button, IconType, Spinner } from "@aragon/ods";
-import { PUB_APP_NAME, PUB_ENABLE_FAUCET, PUB_PROJECT_LOGO } from "@/constants";
+import { Button, Spinner } from "@aragon/ods";
+import { PUB_ENABLE_FAUCET } from "@/constants";
 import { useFaucet } from "@/hooks/useFaucet";
 import { If } from "@/components/if";
+import { InterfoldSymbol } from "@/components/InterfoldSymbol";
+import { Cross as Hamburger } from "hamburger-react";
 import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
@@ -16,15 +18,11 @@ export const Navbar: React.FC = () => {
 
   const { addAlert } = useAlerts();
 
-  const navLinks: INavLink[] = [
-    { path: "/", id: "home", name: "Home" /*, icon: IconType.APP_DASHBOARD*/ },
-    ...plugins.map((p) => ({
-      id: p.id,
-      name: p.title,
-      path: `/plugins/${p.id}/#/`,
-      // icon: p.icon,
-    })),
-  ];
+  const navLinks: INavLink[] = plugins.map((p) => ({
+    id: p.id,
+    name: p.title,
+    path: `/plugins/${p.id}/#/`,
+  }));
 
   const { claim, canClaim, blockedReason, isConfirming } = useFaucet();
 
@@ -41,8 +39,8 @@ export const Navbar: React.FC = () => {
   return (
     <>
       {/* One 63px bar, theinterfold.com-style: wordmark left, small mark center, links right. */}
-      <nav className="sticky top-0 z-[var(--hub-navbar-z-index)] w-full select-none border-b border-b-[var(--mint-line)] bg-[var(--mint)]">
-        <div className="mx-auto grid h-[63px] w-full max-w-[1440px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-6">
+      <nav className="sticky top-0 z-[var(--hub-navbar-z-index)] w-full select-none bg-[var(--mint-shade)]">
+        <div className="mx-auto grid h-[60px] w-full max-w-[1440px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 xl:h-[63px]">
           {/* Wordmark */}
           <Link
             href="/"
@@ -51,7 +49,15 @@ export const Navbar: React.FC = () => {
               "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
             )}
           >
-            <img src={PUB_PROJECT_LOGO} className="h-[17px] w-auto shrink-0" alt={PUB_APP_NAME + " logo"} />
+            {/* Live type, not a bitmap: the marketing site sets the wordmark in
+                Gramercy at 22px / -0.66px, so it stays crisp and picks up the
+                same ink hover tone as every other link. */}
+            <span
+              className="whitespace-nowrap font-[family-name:var(--font-serif)] text-[18px] capitalize leading-[1.05] tracking-[-0.66px] text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] md:text-[22px]"
+              style={{ fontFeatureSettings: '"liga" 1, "clig" 1', fontVariantLigatures: "common-ligatures" }}
+            >
+              The Interfold
+            </span>
           </Link>
 
           {/* Small center mark (decorative twin of the wordmark, so hidden from readers) */}
@@ -59,14 +65,15 @@ export const Navbar: React.FC = () => {
             href="/"
             aria-hidden="true"
             tabIndex={-1}
-            className="hidden justify-self-center opacity-90 transition-opacity hover:opacity-100 md:block"
+            className="h-7 w-8 justify-self-center text-[var(--accent)] transition-colors duration-200 hover:text-[var(--accent-hover)] focus-visible:text-[var(--accent-hover)] xl:h-[35px] xl:w-[46px]"
           >
-            <img src="/interfold-symbol-on-mint.png" className="h-[35px] w-auto" alt="" />
+            <InterfoldSymbol className="block h-full w-full" />
           </Link>
 
           {/* Links + actions */}
-          <div className="col-start-3 flex items-center gap-x-2 justify-self-end lg:gap-x-5">
-            <ul className="hidden items-center gap-x-8 md:flex">
+          <div className="col-start-3 hidden items-center gap-x-4 justify-self-end xl:flex">
+            {/* Match the main site's desktop breakpoint and 32px between words. */}
+            <ul className="hidden items-center gap-0 xl:flex">
               {navLinks.map(({ id, name, path }) => (
                 <NavLink name={name} path={path} id={id} key={id} />
               ))}
@@ -81,20 +88,29 @@ export const Navbar: React.FC = () => {
             <div className="shrink-0">
               <WalletContainer />
             </div>
-
-            {/* Nav Trigger */}
-            <button
-              onClick={() => setShowMenu(true)}
-              className={classNames(
-                "rounded-full border border-neutral-100 bg-neutral-0 p-1 md:hidden",
-                "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
-              )}
-            >
-              <AvatarIcon size="lg" icon={IconType.MENU} />
-            </button>
           </div>
         </div>
       </nav>
+
+      {/* Outside <nav> on purpose. The bar is `sticky z-10`, which makes it a stacking
+          context — a z-70 child of it still resolves inside z-10 and lands under the
+          z-60 overlay, leaving Escape as the only way out of the menu. As a sibling it
+          really is on top. Same control and props as theinterfold.com's own trigger
+          (hamburger-react `Cross`, right, 28, sm, 0.35s, Interfold Black, rounded) — no pill,
+          no border, just the bars. */}
+      <div className="interfold-mobile-menu-trigger fixed right-6 top-7 z-[70] h-4 w-7 -translate-y-1/2 xl:hidden">
+        <Hamburger
+          toggled={showMenu}
+          toggle={setShowMenu}
+          direction="right"
+          size={28}
+          distance="sm"
+          duration={0.35}
+          color="var(--ink)"
+          rounded={true}
+          label={showMenu ? "Close menu" : "Open menu"}
+        />
+      </div>
       <MobileNavDialog open={showMenu} navLinks={navLinks} onOpenChange={setShowMenu} />
     </>
   );

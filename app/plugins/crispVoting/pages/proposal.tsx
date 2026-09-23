@@ -30,7 +30,13 @@ import { ActivityCard } from "../components/activityCard";
 const ZERO = BigInt(0);
 
 /** `index` is the SPP (staged process) proposal id; the CRISP sub-proposal id is resolved on-chain. */
-export default function ProposalDetail({ index: sppProposalId }: { index: bigint }) {
+export default function ProposalDetail({
+  index: sppProposalId,
+  embedded = false,
+}: {
+  index: bigint;
+  embedded?: boolean;
+}) {
   const spp = useSppProposal("private", sppProposalId);
 
   if (spp.subProposalFailed) {
@@ -42,23 +48,27 @@ export default function ProposalDetail({ index: sppProposalId }: { index: bigint
   }
   if (spp.subProposalId === undefined) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
-  return <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} />;
+  return (
+    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} />
+  );
 }
 
 function ProposalDetailBody({
   proposalIdx,
   sppProposalId,
   spp,
+  embedded,
 }: {
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
+  embedded: boolean;
 }) {
   const { address } = useAccount();
   // Mainnet offers no relayer route for now: ballots go on-chain from the voter's wallet,
@@ -129,25 +139,27 @@ function ProposalDetailBody({
 
   if (!proposal || showProposalLoading) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
   return (
-    <section className="flex w-screen min-w-full max-w-full flex-col items-center">
-      <ProposalHeader
-        proposalIdx={proposalIdx}
-        proposal={proposal}
-        isCommitteeReady={isCommitteeReady}
-        totalVotingPower={totalVotingPower}
-        e3Failed={e3Failed}
-      />
+    <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
+      {!embedded && (
+        <ProposalHeader
+          proposalIdx={proposalIdx}
+          proposal={proposal}
+          isCommitteeReady={isCommitteeReady}
+          totalVotingPower={totalVotingPower}
+          e3Failed={e3Failed}
+        />
+      )}
 
-      <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10">
-        <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
-          <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
+      <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
+        <div className="proposal-detail-grid">
+          <div className="flex min-w-0 flex-col gap-y-6">
             <BodySection body={proposal.description || "No description was provided"} />
             <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
               <NoVotePowerWarning
@@ -186,7 +198,7 @@ function ProposalDetailBody({
                 txHash={txHash}
               />
             )}
-            {error && (
+            {error && proposalStatus !== ProposalStatus.ACTIVE && (
               <div className="border border-critical-200 bg-critical-100 px-4 py-3">
                 <p className="text-sm text-critical-600">{error}</p>
               </div>
@@ -211,7 +223,7 @@ function ProposalDetailBody({
             {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
             <ProposalActions actions={sppActions} />
           </div>
-          <div className="flex flex-col gap-y-6 md:w-[33%]">
+          <div className="flex min-w-0 flex-col gap-y-6">
             <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} />
             <ParticipationCard proposal={proposal} />
             <ActivityCard e3Id={proposal.e3Id} />

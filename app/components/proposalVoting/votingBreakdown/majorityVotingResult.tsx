@@ -1,8 +1,9 @@
 import { capitalizeFirstLetter } from "@/utils/text";
 import { Button, Heading, Progress, RadioCard, RadioGroup } from "@aragon/ods";
 import classNames from "classnames";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { type VotingCta } from "./types";
+import { Disclosure } from "@/components/motion/Disclosure";
 
 type Choice = "yes" | "no" | "abstain";
 
@@ -28,6 +29,13 @@ export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingRes
 
   const [showOptions, setShowOptions] = useState(false);
   const [option, setOption] = useState<string>();
+  const optionsId = useId();
+  const actionsRef = useRef<HTMLDivElement>(null);
+
+  const closeOptions = () => {
+    setShowOptions(false);
+    actionsRef.current?.querySelector("button")?.focus({ preventScroll: true });
+  };
 
   const handleVoteClick = () => {
     if (showOptions || votingScores.length === 1) {
@@ -47,7 +55,7 @@ export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingRes
   const disabled = (!!showOptions && !option) || cta?.disabled;
 
   return (
-    <div className="flex flex-col gap-y-4">
+    <div className="public-vote-breakdown flex flex-col gap-y-4">
       <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 p-3 shadow-neutral-sm md:flex-row md:gap-x-6 md:p-6">
         {votingScores.map((choice, index) => (
           <div className="flex flex-1 flex-col gap-y-3 md:flex-row md:gap-x-6" key={choice.option}>
@@ -71,14 +79,11 @@ export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingRes
         ))}
       </div>
       {/* Options */}
-      {showOptions && (
+      <Disclosure open={showOptions} id={optionsId} className="public-vote-options">
         <div className="flex flex-col gap-y-3 pt-3">
           <div className="flex flex-col gap-y-2">
             <Heading size="h3">Choose your option</Heading>
-            <p className="text-neutral-500">
-              To vote, you must select one of the following options and confirm in your wallet. Once the transaction is
-              completed, your vote will be counted and displayed.
-            </p>
+            <p className="text-neutral-500">Choose an option, then confirm in your wallet.</p>
           </div>
           <RadioGroup value={option} onValueChange={(value) => setOption(value)} className="!gap-y-3">
             {votingScores?.map((choice, index) => {
@@ -87,26 +92,36 @@ export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingRes
                 <RadioCard
                   key={choice.option}
                   label={parsedChoice}
-                  description={`Your choice will be counted for "${parsedChoice}"`}
+                  description=""
+                  className="public-vote-choice"
                   value={(index + 1).toString()}
                 />
               );
             })}
           </RadioGroup>
         </div>
-      )}
+      </Disclosure>
       {/* Button group */}
       {cta && (
-        <div className="flex w-full flex-col gap-y-4 md:flex-row md:gap-x-4">
-          <Button size="md" disabled={disabled} onClick={handleVoteClick} isLoading={cta.isLoading}>
-            {label}
+        <div ref={actionsRef} className="flex w-full flex-col gap-y-4 md:flex-row md:gap-x-4">
+          <Button
+            size="md"
+            disabled={disabled}
+            onClick={handleVoteClick}
+            isLoading={cta.isLoading}
+            aria-expanded={showOptions}
+            aria-controls={optionsId}
+          >
+            <span key={label} className="vp-label-change">
+              {label}
+            </span>
           </Button>
 
-          {showOptions && (
-            <Button size="md" onClick={() => setShowOptions(false)} variant="tertiary">
+          <Disclosure open={showOptions} className="public-vote-cancel">
+            <Button size="md" onClick={closeOptions} variant="tertiary" className="w-full">
               Cancel
             </Button>
-          )}
+          </Disclosure>
         </div>
       )}
     </div>

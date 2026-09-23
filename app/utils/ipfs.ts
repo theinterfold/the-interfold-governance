@@ -1,3 +1,5 @@
+import { DESIGN_PREVIEW, DEMO_MESSAGE } from "@/dev/previewMode";
+import { demoMetadata } from "@/dev/fixtures";
 import { PUB_IPFS_ENDPOINTS, PUB_APP_NAME } from "@/constants";
 import { type Hex, fromHex, toBytes } from "viem";
 import { CID } from "multiformats/cid";
@@ -27,6 +29,7 @@ export function fetchIpfsAsBlob(ipfsUri: string) {
  * inlined into the bundle and readable by every visitor.
  */
 export async function uploadToPinata(strBody: string) {
+  if (DESIGN_PREVIEW) throw new Error(DEMO_MESSAGE);
   const res = await fetch("/api/ipfs/pin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -50,6 +53,7 @@ export async function getContentCid(strMetadata: string) {
 // Internal helpers
 
 async function fetchRawIpfs(ipfsUri: string): Promise<Response> {
+  if (DESIGN_PREVIEW && ipfsUri.startsWith("demo://")) return Response.json(demoMetadata(ipfsUri));
   if (!ipfsUri) throw new Error("Invalid IPFS URI");
   else if (ipfsUri.startsWith("0x")) {
     // fallback

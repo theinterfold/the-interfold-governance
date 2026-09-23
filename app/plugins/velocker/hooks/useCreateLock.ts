@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
-import { erc20Abi } from "viem";
+import { useEffect, useRef, useState } from "react";
+import { erc20Abi, type Address } from "viem";
 import { useAccount, usePublicClient, useReadContract } from "wagmi";
 import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_VE_LOCKER_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { awaitSuccessfulReceipt } from "@/plugins/crispVoting/utils/awaitReceipt";
 import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
+import { lockCreationRequest } from "../utils/lockRequest";
 
 /**
  * Locks FOLD into the voting escrow: an exact-amount approval to the escrow, then
- * `createLock`, which transfers the FOLD in and mints the lock NFT. No unlimited approvals.
+ * `createLock` for yourself or `createLockFor` for another owner. No unlimited approvals.
  */
 export function useCreateLock(onLocked?: () => void) {
   const { address } = useAccount();
+  const connectedAccount = useRef(address);
+  connectedAccount.current = address;
   const client = usePublicClient();
   const [isLocking, setIsLocking] = useState(false);
   // Failures useTransactionManager never sees: the client guard and reverted receipts
@@ -41,7 +44,7 @@ export function useCreateLock(onLocked?: () => void) {
 
   const { writeContractAsync: lockWrite } = useTransactionManager({
     onSuccessMessage: "FOLD locked",
-    onSuccessDescription: "The lock is created. Activate delegation to make it count as voting power.",
+    onSuccessDescription: "The lock is created for the selected wallet. Its owner controls voting and withdrawals.",
     onErrorMessage: "Could not lock FOLD",
     onSuccess: () => {
       setIsLocking(false);
@@ -51,15 +54,16 @@ export function useCreateLock(onLocked?: () => void) {
     onError: () => setIsLocking(false),
   });
 
-  const createLock = async (amount: bigint): Promise<boolean> => {
-    if (amount <= 0n) return true;
-
+  const createLock = async (amount: bigint, owner?: Address): Promise<boolean> => {
     setError(undefined);
     setIsLocking(true);
     try {
       if (!client) throw new Error("No RPC client available");
+      if (!address) throw new Error("Connect your wallet to create a lock.");
+      const request = lockCreationRequest(amount, address, owner ?? address);
 
       const approveTx = await approveWrite({
+        account: address,
         chainId: PUB_CHAIN.id,
         abi: erc20Abi,
         address: PUB_TOKEN_ADDRESS,
@@ -68,14 +72,19 @@ export function useCreateLock(onLocked?: () => void) {
       });
       // A reverted approval must stop the flow: the lock that follows would fail anyway.
       await awaitSuccessfulReceipt(client, approveTx, "The FOLD approval");
+      if (connectedAccount.current?.toLowerCase() !== address.toLowerCase()) {
+        throw new Error("Your wallet changed. Review the lock again before continuing.");
+      }
 
-      const lockTx = await lockWrite({
+      const contract = {
+        account: address,
         chainId: PUB_CHAIN.id,
         abi: votingEscrowAbi,
         address: PUB_VE_LOCKER_ADDRESS,
-        functionName: "createLock",
-        args: [amount],
-      });
+      };
+      const lockTx = await (request.functionName === "createLock"
+        ? lockWrite({ ...contract, ...request })
+        : lockWrite({ ...contract, ...request }));
       await awaitSuccessfulReceipt(client, lockTx, "The lock");
       return true;
     } catch (err) {
