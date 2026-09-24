@@ -148,9 +148,6 @@ export default function Proposals() {
   // Rows stay mounted when filtered out (their hooks are what resolve the status),
   // so "nothing matches" is counted here rather than by an empty render.
   const matchCount = visible.filter((e) => matchesStatusFilter(statuses[entryKey(e)], statusFilter)).length;
-  // "All" leaves out failed rounds; say how many, so an empty-looking list is not mistaken for no proposals.
-  const hiddenFailedCount =
-    statusFilter === "all" ? visible.filter((e) => statuses[entryKey(e)] === "failed").length : 0;
 
   return (
     <MainSection narrow={true}>
@@ -221,18 +218,10 @@ export default function Proposals() {
           </div>
           <If not={matchCount}>
             <MissingContentView>
-              {hiddenFailedCount ? "No proposals to show." : "No proposals match the selected filters."}
+              {kindFilter === "all" && statusFilter === "all"
+                ? "No proposals to show."
+                : "No proposals match the selected filters."}
             </MissingContentView>
-          </If>
-          <If true={hiddenFailedCount}>
-            <p className="mt-3 text-sm text-neutral-500">
-              {hiddenFailedCount === 1
-                ? "1 proposal whose encrypted round failed is hidden."
-                : `${hiddenFailedCount} proposals whose encrypted round failed are hidden.`}{" "}
-              <button type="button" className="underline" onClick={() => setStatusFilter("failed")}>
-                Show failed
-              </button>
-            </p>
           </If>
           <div className="proposal-list">
             {visible.map((e) => {
