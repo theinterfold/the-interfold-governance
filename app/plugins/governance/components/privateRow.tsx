@@ -24,12 +24,12 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
   const spp = useSppProposal("private", proposalId);
   const href = `#/proposals/private/${proposalId}`;
 
-  // A failed sub-proposal is a terminal outcome, so report it to the list's filter. Without this
-  // the row reports no bucket at all and escapes every filter — a dead proposal would show up
-  // even under "Active".
+  // A sub-proposal that was never created is a broken round, not a vote outcome, so it reports
+  // `failed`. Without this the row reports no bucket at all and escapes every filter — a dead
+  // proposal would show up even under "Active".
   const subProposalFailed = spp.subProposalFailed;
   useEffect(() => {
-    if (subProposalFailed) onStatus?.("rejected");
+    if (subProposalFailed) onStatus?.("failed");
   }, [subProposalFailed, onStatus]);
 
   if (spp.subProposalFailed) {
@@ -89,7 +89,9 @@ function PrivateRowBody({
   const resolvedLabel = loading
     ? undefined
     : (sppOverride?.label ?? (e3Failed ? "Round failed" : capitalize(proposalStatus)));
-  const bucket = statusBucketOf(resolvedLabel);
+  // Bucket on `e3Failed` itself, not the label: once stage 0 lapses the SPP override relabels a
+  // dead round "Expired", which would otherwise file it with genuine rejections.
+  const bucket: StatusBucket | undefined = e3Failed ? "failed" : statusBucketOf(resolvedLabel);
 
   useEffect(() => {
     onStatus?.(bucket);

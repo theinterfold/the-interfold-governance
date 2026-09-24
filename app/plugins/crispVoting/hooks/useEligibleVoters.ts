@@ -171,10 +171,9 @@ export function useEligibleVoters(
             // Evaluated at the snapshot block, not at chain head — see the note above.
             ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
             contracts: batch.map((r) => ({
-              // The census measures the plugin's VOTING TOKEN (BondedVotes on this deployment),
-              // read from the contract above — not the raw governance token. Reading FOLD here
-              // made every row disagree: a bonded holder has BondedVotes power and zero FOLD
-              // votes, so all 158 leaves failed the comparison.
+              // The census measures the plugin's VOTING TOKEN, not the raw governance token. A
+              // holder's power can live entirely in bonded collateral or an escrow position,
+              // where the governance token reports zero votes.
               address: votingToken,
               abi: iVotesAbi,
               functionName: "getPastVotes",

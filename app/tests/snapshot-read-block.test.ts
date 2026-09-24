@@ -2,21 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { snapshotReadBlock } from "@/plugins/crispVoting/utils/snapshotReadBlock";
 
 /**
- * Census checks and ballot leaves both read `getPastVotes` at a snapshot. On `BondedVotes` that
- * read is state-dependent — `_lockedVotes` walks live locks — so it must be evaluated at the
- * snapshot's block rather than at chain head, and the block has to be the first one that actually
- * covers the timepoint.
+ * Census checks and ballot leaves both read `getPastVotes` at a snapshot. On a token that mixes a
+ * checkpointed history with a live lock walk that read is state-dependent, so it must be
+ * evaluated at the snapshot's block rather than at chain head.
  *
- * The numbers below are the real mainnet round that exposed this: snapshot timepoint 1789835494,
- * which `getBlockAtTimestamp` resolves to block 26012771 (timestamp 1789835483, eleven seconds
- * early). Reading there reverts `ERC5805FutureLookup(1789835494, 1789835483)`; block 26012772
- * reproduces the server's census exactly.
+ * The block has to be the first one that actually covers the timepoint: resolving to the block
+ * at or before it can land one whose own timestamp is earlier, and reading there reverts
+ * `ERC5805FutureLookup(timepoint, clock)`.
  */
 describe("snapshotReadBlock", () => {
   const TIMEPOINT = 1789835494n;
 
   test("steps forward when the resolved block predates the timepoint", () => {
-    // The mainnet case: 26012771 is 11 seconds short, so reading there would revert.
+    // The resolved block is 11 seconds short of the timepoint, so reading there would revert.
     expect(snapshotReadBlock(26012771n, 1789835483n, TIMEPOINT)).toBe(26012772n);
   });
 

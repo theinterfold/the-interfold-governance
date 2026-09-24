@@ -7,8 +7,12 @@
  * Veto period / Foundation Approval) and, while stage 0 is undecided, the body-level `ProposalStatus`
  * (Pending / Active / Executed / Executable / Accepted / Rejected). Both funnel
  * through here so private and public rows bucket identically.
+ *
+ * `failed` is not a vote outcome: the private round broke (E3 died, or the sub-proposal was
+ * never created), so the proposal was never decided. It is kept apart from `rejected` so the
+ * default view can leave it out.
  */
-export type StatusBucket = "pending" | "active" | "foundation" | "accepted" | "executed" | "rejected";
+export type StatusBucket = "pending" | "active" | "foundation" | "accepted" | "executed" | "rejected" | "failed";
 
 export const STATUS_BUCKETS: { label: string; value: StatusBucket }[] = [
   { label: "Pending", value: "pending" },
@@ -17,7 +21,19 @@ export const STATUS_BUCKETS: { label: string; value: StatusBucket }[] = [
   { label: "Accepted", value: "accepted" },
   { label: "Executed", value: "executed" },
   { label: "Rejected", value: "rejected" },
+  { label: "Failed", value: "failed" },
 ];
+
+export type StatusFilter = "all" | StatusBucket;
+
+/**
+ * Whether a row with `bucket` shows under `filter`. "All" is every proposal that was actually
+ * put to a vote — failed rounds are infrastructure noise and only show under "Failed". Rows
+ * still resolving (`bucket` undefined) show under "All" so the list is not blank while loading.
+ */
+export function matchesStatusFilter(bucket: StatusBucket | undefined, filter: StatusFilter): boolean {
+  return filter === "all" ? bucket !== "failed" : bucket === filter;
+}
 
 /**
  * Maps a rendered status label to its bucket. Returns undefined for labels we
@@ -41,10 +57,10 @@ export function statusBucketOf(label?: string): StatusBucket | undefined {
       return "accepted";
     case "executed":
       return "executed";
-    // Every terminal not-happening state reads as rejected to a filtering user.
-    // "Round failed" is a private-proposal label: the E3 died, so it was never decided —
-    // but a user filtering for what did not happen expects to find it here.
+    // A dead E3 round was never decided, so it is not a rejection.
     case "round failed":
+      return "failed";
+    // Every terminal not-happening state reads as rejected to a filtering user.
     case "rejected":
     case "vetoed":
     case "expired":

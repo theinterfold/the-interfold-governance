@@ -224,6 +224,9 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   filtered-out rows stay mounted and render `null` (unmounting them would stop the very hooks that
   resolve the status). Adding a new status label means adding it to `statusBucketOf`
   (`app/plugins/governance/utils/statusBucket.ts`) — unmapped labels appear only under "All".
+  "All" is not literally everything: `failed` rows (dead E3 round, or a sub-proposal that was
+  never created) are hidden there and show only under "Failed". A private row buckets on
+  `e3Failed` directly, because once stage 0 lapses the SPP override relabels it "Expired".
 - **The voting window is never per-proposal.** Both processes use their stage-configured window
   (the SPP calls the body with `endDate = start + stage.voteDuration`; 5 days on mainnet). CRISP
   used to accept a creator-chosen `votingDuration` in `_data`, but an unbounded window could

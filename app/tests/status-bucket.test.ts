@@ -1,5 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import { statusBucketOf, STATUS_BUCKETS } from "@/plugins/governance/utils/statusBucket";
+import { matchesStatusFilter, statusBucketOf, STATUS_BUCKETS } from "@/plugins/governance/utils/statusBucket";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
 import { SppProposalState } from "@/plugins/spp/utils/types";
 
@@ -59,10 +59,10 @@ describe("statusBucketOf", () => {
     expect(statusBucketOf("Rejected")).toBe("rejected");
   });
 
-  // A private row labels a dead E3 round "Round failed" rather than "Pending" or "Rejected";
-  // it still has to land in a bucket, or the row would only ever show under "All".
-  test("buckets a failed E3 round as rejected", () => {
-    expect(statusBucketOf("Round failed")).toBe("rejected");
+  // A private row labels a dead E3 round "Round failed". It was never decided, so it must not be
+  // filed with vote rejections — the default view hides it.
+  test("buckets a failed E3 round as failed, not rejected", () => {
+    expect(statusBucketOf("Round failed")).toBe("failed");
   });
 
   test("is case- and whitespace-insensitive", () => {
@@ -77,9 +77,33 @@ describe("statusBucketOf", () => {
 
   test("every declared bucket is reachable from some label", () => {
     const reachable = new Set(
-      ["Pending", "Active", "Foundation Approval", "Accepted", "Executed", "Rejected"].map((l) => statusBucketOf(l))
+      ["Pending", "Active", "Foundation Approval", "Accepted", "Executed", "Rejected", "Round failed"].map((l) =>
+        statusBucketOf(l)
+      )
     );
     for (const b of STATUS_BUCKETS) expect(reachable.has(b.value)).toBe(true);
+  });
+});
+
+// --- matchesStatusFilter ---------------------------------------------------
+
+describe("matchesStatusFilter", () => {
+  test('"All" hides failed rounds but keeps every real outcome', () => {
+    expect(matchesStatusFilter("failed", "all")).toBe(false);
+    for (const b of STATUS_BUCKETS.filter((b) => b.value !== "failed")) {
+      expect(matchesStatusFilter(b.value, "all")).toBe(true);
+    }
+  });
+
+  test('"All" keeps still-resolving rows visible; a specific filter does not', () => {
+    expect(matchesStatusFilter(undefined, "all")).toBe(true);
+    expect(matchesStatusFilter(undefined, "active")).toBe(false);
+  });
+
+  test('failed rounds are reachable under "Failed" and nowhere else', () => {
+    expect(matchesStatusFilter("failed", "failed")).toBe(true);
+    expect(matchesStatusFilter("failed", "rejected")).toBe(false);
+    expect(matchesStatusFilter("rejected", "failed")).toBe(false);
   });
 });
 

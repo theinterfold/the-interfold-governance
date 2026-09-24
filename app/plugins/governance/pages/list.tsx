@@ -17,9 +17,9 @@ import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVotin
 import { PrivateRow } from "../components/privateRow";
 import { PublicRow } from "../components/publicRow";
 import { publicClient } from "../utils/client";
-import { STATUS_BUCKETS } from "../utils/statusBucket";
+import { STATUS_BUCKETS, matchesStatusFilter } from "../utils/statusBucket";
 
-import type { StatusBucket } from "../utils/statusBucket";
+import type { StatusBucket, StatusFilter } from "../utils/statusBucket";
 
 type Kind = "private" | "public";
 type Entry = { kind: Kind; id: bigint; block: bigint };
@@ -30,10 +30,7 @@ const FILTERS: { label: string; value: "all" | Kind }[] = [
   { label: "Transparent fallback", value: "public" },
 ];
 
-const STATUS_FILTERS: { label: string; value: "all" | StatusBucket }[] = [
-  { label: "All", value: "all" },
-  ...STATUS_BUCKETS,
-];
+const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [{ label: "All", value: "all" }, ...STATUS_BUCKETS];
 
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
@@ -64,7 +61,7 @@ export default function Proposals() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | StatusBucket>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   // Status lives in the per-row hooks (metadata + tally + SPP state), so rows
   // report it back up here and the list filters on what they resolved.
   const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
@@ -150,7 +147,10 @@ export default function Proposals() {
   const visible = entries.filter((e) => kindFilter === "all" || e.kind === kindFilter);
   // Rows stay mounted when filtered out (their hooks are what resolve the status),
   // so "nothing matches" is counted here rather than by an empty render.
-  const matchCount = visible.filter((e) => statusFilter === "all" || statuses[entryKey(e)] === statusFilter).length;
+  const matchCount = visible.filter((e) => matchesStatusFilter(statuses[entryKey(e)], statusFilter)).length;
+  // "All" leaves out failed rounds; say how many, so an empty-looking list is not mistaken for no proposals.
+  const hiddenFailedCount =
+    statusFilter === "all" ? visible.filter((e) => statuses[entryKey(e)] === "failed").length : 0;
 
   return (
     <MainSection narrow={true}>
@@ -220,12 +220,24 @@ export default function Proposals() {
             ))}
           </div>
           <If not={matchCount}>
-            <MissingContentView>No proposals match the selected filters.</MissingContentView>
+            <MissingContentView>
+              {hiddenFailedCount ? "No proposals to show." : "No proposals match the selected filters."}
+            </MissingContentView>
+          </If>
+          <If true={hiddenFailedCount}>
+            <p className="mt-3 text-sm text-neutral-500">
+              {hiddenFailedCount === 1
+                ? "1 proposal whose encrypted round failed is hidden."
+                : `${hiddenFailedCount} proposals whose encrypted round failed are hidden.`}{" "}
+              <button type="button" className="underline" onClick={() => setStatusFilter("failed")}>
+                Show failed
+              </button>
+            </p>
           </If>
           <div className="proposal-list">
             {visible.map((e) => {
               const key = entryKey(e);
-              const hidden = statusFilter !== "all" && statuses[key] !== statusFilter;
+              const hidden = !matchesStatusFilter(statuses[key], statusFilter);
               return e.kind === "private" ? (
                 <PrivateRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
               ) : (

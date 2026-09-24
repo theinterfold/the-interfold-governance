@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@aragon/osx-commons-configs": "^0.2.0",
+    "@next/swc-darwin-arm64": "14.1.4",
     "@types/bun": "latest",
     "@types/dompurify": "^3.0.5",
     "@types/libsodium-wrappers": "^0.7.14",

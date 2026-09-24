@@ -14,10 +14,9 @@ const votesAbi = parseAbi([
 /**
  * Shows the connected account's voting power and the total, both at the proposal's snapshot.
  *
- * Reads the VOTING token named by the plugin, not the raw governance token. A holder whose power
- * comes from an escrow position has no delegated FOLD at all, so reading FOLD here showed them
- * "0 FOLD" on a proposal they are fully eligible for. The two disagree in the common case, not
- * the rare one: on this deployment nobody has delegated FOLD directly.
+ * Reads the VOTING token named by the plugin, not the raw governance token. A holder's power can
+ * live entirely in an escrow position or bonded collateral, where the governance token reports
+ * zero votes.
  *
  * @param snapshotTimepoint The proposal's snapshot, in the token's clock units.
  * @param plugin The governance plugin whose voting token applies.
