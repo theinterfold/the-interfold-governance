@@ -85,6 +85,31 @@ Field notes:
 - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — from [WalletConnect](https://walletconnect.com/).
 - `NEXT_PUBLIC_IPFS_ENDPOINTS` / `NEXT_PUBLIC_PINATA_JWT` — for pinning proposal metadata to IPFS.
 
+## Umami analytics
+
+The shared app shell loads [Umami](https://umami.is/) once using `next/script`.
+Page views and client-side navigation are tracked automatically. The Interfold website is
+configured with the public ID `e29d3733-0edb-46fb-bb7f-0902632177ef` and the Umami Cloud script.
+Deploying the frontend enables tracking without additional environment variables.
+Tracking is disabled in development and when `NEXT_PUBLIC_UMAMI_WEBSITE_ID` is explicitly empty.
+
+Optional build-time overrides:
+
+- `NEXT_PUBLIC_UMAMI_WEBSITE_ID`: a different `data-website-id` from **Websites → Edit → Tracking code**,
+  or an empty value to disable tracking.
+- `NEXT_PUBLIC_UMAMI_SCRIPT_URL`: the `src` value; defaults to `https://cloud.umami.is/script.js`.
+- `NEXT_PUBLIC_UMAMI_DOMAINS`: comma-separated production hostnames, without schemes or paths.
+  Defaults to `governance.theinterfold.com` to exclude preview deployments. Include `www` separately if used.
+
+Rebuild and deploy after changing these values. To verify collection, visit an allowed production
+domain and check the Umami dashboard for the visit.
+
+Only the public website ID and script URL are needed; do not add an Umami password or API key.
+The tracker respects the browser's Do Not Track setting and excludes URL query strings and hashes.
+No custom wallet or voting events are sent. See the official
+[installation](https://docs.umami.is/docs/collect-data) and
+[tracker configuration](https://docs.umami.is/docs/tracker-configuration) guides.
+
 ## License 📜
 
 Released under the AGPL v3 License.
