@@ -9,11 +9,7 @@ import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
 import { describeFailure } from "../utils/describeFailure";
 
 /** Extra margin applied when depositing a fee-credit shortfall (10%). */
-export const FEE_BUFFER_PERCENT = 10n;
-
-export function applyFeeBuffer(amount: bigint): bigint {
-  return amount + (amount * FEE_BUFFER_PERCENT) / 100n;
-}
+const FEE_BUFFER_PERCENT = 10n;
 
 /**
  * CRISP creator-pays fee escrow: quotes the fee for the stage-configured voting duration,
@@ -56,6 +52,18 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     query: { enabled: !!address },
   });
 
+  // `deposit` pulls the amount with `transferFrom`, so a wallet holding less than it reverts inside
+  // the token (`usds/insufficient-balance` on mainnet) — after the approval has already cost gas.
+  // Reading the balance lets the UI refuse the deposit instead of sending it.
+  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address!],
+    query: { enabled: !!address },
+  });
+
   const { data: decimalsData } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
@@ -72,11 +80,26 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
 
   const quote = quoteData as bigint | undefined;
   const credit = creditData as bigint | undefined;
+  const walletBalance = balanceData as bigint | undefined;
+  const symbol = symbolData as string | undefined;
   // Never defaulted: the fee token is not necessarily 18 (it is 6 on the testnet
   // deployment), so formatting before the read lands would print a wrong figure.
   const decimals = decimalsData === undefined ? undefined : Number(decimalsData);
 
   const shortfall = quote !== undefined && credit !== undefined && credit < quote ? quote - credit : 0n;
+  /** What covering one proposal deposits: the shortfall plus the buffer. */
+  const depositNeeded = shortfall + (shortfall * FEE_BUFFER_PERCENT) / 100n;
+
+  const format = (value?: bigint) =>
+    value === undefined || decimals === undefined ? "—" : formatUnits(value, decimals);
+  const unit = symbol ?? "fee token";
+  const insufficientBalanceMessage = (needed: bigint, held: bigint) =>
+    `Insufficient ${unit} balance: the deposit needs ${format(needed)} ${unit}, but your wallet holds ${format(held)} ${unit}.`;
+  /** Why the wallet cannot fund `depositNeeded`; undefined when it can, or while either value is loading. */
+  const balanceShortfall =
+    walletBalance !== undefined && depositNeeded > walletBalance
+      ? insufficientBalanceMessage(depositNeeded, walletBalance)
+      : undefined;
 
   const { writeContractAsync: approveWrite } = useTransactionManager({
     onSuccessMessage: "Fee token approved",
@@ -90,6 +113,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     onSuccess: () => {
       setIsDepositing(false);
       refetchCredit();
+      refetchBalance();
     },
     onError: () => setIsDepositing(false),
   });
@@ -100,6 +124,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     onSuccess: () => {
       setIsWithdrawing(false);
       refetchCredit();
+      refetchBalance();
     },
     onError: () => setIsWithdrawing(false),
   });
@@ -118,6 +143,17 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       // than fail, silently skipping the receipt waits — the UI would report success and refetch
       // stale balances while the transactions were still pending.
       if (!client) throw new Error("No RPC client available");
+      if (!address) throw new Error("Connect a wallet to deposit");
+
+      // Read fresh rather than trusting the watched value: it can lag a transfer out, and this
+      // check is what keeps an unfundable deposit from costing the user an approval first.
+      const held = await client.readContract({
+        address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [address],
+      });
+      if (held < amount) throw new Error(insufficientBalanceMessage(amount, held));
 
       const approveTx = await approveWrite({
         chainId: PUB_CHAIN.id,
@@ -142,12 +178,13 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       setError(describeFailure(err, "The deposit could not be completed"));
       setIsDepositing(false);
       void refetchCredit();
+      void refetchBalance();
       return false;
     }
   };
 
   /** Deposits the current shortfall (plus buffer) to cover one proposal. */
-  const depositShortfall = () => deposit(applyFeeBuffer(shortfall));
+  const depositShortfall = () => deposit(depositNeeded);
 
   /** Withdraws unused credit back to the wallet. */
   const withdraw = async (amount?: bigint) => {
@@ -171,18 +208,20 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       setError(describeFailure(err, "The withdrawal could not be completed"));
       setIsWithdrawing(false);
       void refetchCredit();
+      void refetchBalance();
     }
   };
-
-  const format = (value?: bigint) =>
-    value === undefined || decimals === undefined ? "—" : formatUnits(value, decimals);
 
   return {
     quote,
     credit,
     shortfall,
+    depositNeeded,
+    walletBalance,
+    /** Why the wallet cannot fund `depositNeeded`; undefined when it can, or while either value loads. */
+    balanceShortfall,
     decimals,
-    symbol: symbolData as string | undefined,
+    symbol,
     /** Why the last deposit or withdrawal failed, if it did. */
     error,
     format,

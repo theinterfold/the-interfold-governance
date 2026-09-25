@@ -47,6 +47,7 @@ export default function Create() {
     durationSeconds,
     votingStartsAt,
     availabilityWindowSeconds,
+    feeBalanceShortfall,
   } = useCreateProposal();
 
   const handleTitleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,7 +272,13 @@ export default function Create() {
           {/* Submit */}
 
           <div className="actions-row">
-            <Button isLoading={isCreating} size="lg" variant="primary" onClick={() => submitProposal()}>
+            <Button
+              isLoading={isCreating}
+              disabled={!!feeBalanceShortfall}
+              size="lg"
+              variant="primary"
+              onClick={() => submitProposal()}
+            >
               <If lengthOf={actions} above={0}>
                 <Then>Submit proposal</Then>
                 <Else>Submit signaling proposal</Else>

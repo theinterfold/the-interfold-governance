@@ -17,7 +17,7 @@ import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
 import { URL_PATTERN } from "@/utils/input-values";
 import { uploadToPinata } from "@/utils/ipfs";
 import type { ProposalMetadata, RawAction } from "@/utils/types";
-import { applyFeeBuffer, useFeeCredits } from "./useFeeCredits";
+import { useFeeCredits } from "./useFeeCredits";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { scheduleVotingStart } from "../utils/votingSchedule";
 
@@ -74,7 +74,7 @@ export function useCreateProposal() {
     availabilityWindowData === undefined ? undefined : Number(availabilityWindowData as bigint);
 
   // Creator-pays E3 fee escrow on the CRISP plugin — quoted against the stage window.
-  const { quote, credit, deposit, refetchCredit } = useFeeCredits(durationSeconds);
+  const { quote, credit, depositNeeded, balanceShortfall, deposit, refetchCredit } = useFeeCredits(durationSeconds);
 
   const { writeContractAsync: createProposalWrite } = useTransactionManager({
     onSuccessMessage: "Proposal created",
@@ -132,6 +132,14 @@ export function useCreateProposal() {
         type: "error",
       });
     }
+    // Refuse before pinning metadata or asking for an approval: the deposit's `transferFrom` would
+    // revert inside the token, after the user had already paid gas for the approval.
+    if (balanceShortfall) {
+      return addAlert("Not enough funds for the proposal fee", {
+        description: `${balanceShortfall} Top up your wallet, then submit again.`,
+        type: "error",
+      });
+    }
 
     try {
       setIsCreating(true);
@@ -148,8 +156,8 @@ export function useCreateProposal() {
 
       // Top up the fee escrow if the current credit doesn't cover the quote.
       // Approves exactly the shortfall (+10% buffer) — no unlimited approvals.
-      if (credit < quote) {
-        const deposited = await deposit(applyFeeBuffer(quote - credit));
+      if (depositNeeded > 0n) {
+        const deposited = await deposit(depositNeeded);
         if (!deposited) {
           setIsCreating(false);
           return;
@@ -206,5 +214,7 @@ export function useCreateProposal() {
     durationSeconds,
     votingStartsAt,
     availabilityWindowSeconds,
+    /** Why the wallet cannot fund the fee deposit this proposal needs; undefined when it can. */
+    feeBalanceShortfall: balanceShortfall,
   };
 }

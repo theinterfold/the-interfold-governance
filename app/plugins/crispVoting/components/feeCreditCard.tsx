@@ -1,14 +1,26 @@
-import { Button, Tag } from "@aragon/ods";
+import { AlertCard, Button, Tag } from "@aragon/ods";
 import { If } from "@/components/if";
-import { applyFeeBuffer, useFeeCredits } from "../hooks/useFeeCredits";
+import { useFeeCredits } from "../hooks/useFeeCredits";
 
 /**
  * Creator-pays fee escrow widget: shows the fee quote of a proposal created
  * now, the wallet's current credit on the plugin, and deposit/withdraw actions.
  */
 export const FeeCreditCard = ({ disabled, durationSeconds }: { disabled?: boolean; durationSeconds?: number }) => {
-  const { quote, credit, shortfall, format, depositShortfall, withdraw, isDepositing, isWithdrawing } =
-    useFeeCredits(durationSeconds);
+  const {
+    quote,
+    credit,
+    shortfall,
+    depositNeeded,
+    walletBalance,
+    balanceShortfall,
+    error,
+    format,
+    depositShortfall,
+    withdraw,
+    isDepositing,
+    isWithdrawing,
+  } = useFeeCredits(durationSeconds);
 
   const covered = shortfall === 0n && quote !== undefined && credit !== undefined;
 
@@ -37,16 +49,30 @@ export const FeeCreditCard = ({ disabled, durationSeconds }: { disabled?: boolea
           <If true={shortfall > 0n}>
             <div className="flex justify-between">
               <span className="text-neutral-500">Shortfall (incl. 10% buffer)</span>
-              <span>{format(applyFeeBuffer(shortfall))}</span>
+              <span>{format(depositNeeded)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Wallet balance</span>
+              <span>{format(walletBalance)}</span>
             </div>
           </If>
         </div>
+        <If true={!!balanceShortfall}>
+          <AlertCard
+            variant="critical"
+            message="Not enough funds to deposit"
+            description={`${balanceShortfall} Top up your wallet, then deposit.`}
+          />
+        </If>
+        <If true={!!error}>
+          <AlertCard variant="critical" message="The fee credit transaction failed" description={error} />
+        </If>
         <div className="flex gap-x-3">
           <If true={shortfall > 0n}>
             <Button
               size="md"
               variant="secondary"
-              disabled={disabled}
+              disabled={disabled || !!balanceShortfall}
               isLoading={isDepositing}
               onClick={() => depositShortfall()}
             >
