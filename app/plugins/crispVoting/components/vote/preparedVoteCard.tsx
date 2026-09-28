@@ -35,6 +35,10 @@ export function PreparedVoteCard({
     ballot.expiresAt > Date.now() &&
     chainId === ballot.chainId &&
     address?.toLowerCase() === ballot.voter.toLowerCase();
+  const needsWalletAction =
+    !ballot.transactionHash &&
+    ballot.expiresAt > Date.now() &&
+    (!address || chainId !== ballot.chainId || needsWalletSwitch);
   const changeWallet = async () => {
     setWalletError("");
     setSwitching(true);
@@ -54,7 +58,9 @@ export function PreparedVoteCard({
         <p className="vp-note">
           {ballot.transactionHash
             ? "Your transaction has been sent. Check its confirmation before taking another action."
-            : "Switch accounts in your wallet, or connect a different wallet, then send this signed ballot. The sending wallet only pays gas."}
+            : needsWalletAction
+              ? "Switch accounts in your wallet, or connect a different wallet, then send this signed ballot. The sending wallet only pays gas."
+              : "This vote counts for the wallet that signed it. The sending wallet only pays gas."}
         </p>
         <div className="ballot-review-summary">
           <div className="ballot-review-row">
@@ -94,7 +100,15 @@ export function PreparedVoteCard({
           </a>
         )}
         <div className="vp-cta">
-          {!ballot.transactionHash && (
+          <PowerAction
+            intent="vote"
+            disabled={busy || switching || !!blocked}
+            isLoading={busy}
+            onClick={() => void onSend()}
+          >
+            {ballot.transactionHash ? "Check confirmation" : "Send signed ballot"}
+          </PowerAction>
+          {needsWalletAction && (
             <PowerAction disabled={busy || switching} onClick={() => void changeWallet()}>
               {!address
                 ? "Connect sending wallet"
@@ -104,14 +118,10 @@ export function PreparedVoteCard({
             </PowerAction>
           )}
           <PowerAction
-            intent="vote"
-            disabled={busy || switching || !!blocked}
-            isLoading={busy}
-            onClick={() => void onSend()}
+            affordance="discard"
+            disabled={busy || switching || !!ballot.transactionHash}
+            onClick={onDiscard}
           >
-            {ballot.transactionHash ? "Check confirmation" : "Send signed ballot"}
-          </PowerAction>
-          <PowerAction disabled={busy || switching || !!ballot.transactionHash} onClick={onDiscard}>
             Discard signed ballot
           </PowerAction>
         </div>

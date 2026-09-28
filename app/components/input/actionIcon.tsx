@@ -1,10 +1,22 @@
-import { ArrowCounterClockwise, CaretRight, Check, Clock, LockSimple, Minus, Plus, Wallet, X } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwise,
+  CaretRight,
+  Check,
+  Clock,
+  LockSimple,
+  Minus,
+  Plus,
+  Trash,
+  Wallet,
+  X,
+} from "@phosphor-icons/react";
 
 const icons = {
   plus: Plus,
   next: CaretRight,
   lock: LockSimple,
   remove: Minus,
+  discard: Trash,
   close: X,
   clock: Clock,
   undo: ArrowCounterClockwise,
