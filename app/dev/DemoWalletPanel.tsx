@@ -83,7 +83,7 @@ export function DemoWalletPanel() {
           <p className="demo-wallet-request-detail">
             Choose which wallet to use. The sending wallet can send a signed vote, but has no voting power.
           </p>
-          <div className="vp-cta" role="group" aria-label="Demo wallets">
+          <div className="vp-cta mb-6" role="group" aria-label="Demo wallets">
             {[
               { address: DEMO_WALLET, label: "Voting wallet" },
               { address: DEMO_SENDING_WALLET, label: "Sending wallet" },
