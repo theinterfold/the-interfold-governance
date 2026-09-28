@@ -43,9 +43,10 @@ export function getDemoAccount() {
   }
   return DEMO_WALLET;
 }
-export function switchDemoAccount() {
+export function selectDemoAccount(next: typeof DEMO_WALLET | typeof DEMO_SENDING_WALLET) {
   requireLocalPreview();
-  const next = getDemoAccount() === DEMO_WALLET ? DEMO_SENDING_WALLET : DEMO_WALLET;
+  if (next !== DEMO_WALLET && next !== DEMO_SENDING_WALLET) throw new Error("Unknown demo wallet.");
+  if (next === getDemoAccount()) return;
   window.sessionStorage.setItem(accountKey, next);
   window.dispatchEvent(new CustomEvent("interfold-demo-account-changed", { detail: next }));
 }

@@ -1,4 +1,6 @@
-import { switchDemoAccount, DEMO_SENDING_WALLET } from "./demoWalletSession";
+import { selectDemoAccount, DEMO_SENDING_WALLET } from "./demoWalletSession";
+import { DEMO_WALLET } from "./previewMode";
+import { formatHexString } from "@/utils/evm";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount, useDisconnect } from "wagmi";
@@ -79,17 +81,32 @@ export function DemoWalletPanel() {
       ) : (
         <>
           <p className="demo-wallet-request-detail">
-            Use any supported action on the page. This wallet will open so you can confirm, reject or test an error.
-            Changes stay in this browser session.
+            Choose which wallet to use. The sending wallet can send a signed vote, but has no voting power.
           </p>
-          <PowerAction
-            onClick={() => {
-              switchDemoAccount();
-              setSettings(false);
-            }}
-          >
-            {address?.toLowerCase() === DEMO_SENDING_WALLET.toLowerCase() ? "Use voting wallet" : "Use sending wallet"}
-          </PowerAction>
+          <div className="vp-cta" role="group" aria-label="Demo wallets">
+            {[
+              { address: DEMO_WALLET, label: "Voting wallet" },
+              { address: DEMO_SENDING_WALLET, label: "Sending wallet" },
+            ].map((wallet) => {
+              const selected = address?.toLowerCase() === wallet.address.toLowerCase();
+              return (
+                <PowerAction
+                  key={wallet.address}
+                  align="start"
+                  intent={selected ? "confirm" : "open"}
+                  affordance={selected ? "check" : undefined}
+                  aria-pressed={selected}
+                  disabled={isDisconnecting}
+                  onClick={() => {
+                    selectDemoAccount(wallet.address);
+                    setSettings(false);
+                  }}
+                >
+                  {wallet.label} · {formatHexString(wallet.address)}
+                </PowerAction>
+              );
+            })}
+          </div>
           <PowerAction
             onClick={() => {
               try {

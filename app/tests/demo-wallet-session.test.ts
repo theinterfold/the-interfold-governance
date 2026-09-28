@@ -7,7 +7,7 @@ import { demoTransport } from "../dev/fixtures";
 import { DEMO_WALLET, DESIGN_PREVIEW } from "../dev/previewMode";
 import {
   DEMO_SENDING_WALLET,
-  switchDemoAccount,
+  selectDemoAccount,
   isDemoWalletDisconnected,
   setDemoWalletDisconnected,
 } from "../dev/demoWalletSession";
@@ -158,7 +158,7 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     await connect(config, { connector: config.connectors[0] });
     expect(getAccount(config).address).toBe(DEMO_WALLET);
   });
-  test("changing demo accounts updates wagmi and survives reconnect without giving the sender voting power", async () => {
+  test("selecting a demo account is explicit, idempotent and survives reconnect", async () => {
     const saved = new Map<string, string>();
     const target = new EventTarget();
     Object.defineProperty(globalThis, "window", {
@@ -175,12 +175,14 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     });
     const config = makeConfig();
     await connect(config, { connector: config.connectors[0] });
-    switchDemoAccount();
+    selectDemoAccount(DEMO_SENDING_WALLET);
+    expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
+    selectDemoAccount(DEMO_SENDING_WALLET);
     expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
     await disconnect(config);
     await connect(config, { connector: config.connectors[0] });
     expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
-    switchDemoAccount();
+    selectDemoAccount(DEMO_WALLET);
     expect(getAccount(config).address).toBe(DEMO_WALLET);
   });
 });

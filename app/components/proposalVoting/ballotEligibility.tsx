@@ -1,7 +1,8 @@
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
-import { DEMO_SENDING_WALLET, switchDemoAccount } from "@/dev/demoWalletSession";
+import { DEMO_SENDING_WALLET } from "@/dev/demoWalletSession";
+import { openDemoWalletPanel } from "@/dev/DemoWalletPanel";
 import { useAccount } from "wagmi";
 import Link from "next/link";
 
@@ -36,7 +37,7 @@ export function BallotEligibilityNotice({
           This demo wallet can send signed ballots and masks, but has no voting power. Switch back to the voting wallet
           to prepare a new vote.
         </p>
-        <PowerAction onClick={switchDemoAccount}>Use voting wallet</PowerAction>
+        <PowerAction onClick={openDemoWalletPanel}>Choose wallet</PowerAction>
       </div>
     );
   }

@@ -7,7 +7,7 @@ import { PowerWarning } from "@/plugins/velocker/components/powerWarning";
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_CHAIN } from "@/constants";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
-import { switchDemoAccount } from "@/dev/demoWalletSession";
+import { openDemoWalletPanel } from "@/dev/DemoWalletPanel";
 import { preparedSenderError, type PreparedBallot } from "../../utils/preparedBallot";
 import type { BallotSubmissionResult } from "../../utils/ballotSubmission";
 
@@ -40,7 +40,7 @@ export function PreparedVoteCard({
     setSwitching(true);
     try {
       if (address && chainId !== PUB_CHAIN.id) await switchChainAsync({ chainId: PUB_CHAIN.id });
-      else if (DESIGN_PREVIEW && address) switchDemoAccount();
+      else if (DESIGN_PREVIEW && address) openDemoWalletPanel();
       else await open();
     } catch {
       setWalletError("Could not open your wallet. Open it directly and select the account you want to use.");
@@ -101,7 +101,7 @@ export function PreparedVoteCard({
                 : chainId !== PUB_CHAIN.id
                   ? `Switch to ${PUB_CHAIN.name}`
                   : DESIGN_PREVIEW
-                    ? "Switch demo wallet"
+                    ? "Choose demo wallet"
                     : "Open wallet"}
             </PowerAction>
           )}
