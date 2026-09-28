@@ -1,8 +1,9 @@
+import { SearchField } from "@/components/input/searchField";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
 import { Button } from "@aragon/ods";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
-import type { VotingStep } from "../../utils/types";
+import type { EligibleVoter, VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useEffect, useId, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import { PUB_CHAIN } from "@/constants";
@@ -28,6 +29,8 @@ export interface VoteCardProps {
   canMask?: boolean;
   proposalTitle?: string;
   getRandomMaskTarget: () => Promise<string>;
+  getMaskRecipients: () => Promise<EligibleVoter[]>;
+  onPrepareVote: (voteOption: number) => Promise<BallotSubmissionResult>;
   maskAsOption?: boolean;
   error?: string;
   options: string[];
@@ -60,6 +63,8 @@ export const VoteCard = ({
   canMask = true,
   proposalTitle,
   getRandomMaskTarget,
+  getMaskRecipients,
+  onPrepareVote,
   maskAsOption = true,
   error,
   options,
@@ -96,6 +101,11 @@ export const VoteCard = ({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewMode, setReviewMode] = useState<BallotKind>("vote");
   const [includeMask, setIncludeMask] = useState(false);
+  const [sendWithAnotherWallet, setSendWithAnotherWallet] = useState(false);
+  const otherWalletId = useId();
+  const [recipients, setRecipients] = useState<EligibleVoter[]>();
+  const [recipientError, setRecipientError] = useState<string>();
+  const [recipientSearch, setRecipientSearch] = useState("");
   const maskOptionId = useId();
   const [targetMode, setTargetMode] = useState<"random" | "self" | "address">("random");
   const [targetInput, setTargetInput] = useState("");
@@ -127,7 +137,28 @@ export const VoteCard = ({
     targetMode === "self" ? walletAddress : targetMode === "address" ? targetInput.trim() : randomTarget;
   const wantsMask = isReviewMasking || includeMask;
   const maskSettingsRef = useInert(!wantsMask);
-  const invalidTarget = wantsMask && (!maskTarget || !isAddress(maskTarget));
+  const eligibleTarget =
+    targetMode === "random" || recipients?.some((v) => v.address.toLowerCase() === maskTarget?.toLowerCase());
+  const invalidTarget = wantsMask && (!maskTarget || !isAddress(maskTarget) || !eligibleTarget);
+  const filteredRecipients = (recipients ?? []).filter((voter) =>
+    voter.address.toLowerCase().includes(recipientSearch.trim().toLowerCase())
+  );
+  useEffect(() => {
+    if (!reviewOpen || !wantsMask || targetMode === "random") return;
+    let cancelled = false;
+    setRecipientError(undefined);
+    void getMaskRecipients().then(
+      (voters) => {
+        if (!cancelled) setRecipients(voters);
+      },
+      () => {
+        if (!cancelled) setRecipientError("Could not load eligible voters. Try again.");
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewOpen, wantsMask, targetMode, getMaskRecipients, targetAttempt]);
 
   useEffect(() => {
     if (!reviewOpen || !wantsMask || targetMode !== "random" || randomTarget) return;
@@ -150,6 +181,9 @@ export const VoteCard = ({
     triggerRef.current = trigger;
     setReviewMode(kind);
     setIncludeMask(false);
+    setSendWithAnotherWallet(false);
+    setRecipientSearch("");
+    setRecipients(undefined);
     setTargetMode("random");
     setTargetInput("");
     setRandomTarget(undefined);
@@ -176,6 +210,12 @@ export const VoteCard = ({
     setShowFeedback(true);
     const option = selectedOption;
     try {
+      if (!isReviewMasking && sendWithAnotherWallet) {
+        setSubmittedMode("vote");
+        const result = await onPrepareVote(option!);
+        if (mounted.current && !result.success) setAttemptError(result.error);
+        return;
+      }
       await submitBallotSequence({
         vote: isReviewMasking ? undefined : () => onClickVote(option!),
         mask: wantsMask ? () => onClickMask(maskTarget) : undefined,
@@ -489,6 +529,36 @@ export const VoteCard = ({
         isMask={isReviewMasking}
         votingPower={votingPower}
       >
+        {!isReviewMasking && (
+          <div className="ballot-mask-option">
+            <input
+              id={otherWalletId}
+              type="checkbox"
+              checked={sendWithAnotherWallet}
+              disabled={!canPublishOnChain || busy}
+              aria-describedby={`${otherWalletId}-help`}
+              onChange={(event) => {
+                setSendWithAnotherWallet(event.target.checked);
+                if (event.target.checked) setIncludeMask(false);
+              }}
+            />
+            <span>
+              <label htmlFor={otherWalletId}>
+                <strong>Send from another wallet</strong>
+              </label>
+              <span id={`${otherWalletId}-help`}>
+                Sign with this wallet, then switch to a wallet with {PUB_CHAIN.nativeCurrency.symbol} for gas. The vote
+                counts for the signing wallet.
+              </span>
+              {sendWithAnotherWallet && (
+                <span>
+                  Your encrypted ballot is saved on this browser until you send or discard it. You can send a mask
+                  separately.
+                </span>
+              )}
+            </span>
+          </div>
+        )}
         <div className="ballot-mask-settings">
           {!isReviewMasking && (
             <div className="ballot-mask-option">
@@ -496,6 +566,7 @@ export const VoteCard = ({
                 id={maskOptionId}
                 type="checkbox"
                 checked={includeMask}
+                disabled={sendWithAnotherWallet}
                 aria-describedby={`${maskOptionId}-help`}
                 onChange={(event) => setIncludeMask(event.target.checked)}
               />
@@ -564,23 +635,72 @@ export const VoteCard = ({
                     )}
                   </div>
                 )}
+                {targetMode !== "random" && recipientError && (
+                  <div role="alert">
+                    <p className="vp-submission-error">{recipientError}</p>
+                    <PowerAction size="compact" onClick={() => setTargetAttempt((attempt) => attempt + 1)}>
+                      Try again
+                    </PowerAction>
+                  </div>
+                )}
+                {targetMode === "self" && recipients && !eligibleTarget && (
+                  <p className="vp-submission-error" role="alert">
+                    Your wallet is not eligible for this proposal. Choose another recipient.
+                  </p>
+                )}
                 {targetMode === "address" && (
-                  <label>
-                    <span>Wallet address</span>
-                    <input
-                      type="text"
-                      value={targetInput}
-                      placeholder="0x…"
-                      autoComplete="off"
-                      spellCheck={false}
-                      aria-invalid={!!targetInput && invalidTarget}
-                      onChange={(event) => setTargetInput(event.target.value)}
+                  <>
+                    <SearchField
+                      label="Find an eligible voter"
+                      placeholder="Search by wallet address…"
+                      value={recipientSearch}
+                      onChange={(value) => {
+                        setRecipientSearch(value);
+                        setTargetInput("");
+                      }}
+                      message={
+                        !recipients && !recipientError
+                          ? "Loading eligible voters…"
+                          : recipients
+                            ? `${filteredRecipients.length} eligible ${filteredRecipients.length === 1 ? "voter" : "voters"}`
+                            : undefined
+                      }
                     />
-                    {!!targetInput && invalidTarget && (
-                      <span className="vp-submission-error">Enter a valid wallet address.</span>
+                    {recipients && recipients.length === 0 ? (
+                      <p className="vp-submission-error" role="status">
+                        No eligible voters are available for this proposal.
+                      </p>
+                    ) : (
+                      recipients && (
+                        <label>
+                          <span>Choose a wallet</span>
+                          <NativeSelect value={targetInput} onChange={(event) => setTargetInput(event.target.value)}>
+                            <option value="" disabled>
+                              Select an eligible voter
+                            </option>
+                            {filteredRecipients.slice(0, 100).map((voter) => (
+                              <option key={voter.address} value={voter.address}>
+                                {`${voter.address.slice(0, 8)}…${voter.address.slice(-6)}`}
+                              </option>
+                            ))}
+                          </NativeSelect>
+                          {targetInput && (
+                            <span className="ballot-mask-address">
+                              <code>{targetInput}</code>
+                            </span>
+                          )}
+                          {filteredRecipients.length === 0 && (
+                            <span role="status">No eligible wallets match this address.</span>
+                          )}
+                          {filteredRecipients.length > 100 && (
+                            <span className="ballot-mask-hint">
+                              Showing the first 100. Refine your search to find a wallet.
+                            </span>
+                          )}
+                        </label>
+                      )
                     )}
-                    <span className="ballot-mask-hint">Must be eligible for this proposal.</span>
-                  </label>
+                  </>
                 )}
                 <p>Adds cover for voters without changing any votes.</p>
               </div>
@@ -590,23 +710,33 @@ export const VoteCard = ({
 
         <div className="ballot-review-submission">
           <strong>
-            {!isReviewMasking && includeMask ? "2" : "1"}{" "}
-            {submitOnChain
-              ? !isReviewMasking && includeMask
-                ? "transactions"
-                : "transaction"
-              : !isReviewMasking && includeMask
-                ? "submissions"
-                : "submission"}
+            {sendWithAnotherWallet && !isReviewMasking ? (
+              "Sign now · send after switching wallets"
+            ) : (
+              <>
+                {!isReviewMasking && includeMask ? "2" : "1"}{" "}
+                {sendWithAnotherWallet && !isReviewMasking
+                  ? "Nothing is sent yet. After signing, switch wallets and confirm the transaction."
+                  : submitOnChain
+                    ? !isReviewMasking && includeMask
+                      ? "transactions"
+                      : "transaction"
+                    : !isReviewMasking && includeMask
+                      ? "submissions"
+                      : "submission"}
+              </>
+            )}
           </strong>
           <p>
-            {submitOnChain
-              ? !isReviewMasking && includeMask
-                ? "Vote first, then mask. Confirm each gas fee in ETH in your wallet."
-                : "Confirm in your wallet, where you can review the gas fee in ETH."
-              : !isReviewMasking && includeMask
-                ? "Vote first, then mask. Both are sent through the relayer."
-                : "Your encrypted ballot is sent through the relayer."}
+            {sendWithAnotherWallet && !isReviewMasking
+              ? "Nothing is sent yet. After signing, switch wallets and confirm the transaction."
+              : submitOnChain
+                ? !isReviewMasking && includeMask
+                  ? "Vote first, then mask. Confirm each gas fee in ETH in your wallet."
+                  : "Confirm in your wallet, where you can review the gas fee in ETH."
+                : !isReviewMasking && includeMask
+                  ? "Vote first, then mask. Both are sent through the relayer."
+                  : "Your encrypted ballot is sent through the relayer."}
           </p>
         </div>
         <PowerAction
@@ -616,11 +746,13 @@ export const VoteCard = ({
         >
           {isReviewMasking
             ? "Submit mask ballot"
-            : includeMask
-              ? "Vote and mask"
-              : receipts.vote
-                ? "Update vote"
-                : "Submit encrypted ballot"}
+            : sendWithAnotherWallet
+              ? "Sign and save ballot"
+              : includeMask
+                ? "Vote and mask"
+                : receipts.vote
+                  ? "Update vote"
+                  : "Submit encrypted ballot"}
         </PowerAction>
       </BallotReview>
 

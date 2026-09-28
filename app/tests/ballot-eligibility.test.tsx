@@ -33,6 +33,8 @@ const notice = <BallotEligibilityNotice connected={true} canVote={false} votingP
 const now = Math.floor(Date.now() / 1000);
 const privateProps: VoteCardProps = {
   options: ["Yes", "No", "Abstain"],
+  getMaskRecipients: async () => [],
+  onPrepareVote: async () => ({ success: true, txHash: null }),
   getRandomMaskTarget: async () => "0x0000000000000000000000000000000000000001",
   onClickVote: async () => ({ success: true, txHash: null }),
   onClickMask: async () => ({ success: true, txHash: null }),

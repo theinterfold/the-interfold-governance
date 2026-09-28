@@ -5,7 +5,12 @@ import { PUB_CHAIN } from "../constants";
 import { demoConnector } from "../dev/demoConnector";
 import { demoTransport } from "../dev/fixtures";
 import { DEMO_WALLET, DESIGN_PREVIEW } from "../dev/previewMode";
-import { isDemoWalletDisconnected, setDemoWalletDisconnected } from "../dev/demoWalletSession";
+import {
+  DEMO_SENDING_WALLET,
+  switchDemoAccount,
+  isDemoWalletDisconnected,
+  setDemoWalletDisconnected,
+} from "../dev/demoWalletSession";
 import { demoState, getDemoRequest } from "../dev/simulation";
 import { createDelegateConnection } from "../plugins/velocker/utils/delegateConnection";
 
@@ -68,6 +73,7 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {
+        addEventListener: new EventTarget().addEventListener.bind(new EventTarget()),
         location: { hostname: "localhost" },
         sessionStorage: {
           getItem: (key: string) => saved.get(key) ?? null,
@@ -131,6 +137,7 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {
+        addEventListener: new EventTarget().addEventListener.bind(new EventTarget()),
         location: { hostname: "localhost" },
         sessionStorage: {
           getItem: (key: string) => saved.get(key) ?? null,
@@ -149,6 +156,31 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     expect(getAccount(config).status).toBe("disconnected");
     expect(isDemoWalletDisconnected()).toBe(true);
     await connect(config, { connector: config.connectors[0] });
+    expect(getAccount(config).address).toBe(DEMO_WALLET);
+  });
+  test("changing demo accounts updates wagmi and survives reconnect without giving the sender voting power", async () => {
+    const saved = new Map<string, string>();
+    const target = new EventTarget();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: { hostname: "localhost" },
+        addEventListener: target.addEventListener.bind(target),
+        dispatchEvent: target.dispatchEvent.bind(target),
+        sessionStorage: {
+          getItem: (key: string) => saved.get(key) ?? null,
+          setItem: (key: string, value: string) => saved.set(key, value),
+        },
+      },
+    });
+    const config = makeConfig();
+    await connect(config, { connector: config.connectors[0] });
+    switchDemoAccount();
+    expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
+    await disconnect(config);
+    await connect(config, { connector: config.connectors[0] });
+    expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
+    switchDemoAccount();
     expect(getAccount(config).address).toBe(DEMO_WALLET);
   });
 });

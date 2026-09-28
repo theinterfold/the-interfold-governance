@@ -1,7 +1,7 @@
 import { sendDemoTransaction, signDemoMessage } from "./simulation";
 import { createConnector } from "wagmi";
-import { DEMO_MESSAGE, DEMO_WALLET, requireLocalPreview } from "./previewMode";
-import { isDemoWalletDisconnected, setDemoWalletDisconnected } from "./demoWalletSession";
+import { DEMO_MESSAGE, requireLocalPreview } from "./previewMode";
+import { getDemoAccount, isDemoWalletDisconnected, setDemoWalletDisconnected } from "./demoWalletSession";
 
 /** No keys or upstream provider: supported requests run only in the local simulator. */
 export function demoConnector() {
@@ -12,17 +12,23 @@ export function demoConnector() {
     // The local provider validates supported actions before asking for a decision.
     // Avoid wagmi's separate eth_call preflight against the read-only fixtures.
     supportsSimulation: true,
+    async setup() {
+      if (typeof window !== "undefined")
+        window.addEventListener("interfold-demo-account-changed", () => {
+          config.emitter.emit("change", { accounts: [getDemoAccount()] });
+        });
+    },
     async connect() {
       requireLocalPreview();
       setDemoWalletDisconnected(false);
-      return { accounts: [DEMO_WALLET], chainId: config.chains[0].id };
+      return { accounts: [getDemoAccount()], chainId: config.chains[0].id };
     },
     async disconnect() {
       setDemoWalletDisconnected(true);
     },
     async getAccounts() {
       requireLocalPreview();
-      return isDemoWalletDisconnected() ? [] : [DEMO_WALLET];
+      return isDemoWalletDisconnected() ? [] : [getDemoAccount()];
     },
     async getChainId() {
       return config.chains[0].id;
@@ -41,7 +47,7 @@ export function demoConnector() {
         async request({ method, params }: { method: string; params?: unknown[] }) {
           requireLocalPreview();
           if (method === "eth_accounts" || method === "eth_requestAccounts")
-            return isDemoWalletDisconnected() ? [] : [DEMO_WALLET];
+            return isDemoWalletDisconnected() ? [] : [getDemoAccount()];
           if (method === "eth_chainId") return `0x${config.chains[0].id.toString(16)}`;
           if (isDemoWalletDisconnected()) {
             throw Object.assign(new Error("Connect the demo wallet first."), { code: 4100 });

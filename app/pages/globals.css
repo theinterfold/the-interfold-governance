@@ -3385,8 +3385,8 @@ label div p.leading-tight,
 .ballot-mask-option strong svg { width: 22px; height: 22px; }
 .ballot-mask-option > span > span { color: var(--muted); font: 400 13px/1.5 var(--font-sans); }
 .ballot-mask-target { display: flex; flex-direction: column; gap: var(--ui-space-related); }
-.ballot-mask-target label { display: flex; flex-direction: column; gap: var(--ui-space-tight); margin: 0; color: var(--muted); font: var(--ui-label-font); }
-.ballot-mask-target select, .ballot-mask-target input { min-width: 0; width: 100%; padding: 12px; border: 1px solid var(--rule-strong); border-radius: var(--action-radius); color: var(--ink); background: var(--paper); font: 500 14px/1.4 var(--font-sans); }
+.ballot-mask-target > label { display: flex; flex-direction: column; gap: var(--ui-space-tight); margin: 0; color: var(--muted); font: var(--ui-label-font); }
+.ballot-mask-target select { min-width: 0; width: 100%; padding: 12px; border: 1px solid var(--rule-strong); border-radius: var(--action-radius); color: var(--ink); background: var(--paper); font: 500 14px/1.4 var(--font-sans); }
 .ballot-mask-address { display: flex; flex-direction: column; gap: 8px; overflow-wrap: anywhere; font: 400 12px/1.5 var(--font-sans); color: var(--muted); }
 .ballot-mask-address code { font: 400 12px/1.5 var(--font-mono); }
 .ballot-mask-target p, .ballot-mask-hint { font: 400 12px/1.5 var(--font-sans); color: var(--muted); }

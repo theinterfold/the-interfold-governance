@@ -1,6 +1,7 @@
+import { switchDemoAccount, DEMO_SENDING_WALLET } from "./demoWalletSession";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useDisconnect } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { ActionTray } from "@/plugins/velocker/components/actionTray";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import {
@@ -23,6 +24,7 @@ export function DemoWalletPanel() {
   const [resetError, setResetError] = useState("");
   const trigger = useRef<HTMLElement | null>(null);
   const query = useQueryClient();
+  const { address } = useAccount();
   const { disconnect, isPending: isDisconnecting, error: disconnectError, reset: resetDisconnect } = useDisconnect();
   useEffect(
     () =>
@@ -80,6 +82,14 @@ export function DemoWalletPanel() {
             Use any supported action on the page. This wallet will open so you can confirm, reject or test an error.
             Changes stay in this browser session.
           </p>
+          <PowerAction
+            onClick={() => {
+              switchDemoAccount();
+              setSettings(false);
+            }}
+          >
+            {address?.toLowerCase() === DEMO_SENDING_WALLET.toLowerCase() ? "Use voting wallet" : "Use sending wallet"}
+          </PowerAction>
           <PowerAction
             onClick={() => {
               try {

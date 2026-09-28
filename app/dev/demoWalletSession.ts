@@ -1,4 +1,4 @@
-import { requireLocalPreview } from "./previewMode";
+import { DEMO_WALLET, requireLocalPreview } from "./previewMode";
 
 const storageKey = "interfold-demo-wallet-connection";
 let disconnected: boolean | undefined;
@@ -28,4 +28,24 @@ export function setDemoWalletDisconnected(value: boolean) {
   } catch {
     // Disconnecting must still work when browser storage is unavailable.
   }
+}
+
+/** A second address-only account for reviewing sign-then-send. No private keys exist. */
+export const DEMO_SENDING_WALLET = "0x000000000000000000000000000000000000deff" as const;
+const accountKey = "interfold-demo-wallet-account";
+export function getDemoAccount() {
+  requireLocalPreview();
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage.getItem(accountKey) === DEMO_SENDING_WALLET)
+      return DEMO_SENDING_WALLET;
+  } catch {
+    /* Fall back to the voting wallet. */
+  }
+  return DEMO_WALLET;
+}
+export function switchDemoAccount() {
+  requireLocalPreview();
+  const next = getDemoAccount() === DEMO_WALLET ? DEMO_SENDING_WALLET : DEMO_WALLET;
+  window.sessionStorage.setItem(accountKey, next);
+  window.dispatchEvent(new CustomEvent("interfold-demo-account-changed", { detail: next }));
 }

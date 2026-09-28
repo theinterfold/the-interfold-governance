@@ -451,3 +451,26 @@ export async function simulateDemoBallot(id: bigint, option: bigint, mask: boole
   if (!mask) demoState().votes[`private:${id}`] = Number(option);
   persist();
 }
+
+export async function prepareDemoBallot(id: bigint, option: bigint) {
+  requireLocalPreview();
+  const outcome = await requestOutcome({
+    title: "Sign secret ballot",
+    detail: `Proposal #${id} · ${["Yes", "No", "Abstain"][Number(option)] ?? "Vote"} · send later with another wallet`,
+    kind: "signature",
+  });
+  if (outcome === "revert") throw new Error("The simulated signature failed. Try again.");
+}
+
+export async function sendPreparedDemoBallot(id: bigint, option: bigint, voter: Address, sender: Address) {
+  requireLocalPreview();
+  if (sameAddress(voter, sender)) throw new Error("Switch to a different wallet to send this vote.");
+  const outcome = await requestOutcome({
+    title: "Send signed ballot",
+    detail: `Sending from ${sender}. The vote counts for ${voter}.`,
+    kind: "transaction",
+  });
+  if (outcome === "revert") throw new Error("The simulated transaction reverted. Your signed ballot is saved.");
+  demoState().votes[`private:${id}`] = Number(option);
+  persist();
+}

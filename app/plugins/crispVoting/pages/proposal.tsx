@@ -1,3 +1,5 @@
+import { AddressText } from "@/components/text/address";
+import { PreparedVoteCard } from "../components/vote/preparedVoteCard";
 import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
 import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
 import { e3RoundNumber } from "../utils/ballotDigest";
@@ -86,6 +88,12 @@ function ProposalDetailBody({
     error,
     postVote,
     getRandomMaskTarget,
+    getMaskRecipients,
+    preparedBallot,
+    preparedReceipt,
+    prepareVote,
+    sendPreparedVote,
+    discardPreparedVote,
     votingStep,
     lastActiveStep,
     stepMessage,
@@ -171,7 +179,34 @@ function ProposalDetailBody({
           voting={
             <>
               {/* Both voting methods share the same reading, ballot and supporting-data layout. */}
-              {proposalStatus === ProposalStatus.ACTIVE && (
+              {preparedReceipt && !preparedBallot && (
+                <div className="vp-submitted" role="status">
+                  <span aria-hidden="true">✓</span>
+                  <span>
+                    Vote submitted for <AddressText bold={false}>{preparedReceipt.voter}</AddressText>
+                  </span>
+                  {preparedReceipt.txHash && (
+                    <a
+                      className="ui-text-action"
+                      href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${preparedReceipt.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View transaction ↗
+                    </a>
+                  )}
+                </div>
+              )}
+              {preparedBallot && (
+                <PreparedVoteCard
+                  ballot={preparedBallot}
+                  busy={isLoading}
+                  error={error}
+                  onSend={sendPreparedVote}
+                  onDiscard={discardPreparedVote}
+                />
+              )}
+              {proposalStatus === ProposalStatus.ACTIVE && !preparedBallot && (
                 <VoteCard
                   key={`${proposalIdx}-${address}`}
                   votingPower={
@@ -184,6 +219,14 @@ function ProposalDetailBody({
                   proposalTitle={proposal.title}
                   maskAsOption={ballotVariant === "option"}
                   getRandomMaskTarget={getRandomMaskTarget}
+                  getMaskRecipients={getMaskRecipients}
+                  onPrepareVote={(option) =>
+                    prepareVote(
+                      BigInt(option),
+                      proposal.parameters.snapshotBlock,
+                      Number(proposal.parameters.endDate) * 1000
+                    )
+                  }
                   eligibilityNotice={eligibilityNotice}
                   canMask={!!address && canVote !== undefined}
                   voteStartDate={Number(proposal?.parameters.startDate)}

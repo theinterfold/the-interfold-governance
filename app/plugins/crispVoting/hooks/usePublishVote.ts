@@ -30,7 +30,10 @@ export type PublishVote = {
   /** Still resolving the reads needed to answer that. */
   isLoading: boolean;
   /** Submits an already-built vote payload directly to the CRISP program. */
-  publish: (encodedProof: Hex) => Promise<Hex>;
+  publish: (
+    encodedProof: Hex,
+    options?: { account: Address; expectedProgram?: Address; onSubmitted?: (hash: Hex) => void }
+  ) => Promise<Hex>;
 };
 
 /**
@@ -48,7 +51,7 @@ export type PublishVote = {
  * before it is rejected — but it does mean a relayer cannot substitute or drop a valid vote.)
  */
 export function usePublishVote(e3Id: bigint | undefined): PublishVote {
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: PUB_CHAIN.id });
   const enabled = e3Id !== undefined;
 
   const { data: interfold } = useReadContract({
@@ -142,20 +145,37 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     onErrorMessage: "Could not publish the vote on-chain",
   });
 
-  const publish = async (encodedProof: Hex) => {
+  const publish: PublishVote["publish"] = async (encodedProof, options) => {
     if (e3Id === undefined) throw new Error("No round selected");
     if (!client) throw new Error("No RPC client available");
     if (!programAddress) throw new Error("The round's CRISP program could not be resolved");
     if (blockedReason) throw new Error(blockedReason);
 
-    const hash = await writeContractAsync({
+    // Check the live round again after a wallet switch or reload; cached reads are only UI hints.
+    const liveE3 = await client.readContract({
+      address: interfoldAddress!,
+      abi: interfoldAbi,
+      functionName: "getE3",
+      args: [e3Id],
+    });
+    if (options?.expectedProgram && liveE3.e3Program.toLowerCase() !== options.expectedProgram.toLowerCase()) {
+      throw new Error("The prepared ballot belongs to a different voting program. Discard it and prepare a new vote.");
+    }
+    const request = {
+      account: options?.account,
       chainId: PUB_CHAIN.id,
       abi: crispProgramAbi,
-      address: programAddress,
-      functionName: "publishInput",
-      args: [e3Id, encodedProof],
+      address: liveE3.e3Program,
+      functionName: "publishInput" as const,
+      args: [e3Id, encodedProof] as const,
+    };
+    // A stale slot head or a closed round must fail before asking the sending wallet to pay gas.
+    await client.simulateContract(request);
+    const hash = await writeContractAsync({
+      ...request,
     });
 
+    options?.onSubmitted?.(hash);
     await awaitSuccessfulReceipt(client, hash, "The vote");
 
     return hash;

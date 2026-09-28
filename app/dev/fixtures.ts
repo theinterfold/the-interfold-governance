@@ -1,3 +1,4 @@
+import { DEMO_SENDING_WALLET } from "./demoWalletSession";
 import { DEMO_ADAPTER, DEMO_LOCK_NFT, demoState, demoLockVotes, demoTransactionRead } from "./simulation";
 import { lockNftAbi } from "@/plugins/velocker/artifacts/lockNft";
 import {
@@ -91,9 +92,11 @@ const capturedDelegatePowers = new Map(
   delegateSnapshot.data.delegates.map((entry) => [entry.address.toLowerCase(), BigInt(entry.voting_power)])
 );
 const power = (address: unknown) =>
-  same(String(address), DEMO_WALLET)
-    ? demoLockVotes(address) + 25000n * unit
-    : (capturedDelegatePowers.get(String(address).toLowerCase()) ?? 25000n * unit);
+  same(String(address), DEMO_SENDING_WALLET)
+    ? 0n
+    : same(String(address), DEMO_WALLET)
+      ? demoLockVotes(address) + 25000n * unit
+      : (capturedDelegatePowers.get(String(address).toLowerCase()) ?? 25000n * unit);
 
 function stages(isPrivate: boolean) {
   return [
