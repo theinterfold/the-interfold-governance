@@ -6,11 +6,12 @@ import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from 
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { parseAbi } from "viem";
+import { parseAbi, size, type Address } from "viem";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
+import { equalAddresses } from "@/utils/evm";
 import { readServerRejection } from "../utils/readServerRejection";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
@@ -57,7 +58,8 @@ interface CrispServerState {
     snapshotBlock: bigint,
     isAMask?: boolean,
     /** Send the vote yourself instead of handing it to the CRISP server to relay. */
-    submitOnChain?: boolean
+    submitOnChain?: boolean,
+    options?: PostVoteOptions
   ) => Promise<void>;
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
@@ -67,6 +69,11 @@ interface CrispServerState {
   canPublishOnChain: boolean;
   /** Why the on-chain route is unavailable, when it is. */
   onChainBlockedReason?: string;
+}
+
+interface PostVoteOptions {
+  /** Mask this slot instead of a random eligible voter's. Ignored for a real vote. */
+  maskTarget?: Address;
 }
 
 interface VoteResponse {
@@ -146,17 +153,38 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     e3Id: bigint,
     numOptions: string,
     /// Set for an ONCHAIN round: the program that will verify the mask.
-    crispProgram?: `0x${string}`
-  ) => {
+    crispProgram?: `0x${string}`,
+    /// The slot to mask. Without one, a random eligible voter's.
+    target?: Address
+  ): Promise<VoteData> => {
+    const zeroVote = getZeroVote(Number.parseInt(numOptions));
+
+    // An ONCHAIN round needs no census for a chosen slot: the program is the authority on its
+    // weight. `votingPowerOf` skips the eligibility floor, but such a round refuses any floor below
+    // one ballot unit (`MinVotingPowerBelowScale`), so zero here always means `publishInput` would
+    // reject the slot with `SlotNotEligible` — better said now than after proving.
+    if (target && crispProgram) {
+      const balance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, target);
+      if (balance === 0n) {
+        throw new Error(`${target} holds no voting power in this round, so it cannot be masked.`);
+      }
+      return { vote: zeroVote, balance, slotAddress: target };
+    }
+
     const eligibleVoters = await getEligibleVoters(e3Id);
 
     if (!eligibleVoters || eligibleVoters.length === 0) {
       throw new Error("No eligible voters available for masking");
     }
 
-    const voter = getRandomVoterToMask(eligibleVoters);
+    // A Merkle round proves the slot's census leaf, so a chosen slot has to be in the census.
+    const voter = target
+      ? eligibleVoters.find((v) => equalAddresses(v.address, target))
+      : getRandomVoterToMask(eligibleVoters);
 
-    const zeroVote = getZeroVote(Number.parseInt(numOptions));
+    if (!voter) {
+      throw new Error(`${target} is not in this round's census, so it cannot be masked.`);
+    }
 
     // A mask is still checked against public input 4, so its voting power has to be the number
     // the contract will supply for that slot — not the balance the server recorded. The two
@@ -167,8 +195,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       : voter.balance;
 
     return {
-      voter,
-      eligibleVoters,
       vote: zeroVote,
       balance,
       slotAddress: voter.address,
@@ -266,9 +292,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     e3Id: bigint,
     snapshotBlock: bigint,
     isAMask: boolean = false,
-    submitOnChain: boolean = false
+    submitOnChain: boolean = false,
+    options: PostVoteOptions = {}
   ) => {
     setIsLoading(true);
+    // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
+    setTxHash(null);
     try {
       if (!address) {
         setError("No wallet address found");
@@ -329,7 +358,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       let voteData;
       if (isAMask) {
-        voteData = await handleMask(e3Id, roundState.num_options, isOnchainCensus ? crispProgram : undefined);
+        voteData = await handleMask(
+          e3Id,
+          roundState.num_options,
+          isOnchainCensus ? crispProgram : undefined,
+          options.maskTarget
+        );
       } else {
         voteData = await handleVote(
           e3Id,
@@ -415,6 +449,15 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
             ciphertextCommitment: prepared.ctCommitment,
           },
         });
+
+        // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
+        // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
+        // otherwise fail with a bare "invalid signature length".
+        if (size(signature) !== 65) {
+          throw new Error(
+            "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key, or delegate this account's voting power to one."
+          );
+        }
 
         setVotingStep("generating_proof");
         setLastActiveStep("generating_proof");

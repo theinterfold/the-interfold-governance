@@ -99,7 +99,7 @@ export const VoteCard = ({
         {!error && !notice && (
           <p className="vp-note">
             Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
-            after the voting period ends.
+            after the voting period ends. Voting from a Safe or other smart-contract wallet isn&apos;t supported yet.
           </p>
         )}
 

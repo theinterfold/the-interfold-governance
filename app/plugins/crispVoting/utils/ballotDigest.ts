@@ -1,4 +1,4 @@
-import { parseAbi, type Address, type PublicClient } from "viem";
+import { decodeAbiParameters, parseAbi, parseAbiParameters, type Address, type PublicClient } from "viem";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 
@@ -15,6 +15,22 @@ const crispProgramAbi = parseAbi([
 
 /// Mirrors `CRISPProgram.CensusMode`.
 export const CensusMode = { TOKEN: 0, BY_REQUESTER: 1, ONCHAIN: 2 } as const;
+
+/** The round's E3 record, found through the plugin's own Interfold rather than configuration. */
+const readE3 = async (client: PublicClient, pluginAddress: Address, e3Id: bigint) => {
+  const interfoldAddress = await client.readContract({
+    address: pluginAddress,
+    abi: pluginAbi,
+    functionName: "interfold",
+  });
+
+  return client.readContract({
+    address: interfoldAddress,
+    abi: interfoldAbi,
+    functionName: "getE3",
+    args: [e3Id],
+  });
+};
 
 /**
  * Resolve the CRISP program a round was requested against.
@@ -36,20 +52,37 @@ export const resolveCrispProgram = async (
   pluginAddress: Address,
   e3Id: bigint
 ): Promise<Address> => {
-  const interfoldAddress = await client.readContract({
-    address: pluginAddress,
-    abi: pluginAbi,
-    functionName: "interfold",
-  });
-
-  const e3 = await client.readContract({
-    address: interfoldAddress,
-    abi: interfoldAbi,
-    functionName: "getE3",
-    args: [e3Id],
-  });
-
+  const e3 = await readE3(client, pluginAddress, e3Id);
   return e3.e3Program;
+};
+
+/// `customParams` as `CrispVoting._buildRequestParams` encodes them and `CRISPProgram.validate`
+/// decodes them: seven fields, in this order.
+const requestCustomParams = parseAbiParameters(
+  "address token, uint256 minVotingPower, uint256 numOptions, uint8 creditMode, uint256 credits, uint8 censusMode, uint256 votingPowerDivisor"
+);
+
+/**
+ * The eligibility floor the CRISP program enforces for a round, in the voting token's raw units.
+ *
+ * Read from the round's request, not the proposal. `proposal.parameters.minVotingPower` keeps the
+ * plugin setting as configured, but `CrispVoting._buildRequestParams` raises it to at least one
+ * ballot unit (`10^(decimals-1)`) before requesting — a floor of 1 wei becomes 0.1 FOLD — and the
+ * raised value is the one `publishInput` enforces (`SlotNotEligible`) and the CRISP server applies.
+ *
+ * @param client The public client.
+ * @param pluginAddress The CRISP voting plugin.
+ * @param e3Id The round.
+ * @returns The enforced floor.
+ */
+export const getRoundEligibilityFloor = async (
+  client: PublicClient,
+  pluginAddress: Address,
+  e3Id: bigint
+): Promise<bigint> => {
+  const { customParams } = await readE3(client, pluginAddress, e3Id);
+  const [, minVotingPower] = decodeAbiParameters(requestCustomParams, customParams);
+  return minVotingPower;
 };
 
 /**

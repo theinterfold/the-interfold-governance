@@ -20,7 +20,6 @@ interface EligibleVotersDialogProps {
   onClose: () => void;
   e3Id?: bigint;
   chainSnapshot?: bigint;
-  chainThreshold?: bigint;
   creditMode?: CreditsMode | number;
 }
 
@@ -45,14 +44,7 @@ const STATUS_CLASS: Record<VerificationCheck["status"], string> = {
  * The point is not to display the server's list — that would be the server vouching for
  * itself — but to re-derive it from chain state and show where the two disagree.
  */
-export const EligibleVotersDialog = ({
-  open,
-  onClose,
-  e3Id,
-  chainSnapshot,
-  chainThreshold,
-  creditMode,
-}: EligibleVotersDialogProps) => {
+export const EligibleVotersDialog = ({ open, onClose, e3Id, chainSnapshot, creditMode }: EligibleVotersDialogProps) => {
   const { address } = useAccount();
   const decimals = useTokenDecimals();
   const [filter, setFilter] = useState("");
@@ -60,7 +52,6 @@ export const EligibleVotersDialog = ({
 
   const { data, isLoading, error } = useEligibleVoters(e3Id, {
     chainSnapshot,
-    chainThreshold,
     creditMode,
     decimals,
     enabled: open,

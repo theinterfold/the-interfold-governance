@@ -16,6 +16,7 @@ import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
 import { VoteCard } from "../components/vote/voteCard";
+import { MaskTargetDialog } from "../components/vote/maskTargetDialog";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
 import { RefundCard } from "../components/fee/refundCard";
@@ -67,6 +68,7 @@ function ProposalDetailBody({
   const directOnly = PUB_CHAIN.id === 1;
   const [submitOnChainChoice, setSubmitOnChainChoice] = useState(false);
   const submitOnChain = directOnly ? true : submitOnChainChoice;
+  const [showMaskPicker, setShowMaskPicker] = useState(false);
   const {
     proposal,
     isCommitteeReady,
@@ -115,10 +117,12 @@ function ProposalDetailBody({
     postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
   };
 
-  const onMask = () => {
+  const onMask = (target?: Address) => {
     if (!proposal) return;
     // Mask uses the next index after the last option
-    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain);
+    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain, {
+      maskTarget: target,
+    });
   };
 
   // Warn only about power that is NOT already counted. With the velocker, `votingPower` comes from
@@ -184,7 +188,7 @@ function ProposalDetailBody({
                 onChainBlockedReason={onChainBlockedReason}
                 submitOnChain={submitOnChain}
                 onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
-                onClickMask={onMask}
+                onClickMask={() => setShowMaskPicker(true)}
                 proposalId={proposalIdx}
                 votingStep={votingStep}
                 lastActiveStep={lastActiveStep}
@@ -192,6 +196,16 @@ function ProposalDetailBody({
                 txHash={txHash}
               />
             )}
+            <MaskTargetDialog
+              open={showMaskPicker}
+              onClose={() => setShowMaskPicker(false)}
+              onPick={(target) => {
+                setShowMaskPicker(false);
+                onMask(target);
+              }}
+              e3Id={proposal.e3Id}
+              exclude={address}
+            />
             {error && (
               <div className="border border-critical-200 bg-critical-100 px-4 py-3">
                 <p className="text-sm text-critical-600">{error}</p>
@@ -229,7 +243,10 @@ function ProposalDetailBody({
             <ProposalActions actions={sppActions} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} plugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS} />
+            <VotingPower
+              snapshotTimepoint={proposal.parameters.snapshotBlock}
+              plugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+            />
             <ParticipationCard proposal={proposal} />
             <ActivityCard e3Id={proposal.e3Id} />
             <VetoStageCard

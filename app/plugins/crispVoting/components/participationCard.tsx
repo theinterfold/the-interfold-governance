@@ -100,7 +100,6 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
         onClose={() => setShowVoters(false)}
         e3Id={proposal.e3Id}
         chainSnapshot={proposal.parameters.snapshotBlock}
-        chainThreshold={proposal.parameters.minVotingPower}
         creditMode={creditMode}
       />
     </div>

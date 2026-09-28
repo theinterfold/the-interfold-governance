@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
-import { usePublicClient, useReadContract } from "wagmi";
+import { useReadContract } from "wagmi";
 import {
   MINIMUM_START_DELAY_IN_SECONDS,
   PUB_APP_NAME,
@@ -42,7 +42,6 @@ export function useCreateProposal() {
   const [resources, setResources] = useState<{ name: string; url: string }[]>([
     { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
   ]);
-  const publicClient = usePublicClient();
 
   // The voting window is the stage-configured one (5 days on mainnet), never creator-chosen:
   // the SPP creates the sub-proposal with endDate = start + stage.voteDuration, and the
@@ -120,12 +119,6 @@ export function useCreateProposal() {
         type: "error",
       });
     }
-    if (!publicClient) {
-      return addAlert("Voting schedule unavailable", {
-        description: "Could not connect to the chain. Please try again.",
-        type: "error",
-      });
-    }
     if (quote === undefined || credit === undefined) {
       return addAlert("Fee quote unavailable", {
         description: "Could not read the proposal fee from the plugin. Please try again.",
@@ -174,21 +167,15 @@ export function useCreateProposal() {
       // _proposalParams is indexed [stageIdx][bodyIdx]; stage 1 (veto) is manual.
       const proposalParams: `0x${string}`[][] = [[crispData], []];
 
-      // Read the schedule again immediately before submission. Uploading metadata and depositing
-      // a fee can take long enough for an earlier value to become invalid.
-      const earliestVotingStart = await publicClient.readContract({
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-        abi: CrispVotingAbi,
-        functionName: "earliestVotingStart",
-      });
-      const scheduledStart = scheduleVotingStart(earliestVotingStart as bigint, startBufferSeconds);
-
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
         abi: StagedProposalProcessorAbi,
         address: PUB_SPP_PRIVATE_ADDRESS,
         functionName: "createProposal",
-        args: [toHex(ipfsPin), actions, scheduledStart, 0n, proposalParams],
+        // Positional: (metadata, actions, allowFailureMap, startDate, proposalParams). Every action
+        // must succeed, and 0 starts the stage now — CrispVoting lifts any start below
+        // `earliestVotingStart()` up to it, so the voting window never depended on this argument.
+        args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
         gas: CREATE_PROPOSAL_GAS_LIMIT,
       });
     } catch (err) {

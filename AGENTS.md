@@ -291,6 +291,12 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
 - **`MINIMUM_PARTICIPATION` is a percentage of `RATIO_BASE = 100`** (CRISP), so 1 = 1% and the
   finest step is 1%. `0` disables quorum (testing). TokenVoting's `TV_MIN_PARTICIPATION` is ppm
   out of 1_000_000 instead.
+- **The floor a round enforces is not `proposal.parameters.minVotingPower`.** That field keeps the
+  plugin's `minVoterVotingPower` as configured; `_buildRequestParams` raises it to one ballot unit
+  (`10^(decimals-1)`, so 1 wei becomes 0.1 FOLD) before requesting, and the raised value — in the
+  round's `customParams` — is what `publishInput` enforces and the CRISP server applies. Read it
+  with `getRoundEligibilityFloor`. Using the proposal field flagged the server's census as wrong
+  and told holders under 0.1 FOLD they could vote, until `SlotNotEligible` refused the ballot.
 - **The indexer RPC only serves addresses it is told about, and the app reaches ones it is not.**
   `/chain/rpc` on the CRISP server answers `Address not served by this indexer: 0x…` for anything
   outside `INDEX_CONTRACTS`, and the escrow's satellites (exit queue, lock NFT, IVotes adapter) are

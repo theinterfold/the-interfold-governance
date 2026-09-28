@@ -11,6 +11,7 @@ import { iVotesAbi } from "../artifacts/iVotes";
 import { generateMerkleTree, getScaledBalance, hashLeaf } from "@crisp-e3/sdk";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import { crispSdk } from "../utils/crispSdk";
+import { CensusMode, getCensusMode, getRoundEligibilityFloor, resolveCrispProgram } from "../utils/ballotDigest";
 import { voteScale } from "../utils/quorum";
 
 import type { Address } from "viem";
@@ -27,7 +28,7 @@ const votingTokenAbi = parseAbi(["function getVotingToken() view returns (addres
  * (see `PersistQueryClientProvider` in `context/index.tsx`, gcTime 24h), so a code
  * change alone will keep serving a stale report — the query key must change too.
  */
-const REPORT_VERSION = 2;
+const REPORT_VERSION = 4;
 
 /** How many `getPastVotes` reads to bundle into a single multicall. */
 const MULTICALL_BATCH = 200;
@@ -88,14 +89,12 @@ export function useEligibleVoters(
   opts: {
     /** `proposal.parameters.snapshotBlock` — token-clock units (a TIMESTAMP for FOLD). */
     chainSnapshot?: bigint;
-    /** `proposal.parameters.minVotingPower` — the on-chain eligibility floor. */
-    chainThreshold?: bigint;
     creditMode?: CreditsMode | number;
     decimals?: number;
     enabled?: boolean;
   }
 ) {
-  const { chainSnapshot, chainThreshold, creditMode, decimals, enabled = true } = opts;
+  const { chainSnapshot, creditMode, decimals, enabled = true } = opts;
 
   return useQuery<EligibleVotersReport>({
     queryKey: ["crisp-eligible-voters", REPORT_VERSION, e3Id?.toString(), chainSnapshot?.toString(), decimals],
@@ -105,25 +104,39 @@ export function useEligibleVoters(
     queryFn: async () => {
       const id = BigInt(e3Id!);
 
-      const [holders, leafHashes, tokenDetails, onChainRound, pluginVotingToken] = await Promise.all([
-        crispSdk.getEligibleAddresses(id),
-        crispSdk.getTokenHolderHashes(id).catch(() => [] as string[]),
-        crispSdk.getRoundTokenDetails(id).catch(() => undefined),
-        PUB_CRISP_PROGRAM_ADDRESS
-          ? crispSdk.getOnChainRoundData(PUB_CRISP_PROGRAM_ADDRESS, id, PUB_CHAIN.id).catch(() => undefined)
-          : undefined,
-        // The PLUGIN decides which token carries voting power; env constants only mirror it and
-        // can drift. Ask the contract, and fall back to the configured source if the read fails.
-        publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
-          ? publicClient
-              .readContract({
-                address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-                abi: votingTokenAbi,
-                functionName: "getVotingToken",
-              })
-              .catch(() => undefined)
-          : undefined,
-      ]);
+      const [holders, leafHashes, tokenDetails, onChainRound, pluginVotingToken, roundFloor, censusMode] =
+        await Promise.all([
+          crispSdk.getEligibleAddresses(id),
+          crispSdk.getTokenHolderHashes(id).catch(() => [] as string[]),
+          crispSdk.getRoundTokenDetails(id).catch(() => undefined),
+          PUB_CRISP_PROGRAM_ADDRESS
+            ? crispSdk.getOnChainRoundData(PUB_CRISP_PROGRAM_ADDRESS, id, PUB_CHAIN.id).catch(() => undefined)
+            : undefined,
+          // The PLUGIN decides which token carries voting power; env constants only mirror it and
+          // can drift. Ask the contract, and fall back to the configured source if the read fails.
+          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+            ? publicClient
+                .readContract({
+                  address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+                  abi: votingTokenAbi,
+                  functionName: "getVotingToken",
+                })
+                .catch(() => undefined)
+            : undefined,
+          // The floor the CRISP program enforces, read from the round's own request. The proposal's
+          // `minVotingPower` is the setting BEFORE the plugin raised it to one ballot unit, so it
+          // would report the server as wrong whenever the DAO's floor sits below that.
+          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+            ? getRoundEligibilityFloor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id).catch(() => undefined)
+            : undefined,
+          // The census the round's own program validated it under. Asking the configured program would
+          // work for current rounds, but `censusModeOf` answers TOKEN (0) for a round it never saw.
+          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+            ? resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id)
+                .then((program) => getCensusMode(publicClient, program, id))
+                .catch(() => undefined)
+            : undefined,
+        ]);
 
       // Authoritative source for every voting-power read below.
       const votingToken = (pluginVotingToken as Address | undefined) ?? PUB_VOTING_POWER_SOURCE;
@@ -277,29 +290,37 @@ export function useEligibleVoters(
         });
       }
 
-      if (tokenDetails?.threshold !== undefined && chainThreshold !== undefined) {
-        const same = tokenDetails.threshold === chainThreshold;
+      if (tokenDetails?.threshold !== undefined && roundFloor !== undefined) {
+        const same = tokenDetails.threshold === roundFloor;
         checks.push({
           id: "threshold",
-          label: "Eligibility threshold matches the proposal",
+          label: "Eligibility threshold matches the round",
           status: same ? "pass" : "warn",
-          detail: same ? `${chainThreshold}` : `server ${tokenDetails.threshold} vs chain ${chainThreshold}`,
+          detail: same ? `${roundFloor}` : `server ${tokenDetails.threshold} vs chain ${roundFloor}`,
         });
       }
+
+      // An ONCHAIN census has no tree: the CRISP program reads each ballot's weight from the token
+      // itself, posts no root, and the server serves no leaves. Every Merkle check below would report
+      // a commitment such a round never makes, so they are skipped for it. An unknown mode keeps
+      // them: a warning that cannot be ruled out is not hidden.
+      const hasCensusTree = censusMode !== CensusMode.ONCHAIN;
 
       // Round data read straight from the CRISP program (Crisp.sol).
       if (onChainRound) {
         // A zero root means the round carries no eligibility commitment at all — the set
         // above is then server-asserted with nothing on-chain binding it.
-        checks.push({
-          id: "root",
-          label: "Round commits to an eligibility merkle root",
-          status: onChainRound.merkleRoot !== 0n ? "pass" : "fail",
-          detail:
-            onChainRound.merkleRoot !== 0n
-              ? `0x${onChainRound.merkleRoot.toString(16)}`
-              : "root is zero — nothing binds this set on-chain",
-        });
+        if (hasCensusTree) {
+          checks.push({
+            id: "root",
+            label: "Round commits to an eligibility merkle root",
+            status: onChainRound.merkleRoot !== 0n ? "pass" : "fail",
+            detail:
+              onChainRound.merkleRoot !== 0n
+                ? `0x${onChainRound.merkleRoot.toString(16)}`
+                : "root is zero — nothing binds this set on-chain",
+          });
+        }
 
         // INV-34: this app is fixed at 3 options / CUSTOM credits.
         checks.push({
@@ -316,53 +337,55 @@ export function useEligibleVoters(
       // compare against the root the CRISP program committed for this round.
       const leaves = leafHashes.map((h) => BigInt(h.startsWith("0x") ? h : `0x${h}`));
 
-      if (!leaves.length) {
-        checks.push({
-          id: "root-recompute",
-          label: "Served set reproduces the on-chain root",
-          status: "warn",
-          detail: "The server returned no census leaves",
-        });
-      } else if (onChainRound === undefined) {
-        checks.push({
-          id: "root-recompute",
-          label: "Served set reproduces the on-chain root",
-          status: "unknown",
-          detail: "Could not read the round's root from the CRISP program",
-        });
-      } else {
-        let recomputed: bigint | undefined;
-        try {
-          recomputed = generateMerkleTree(leaves).root;
-        } catch {
-          recomputed = undefined;
-        }
+      if (hasCensusTree) {
+        if (!leaves.length) {
+          checks.push({
+            id: "root-recompute",
+            label: "Served set reproduces the on-chain root",
+            status: "warn",
+            detail: "The server returned no census leaves",
+          });
+        } else if (onChainRound === undefined) {
+          checks.push({
+            id: "root-recompute",
+            label: "Served set reproduces the on-chain root",
+            status: "unknown",
+            detail: "Could not read the round's root from the CRISP program",
+          });
+        } else {
+          let recomputed: bigint | undefined;
+          try {
+            recomputed = generateMerkleTree(leaves).root;
+          } catch {
+            recomputed = undefined;
+          }
 
-        checks.push(
-          recomputed === undefined
-            ? {
-                id: "root-recompute",
-                label: "Served set reproduces the on-chain root",
-                status: "warn",
-                detail: "Could not rebuild the tree from the served leaves",
-              }
-            : {
-                id: "root-recompute",
-                label: "Served set reproduces the on-chain root",
-                status: recomputed === onChainRound.merkleRoot ? "pass" : "fail",
-                detail:
-                  recomputed === onChainRound.merkleRoot
-                    ? `${leaves.length} leaves rebuild the committed root`
-                    : `rebuilt 0x${recomputed.toString(16)} != on-chain 0x${onChainRound.merkleRoot.toString(16)}`,
-              }
-        );
+          checks.push(
+            recomputed === undefined
+              ? {
+                  id: "root-recompute",
+                  label: "Served set reproduces the on-chain root",
+                  status: "warn",
+                  detail: "Could not rebuild the tree from the served leaves",
+                }
+              : {
+                  id: "root-recompute",
+                  label: "Served set reproduces the on-chain root",
+                  status: recomputed === onChainRound.merkleRoot ? "pass" : "fail",
+                  detail:
+                    recomputed === onChainRound.merkleRoot
+                      ? `${leaves.length} leaves rebuild the committed root`
+                      : `rebuilt 0x${recomputed.toString(16)} != on-chain 0x${onChainRound.merkleRoot.toString(16)}`,
+                }
+          );
+        }
       }
 
       // --- Leaf contents ------------------------------------------------------
       // The root proves the served leaves are the committed ones; this proves those
       // leaves encode the balances the token actually reports at the snapshot.
       // Membership rather than index, so leaf ordering is irrelevant.
-      if (leaves.length && decimals !== undefined) {
+      if (hasCensusTree && leaves.length && decimals !== undefined) {
         const leafSet = new Set(leaves);
         const checkable = rows.filter((r) => r.onChainPower !== undefined);
         const missing = checkable.filter((r) => !leafSet.has(hashLeaf(r.address, scaleDown(r.onChainPower!)))).length;
