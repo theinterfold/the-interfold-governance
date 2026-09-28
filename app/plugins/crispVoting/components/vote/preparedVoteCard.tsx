@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { BallotPanel } from "@/components/proposalVoting/ballot";
-import { AddressText } from "@/components/text/address";
+import { BallotWalletSummary } from "@/components/proposalVoting/ballotWalletSummary";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { PowerWarning } from "@/plugins/velocker/components/powerWarning";
 import { useWalletModal } from "@/hooks/useWalletModal";
@@ -62,16 +62,7 @@ export function PreparedVoteCard({
               ? "Switch accounts in your wallet, or connect a different wallet, then send this signed ballot. The sending wallet only pays gas."
               : "This vote counts for the wallet that signed it. The sending wallet only pays gas."}
         </p>
-        <div className="ballot-review-summary">
-          <div className="ballot-review-row">
-            <span>Vote counts for</span>
-            <AddressText bold={false}>{ballot.voter}</AddressText>
-          </div>
-          <div className="ballot-review-row">
-            <span>Sending wallet</span>
-            {address ? <AddressText bold={false}>{address}</AddressText> : <span>Not connected</span>}
-          </div>
-        </div>
+        <BallotWalletSummary voter={ballot.voter} sender={address} />
         <p className="ballot-mask-hint">
           The encrypted ballot is saved in this browser. Reloading or changing wallets will not erase it.
         </p>
@@ -85,7 +76,7 @@ export function PreparedVoteCard({
                 disabled={busy || switching}
                 onClick={() => void changeWallet()}
               >
-                Use a different wallet
+                Change sending wallet
               </PowerAction>
             }
           >
@@ -126,7 +117,7 @@ export function PreparedVoteCard({
                 ? "Connect sending wallet"
                 : chainId !== PUB_CHAIN.id
                   ? `Switch to ${PUB_CHAIN.name}`
-                  : "Use a different wallet"}
+                  : "Change sending wallet"}
             </PowerAction>
           )}
           <PowerAction

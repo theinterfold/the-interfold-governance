@@ -142,7 +142,7 @@ describe("Ballot eligibility rendering", () => {
       />
     );
     expect(html).toContain("Vote submitted successfully");
-    expect(html).toContain("Signed by");
+    expect(html).toContain("Vote counts for");
     expect(html).toContain("Your vote counts for the wallet that signed it.");
     expect(html).toContain("0x1111...1111");
     expect(html).toContain("Sent by");

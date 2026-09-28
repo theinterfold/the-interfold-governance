@@ -3373,6 +3373,10 @@ label div p.leading-tight,
 .ballot-review-body { display: flex; flex-direction: column; gap: var(--ui-space-section); }
 .ballot-review-body .ballot-review-proposal { margin: 0; color: var(--muted); font: 500 14px/1.5 var(--font-sans); }
 .ballot-review-summary { display: flex; flex-direction: column; gap: 18px; }
+.ballot-wallet-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; margin: 0; font: 400 14px/1.5 var(--font-sans); }
+.ballot-wallet-summary > div { min-width: 0; }
+.ballot-wallet-summary dt { margin: 0 0 8px; color: var(--muted); }
+.ballot-wallet-summary dd { margin: 0; color: var(--ink); }
 .ballot-review-row, .ballot-review-summary .ballot-voting-power { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 20px; margin: 0; padding: 0; border: 0; font: 400 14px/1.5 var(--font-sans); }
 .ballot-review-row > span, .ballot-review-summary .ballot-voting-power > span { color: var(--muted); }
 .ballot-review-summary strong { color: var(--ink); font: 600 16px/1.4 var(--font-sans); text-align: left; font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0; }

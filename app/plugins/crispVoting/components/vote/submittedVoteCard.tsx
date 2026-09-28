@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BallotPanel } from "@/components/proposalVoting/ballot";
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
-import { AddressText } from "@/components/text/address";
+import { BallotWalletSummary } from "@/components/proposalVoting/ballotWalletSummary";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 
 import type { PreparedVoteReceipt } from "../../utils/ballotSubmission";
@@ -44,18 +44,7 @@ export function SubmittedVoteCard({
         <BallotSuccess txHash={receipt.txHash}>
           Your vote counts for the wallet that signed it. The other wallet only sent the transaction and paid gas.
         </BallotSuccess>
-        <div className="ballot-review-summary">
-          <div className="ballot-review-row">
-            <span>Signed by</span>
-            <AddressText bold={false}>{receipt.voter}</AddressText>
-          </div>
-          {receipt.sender && (
-            <div className="ballot-review-row">
-              <span>Sent by</span>
-              <AddressText bold={false}>{receipt.sender}</AddressText>
-            </div>
-          )}
-        </div>
+        <BallotWalletSummary voter={receipt.voter} sender={receipt.sender} submitted />
         {canChangeVote && (
           <>
             <p className="vp-note">
