@@ -1,5 +1,8 @@
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { DEMO_SENDING_WALLET, switchDemoAccount } from "@/dev/demoWalletSession";
+import { useAccount } from "wagmi";
 import Link from "next/link";
 
 /** Shared empty state: an unavailable ballot should not look like a voting form. */
@@ -14,6 +17,8 @@ export function BallotEligibilityNotice({
   votingPower?: bigint;
   failed?: boolean;
 }) {
+  const { address } = useAccount();
+  const demoSendingWallet = DESIGN_PREVIEW && address?.toLowerCase() === DEMO_SENDING_WALLET.toLowerCase();
   if (!connected) {
     return (
       <div className="ballot-eligibility">
@@ -23,6 +28,18 @@ export function BallotEligibilityNotice({
     );
   }
   if (canVote === true) return null;
+  if (demoSendingWallet && canVote === false && votingPower === 0n && !failed) {
+    return (
+      <div className="ballot-eligibility" role="status">
+        <strong>You’re using the sending wallet</strong>
+        <p>
+          This demo wallet can send signed ballots and masks, but has no voting power. Switch back to the voting wallet
+          to prepare a new vote.
+        </p>
+        <PowerAction onClick={switchDemoAccount}>Use voting wallet</PowerAction>
+      </div>
+    );
+  }
   const title = failed
     ? "Could not check voting eligibility"
     : canVote === undefined
