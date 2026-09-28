@@ -3,6 +3,7 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { BallotPanel } from "@/components/proposalVoting/ballot";
 import { AddressText } from "@/components/text/address";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
+import { PowerWarning } from "@/plugins/velocker/components/powerWarning";
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_CHAIN } from "@/constants";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
@@ -29,6 +30,11 @@ export function PreparedVoteCard({
   const [walletError, setWalletError] = useState("");
   const [switching, setSwitching] = useState(false);
   const blocked = preparedSenderError(ballot, address, chainId);
+  const needsWalletSwitch =
+    !ballot.transactionHash &&
+    ballot.expiresAt > Date.now() &&
+    chainId === ballot.chainId &&
+    address?.toLowerCase() === ballot.voter.toLowerCase();
   const changeWallet = async () => {
     setWalletError("");
     setSwitching(true);
@@ -63,11 +69,15 @@ export function PreparedVoteCard({
         <p className="ballot-mask-hint">
           The encrypted ballot is saved in this browser. Reloading or changing wallets will not erase it.
         </p>
-        {blocked && (
+        {needsWalletSwitch ? (
+          <PowerWarning title="You haven’t switched wallets yet">
+            You’re still connected to the wallet that signed this ballot. Switch to a different wallet before sending.
+          </PowerWarning>
+        ) : blocked ? (
           <p className="vp-note" role="status">
             {blocked}
           </p>
-        )}
+        ) : null}
         {(error || walletError) && (
           <p className="vp-submission-error" role="alert">
             {walletError || error} Your ballot has not been discarded.
