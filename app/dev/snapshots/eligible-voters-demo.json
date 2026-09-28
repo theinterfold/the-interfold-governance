@@ -1,0 +1,718 @@
+{
+  "kind": "synthetic-review-fixture",
+  "description": "Synthetic wallets and FOLD amounts for testing a 181-entry list, alongside the three existing demo voters. Not a live CRISP census.",
+  "voters": [
+    {
+      "address": "0xedc80fd3e231caf570b369ad7c88ce80c5685187",
+      "votingPower": "231912000000000000000000"
+    },
+    {
+      "address": "0xde30decbe2ede8bafee3b7b41033521b2c7976c8",
+      "votingPower": "125000000000000000000000"
+    },
+    {
+      "address": "0x1fe523a9d48c6b8b02f3da52b0e0eeb136f9bd59",
+      "votingPower": "75000000000000000000000"
+    },
+    {
+      "address": "0xd501765fddeef07ac1dd9e33d1c7d4488d475bb6",
+      "votingPower": "42263200000000000000000"
+    },
+    {
+      "address": "0xd20a2f5bf6958b0d5b75caa7e76700365f24e673",
+      "votingPower": "32000000000000000000000"
+    },
+    {
+      "address": "0xe1161366eba8867d57f142c6cf98ad1b92e8c21d",
+      "votingPower": "24150000000000000000000"
+    },
+    {
+      "address": "0x001a7b1dad5493ae9469cb07d52da2344bc9c350",
+      "votingPower": "12500000000000000000000"
+    },
+    {
+      "address": "0xf7b2818564c93e89a4abcfa8bdfda1d491d26a31",
+      "votingPower": "8400000000000000000000"
+    },
+    {
+      "address": "0xb6b8b5c17c265dbe40a96a13b0d0d6e46ac03cf9",
+      "votingPower": "371300000000000000000"
+    },
+    {
+      "address": "0xfd6d68fe943d6dbc62d65da165968c811e0ac38d",
+      "votingPower": "374200000000000000000"
+    },
+    {
+      "address": "0x9142d6cf369a00448cf9d228c9f775e8c384ae79",
+      "votingPower": "822100000000000000000"
+    },
+    {
+      "address": "0xdfd465fefcdaff0c2d50da66fb1535cfa89bc78f",
+      "votingPower": "852500000000000000000"
+    },
+    {
+      "address": "0xbedf170251a3397550390893af6c86c70b1096f8",
+      "votingPower": "789200000000000000000"
+    },
+    {
+      "address": "0xd86adee6a74000c458408cbe098b48fd6da14a65",
+      "votingPower": "54800000000000000000"
+    },
+    {
+      "address": "0x2e5147776fe8bb28314fd62a9ed605d014852e40",
+      "votingPower": "627500000000000000000"
+    },
+    {
+      "address": "0x2a442c31dcf2e9f7027f02a31232f43668a09f5c",
+      "votingPower": "902400000000000000000"
+    },
+    {
+      "address": "0x3c7a428b3df9c6866894b31c02a8e2523a69cc17",
+      "votingPower": "946400000000000000000"
+    },
+    {
+      "address": "0x22406587c75790f33e12e86e6773837843156f60",
+      "votingPower": "117300000000000000000"
+    },
+    {
+      "address": "0x2bf669b419909c423f5f43a8cc78c8b66b4084d4",
+      "votingPower": "250500000000000000000"
+    },
+    {
+      "address": "0xf69b4439e8ecdbd71a5e5576444c8c8fd553280f",
+      "votingPower": "72500000000000000000"
+    },
+    {
+      "address": "0xf1fce148b863d7bad2769d365c7d8c55358b12ac",
+      "votingPower": "629400000000000000000"
+    },
+    {
+      "address": "0xdb8a5cd737634fa5d8c3d7f7e4a3a65a063cb55f",
+      "votingPower": "809600000000000000000"
+    },
+    {
+      "address": "0xcd95ed302ba4996763e1d5cc60c12fe87880e2cb",
+      "votingPower": "14500000000000000000"
+    },
+    {
+      "address": "0xb100d49b9e077fac7aaf07698b4bda0db2c4e618",
+      "votingPower": "862700000000000000000"
+    },
+    {
+      "address": "0x90a1e730ee2446163c6b1d1c564a88da53031906",
+      "votingPower": "896400000000000000000"
+    },
+    {
+      "address": "0xb71ff4332e3a054543712ac58f35847bc601cbb2",
+      "votingPower": "553800000000000000000"
+    },
+    {
+      "address": "0x186e784842a8a28624d316bedd31b1b01f82599c",
+      "votingPower": "461500000000000000000"
+    },
+    {
+      "address": "0xa6c4a547f3e908bd3a70b0e95d5db4b19c20eac6",
+      "votingPower": "513800000000000000000"
+    },
+    {
+      "address": "0x99ad905bcd77edc3de00f0bc006b423e3ed55f57",
+      "votingPower": "914200000000000000000"
+    },
+    {
+      "address": "0xdbdced0892297a656df79feb3958d1e61bbdb0bf",
+      "votingPower": "641600000000000000000"
+    },
+    {
+      "address": "0xf436c92d803acf7b780d57d01daac716825cf830",
+      "votingPower": "999100000000000000000"
+    },
+    {
+      "address": "0x78a358f106ba7f68eab23b70aed6ffd7bcad95a1",
+      "votingPower": "408800000000000000000"
+    },
+    {
+      "address": "0x70ccca8a1ecc1a43e34d740eb9b98237050a4fcb",
+      "votingPower": "810300000000000000000"
+    },
+    {
+      "address": "0xb2314c036cb90b30dd20ac972c343119c456389b",
+      "votingPower": "932000000000000000000"
+    },
+    {
+      "address": "0xcc4d34b3e4da751d49021fb919d1acab3974b25e",
+      "votingPower": "623700000000000000000"
+    },
+    {
+      "address": "0x59b0cb920f004cacf92d4e4f8371f3d5aede444a",
+      "votingPower": "805900000000000000000"
+    },
+    {
+      "address": "0xd0fc15c679479fb7861f0e46c6d0246f6a481c05",
+      "votingPower": "405200000000000000000"
+    },
+    {
+      "address": "0xa284b1d9784797a108d7f713b69df5561d25415a",
+      "votingPower": "344200000000000000000"
+    },
+    {
+      "address": "0xc96293a2359ca540a606e45108556b81a284371e",
+      "votingPower": "358200000000000000000"
+    },
+    {
+      "address": "0xbce2d9a47688c96632cce14f857e464493c2c0a2",
+      "votingPower": "798400000000000000000"
+    },
+    {
+      "address": "0x74ff5706d521cbf27f50a65bb16d51b76d6b3660",
+      "votingPower": "251400000000000000000"
+    },
+    {
+      "address": "0xe93fa256867146b5138188d3e4effa95dd5df11c",
+      "votingPower": "569400000000000000000"
+    },
+    {
+      "address": "0xd56d19b861b647865393c8f5122aacf6df9f4193",
+      "votingPower": "728200000000000000000"
+    },
+    {
+      "address": "0xd0103a5bce05cee76e0b0522fd38ae4851e4bed1",
+      "votingPower": "973000000000000000000"
+    },
+    {
+      "address": "0xbf47c6339ebf2ba2bc846795eb75c1fc22c27891",
+      "votingPower": "991300000000000000000"
+    },
+    {
+      "address": "0xea795bc7c03d9e2e2a9b3b41c693c1b8772f3dba",
+      "votingPower": "720400000000000000000"
+    },
+    {
+      "address": "0x7b6c12297375e8280df6a7b3618577563bb27541",
+      "votingPower": "709000000000000000000"
+    },
+    {
+      "address": "0xcc35fe7c6a96b0cfeb5e3aadc3e96a135f4d0596",
+      "votingPower": "929600000000000000000"
+    },
+    {
+      "address": "0xe01921f77b3b83c01548d90ffc3fc7daff64494c",
+      "votingPower": "282900000000000000000"
+    },
+    {
+      "address": "0x08ef1ab5da643eb506f477232181be5d2b3c67e2",
+      "votingPower": "831800000000000000000"
+    },
+    {
+      "address": "0x4e04296f0b7a72c83ca70c41157a8435cee71ff5",
+      "votingPower": "548400000000000000000"
+    },
+    {
+      "address": "0x532d11ef289f9ee905d98272be07002c34e3dd10",
+      "votingPower": "664300000000000000000"
+    },
+    {
+      "address": "0xa819066dba647f08bfc48f99125eadf838441a4c",
+      "votingPower": "845900000000000000000"
+    },
+    {
+      "address": "0x500f0baf340b85f88cde6ac8780edf64df5efa2d",
+      "votingPower": "810600000000000000000"
+    },
+    {
+      "address": "0x3e0aeb552464577f42ff01b0fd7555fd26ed30ba",
+      "votingPower": "260900000000000000000"
+    },
+    {
+      "address": "0xcf5cbb522098187754803fe6819a7daf43a617ae",
+      "votingPower": "872500000000000000000"
+    },
+    {
+      "address": "0x71d52a82ef0f28e2d509e7ad8390e1d31c791073",
+      "votingPower": "528900000000000000000"
+    },
+    {
+      "address": "0x1562ecd1a5aeff3ffbde80ee4c617b6739565298",
+      "votingPower": "427900000000000000000"
+    },
+    {
+      "address": "0x3412b662ff6de9e17bdc3269f94ab67b767fba00",
+      "votingPower": "910100000000000000000"
+    },
+    {
+      "address": "0x257b1d7167f08e489ff05388ba49d25b2a16a243",
+      "votingPower": "681600000000000000000"
+    },
+    {
+      "address": "0x6eecf40b954268211d7d7fccb5011806a36c29b4",
+      "votingPower": "692300000000000000000"
+    },
+    {
+      "address": "0x5cbd02cdca52448c0bd1732bfec1ab720edadab6",
+      "votingPower": "344400000000000000000"
+    },
+    {
+      "address": "0x397ac05eecb1926f3848a6bfd619a7c0292037b2",
+      "votingPower": "676900000000000000000"
+    },
+    {
+      "address": "0x3839b1435bec55eb1a442e0a6154f435e963de23",
+      "votingPower": "899700000000000000000"
+    },
+    {
+      "address": "0x518a81404d3e4497653b6fb22f55a757ac60c50c",
+      "votingPower": "294600000000000000000"
+    },
+    {
+      "address": "0x0f6bcb2a3b3fc8121414249476e72c344c02b018",
+      "votingPower": "458200000000000000000"
+    },
+    {
+      "address": "0xfa5dbf01d3cddb4ec493c2ca07a0f3c0208a3b17",
+      "votingPower": "648400000000000000000"
+    },
+    {
+      "address": "0xeed141d95bd755df8542b2000198745ec2847626",
+      "votingPower": "830900000000000000000"
+    },
+    {
+      "address": "0xd60279c183f6b16b5178c5be8b378a3eae7e5689",
+      "votingPower": "104900000000000000000"
+    },
+    {
+      "address": "0xf91b7a4de1a9b8c0634d4c5a5da8c784746e4dbf",
+      "votingPower": "499400000000000000000"
+    },
+    {
+      "address": "0x4d46996795765a87608e60c49b523b74148ea9f7",
+      "votingPower": "566600000000000000000"
+    },
+    {
+      "address": "0x855cb4ff53a8a167161643d19d7a32ac112b8b60",
+      "votingPower": "697800000000000000000"
+    },
+    {
+      "address": "0x21704f60ee05d7cdb4b1493a80429ec87dd06466",
+      "votingPower": "371200000000000000000"
+    },
+    {
+      "address": "0xc2955d80c55a31b7b8c7f3faa751b8c9f59b2b75",
+      "votingPower": "209700000000000000000"
+    },
+    {
+      "address": "0xa40325251232fd0247993ef130fcf07ecf69eadf",
+      "votingPower": "523500000000000000000"
+    },
+    {
+      "address": "0x14422d40a279897db79e3e9c4da865383e694d9f",
+      "votingPower": "249300000000000000000"
+    },
+    {
+      "address": "0xa5dd8892e01b8f3b1642e9a37c6f5379b030266a",
+      "votingPower": "266200000000000000000"
+    },
+    {
+      "address": "0x4df2e53796253e64f25b8276c4c7279a34abcb4a",
+      "votingPower": "205400000000000000000"
+    },
+    {
+      "address": "0xe9e39d83a0062d5f8fabd461f219008253b2181a",
+      "votingPower": "705200000000000000000"
+    },
+    {
+      "address": "0x561cd981931b7c0bcc5338ca3282c2d317e9ad56",
+      "votingPower": "704200000000000000000"
+    },
+    {
+      "address": "0x0b85872c8ee2a796fa796aeb3e1463abd9dbaa0b",
+      "votingPower": "762700000000000000000"
+    },
+    {
+      "address": "0xf3d0e13582d566e94cdf08635afa5f8092e9fb8f",
+      "votingPower": "149800000000000000000"
+    },
+    {
+      "address": "0x18c6b06168d9d31c77faf14d24aa9a52984922db",
+      "votingPower": "998800000000000000000"
+    },
+    {
+      "address": "0x41f97be1bc3b1da9feadd9fb8de3d8348bf53b30",
+      "votingPower": "71700000000000000000"
+    },
+    {
+      "address": "0x145dc60782b07f4c79556de42202d4e4c20698f1",
+      "votingPower": "701600000000000000000"
+    },
+    {
+      "address": "0xeca29656e8135819ba1850f486653adf236ec2c8",
+      "votingPower": "473300000000000000000"
+    },
+    {
+      "address": "0xdb936d4d9480629add29c09d6750b8cd52ac26df",
+      "votingPower": "132600000000000000000"
+    },
+    {
+      "address": "0x7d99349f0db9397d9eed0c3ec62472a01b461aef",
+      "votingPower": "194200000000000000000"
+    },
+    {
+      "address": "0x42b513535c014f5f2d2b6e0dd8eb25e875d04e82",
+      "votingPower": "479200000000000000000"
+    },
+    {
+      "address": "0x088d3ec1af78873a28c68a7de0e339d4da89d8c8",
+      "votingPower": "207800000000000000000"
+    },
+    {
+      "address": "0x0cd025d49f5493a4e111df9c560a0162f6c89aca",
+      "votingPower": "834800000000000000000"
+    },
+    {
+      "address": "0xc4b798ce9bf355a8dcf9eae1d4a26a197b4b9a01",
+      "votingPower": "724100000000000000000"
+    },
+    {
+      "address": "0xa03f3da4da250b1907d25b6f5a0f787d01ea072c",
+      "votingPower": "536100000000000000000"
+    },
+    {
+      "address": "0x56371689c72ea79d6418ec664ff969996ecc96f6",
+      "votingPower": "937700000000000000000"
+    },
+    {
+      "address": "0x238d95bbbc5c14c7029e0319dbc462652d5ac54c",
+      "votingPower": "946500000000000000000"
+    },
+    {
+      "address": "0xf881390a6c82eda82fdb894a24806ebf4719fec6",
+      "votingPower": "803400000000000000000"
+    },
+    {
+      "address": "0xc076a1d58ceec00497655b63d61f0ddb2f8116b1",
+      "votingPower": "345100000000000000000"
+    },
+    {
+      "address": "0xd797cb997accc5c432a29a426e4811fdfe40c9f5",
+      "votingPower": "20400000000000000000"
+    },
+    {
+      "address": "0x51877f906e3305096fe389e4c48a2ce6c56491c8",
+      "votingPower": "435100000000000000000"
+    },
+    {
+      "address": "0xeb6c5f277b3f78706deaa2bd28e53ac31b6bfa28",
+      "votingPower": "566800000000000000000"
+    },
+    {
+      "address": "0xd0e05a7f6d4fb1179bb7b7317eb254a25bb972f4",
+      "votingPower": "286600000000000000000"
+    },
+    {
+      "address": "0x4bc593eea182c25ac28aa10b86492046a6b53061",
+      "votingPower": "654800000000000000000"
+    },
+    {
+      "address": "0x1c938f327dba916456ef65ccf33059ced93bd1dd",
+      "votingPower": "637900000000000000000"
+    },
+    {
+      "address": "0x4dd1c0b586f46d052dcb8031dcf7ea01a0428846",
+      "votingPower": "367100000000000000000"
+    },
+    {
+      "address": "0x554a1016830c19d601d60a7647766125e658e12f",
+      "votingPower": "135000000000000000000"
+    },
+    {
+      "address": "0x34dbd10d45792d72e961fc525a5eb2f0a1c45522",
+      "votingPower": "468800000000000000000"
+    },
+    {
+      "address": "0x65c124dab9b0129a386d9dc67ec3a09752f2335a",
+      "votingPower": "208500000000000000000"
+    },
+    {
+      "address": "0x1943e2909c5e2a096f8c773a8ae3df5adecbc5ee",
+      "votingPower": "453400000000000000000"
+    },
+    {
+      "address": "0x3bcb7949b19122db2af7b7105d00a89ce5395c1e",
+      "votingPower": "749300000000000000000"
+    },
+    {
+      "address": "0xc56f89e6d5ea2da9f728c972a7292e89d8af7e0c",
+      "votingPower": "159500000000000000000"
+    },
+    {
+      "address": "0x05f994deb70e2ae9463f03782d7aab6061a01aca",
+      "votingPower": "127100000000000000000"
+    },
+    {
+      "address": "0x9fed0bb996eee03ae2c1a686882010b5209eba20",
+      "votingPower": "492900000000000000000"
+    },
+    {
+      "address": "0xb51c8f9dbee71010d81ec78135e84c3af1591280",
+      "votingPower": "155200000000000000000"
+    },
+    {
+      "address": "0x9896f1785a2c6fb5503927dce0a55dec687c72fc",
+      "votingPower": "300900000000000000000"
+    },
+    {
+      "address": "0x8dd595b46a3b375c2dbe29b19610124aacdd8ec2",
+      "votingPower": "956100000000000000000"
+    },
+    {
+      "address": "0xd55689f46872fe83fdf15b648b297db0e312b97f",
+      "votingPower": "864800000000000000000"
+    },
+    {
+      "address": "0xb199a89f60294c0defa4c0343eb488e2f1a738db",
+      "votingPower": "528300000000000000000"
+    },
+    {
+      "address": "0x6fb47afff2dd70e85e6a31cdbd0e603a41a47de5",
+      "votingPower": "792800000000000000000"
+    },
+    {
+      "address": "0xac27dcb1f009d45ead6bd08ad828fc8007cc1cc9",
+      "votingPower": "634500000000000000000"
+    },
+    {
+      "address": "0x752b6bf18779d89533ef232162b0736165356217",
+      "votingPower": "897900000000000000000"
+    },
+    {
+      "address": "0xa428fd821d2ca23a88d3a3e8c2418228a9c6e2f0",
+      "votingPower": "552500000000000000000"
+    },
+    {
+      "address": "0xee00a94709c994de509862ecba266ca8d2411ee5",
+      "votingPower": "542800000000000000000"
+    },
+    {
+      "address": "0xc74967ab30106ee96bc17542285334efd573ec44",
+      "votingPower": "48200000000000000000"
+    },
+    {
+      "address": "0x5ab5e9f7c7969cdb8129e0586ac70df6e669d636",
+      "votingPower": "156000000000000000000"
+    },
+    {
+      "address": "0x9075057cbd0af5dd641f449757d72582685f9b50",
+      "votingPower": "290400000000000000000"
+    },
+    {
+      "address": "0x39270a80890da74865448c43be073cf0815cddcf",
+      "votingPower": "738700000000000000000"
+    },
+    {
+      "address": "0x1d75faabb691dded6ef67c9bc322b9dbc23eccd3",
+      "votingPower": "27100000000000000000"
+    },
+    {
+      "address": "0xdaae0703765f150cc484e643e71c9688fd91f105",
+      "votingPower": "459900000000000000000"
+    },
+    {
+      "address": "0x2326efeb4eb935dfcef2ad99f0f494ddc05b0c8c",
+      "votingPower": "961200000000000000000"
+    },
+    {
+      "address": "0xb4270073e013887b49701d8054f38df4a720ec23",
+      "votingPower": "562100000000000000000"
+    },
+    {
+      "address": "0xf81729345793b808369507febb5c985f621420ad",
+      "votingPower": "602200000000000000000"
+    },
+    {
+      "address": "0x08f390edf98155e8f159e6176c1ede80a7f1e106",
+      "votingPower": "524800000000000000000"
+    },
+    {
+      "address": "0xea6d9688607f39817193437bfcbb95bc8547dafd",
+      "votingPower": "81600000000000000000"
+    },
+    {
+      "address": "0xf7432ae3387f3809ce143eeac422ec644cd75d28",
+      "votingPower": "382400000000000000000"
+    },
+    {
+      "address": "0xa96f04850a756caa5f25a49729962db11eff2a1f",
+      "votingPower": "937200000000000000000"
+    },
+    {
+      "address": "0x5c2f78a8c2ee4077968fce4ee25cc95ccd9b7eb3",
+      "votingPower": "502800000000000000000"
+    },
+    {
+      "address": "0x9bb0a4ceabe1ae5be3fd553c46ccf65d8d80e33f",
+      "votingPower": "216100000000000000000"
+    },
+    {
+      "address": "0xc5695767817b5a8e49d2062e688af85368ae0dc7",
+      "votingPower": "352700000000000000000"
+    },
+    {
+      "address": "0x84c4d9fe00a996205299a8575bcf8111ba2f5e33",
+      "votingPower": "554600000000000000000"
+    },
+    {
+      "address": "0x4c579b7c9fc1580c0f895d8b208674354d488441",
+      "votingPower": "100400000000000000000"
+    },
+    {
+      "address": "0xdfd78543f72f1617a677a2788057a32399db1628",
+      "votingPower": "92400000000000000000"
+    },
+    {
+      "address": "0xb399fdf5997e918308bc33816c9ed2a4f2043ad5",
+      "votingPower": "797500000000000000000"
+    },
+    {
+      "address": "0x1e5fcdcf9743113a1782d1a5bf0fd6ec45fbc7ac",
+      "votingPower": "710500000000000000000"
+    },
+    {
+      "address": "0x5fd058f7698437178ef075677d4d84af290bb0f8",
+      "votingPower": "308300000000000000000"
+    },
+    {
+      "address": "0xfeb930d46c1c9ffa9c3f8c9265251d14c8128801",
+      "votingPower": "991200000000000000000"
+    },
+    {
+      "address": "0x630ee2cb3402736f581d177247df26f3ff3ada54",
+      "votingPower": "650800000000000000000"
+    },
+    {
+      "address": "0xc7a8b45a94750d66c5f58d57d994b4f8a51da422",
+      "votingPower": "811500000000000000000"
+    },
+    {
+      "address": "0x0034eb845ff12a126b3aba4b1d35c91547ff718c",
+      "votingPower": "491200000000000000000"
+    },
+    {
+      "address": "0xf6b77c6481f3434bc4ff067aa65fdceed38b817c",
+      "votingPower": "664900000000000000000"
+    },
+    {
+      "address": "0x35503718263aa24afa289b4f17f76819f7d6b448",
+      "votingPower": "158100000000000000000"
+    },
+    {
+      "address": "0x2418a3e40c25c02842ba8f16da4ff9bc1088daac",
+      "votingPower": "30500000000000000000"
+    },
+    {
+      "address": "0xd0ba07b564d773e537619ea8ef5d5f522bb9b65c",
+      "votingPower": "255000000000000000000"
+    },
+    {
+      "address": "0x4fa4fa0d08a2f66856498c8c1969d9ad85c92125",
+      "votingPower": "956400000000000000000"
+    },
+    {
+      "address": "0x53cecaf1d822cf690fc659ceac51bd0d6d0d3388",
+      "votingPower": "71200000000000000000"
+    },
+    {
+      "address": "0xf9d682e555043309c134421bf6d5c52bf9b547e1",
+      "votingPower": "76800000000000000000"
+    },
+    {
+      "address": "0x99679546cd6bab50c6cc5232e9e6a8787daf5b6a",
+      "votingPower": "453100000000000000000"
+    },
+    {
+      "address": "0x509cfcfb8b59006bd9b48370f15095db0c99f682",
+      "votingPower": "977200000000000000000"
+    },
+    {
+      "address": "0x7e81a65bb210957195c7417b8a26dce719f7bbb3",
+      "votingPower": "401800000000000000000"
+    },
+    {
+      "address": "0x1e0adcf07d08ca800aca1ae50e48b642fe7d74a4",
+      "votingPower": "956300000000000000000"
+    },
+    {
+      "address": "0x9aba87a1c3e31aa38f3b3cd4d775a9bf495e6ce5",
+      "votingPower": "411800000000000000000"
+    },
+    {
+      "address": "0x9f545a0351e90ecc68744a2adb2f3b0e343347bb",
+      "votingPower": "408900000000000000000"
+    },
+    {
+      "address": "0xb0e51fa2bebdb05c02699feb8227546a90401dde",
+      "votingPower": "479800000000000000000"
+    },
+    {
+      "address": "0x8417cdae4acaa4ef9e4b19f101c8574baaab513f",
+      "votingPower": "477300000000000000000"
+    },
+    {
+      "address": "0xe3c8a015add9c1e422728421beddb788bfd9e9fe",
+      "votingPower": "329500000000000000000"
+    },
+    {
+      "address": "0x5db86fdce7ebb88ea65ccfe7b46b2232b0cf3c45",
+      "votingPower": "433800000000000000000"
+    },
+    {
+      "address": "0x08c1582659189381b7e6e8e8e4444fa31bbade15",
+      "votingPower": "240100000000000000000"
+    },
+    {
+      "address": "0xa20b4439de63e900fe803a4f98f53dd4ea6954d1",
+      "votingPower": "586800000000000000000"
+    },
+    {
+      "address": "0x7b8cab477148e40cab76a015e2b0bf54f11d1cee",
+      "votingPower": "850700000000000000000"
+    },
+    {
+      "address": "0xd77df4d38fc038707ae4d71f5ff1a08a76b7cf31",
+      "votingPower": "557300000000000000000"
+    },
+    {
+      "address": "0x2209dc80d18eeb91766d8c8d1e3b73a4cf941cf3",
+      "votingPower": "698200000000000000000"
+    },
+    {
+      "address": "0xcf85d3824ba4bf5e36246ca59deb3cdd48e899d4",
+      "votingPower": "451400000000000000000"
+    },
+    {
+      "address": "0xa42040e42e322bc94936045b86d5a2a4be5d02ed",
+      "votingPower": "251000000000000000000"
+    },
+    {
+      "address": "0x0ff290de1d040f341a06da25a41bbfcaedb7ffd1",
+      "votingPower": "51300000000000000000"
+    },
+    {
+      "address": "0xab360f3afd5bf89fa7c0a928a56a1489d10b62bb",
+      "votingPower": "658500000000000000000"
+    },
+    {
+      "address": "0xf0ef79b9f971da555bd55531172ea64c7c81d38b",
+      "votingPower": "685400000000000000000"
+    },
+    {
+      "address": "0x968e4a44611a2b9e221bb3edaaa9b800e16d12bc",
+      "votingPower": "131000000000000000000"
+    },
+    {
+      "address": "0x9012d0bc65bc4e9fff5e8ce1fb9edba92cde21ae",
+      "votingPower": "638100000000000000000"
+    },
+    {
+      "address": "0xbc08cd0a3ebc02b62b6fb1933f7461da299815ff",
+      "votingPower": "275800000000000000000"
+    }
+  ]
+}

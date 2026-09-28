@@ -216,6 +216,7 @@ function ProposalDetailBody({
                     />
                   }
                   proposalTitle={proposal.title}
+                  creditMode={proposal.parameters.creditMode}
                   maskAsOption={ballotVariant === "option"}
                   getRandomMaskTarget={getRandomMaskTarget}
                   getMaskRecipients={getMaskRecipients}

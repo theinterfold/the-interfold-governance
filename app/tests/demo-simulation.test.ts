@@ -1,11 +1,21 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createPublicClient, encodeFunctionData, erc20Abi, parseEther, zeroAddress, type Address } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  erc20Abi,
+  isAddress,
+  parseEther,
+  zeroAddress,
+  type Address,
+} from "viem";
 import { createConfig } from "wagmi";
 import { connect, writeContract } from "@wagmi/core";
 import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_VE_LOCKER_ADDRESS, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "../constants";
 import { DEMO_WALLET, DESIGN_PREVIEW, DEMO_MESSAGE } from "../dev/previewMode";
 import { demoConnector } from "../dev/demoConnector";
-import { demoTransport, demoIndexer } from "../dev/fixtures";
+import { demoTransport, demoIndexer, demoSdk } from "../dev/fixtures";
+import { DEMO_SENDING_WALLET } from "../dev/demoWalletSession";
+import { iVotesAbi } from "../plugins/crispVoting/artifacts/iVotes";
 import {
   DEMO_ADAPTER,
   DEMO_LOCK_NFT,
@@ -48,6 +58,30 @@ describe.skipIf(!DESIGN_PREVIEW)("Local wallet simulation", () => {
   afterEach(() => {
     const pending = getDemoRequest();
     if (pending) resolveDemoRequest(pending.id, "reject");
+  });
+
+  test("the expanded eligible set stays consistent with demo voting power and excludes the sending wallet", async () => {
+    const voters = await demoSdk().getEligibleAddresses(1n);
+    expect(voters).toHaveLength(181);
+    const addresses = voters.map((voter) => voter.address.toLowerCase());
+    expect(new Set(addresses).size).toBe(voters.length);
+    expect(addresses).toContain(DEMO_WALLET.toLowerCase());
+    expect(addresses).not.toContain(DEMO_SENDING_WALLET.toLowerCase());
+    const powers = await Promise.all(
+      voters.map(async (voter) => {
+        expect(isAddress(voter.address)).toBe(true);
+        const rawPower = await client.readContract({
+          address: PUB_TOKEN_ADDRESS,
+          abi: iVotesAbi,
+          functionName: "getPastVotes",
+          args: [voter.address as Address, 1n],
+        });
+        expect(BigInt(voter.balance) * 10n ** 17n).toBe(rawPower);
+        return rawPower;
+      })
+    );
+    expect(new Set(voters.map((voter) => String(voter.balance))).size).toBeGreaterThan(10);
+    expect(powers.reduce((sum, value) => sum + value, 0n)).toBeLessThanOrEqual(parseEther("1000000"));
   });
 
   test("upgrading the example address preserves saved locks, balances and choices", () => {

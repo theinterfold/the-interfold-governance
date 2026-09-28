@@ -4,7 +4,7 @@ import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
 import { Button } from "@aragon/ods";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
-import type { EligibleVoter, VotingStep } from "../../utils/types";
+import type { CreditsMode, EligibleVoter, VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useEffect, useId, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import { PUB_CHAIN } from "@/constants";
@@ -25,6 +25,7 @@ import { isAddress } from "viem";
 import { submitBallotSequence, type BallotKind, type BallotSubmissionResult } from "../../utils/ballotSubmission";
 
 export interface VoteCardProps {
+  creditMode?: CreditsMode;
   votingPower?: ReactNode;
   eligibilityNotice?: ReactNode;
   canMask?: boolean;
@@ -59,6 +60,7 @@ export interface VoteCardProps {
 }
 
 export const VoteCard = ({
+  creditMode,
   votingPower,
   eligibilityNotice,
   canMask = true,
@@ -641,6 +643,7 @@ export const VoteCard = ({
                     loading={!recipients && !recipientError}
                     selected={targetInput}
                     pending={busy}
+                    creditMode={creditMode}
                     onSelect={setTargetInput}
                   />
                 )}

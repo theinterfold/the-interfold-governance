@@ -2,7 +2,7 @@
 
 ## Choose a mask recipient
 
-The "Another wallet" option loads `crispSdk.getEligibleAddresses(e3Id)`, the same source used for random masking. Search filters the entire list; the selector renders at most 100 matching addresses. It shows the full selected address below the selector. Random and self masking remain available. The proof-building path still validates the recipient's eligibility; an unavailable address is never silently replaced.
+The "Another wallet" option loads `crispSdk.getEligibleAddresses(e3Id)`, the same source used for random masking. Search filters the entire list. The selector uses the delegate list’s wallet identity, FOLD amount and Select/Selected action. It initially renders ten matches, with Load more for additional rows, and displays the total eligible count. Amounts reverse the CRISP credit scaling before formatting; constant-credit rounds show credits instead of FOLD. Full addresses remain available in the shared identity popover. Random and self masking remain available. The proof-building path still validates the recipient's eligibility; an unavailable address is never silently replaced.
 
 ## Sign with A, send with B
 
@@ -18,7 +18,7 @@ This option is separate from relayer sponsorship. The ordinary same-wallet flow 
 
 ## Review demo and validation
 
-The public review uses fake accounts and explicit simulated signing/transaction prompts. The wallet selector lists both the eligible voting account and a sending account with zero voting power, marking the active account. "Use a different wallet" opens this selector in the demo and the wallet controls in the live app; opening it or discarding a prepared ballot never changes the account. Only the isolated simulator stores a fictitious choice, under a separate demo storage key; demo payloads cannot be published to the live network.
+The public review uses fake accounts and explicit simulated signing/transaction prompts. Its eligible set has 181 entries: the three original examples plus 178 synthetic wallets with varied FOLD amounts, stored in `snapshots/eligible-voters-demo.json`. These are display and interaction fixtures, not a captured live census; both the demo SDK and voting-power reads use the same values. The wallet selector lists both the eligible voting account and a sending account with zero voting power, marking the active account. "Change sending wallet" opens this selector in the demo and the wallet controls in the live app; opening it or discarding a prepared ballot never changes the account. Only the isolated simulator stores a fictitious choice, under a separate demo storage key; demo payloads cannot be published to the live network.
 
 Automated tests cover storage validation, account/network guards, proof preservation, rejection, confirmation timeout/reload, reverted receipts and demo isolation. Browser checks cover signing, wallet switching, reload, rejection/retry, successful sending and eligible-recipient selection.
 

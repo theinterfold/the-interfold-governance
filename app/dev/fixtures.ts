@@ -35,6 +35,7 @@ import { escrowAdapterAbi } from "@/plugins/velocker/artifacts/escrowAdapter";
 import { exitQueueAbi } from "@/plugins/velocker/artifacts/exitQueue";
 import { DEMO_MESSAGE, DEMO_WALLET, previewAddress, requireLocalPreview } from "./previewMode";
 import delegateSnapshot from "./snapshots/delegates-mainnet.json";
+import eligibleVoterExamples from "./snapshots/eligible-voters-demo.json";
 import type { CrispSDK } from "@crisp-e3/sdk";
 import type { RawAction } from "@/utils/types";
 
@@ -91,12 +92,17 @@ const dates = (id: bigint) =>
 const capturedDelegatePowers = new Map(
   delegateSnapshot.data.delegates.map((entry) => [entry.address.toLowerCase(), BigInt(entry.voting_power)])
 );
+const exampleVoterPowers = new Map(
+  eligibleVoterExamples.voters.map((entry) => [entry.address.toLowerCase(), BigInt(entry.votingPower)])
+);
 const power = (address: unknown) =>
   same(String(address), DEMO_SENDING_WALLET)
     ? 0n
     : same(String(address), DEMO_WALLET)
       ? demoLockVotes(address) + 25000n * unit
-      : (capturedDelegatePowers.get(String(address).toLowerCase()) ?? 25000n * unit);
+      : (capturedDelegatePowers.get(String(address).toLowerCase()) ??
+        exampleVoterPowers.get(String(address).toLowerCase()) ??
+        25000n * unit);
 
 function stages(isPrivate: boolean) {
   return [
@@ -515,10 +521,12 @@ export function demoSdk(): CrispSDK {
       };
     },
     async getEligibleAddresses() {
-      return [DEMO_WALLET, otherWallet, thirdWallet].map((address) => ({
-        address,
-        balance: String(power(address) / 10n ** 17n),
-      }));
+      return [DEMO_WALLET, otherWallet, thirdWallet, ...eligibleVoterExamples.voters.map((entry) => entry.address)].map(
+        (address) => ({
+          address,
+          balance: String(power(address) / 10n ** 17n),
+        })
+      );
     },
     async getTokenHolderHashes() {
       return [];

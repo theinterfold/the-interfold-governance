@@ -2,9 +2,14 @@ import { useState } from "react";
 import type { Address } from "viem";
 import { SearchField } from "@/components/input/searchField";
 import { EnsMember } from "@/components/text/ensMember";
+import { ListTokenAmount } from "@/components/text/listValue";
+import { useTokenDecimals } from "@/hooks/useTokenDecimals";
+import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { compactNumber } from "@/utils/numbers";
 import { WalletListRow } from "@/components/walletListRow";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
-import type { EligibleVoter } from "../../utils/types";
+import { CreditsMode, type EligibleVoter } from "../../utils/types";
+import { tallyCountToTokens } from "../../utils/quorum";
 
 const PAGE_SIZE = 10;
 
@@ -13,15 +18,18 @@ export function MaskRecipientPicker({
   loading,
   selected,
   pending,
+  creditMode,
   onSelect,
 }: {
   voters?: EligibleVoter[];
   loading: boolean;
   selected: string;
   pending: boolean;
+  creditMode?: CreditsMode;
   onSelect: (address: string) => void;
 }) {
   const [search, setSearch] = useState("");
+  const decimals = useTokenDecimals();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const filtered = (voters ?? []).filter((voter) => voter.address.toLowerCase().includes(search.trim().toLowerCase()));
 
@@ -36,7 +44,13 @@ export function MaskRecipientPicker({
           setVisibleCount(PAGE_SIZE);
           onSelect("");
         }}
-        message={loading ? "Loading eligible voters…" : undefined}
+        message={
+          loading
+            ? "Loading eligible voters…"
+            : voters
+              ? `${search.trim() ? `${filtered.length} of ` : ""}${voters.length} eligible ${voters.length === 1 ? "voter" : "voters"}`
+              : undefined
+        }
       />
       {voters && (
         <div className="delegate-picker-options">
@@ -45,7 +59,24 @@ export function MaskRecipientPicker({
               {filtered.slice(0, visibleCount).map((voter) => {
                 const isSelected = voter.address.toLowerCase() === selected.toLowerCase();
                 return (
-                  <WalletListRow key={voter.address} identity={<EnsMember address={voter.address as Address} />}>
+                  <WalletListRow
+                    key={voter.address}
+                    identity={
+                      <div className="delegate-identity-content">
+                        <EnsMember address={voter.address as Address} />
+                        <div className="pl-9">
+                          <ListTokenAmount
+                            value={
+                              decimals === undefined
+                                ? "—"
+                                : compactNumber(tallyCountToTokens(voter.balance, creditMode, decimals))
+                            }
+                            symbol={creditMode === CreditsMode.CONSTANT ? "credits" : PUB_TOKEN_SYMBOL}
+                          />
+                        </div>
+                      </div>
+                    }
+                  >
                     <PowerAction
                       size="compact"
                       className="delegate-picker-action delegate-search-action"
