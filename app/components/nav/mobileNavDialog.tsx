@@ -138,7 +138,8 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
               governance — the same mislabel the footer carried. */}
           The Interfold
         </Link>
-        <div className="mt-10">
+        {/* Hand off to the wallet dialog instead of leaving the menu above it. */}
+        <div className="mt-10" onClick={close}>
           <WalletContainer />
         </div>
       </div>
