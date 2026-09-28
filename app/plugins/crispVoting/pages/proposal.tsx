@@ -158,6 +158,25 @@ function ProposalDetailBody({
     );
   }
 
+  const preparedVoteNotice = preparedReceipt && !preparedBallot && (
+    <div className="vp-submitted" role="status">
+      <span aria-hidden="true">✓</span>
+      <span>
+        Vote submitted for <AddressText bold={false}>{preparedReceipt.voter}</AddressText>
+      </span>
+      {preparedReceipt.txHash && (
+        <a
+          className="ui-text-action"
+          href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${preparedReceipt.txHash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View transaction ↗
+        </a>
+      )}
+    </div>
+  );
+
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
       <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
@@ -179,24 +198,6 @@ function ProposalDetailBody({
           voting={
             <>
               {/* Both voting methods share the same reading, ballot and supporting-data layout. */}
-              {preparedReceipt && !preparedBallot && (
-                <div className="vp-submitted" role="status">
-                  <span aria-hidden="true">✓</span>
-                  <span>
-                    Vote submitted for <AddressText bold={false}>{preparedReceipt.voter}</AddressText>
-                  </span>
-                  {preparedReceipt.txHash && (
-                    <a
-                      className="ui-text-action"
-                      href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${preparedReceipt.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      View transaction ↗
-                    </a>
-                  )}
-                </div>
-              )}
               {preparedBallot && (
                 <PreparedVoteCard
                   ballot={preparedBallot}
@@ -228,6 +229,7 @@ function ProposalDetailBody({
                     )
                   }
                   eligibilityNotice={eligibilityNotice}
+                  submissionNotice={preparedVoteNotice}
                   canMask={!!address && canVote !== undefined}
                   voteStartDate={Number(proposal?.parameters.startDate)}
                   voteEndDate={Number(proposal?.parameters.endDate)}
@@ -261,21 +263,24 @@ function ProposalDetailBody({
                 </div>
               )}
               {proposalStatus !== ProposalStatus.ACTIVE && (
-                <VoteResultCard
-                  vetoStage={spp.vetoStage}
-                  isSignalling={false}
-                  proposalId={proposalIdx}
-                  results={results}
-                  isTallied={proposal.isTallied}
-                  proposalStatus={proposalStatus}
-                  minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
-                  snapshotBlock={proposal.parameters.snapshotBlock}
-                  numOptions={proposal.numOptions}
-                  creditMode={proposal.parameters.creditMode}
-                  e3Failed={e3Failed}
-                  e3FailureReason={e3FailureReason}
-                  e3FailurePending={e3FailurePending}
-                />
+                <>
+                  {preparedVoteNotice && <div className="vp-body">{preparedVoteNotice}</div>}
+                  <VoteResultCard
+                    vetoStage={spp.vetoStage}
+                    isSignalling={false}
+                    proposalId={proposalIdx}
+                    results={results}
+                    isTallied={proposal.isTallied}
+                    proposalStatus={proposalStatus}
+                    minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
+                    snapshotBlock={proposal.parameters.snapshotBlock}
+                    numOptions={proposal.numOptions}
+                    creditMode={proposal.parameters.creditMode}
+                    e3Failed={e3Failed}
+                    e3FailureReason={e3FailureReason}
+                    e3FailurePending={e3FailurePending}
+                  />
+                </>
               )}
               {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
             </>

@@ -26,6 +26,7 @@ import { submitBallotSequence, type BallotKind, type BallotSubmissionResult } fr
 export interface VoteCardProps {
   votingPower?: ReactNode;
   eligibilityNotice?: ReactNode;
+  submissionNotice?: ReactNode;
   canMask?: boolean;
   proposalTitle?: string;
   getRandomMaskTarget: () => Promise<string>;
@@ -60,6 +61,7 @@ export interface VoteCardProps {
 export const VoteCard = ({
   votingPower,
   eligibilityNotice,
+  submissionNotice,
   canMask = true,
   proposalTitle,
   getRandomMaskTarget,
@@ -265,6 +267,7 @@ export const VoteCard = ({
       info={(isMasking || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
     >
       <div className="vp-body">
+        {submissionNotice}
         {!isMasking && (!voteDisabled || isSubmitted) && votingPower}
         {!isMasking && voteDisabled && !isSubmitted && eligibilityNotice}
         {!isMasking && !voteDisabled && error && <p className="text-sm text-critical-500">{error}</p>}
