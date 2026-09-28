@@ -1,5 +1,5 @@
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
-import { SearchField } from "@/components/input/searchField";
+import { MaskRecipientPicker } from "./maskRecipientPicker";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
 import { Button } from "@aragon/ods";
@@ -106,7 +106,6 @@ export const VoteCard = ({
   const otherWalletId = useId();
   const [recipients, setRecipients] = useState<EligibleVoter[]>();
   const [recipientError, setRecipientError] = useState<string>();
-  const [recipientSearch, setRecipientSearch] = useState("");
   const maskOptionId = useId();
   const [targetMode, setTargetMode] = useState<"random" | "self" | "address">("random");
   const [targetInput, setTargetInput] = useState("");
@@ -141,9 +140,6 @@ export const VoteCard = ({
   const eligibleTarget =
     targetMode === "random" || recipients?.some((v) => v.address.toLowerCase() === maskTarget?.toLowerCase());
   const invalidTarget = wantsMask && (!maskTarget || !isAddress(maskTarget) || !eligibleTarget);
-  const filteredRecipients = (recipients ?? []).filter((voter) =>
-    voter.address.toLowerCase().includes(recipientSearch.trim().toLowerCase())
-  );
   useEffect(() => {
     if (!reviewOpen || !wantsMask || targetMode === "random") return;
     let cancelled = false;
@@ -183,7 +179,6 @@ export const VoteCard = ({
     setReviewMode(kind);
     setIncludeMask(false);
     setSendWithAnotherWallet(false);
-    setRecipientSearch("");
     setRecipients(undefined);
     setTargetMode("random");
     setTargetInput("");
@@ -641,58 +636,13 @@ export const VoteCard = ({
                   </p>
                 )}
                 {targetMode === "address" && (
-                  <>
-                    <SearchField
-                      label="Find an eligible voter"
-                      placeholder="Search by wallet address…"
-                      value={recipientSearch}
-                      onChange={(value) => {
-                        setRecipientSearch(value);
-                        setTargetInput("");
-                      }}
-                      message={
-                        !recipients && !recipientError
-                          ? "Loading eligible voters…"
-                          : recipients
-                            ? `${filteredRecipients.length} eligible ${filteredRecipients.length === 1 ? "voter" : "voters"}`
-                            : undefined
-                      }
-                    />
-                    {recipients && recipients.length === 0 ? (
-                      <p className="vp-submission-error" role="status">
-                        No eligible voters are available for this proposal.
-                      </p>
-                    ) : (
-                      recipients && (
-                        <label>
-                          <span>Choose a wallet</span>
-                          <NativeSelect value={targetInput} onChange={(event) => setTargetInput(event.target.value)}>
-                            <option value="" disabled>
-                              Select an eligible voter
-                            </option>
-                            {filteredRecipients.slice(0, 100).map((voter) => (
-                              <option key={voter.address} value={voter.address}>
-                                {`${voter.address.slice(0, 8)}…${voter.address.slice(-6)}`}
-                              </option>
-                            ))}
-                          </NativeSelect>
-                          {targetInput && (
-                            <span className="ballot-mask-address">
-                              <code>{targetInput}</code>
-                            </span>
-                          )}
-                          {filteredRecipients.length === 0 && (
-                            <span role="status">No eligible wallets match this address.</span>
-                          )}
-                          {filteredRecipients.length > 100 && (
-                            <span className="ballot-mask-hint">
-                              Showing the first 100. Refine your search to find a wallet.
-                            </span>
-                          )}
-                        </label>
-                      )
-                    )}
-                  </>
+                  <MaskRecipientPicker
+                    voters={recipients}
+                    loading={!recipients && !recipientError}
+                    selected={targetInput}
+                    pending={busy}
+                    onSelect={setTargetInput}
+                  />
                 )}
                 <p>Adds cover for voters without changing any votes.</p>
               </div>

@@ -19,6 +19,7 @@ import { useDelegateNames } from "../hooks/useDelegateNames";
 import type { useDelegateSearch } from "../hooks/useDelegateSearch";
 import { matchesDelegateSearch } from "../utils/delegateSearch";
 import { AddressText } from "@/components/text/address";
+import { WalletListRow } from "@/components/walletListRow";
 
 const PAGE_SIZE = 10;
 
@@ -166,71 +167,65 @@ export function DelegateList({
           isConnected && !!address && !!delegatesTo && delegatesTo.toLowerCase() === d.address.toLowerCase();
         const alreadySelected = selectedAddress?.toLowerCase() === d.address.toLowerCase();
         return (
-          <div
+          <WalletListRow
             key={d.address}
-            data-current-delegate={alreadyDelegated || undefined}
-            className={
-              layout === "picker"
-                ? "delegate-picker-row"
-                : layout === "table"
-                  ? "power-delegate-row"
-                  : "flex items-center justify-between gap-x-4 border-t border-neutral-100 py-3 first:border-t-0"
+            layout={layout}
+            currentDelegate={alreadyDelegated}
+            identity={
+              <>
+                {layout !== "picker" && (
+                  <span className="delegate-row-number">
+                    <RowIdentifier>{i + 1}</RowIdentifier>
+                  </span>
+                )}
+                <div className="delegate-identity-content">
+                  {layout === "picker" && alreadyDelegated && (
+                    <span className="delegate-current-label">Current delegate</span>
+                  )}
+                  <div className="flex min-w-0 items-center">
+                    <EnsMember address={d.address} />
+                  </div>
+                </div>
+              </>
             }
           >
-            <div className="power-delegate-identity flex min-w-0 items-center gap-x-3">
-              {layout !== "picker" && (
-                <span className="delegate-row-number">
-                  <RowIdentifier>{i + 1}</RowIdentifier>
-                </span>
-              )}
-              <div className="delegate-identity-content">
-                {layout === "picker" && alreadyDelegated && (
-                  <span className="delegate-current-label">Current delegate</span>
-                )}
-                <div className="flex min-w-0 items-center">
-                  <EnsMember address={d.address} />
-                </div>
+            <div className="power-delegate-votes ui-number">
+              <div className="text-sm font-semibold text-neutral-800">
+                <ListTokenAmount
+                  value={decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}
+                  symbol={PUB_TOKEN_SYMBOL}
+                />
               </div>
+              <div className="text-xs text-neutral-500">{pct(d.votingPower)}</div>
             </div>
-            <div className={layout === "table" ? "power-delegate-data" : "delegate-picker-data"}>
-              <div className="power-delegate-votes ui-number">
-                <div className="text-sm font-semibold text-neutral-800">
-                  <ListTokenAmount
-                    value={decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}
-                    symbol={PUB_TOKEN_SYMBOL}
-                  />
-                </div>
-                <div className="text-xs text-neutral-500">{pct(d.votingPower)}</div>
-              </div>
-              {alreadyDelegated && (!allowCurrentSelection || alreadySelected) ? (
-                <DelegateStatus />
-              ) : (
-                <PowerAction
-                  size="compact"
-                  className={layout === "picker" ? "delegate-picker-action" : undefined}
-                  affordance={alreadySelected ? "check" : "next"}
-                  aria-haspopup={onSelect && layout === "table" ? "dialog" : undefined}
-                  isLoading={isConfirming}
-                  disabled={
-                    !canSelect ||
-                    pending ||
-                    isConfirming ||
-                    alreadySelected ||
-                    (alreadyDelegated && !allowCurrentSelection)
-                  }
-                  onClick={() => (onSelect ? onSelect(d.address) : delegate(d.address))}
-                >
-                  {alreadySelected
-                    ? "Selected"
-                    : onSelect
-                      ? layout === "picker"
-                        ? "Select"
-                        : "Select delegate"
-                      : "Delegate"}
-                </PowerAction>
-              )}
-            </div>
-          </div>
+            {alreadyDelegated && (!allowCurrentSelection || alreadySelected) ? (
+              <DelegateStatus />
+            ) : (
+              <PowerAction
+                size="compact"
+                className={layout === "picker" ? "delegate-picker-action" : undefined}
+                affordance={alreadySelected ? "check" : "next"}
+                aria-haspopup={onSelect && layout === "table" ? "dialog" : undefined}
+                isLoading={isConfirming}
+                disabled={
+                  !canSelect ||
+                  pending ||
+                  isConfirming ||
+                  alreadySelected ||
+                  (alreadyDelegated && !allowCurrentSelection)
+                }
+                onClick={() => (onSelect ? onSelect(d.address) : delegate(d.address))}
+              >
+                {alreadySelected
+                  ? "Selected"
+                  : onSelect
+                    ? layout === "picker"
+                      ? "Select"
+                      : "Select delegate"
+                    : "Delegate"}
+              </PowerAction>
+            )}
+          </WalletListRow>
         );
       })}
       {searching && (
