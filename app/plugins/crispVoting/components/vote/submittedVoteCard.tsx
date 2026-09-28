@@ -42,11 +42,11 @@ export function SubmittedVoteCard({
     <BallotPanel title="Voting" submitted>
       <div className="vp-body">
         <BallotSuccess txHash={receipt.txHash}>
-          Your vote was signed by one wallet and sent from another. It counts for the wallet that signed it.
+          Your vote counts for the wallet that signed it. The other wallet only sent the transaction and paid gas.
         </BallotSuccess>
         <div className="ballot-review-summary">
           <div className="ballot-review-row">
-            <span>Signed by · vote counts for</span>
+            <span>Signed by</span>
             <AddressText bold={false}>{receipt.voter}</AddressText>
           </div>
           {receipt.sender && (

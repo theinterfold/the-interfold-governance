@@ -2048,6 +2048,7 @@ label div p.leading-tight {
 .power-warning > div { min-width: 0; }
 .power-warning p:first-child { font: 600 14px/1.45 var(--font-sans); }
 .power-warning p + p { margin-top: 5px; font: 500 13px/1.5 var(--font-sans); }
+.power-warning-action { display: flex; flex-wrap: wrap; margin-top: 12px; }
 .power-lock-recipient { display: flex; min-width: 0; flex-direction: column; margin-top: var(--ui-space-section); }
 /* Surfaces bleed into the dialog gutter; all form content keeps one shared left edge. */
 .power-lock-group { margin-inline: calc(-1 * var(--ui-space-related)); padding: var(--ui-space-controls) var(--ui-space-related); border-radius: var(--ui-radius); background: var(--surface-muted); min-width: 0; }
@@ -2776,6 +2777,16 @@ label div p.leading-tight {
 }
 .power-action-create:hover:not(:disabled):not([aria-disabled="true"]),
 .power-action-confirm:hover:not(:disabled):not([aria-disabled="true"]) { background: #303a37; }
+.power-action-destructive {
+  background: var(--paper);
+  border: 1px solid var(--ui-stroke);
+  color: rgb(var(--ods-color-critical-600));
+  box-shadow: none;
+}
+.power-action-destructive:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: rgb(var(--ods-color-critical-100) / .3);
+  border-color: rgb(var(--ods-color-critical-500));
+}
 /* Open, review and submit a vote share the Active state's green. */
 button.power-action-vote:not(:disabled):not([aria-disabled="true"]) {
   background: #205e3d;

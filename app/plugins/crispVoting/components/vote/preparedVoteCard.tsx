@@ -76,7 +76,19 @@ export function PreparedVoteCard({
           The encrypted ballot is saved in this browser. Reloading or changing wallets will not erase it.
         </p>
         {needsWalletSwitch ? (
-          <PowerWarning title="You haven’t switched wallets yet">
+          <PowerWarning
+            title="You haven’t switched wallets yet"
+            action={
+              <PowerAction
+                size="compact"
+                affordance="wallet"
+                disabled={busy || switching}
+                onClick={() => void changeWallet()}
+              >
+                Use a different wallet
+              </PowerAction>
+            }
+          >
             You’re still connected to the wallet that signed this ballot. Switch to a different wallet before sending.
           </PowerWarning>
         ) : blocked ? (
@@ -108,7 +120,7 @@ export function PreparedVoteCard({
           >
             {ballot.transactionHash ? "Check confirmation" : "Send signed ballot"}
           </PowerAction>
-          {needsWalletAction && (
+          {needsWalletAction && !needsWalletSwitch && (
             <PowerAction disabled={busy || switching} onClick={() => void changeWallet()}>
               {!address
                 ? "Connect sending wallet"
@@ -118,6 +130,7 @@ export function PreparedVoteCard({
             </PowerAction>
           )}
           <PowerAction
+            intent="destructive"
             affordance="discard"
             disabled={busy || switching || !!ballot.transactionHash}
             onClick={onDiscard}

@@ -29,7 +29,7 @@ export function ActionLink({
     <span className="ui-action-content">
       <ActionLabel
         icon={affordance ? <ActionIcon name={affordance} /> : undefined}
-        iconBehavior={affordance === "check" ? "persistent" : "reveal"}
+        iconBehavior={affordance === "check" || intent === "destructive" ? "persistent" : "reveal"}
       >
         {children}
       </ActionLabel>

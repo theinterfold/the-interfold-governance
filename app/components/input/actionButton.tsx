@@ -3,7 +3,7 @@ import { Button } from "@aragon/ods";
 import { ActionLabel } from "@/components/motion/actionLabel";
 import { ActionIcon, type ActionIconName } from "./actionIcon";
 
-export type ActionIntent = "open" | "create" | "confirm" | "vote";
+export type ActionIntent = "open" | "create" | "confirm" | "vote" | "destructive";
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> &
   Pick<ComponentProps<typeof Button>, "isLoading"> & {
@@ -23,7 +23,7 @@ export const ActionButton = forwardRef<HTMLButtonElement, Props>(function Action
       {...props}
       ref={ref}
       size="lg"
-      variant={intent === "open" ? "secondary" : "primary"}
+      variant={intent === "open" || intent === "destructive" ? "secondary" : "primary"}
       data-align={align}
       data-size={size}
       className={`ui-action power-action power-action-${intent} ${className}`}
@@ -31,7 +31,7 @@ export const ActionButton = forwardRef<HTMLButtonElement, Props>(function Action
       <span className="ui-action-content">
         <ActionLabel
           icon={affordance ? <ActionIcon name={affordance} /> : undefined}
-          iconBehavior={affordance === "check" ? "persistent" : "reveal"}
+          iconBehavior={affordance === "check" || intent === "destructive" ? "persistent" : "reveal"}
         >
           {children}
         </ActionLabel>
