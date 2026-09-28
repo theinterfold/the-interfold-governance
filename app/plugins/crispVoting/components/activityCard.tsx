@@ -3,6 +3,7 @@ import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchRoundInputs } from "@/utils/crispIndexer";
 import { publicClient } from "../utils/client";
+import { crispSdk } from "../utils/crispSdk";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 
 // Minimal slice of IInterfold.getE3 — only the fields before and including e3Program matter here.
@@ -50,7 +51,11 @@ interface ActivityEntry {
  * CrispVoting.interfold() -> getE3(e3Id).e3Program.
  */
 export function ActivityCard({ e3Id }: { e3Id: bigint }) {
-  const { data: entries, isLoading } = useQuery<ActivityEntry[]>({
+  const {
+    data: entries,
+    isLoading,
+    isError,
+  } = useQuery<ActivityEntry[]>({
     queryKey: ["crisp-activity", e3Id.toString()],
     queryFn: async () => {
       const interfold = (await publicClient.readContract({
@@ -66,7 +71,16 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         args: [e3Id],
       });
 
-      const fromBlock = BigInt(PUB_DEPLOYMENT_BLOCK);
+      // A ballot cannot be committed before the round's input window opens, so scan from there
+      // rather than from the plugin's deployment, ~280k blocks earlier on mainnet. When the CRISP
+      // server's log index is cold, `/chain/rpc` rescans the requested range upstream, and the wide
+      // scan outlasted the client's 10 s timeout on every retry: minutes of "Loading…" ending in
+      // "No encrypted inputs" for a round that had them. `getBlockAtTimestamp` resolves the block
+      // at or BEFORE the timestamp, so nothing inside the window is skipped.
+      const fromBlock = await crispSdk
+        .getBlockAtTimestamp(e3.inputWindow[0])
+        .then((r) => BigInt(r.blockNumber))
+        .catch(() => BigInt(PUB_DEPLOYMENT_BLOCK));
 
       // Committed is the source of truth for "a ballot exists". Read it from the chain rather
       // than the server: `/rounds/inputs` reports PUBLISHED inputs only, so it answers `[]` for a
@@ -94,13 +108,19 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         publishedLogs.map((log) => (log.args.encryptedVoteHash ?? "").toString().toLowerCase())
       );
 
-      // The server still supplies transaction hashes for published inputs when it is reachable,
-      // but it can only ever be a superset check — never the count itself.
-      const serverInputs = await fetchRoundInputs({
-        roundId: e3Id,
-        fromBlock: PUB_DEPLOYMENT_BLOCK,
-        program: e3.e3Program,
-      }).catch(() => null);
+      // The server is consulted only for what the logs cannot answer — an older program whose
+      // events omit the hash — and even then it is a superset check, never the count itself. A
+      // round whose publications all matched does not wait on a second scan.
+      const allMatched = committedLogs.every((log) =>
+        publishedHashes.has((log.args.encryptedVoteHash ?? "").toString().toLowerCase())
+      );
+      const serverInputs = allMatched
+        ? null
+        : await fetchRoundInputs({
+            roundId: e3Id,
+            fromBlock: Number(fromBlock),
+            program: e3.e3Program,
+          }).catch(() => null);
       const serverPublishedCount = serverInputs?.length ?? 0;
 
       return committedLogs
@@ -148,7 +168,13 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
       )}
 
       {isLoading && <p className="text-sm text-neutral-500">Loading…</p>}
-      {!isLoading && committed === 0 && <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>}
+      {/* A failed read is not an empty round: "no inputs" here reads as "my vote was lost". */}
+      {!isLoading && entries === undefined && isError && (
+        <p className="text-sm text-critical-500">Could not load the ballot activity right now.</p>
+      )}
+      {!isLoading && entries !== undefined && committed === 0 && (
+        <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>
+      )}
 
       <div className="flex max-h-64 flex-col gap-y-2 overflow-y-auto">
         {entries?.map((entry) => (

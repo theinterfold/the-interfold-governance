@@ -1,9 +1,10 @@
-import { parseAbi } from "viem";
+import { formatUnits, parseAbi } from "viem";
 import { useQuery } from "@tanstack/react-query";
 import {
   PUB_CHAIN,
   PUB_CRISP_PROGRAM_ADDRESS,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+  PUB_TOKEN_SYMBOL,
   PUB_VOTING_POWER_SOURCE,
 } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
@@ -28,7 +29,7 @@ const votingTokenAbi = parseAbi(["function getVotingToken() view returns (addres
  * (see `PersistQueryClientProvider` in `context/index.tsx`, gcTime 24h), so a code
  * change alone will keep serving a stale report — the query key must change too.
  */
-const REPORT_VERSION = 4;
+const REPORT_VERSION = 5;
 
 /** How many `getPastVotes` reads to bundle into a single multicall. */
 const MULTICALL_BATCH = 200;
@@ -292,11 +293,15 @@ export function useEligibleVoters(
 
       if (tokenDetails?.threshold !== undefined && roundFloor !== undefined) {
         const same = tokenDetails.threshold === roundFloor;
+        // The floor is in the token's raw units; 10^17 reads as "0.1 FOLD", not a 17-digit number.
+        const asTokens = (raw: bigint) => `${formatUnits(raw, decimals!)} ${PUB_TOKEN_SYMBOL}`;
         checks.push({
           id: "threshold",
           label: "Eligibility threshold matches the round",
           status: same ? "pass" : "warn",
-          detail: same ? `${roundFloor}` : `server ${tokenDetails.threshold} vs chain ${roundFloor}`,
+          detail: same
+            ? asTokens(roundFloor)
+            : `server ${asTokens(tokenDetails.threshold)} vs chain ${asTokens(roundFloor)}`,
         });
       }
 
