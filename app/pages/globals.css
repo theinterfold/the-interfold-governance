@@ -3313,23 +3313,19 @@ label div p.leading-tight,
 /* Submission is a result, with an explicit action to edit or send another mask. */
 .vp-submitted {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  min-height: 48px;
-  padding: 14px 16px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
   border: 1px solid var(--mint-line);
   border-radius: var(--action-radius);
   background: var(--mint-pale);
   color: #205d3c;
-  font: 600 16px/1.4 var(--font-sans);
 }
-.vp-submitted a {
-  margin-left: auto;
-  font: 500 12px/1.4 var(--font-sans);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
+.vp-success-icon { flex: 0 0 auto; }
+.vp-success-content { display: grid; gap: 10px; min-width: 0; }
+.vp-success-content > strong { font: 600 20px/1.3 var(--font-sans); }
+.vp-success-description { font: 400 14px/1.55 var(--font-sans); }
+.vp-success-content > a { justify-self: start; font: 500 13px/1.4 var(--font-sans); }
 .fold-balance-metric dd,
 .power-balance-line,
 .power-delegate-votes,
@@ -3557,7 +3553,6 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .vp-confirmed-choice { display: flex; align-items: center; gap: 12px; padding-top: 8px; }
 .vp-confirmed-choice strong { font: 600 32px/1.25 var(--font-sans); letter-spacing: -.5px; }
 .vp-confirmed-choice .swatch { width: 10px; height: 10px; border-radius: 50%; }
-.proposal-detail-ballot .vp-submitted { border: 0; padding: 0; background: transparent; min-height: 24px; font-size: 14px; }
 .proposal-detail-ballot .vp-edit-submission { align-self: flex-start; margin-top: 8px; }
 .proposal-detail-ballot .vp-mask-explanation { border: 0; border-top: 1px solid var(--rule); padding: 18px 0 0; background: transparent; font-size: 14px; }
 .proposal-detail-ballot .vp-mask-symbol { display: none; }
@@ -3680,11 +3675,11 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 }
 .power-lock-position-list .power-position-row { padding-block: 12px; }
 .power-lock-position-list .power-position-id { grid-column: 1; grid-row: 1; align-self: center; display: flex; align-items: center; }
-.power-lock-position-list .power-position-holding { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
+.power-lock-position-list .power-position-holding { grid-column: 2; grid-row: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; min-width: 0; }
 /* Legacy row placement must not create implicit columns inside the holding. */
 .power-lock-position-list .power-position-holding > :is(.power-position-amount, .power-position-delegate) { grid-column: 1; grid-row: auto; }
 .power-lock-position-list .power-position-amount { flex-wrap: nowrap; }
-.power-lock-position-list .power-position-delegate { display: block; color: var(--muted); font: var(--ui-label-font); overflow-wrap: anywhere; }
+.power-lock-position-list .power-position-delegate { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; color: var(--muted); font: var(--ui-label-font); overflow-wrap: anywhere; }
 .power-lock-position-list .power-position-row > .power-position-action { grid-column: 4; grid-row: 1; margin: 0; justify-self: end; }
 .power-lock-position-list .power-position-action button { width: var(--action-column-width); }
 .power-lock-position-list .power-position-status { grid-column: 3; grid-row: 1; min-height: 28px; display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 12px; min-width: 0; white-space: nowrap; }

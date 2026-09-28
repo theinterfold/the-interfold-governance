@@ -5,7 +5,7 @@ import { prepareDemoBallot, sendPreparedDemoBallot, simulateDemoBallot } from "@
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BallotSubmissionResult } from "../utils/ballotSubmission";
+import type { BallotSubmissionResult, PreparedVoteReceipt } from "../utils/ballotSubmission";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
@@ -52,7 +52,8 @@ interface CrispServerState {
   getRandomMaskTarget: () => Promise<string>;
   getMaskRecipients: () => Promise<EligibleVoter[]>;
   preparedBallot: PreparedBallot | null;
-  preparedReceipt: { voter: string; txHash: string | null } | null;
+  preparedReceipt: PreparedVoteReceipt | null;
+  changePreparedVote: () => void;
   prepareVote: (option: bigint, snapshotBlock: bigint, expiresAt: number) => Promise<BallotSubmissionResult>;
   sendPreparedVote: () => Promise<BallotSubmissionResult>;
   discardPreparedVote: () => void;
@@ -125,7 +126,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
   const resolveCommitteeKey = useCommitteeKeyCheck(e3Id);
 
-  const [preparedReceipt, setPreparedReceipt] = useState<{ voter: string; txHash: string | null } | null>(null);
+  const [preparedReceipt, setPreparedReceipt] = useState<PreparedVoteReceipt | null>(null);
   useEffect(() => {
     setPreparedReceipt(null);
   }, [e3Id]);
@@ -596,12 +597,17 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setStepMessage(
         ballot.transactionHash ? "Checking your transaction…" : "Confirm sending the signed vote in your wallet…"
       );
+      let sender = ballot.transactionHash ? undefined : address;
       const hash = await sendPreparedBallot({
         ballot,
         sender: address,
         chainId,
         publish: publishVoteOnChain,
-        receipt: (hash) => publicClient.waitForTransactionReceipt({ hash }),
+        receipt: async (hash) => {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          sender = receipt.from;
+          return receipt;
+        },
         save: (saved) => {
           if (saved.transactionHash) setTxHash(saved.transactionHash);
           pending.save(saved);
@@ -615,7 +621,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setTxHash(hash);
       setVotingStep("complete");
       setStepMessage("Vote submitted for the signing wallet.");
-      setPreparedReceipt({ voter: ballot.voter, txHash: hash });
+      setPreparedReceipt({ voter: ballot.voter, sender, txHash: hash });
       addAlert("Vote submitted", { type: "success", description: "The vote counts for the wallet that signed it." });
       return { success: true, txHash: hash };
     } catch (cause) {
@@ -634,6 +640,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     getMaskRecipients,
     preparedBallot: pending.ballot,
     preparedReceipt,
+    changePreparedVote: () => setPreparedReceipt(null),
     prepareVote,
     sendPreparedVote,
     discardPreparedVote: () => {

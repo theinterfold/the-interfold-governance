@@ -70,7 +70,7 @@ See [the component catalogue](interface-catalogue.md) and the local `/design-sys
 
 Checks: review Your locks, Delegates and the delegate picker together; check proposal filters, the composer, public/private vote panels and eligible-voter tables. Compare desktop and stacked mobile layouts. Do not change live data or reset demo state while checking styling.
 
-- A confirmed secret ballot shows “Vote submitted” and an explicit “Change vote” action while voting remains open. Masks show “Mask submitted” and “Submit another mask”; a mask is not a vote and does not erase its confirmation. Retrying hides the preceding progress, and a failed update must not be presented as successful.
+- Confirmed public and secret ballots use `BallotSuccess`: a pale-green result panel with a check, “Vote submitted successfully”, and the transaction link when available. The choice list stays hidden until an explicit “Change vote” action while voting remains open. A prepared ballot sent by another wallet shows the signing/voting wallet and the actual sending wallet; changing that vote requests the signing wallet before reopening choices. Keep this receipt in memory only. Masks show “Mask submitted” and “Submit another mask”; a mask is not a vote and does not erase its confirmation. Retrying hides the preceding progress, and a failed update must not be presented as successful.
 
 - Propose changes to existing product names and action terminology to Tiago before applying them. Keep “Submit a mask” unless a replacement has been discussed and accepted.
 
@@ -129,7 +129,7 @@ Reference pages inspected visually on 2026-09-23:
 
 - Locks, the delegate directory and delegate picker use white rows, a thin divider and the same `--surface-muted` hover/focus-within. The current delegate remains an explicit green state.
 - Hover and separators reach the card’s interior edges; content retains 32px desktop / 20px mobile insets. No zebra backgrounds or inset hover rectangles.
-- Locks and delegates have a 76px minimum desktop row height and 12px vertical padding. Content can grow; never truncate an address or force a fixed mobile height.
+- Lock amounts and their delegate metadata stack without an extra row gap; align the delegate label and wallet identity on the same line when space allows. Locks and delegates have a 76px minimum desktop row height and 12px vertical padding. Content can grow; never truncate an address or force a fixed mobile height.
 - `RowIdentifier` uses 12px/500 tabular figures and a 24px base column. `#tokenId` is a stable lock identifier; a delegate number is its position in the displayed order. Long lock IDs may wrap within their column.
 - Mobile locks keep the ID beside the amount and delegation, status on the right on the next line, and a full-width action below. Delegate rows keep identity and power grouped, with the action below when space requires it.
 - `StatusBadge` shares dimensions (24px high), type, padding and shape; `LockStatusBadge` supplies its domain icon/label/colour. `DelegateStatus` is a read-only indicator sized to the compact action column.

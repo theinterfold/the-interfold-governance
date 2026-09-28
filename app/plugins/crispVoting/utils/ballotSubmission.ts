@@ -1,3 +1,4 @@
+export type PreparedVoteReceipt = { voter: string; sender?: string; txHash: string | null };
 export type BallotKind = "vote" | "mask";
 export type BallotSubmissionResult = { success: true; txHash: string | null } | { success: false; error: string };
 

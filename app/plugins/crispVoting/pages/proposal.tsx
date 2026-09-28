@@ -1,4 +1,7 @@
-import { AddressText } from "@/components/text/address";
+import { useWalletModal } from "@/hooks/useWalletModal";
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { openDemoWalletPanel } from "@/dev/DemoWalletPanel";
+import { SubmittedVoteCard } from "../components/vote/submittedVoteCard";
 import { PreparedVoteCard } from "../components/vote/preparedVoteCard";
 import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
 import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
@@ -68,6 +71,7 @@ function ProposalDetailBody({
   embedded: boolean;
 }) {
   const { address } = useAccount();
+  const { open: openWallet } = useWalletModal();
   const ballotVariant = useBallotPreviewVariant();
   // Mainnet offers no relayer route for now: ballots go on-chain from the voter's wallet,
   // and the toggle is hidden. Testnets keep the choice.
@@ -91,6 +95,7 @@ function ProposalDetailBody({
     getMaskRecipients,
     preparedBallot,
     preparedReceipt,
+    changePreparedVote,
     prepareVote,
     sendPreparedVote,
     discardPreparedVote,
@@ -158,25 +163,6 @@ function ProposalDetailBody({
     );
   }
 
-  const preparedVoteNotice = preparedReceipt && !preparedBallot && (
-    <div className="vp-submitted" role="status">
-      <span aria-hidden="true">✓</span>
-      <span>
-        Vote submitted for <AddressText bold={false}>{preparedReceipt.voter}</AddressText>
-      </span>
-      {preparedReceipt.txHash && (
-        <a
-          className="ui-text-action"
-          href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${preparedReceipt.txHash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          View transaction ↗
-        </a>
-      )}
-    </div>
-  );
-
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
       <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
@@ -207,7 +193,19 @@ function ProposalDetailBody({
                   onDiscard={discardPreparedVote}
                 />
               )}
-              {proposalStatus === ProposalStatus.ACTIVE && !preparedBallot && (
+              {preparedReceipt && !preparedBallot && (
+                <SubmittedVoteCard
+                  receipt={preparedReceipt}
+                  walletAddress={address}
+                  canChangeVote={proposalStatus === ProposalStatus.ACTIVE}
+                  onChangeVote={changePreparedVote}
+                  onSwitchWallet={async () => {
+                    if (DESIGN_PREVIEW && address) openDemoWalletPanel();
+                    else await openWallet();
+                  }}
+                />
+              )}
+              {proposalStatus === ProposalStatus.ACTIVE && !preparedBallot && !preparedReceipt && (
                 <VoteCard
                   key={`${proposalIdx}-${address}`}
                   votingPower={
@@ -229,7 +227,6 @@ function ProposalDetailBody({
                     )
                   }
                   eligibilityNotice={eligibilityNotice}
-                  submissionNotice={preparedVoteNotice}
                   canMask={!!address && canVote !== undefined}
                   voteStartDate={Number(proposal?.parameters.startDate)}
                   voteEndDate={Number(proposal?.parameters.endDate)}
@@ -264,7 +261,6 @@ function ProposalDetailBody({
               )}
               {proposalStatus !== ProposalStatus.ACTIVE && (
                 <>
-                  {preparedVoteNotice && <div className="vp-body">{preparedVoteNotice}</div>}
                   <VoteResultCard
                     vetoStage={spp.vetoStage}
                     isSignalling={false}

@@ -1,3 +1,4 @@
+import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { SearchField } from "@/components/input/searchField";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
@@ -26,7 +27,6 @@ import { submitBallotSequence, type BallotKind, type BallotSubmissionResult } fr
 export interface VoteCardProps {
   votingPower?: ReactNode;
   eligibilityNotice?: ReactNode;
-  submissionNotice?: ReactNode;
   canMask?: boolean;
   proposalTitle?: string;
   getRandomMaskTarget: () => Promise<string>;
@@ -61,7 +61,6 @@ export interface VoteCardProps {
 export const VoteCard = ({
   votingPower,
   eligibilityNotice,
-  submissionNotice,
   canMask = true,
   proposalTitle,
   getRandomMaskTarget,
@@ -261,13 +260,17 @@ export const VoteCard = ({
 
   return (
     <BallotPanel
-      title={isMasking ? "Mask ballot" : voteDisabled ? "Voting" : "Cast ballot"}
+      title={isMasking ? "Mask ballot" : isSubmitted || voteDisabled ? "Voting" : "Cast ballot"}
       mode={mode}
       submitted={isSubmitted}
       info={(isMasking || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
     >
       <div className="vp-body">
-        {submissionNotice}
+        {!isMasking && isSubmitted && receipts.vote && (
+          <BallotSuccess txHash={receipts.vote.txHash}>
+            Your encrypted vote has been submitted. You can change it before voting closes.
+          </BallotSuccess>
+        )}
         {!isMasking && (!voteDisabled || isSubmitted) && votingPower}
         {!isMasking && voteDisabled && !isSubmitted && eligibilityNotice}
         {!isMasking && !voteDisabled && error && <p className="text-sm text-critical-500">{error}</p>}
@@ -294,7 +297,7 @@ export const VoteCard = ({
               aria-hidden={isMasking}
               ref={ballotRef}
             >
-              {!voteDisabled && (
+              {!voteDisabled && !isSubmitted && (
                 <p className="vp-note">
                   {receipts.vote
                     ? "You can change your vote before voting closes. Your latest submitted vote replaces the previous one."
@@ -326,7 +329,7 @@ export const VoteCard = ({
                   className="vp-mask-entry"
                   disabled={isDisabled}
                   onClick={(event) => {
-                    if (maskAsOption && !voteDisabled) {
+                    if (maskAsOption && !voteDisabled && !isSubmitted) {
                       setSelectedChoice("mask");
                       setEditingMode("vote");
                       setShowFeedback(false);
@@ -396,26 +399,12 @@ export const VoteCard = ({
 
         <div className="vp-submission-results" aria-live="polite">
           {((isMasking ? ["mask"] : combinedAttempt ? ["vote", "mask"] : ["vote"]) as BallotKind[]).map((kind) =>
-            receipts[kind] ? (
-              <div key={kind} className="vp-submitted" role="status">
-                <span aria-hidden="true">✓</span>
-                <span>
-                  {kind === "mask"
-                    ? "Mask submitted"
-                    : editingMode === "vote"
-                      ? "Previous vote submitted"
-                      : "Vote submitted"}
-                </span>
-                {receipts[kind]?.txHash && (
-                  <a
-                    href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${receipts[kind]?.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View transaction
-                  </a>
-                )}
-              </div>
+            receipts[kind] && !(kind === "vote" && isSubmitted && !isMasking) ? (
+              <BallotSuccess
+                key={kind}
+                title={kind === "mask" ? "Mask submitted successfully" : "Previous vote submitted"}
+                txHash={receipts[kind]?.txHash}
+              />
             ) : null
           )}
           {attemptError && showFeedback && (

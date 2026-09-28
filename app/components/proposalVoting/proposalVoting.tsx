@@ -4,7 +4,7 @@ import { BallotChoices, BallotPanel, BallotReview, ballotOptionColor } from "./b
 import { VotingStage, type IVotingStageProps } from "./votingStage/votingStage";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import type { ITransformedStage } from "@/utils/types";
-import { PUB_CHAIN } from "@/constants";
+import { BallotSuccess } from "./ballotSuccess";
 
 interface IProposalVotingProps {
   stage: ITransformedStage;
@@ -51,12 +51,11 @@ export function ProposalVoting({
 
   return (
     <BallotPanel
-      title={
-        votingOpen && !canVote && !submitted ? "Voting" : votingOpen || submitted ? "Cast ballot" : "Voting results"
-      }
+      title={submitted || (votingOpen && !canVote) ? "Voting" : votingOpen ? "Cast ballot" : "Voting results"}
       submitted={submitted}
     >
       <div className="vp-body">
+        {submitted && <BallotSuccess txHash={txHash} />}
         {(!votingOpen || canVote || submitted) && votingPower}
         {(submitted || (votingOpen && canVote)) && <p className="vp-note">Your vote is public.</p>}
         {submitted ? (
@@ -64,19 +63,6 @@ export function ProposalVoting({
             <div className="vp-confirmed-choice">
               <span className="swatch" style={{ background: ballotOptionColor(selected) }} aria-hidden="true" />
               <strong>{options[selected]}</strong>
-            </div>
-            <div className="vp-submitted" role="status">
-              <span aria-hidden="true">✓</span>
-              <span>Vote submitted</span>
-              {txHash && (
-                <a
-                  href={`${PUB_CHAIN.blockExplorers?.default.url}/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View transaction
-                </a>
-              )}
             </div>
             {votingOpen && canChangeVote && (
               <Button

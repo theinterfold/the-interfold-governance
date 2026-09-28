@@ -9,6 +9,7 @@ import { BallotEligibilityNotice } from "../components/proposalVoting/ballotElig
 import { ProposalVoting } from "../components/proposalVoting/proposalVoting";
 import { VoteCard, type VoteCardProps } from "../plugins/crispVoting/components/vote/voteCard";
 import type { ITransformedStage } from "../utils/types";
+import { SubmittedVoteCard } from "../plugins/crispVoting/components/vote/submittedVoteCard";
 
 const config = createConfig({
   chains: [mainnet],
@@ -122,5 +123,61 @@ describe("Ballot eligibility rendering", () => {
     const html = renderToStaticMarkup(<BallotEligibilityNotice connected={true} failed={true} />);
     expect(html).toContain("Could not check voting eligibility");
     expect(html).not.toContain("No voting power");
+  });
+
+  test("a vote sent from another wallet shows success and both roles, without reopening voting", () => {
+    const html = renderToStaticMarkup(
+      <SubmittedVoteCard
+        onSwitchWallet={async () => {}}
+        receipt={{
+          voter: "0x1111111111111111111111111111111111111111",
+          sender: "0x2222222222222222222222222222222222222222",
+          txHash: null,
+        }}
+        walletAddress="0x2222222222222222222222222222222222222222"
+        canChangeVote={true}
+        onChangeVote={() => {
+          throw new Error("Rendering must not reopen the ballot");
+        }}
+      />
+    );
+    expect(html).toContain("Vote submitted successfully");
+    expect(html).toContain("Signed by · vote counts for");
+    expect(html).toContain("0x1111...1111");
+    expect(html).toContain("Sent by");
+    expect(html).toContain("0x2222...2222");
+    expect(html).toContain("Change vote");
+    expect(html).not.toContain('role="radiogroup"');
+    expect(html).not.toContain("No voting power");
+  });
+
+  test("reconnecting the signing wallet keeps success visible until Change vote is chosen", () => {
+    const html = renderToStaticMarkup(
+      <SubmittedVoteCard
+        onSwitchWallet={async () => {}}
+        receipt={{ voter: "0x1111111111111111111111111111111111111111", txHash: null }}
+        walletAddress="0x1111111111111111111111111111111111111111"
+        canChangeVote={true}
+        onChangeVote={() => {
+          throw new Error("Changing accounts must not reopen the ballot");
+        }}
+      />
+    );
+    expect(html).toContain("Vote submitted successfully");
+    expect(html).toContain("Change vote");
+    expect(html).not.toContain('role="radiogroup"');
+  });
+
+  test("a closed proposal preserves confirmation without offering to change the vote", () => {
+    const html = renderToStaticMarkup(
+      <SubmittedVoteCard
+        onSwitchWallet={async () => {}}
+        receipt={{ voter: "0x1111111111111111111111111111111111111111", txHash: null }}
+        canChangeVote={false}
+        onChangeVote={() => {}}
+      />
+    );
+    expect(html).toContain("Vote submitted successfully");
+    expect(html).not.toContain("Change vote");
   });
 });
