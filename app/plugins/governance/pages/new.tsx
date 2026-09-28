@@ -31,6 +31,11 @@ export default function CreateProposal() {
       kind={kind}
       onKindChange={setKind}
       canSubmit={canSubmit}
+      creationRequirement={{
+        minimum: eligibility.minProposerVotingPower,
+        votingPower: eligibility.votes,
+        loading: eligibility.isLoading,
+      }}
       durationSeconds={durationSeconds}
       fee={
         kind === "private" ? (

@@ -4,7 +4,6 @@ import { usePublicClient, useReadContracts } from "wagmi";
 import { PUB_CHAIN } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
-import { ADDRESS_ZERO } from "@/utils/evm";
 import { awaitSuccessfulReceipt } from "@/plugins/crispVoting/utils/awaitReceipt";
 import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
 
@@ -29,12 +28,13 @@ export function useVeDelegation(address: Address | undefined, adapter: Address |
   });
 
   const { writeContractAsync } = useTransactionManager({
-    onSuccessMessage: "Lock voting power delegated",
-    onErrorMessage: "Could not delegate the lock voting power",
+    onSuccessMessage: "Voting delegate updated",
+    onErrorMessage: "Could not update the voting delegate",
   });
 
   const delegate = async (target: Address): Promise<boolean> => {
-    if (!adapter || !address || !isAddress(target) || target === ADDRESS_ZERO || submitting.current) return false;
+    // address(0) explicitly removes delegation from all of this owner's locks.
+    if (!adapter || !address || !isAddress(target) || submitting.current) return false;
     submitting.current = true;
     setPending(true);
     setError(undefined);

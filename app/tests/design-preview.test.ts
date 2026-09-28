@@ -10,7 +10,7 @@ import { StagedProposalProcessorAbi } from "../plugins/spp/artifacts/StagedPropo
 import { uploadToPinata } from "../utils/ipfs";
 
 describe.skipIf(!DESIGN_PREVIEW)("Local design preview isolation", () => {
-  test("the connector rejects every signing and transaction method", async () => {
+  test("the connector rejects unsupported or incomplete signing and transaction requests", async () => {
     const config = createConfig({
       chains: [PUB_CHAIN],
       transports: { [PUB_CHAIN.id]: demoTransport() },
@@ -46,7 +46,8 @@ describe.skipIf(!DESIGN_PREVIEW)("Local design preview isolation", () => {
         { address: PUB_TOKEN_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [DEMO_WALLET] },
       ],
     });
-    expect(result).toEqual([18, 125000n * 10n ** 18n]);
+    // 125K spendable plus 15K vesting held in the same ERC20 wallet.
+    expect(result).toEqual([18, 140000n * 10n ** 18n]);
   });
 
   test("SPP and CRISP decode their distinct proposal structures", () => {
@@ -60,8 +61,9 @@ describe.skipIf(!DESIGN_PREVIEW)("Local design preview isolation", () => {
     }
   });
 
-  test("metadata uploads are blocked before any fetch", async () => {
-    await expect(uploadToPinata("{}")).rejects.toThrow(DEMO_MESSAGE);
+  test("metadata stays in the local simulator without an upload", async () => {
+    const uri = await uploadToPinata('{"title":"Local proposal"}');
+    expect(uri.startsWith("demo://metadata/")).toBe(true);
   });
 
   test("the CRISP fixture rejects ballot preparation and unrecognised methods", async () => {

@@ -1,20 +1,16 @@
+import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
+import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
+import { e3RoundNumber } from "../utils/ballotDigest";
 import { useProposal } from "../hooks/useProposal";
-import { PUB_CHAIN } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
-import { BodySection } from "@/components/proposal/proposalBodySection";
 import { useProposalStatus } from "../hooks/useProposalStatus";
-import { ProposalActions } from "@/components/proposalActions/proposalActions";
-import { CardResources } from "@/components/proposal/cardResources";
-import type { Address } from "viem";
-import { ElseIf, If, Then } from "@/components/if";
-import { AlertCard, ProposalStatus } from "@aragon/ods";
+import { ProposalStatus } from "@aragon/ods";
 import { useAccount } from "wagmi";
-import { useTokenVotes } from "@/hooks/useTokenVotes";
-import { ADDRESS_ZERO } from "@/utils/evm";
-import { AddressText } from "@/components/text/address";
-import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
+import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
+import { BallotEligibilityNotice } from "@/components/proposalVoting/ballotEligibility";
 import { VoteCard } from "../components/vote/voteCard";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
@@ -26,8 +22,7 @@ import { MissingContentView } from "@/components/MissingContentView";
 import { VotingPower } from "@/plugins/tokenVoting/components/votingPower";
 import { ParticipationCard } from "../components/participationCard";
 import { ActivityCard } from "../components/activityCard";
-
-const ZERO = BigInt(0);
+import { useBallotPreviewVariant } from "@/dev/useBallotPreviewVariant";
 
 /** `index` is the SPP (staged process) proposal id; the CRISP sub-proposal id is resolved on-chain. */
 export default function ProposalDetail({
@@ -71,6 +66,7 @@ function ProposalDetailBody({
   embedded: boolean;
 }) {
   const { address } = useAccount();
+  const ballotVariant = useBallotPreviewVariant();
   // Mainnet offers no relayer route for now: ballots go on-chain from the voter's wallet,
   // and the toggle is hidden. Testnets keep the choice.
   const directOnly = PUB_CHAIN.id === 1;
@@ -89,6 +85,7 @@ function ProposalDetailBody({
     isLoading,
     error,
     postVote,
+    getRandomMaskTarget,
     votingStep,
     lastActiveStep,
     stepMessage,
@@ -97,7 +94,15 @@ function ProposalDetailBody({
     onChainBlockedReason,
   } = useCrispServer(proposal?.e3Id);
   const canVote = useCanVote(proposalIdx);
-  const { balance, delegatesTo } = useTokenVotes(address);
+  const snapshot = useSnapshotVotingPower(PUB_CRISP_VOTING_PLUGIN_ADDRESS, proposal?.parameters.snapshotBlock);
+  const eligibilityNotice = (
+    <BallotEligibilityNotice
+      connected={!!address}
+      canVote={canVote}
+      votingPower={snapshot.votingPower}
+      failed={snapshot.isError}
+    />
+  );
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
@@ -115,23 +120,23 @@ function ProposalDetailBody({
     return proposal?.options ?? ["Yes", "No"];
   }, [proposal]);
 
-  const onVote = (optionIndex: number) => {
-    if (!proposal) {
-      return;
-    }
-
-    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
+  const onVote = async (optionIndex: number) => {
+    if (!proposal) return { success: false as const, error: "Proposal unavailable." };
+    return postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
   };
 
-  const onMask = () => {
-    if (!proposal) return;
+  const onMask = async (target?: string) => {
+    if (!proposal) return { success: false as const, error: "Proposal unavailable." };
     // Mask uses the next index after the last option
-    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain);
+    return postVote(
+      BigInt(options.length),
+      proposal.e3Id,
+      proposal.parameters.snapshotBlock,
+      true,
+      submitOnChain,
+      target
+    );
   };
-
-  const hasBalance = !!balance && balance > ZERO;
-  const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
-  const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
 
   // The actions to be executed on the DAO live on the SPP proposal; the body
   // sub-proposal only carries the internal reportProposalResult callback.
@@ -147,86 +152,104 @@ function ProposalDetailBody({
 
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
-      {!embedded && (
-        <ProposalHeader
-          proposalIdx={proposalIdx}
-          proposal={proposal}
-          isCommitteeReady={isCommitteeReady}
-          totalVotingPower={totalVotingPower}
-          e3Failed={e3Failed}
-        />
-      )}
-
       <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
-        <div className="proposal-detail-grid">
-          <div className="flex min-w-0 flex-col gap-y-6">
-            <BodySection body={proposal.description || "No description was provided"} />
-            <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
-              <NoVotePowerWarning
-                delegatingToSomeoneElse={delegatingToSomeoneElse}
-                delegatesTo={delegatesTo}
-                delegatedToZero={delegatedToZero}
-                address={address}
-                canVote={!!canVote}
-              />
-            </If>
-            {/* Voting lives in the main column, mirroring the public (TokenVoting) page layout. */}
-            {proposalStatus === ProposalStatus.ACTIVE && (
-              <VoteCard
-                error={canVote === false ? "You cannot vote on this proposal" : undefined}
-                voteStartDate={Number(proposal?.parameters.startDate)}
-                voteEndDate={Number(proposal?.parameters.endDate)}
+        <ProposalDetailLayout
+          breadcrumb={!embedded && <ProposalBreadcrumb identifier={`E3 · ${e3RoundNumber(proposal.e3Id)}`} />}
+          header={
+            !embedded && (
+              <ProposalHeader
+                proposal={proposal}
                 isCommitteeReady={isCommitteeReady}
-                options={options}
-                disabled={
-                  isCommitteeReady === false ||
-                  canVote === false ||
-                  proposalStatus !== ProposalStatus.ACTIVE ||
-                  Number(proposal?.parameters.startDate) > Math.round(Date.now() / 1000)
-                }
-                isLoading={isLoading}
-                onClickVote={onVote}
-                canPublishOnChain={canPublishOnChain}
-                onChainBlockedReason={onChainBlockedReason}
-                submitOnChain={submitOnChain}
-                onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
-                onClickMask={onMask}
-                proposalId={proposalIdx}
-                votingStep={votingStep}
-                lastActiveStep={lastActiveStep}
-                stepMessage={stepMessage}
-                txHash={txHash}
-              />
-            )}
-            {error && proposalStatus !== ProposalStatus.ACTIVE && (
-              <div className="border border-critical-200 bg-critical-100 px-4 py-3">
-                <p className="text-sm text-critical-600">{error}</p>
-              </div>
-            )}
-            {proposalStatus !== ProposalStatus.ACTIVE && (
-              <VoteResultCard
-                vetoStage={spp.vetoStage}
-                isSignalling={false}
-                proposalId={proposalIdx}
-                results={results}
-                isTallied={proposal.isTallied}
-                proposalStatus={proposalStatus}
-                minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
-                snapshotBlock={proposal.parameters.snapshotBlock}
-                numOptions={proposal.numOptions}
-                creditMode={proposal.parameters.creditMode}
+                totalVotingPower={totalVotingPower}
                 e3Failed={e3Failed}
-                e3FailureReason={e3FailureReason}
-                e3FailurePending={e3FailurePending}
               />
-            )}
-            {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
-            <ProposalActions actions={sppActions} />
-          </div>
-          <div className="flex min-w-0 flex-col gap-y-6">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotBlock} />
-            <ParticipationCard proposal={proposal} />
-            <ActivityCard e3Id={proposal.e3Id} />
+            )
+          }
+          description={proposal.description || "No description was provided"}
+          resources={proposal.resources}
+          actions={sppActions}
+          voting={
+            <>
+              {/* Both voting methods share the same reading, ballot and supporting-data layout. */}
+              {proposalStatus === ProposalStatus.ACTIVE && (
+                <VoteCard
+                  key={`${proposalIdx}-${address}`}
+                  votingPower={
+                    <VotingPower
+                      votingPlugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+                      snapshotTimepoint={proposal.parameters.snapshotBlock}
+                      compact={true}
+                    />
+                  }
+                  proposalTitle={proposal.title}
+                  maskAsOption={ballotVariant === "option"}
+                  getRandomMaskTarget={getRandomMaskTarget}
+                  eligibilityNotice={eligibilityNotice}
+                  canMask={!!address && canVote !== undefined}
+                  voteStartDate={Number(proposal?.parameters.startDate)}
+                  voteEndDate={Number(proposal?.parameters.endDate)}
+                  isCommitteeReady={isCommitteeReady}
+                  options={options}
+                  disabled={
+                    !address ||
+                    isCommitteeReady === false ||
+                    proposalStatus !== ProposalStatus.ACTIVE ||
+                    Number(proposal?.parameters.startDate) > Math.round(Date.now() / 1000)
+                  }
+                  isLoading={isLoading}
+                  onClickVote={onVote}
+                  canPublishOnChain={canPublishOnChain}
+                  onChainBlockedReason={onChainBlockedReason}
+                  submitOnChain={submitOnChain}
+                  onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
+                  onClickMask={onMask}
+                  proposalId={proposalIdx}
+                  votingStep={votingStep}
+                  lastActiveStep={lastActiveStep}
+                  stepMessage={stepMessage}
+                  txHash={txHash}
+                  walletAddress={address}
+                  voteDisabled={canVote !== true}
+                />
+              )}
+              {error && proposalStatus !== ProposalStatus.ACTIVE && (
+                <div className="border border-critical-200 bg-critical-100 px-4 py-3">
+                  <p className="text-sm text-critical-600">{error}</p>
+                </div>
+              )}
+              {proposalStatus !== ProposalStatus.ACTIVE && (
+                <VoteResultCard
+                  vetoStage={spp.vetoStage}
+                  isSignalling={false}
+                  proposalId={proposalIdx}
+                  results={results}
+                  isTallied={proposal.isTallied}
+                  proposalStatus={proposalStatus}
+                  minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
+                  snapshotBlock={proposal.parameters.snapshotBlock}
+                  numOptions={proposal.numOptions}
+                  creditMode={proposal.parameters.creditMode}
+                  e3Failed={e3Failed}
+                  e3FailureReason={e3FailureReason}
+                  e3FailurePending={e3FailurePending}
+                />
+              )}
+              {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
+            </>
+          }
+          votingPower={
+            proposalStatus !== ProposalStatus.ACTIVE ? (
+              <VotingPower
+                votingPlugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+                snapshotTimepoint={proposal.parameters.snapshotBlock}
+                compact={true}
+              />
+            ) : undefined
+          }
+          showVotingDetails={!!spp.proposal && spp.proposal.currentStage >= 1}
+          participation={<ParticipationCard proposal={proposal} />}
+          activity={<ActivityCard e3Id={proposal.e3Id} />}
+          stage={
             <VetoStageCard
               kind="private"
               proposalId={sppProposalId}
@@ -236,56 +259,12 @@ function ProposalDetailBody({
               vetoTally={spp.vetoTally}
               stage0Failed={proposalStatus === ProposalStatus.REJECTED}
             />
-            <CardResources resources={proposal.resources} title="Resources" />
-          </div>
-        </div>
+          }
+        />
       </div>
     </section>
   );
 }
-
-const NoVotePowerWarning = ({
-  delegatingToSomeoneElse,
-  delegatesTo,
-  delegatedToZero,
-  address,
-  canVote,
-}: {
-  delegatingToSomeoneElse: boolean;
-  delegatesTo: Address | undefined;
-  delegatedToZero: boolean;
-  address: Address | undefined;
-  canVote: boolean;
-}) => {
-  return (
-    <AlertCard
-      description={
-        <span className="text-sm">
-          <If true={delegatingToSomeoneElse}>
-            <Then>
-              You are currently delegating your voting power to <AddressText bold={false}>{delegatesTo}</AddressText>.
-              If you wish to participate by yourself in future proposals,
-            </Then>
-            <ElseIf true={delegatedToZero}>
-              You have not self delegated your voting power to participate in the DAO. If you wish to participate in
-              future proposals,
-            </ElseIf>
-          </If>
-          &nbsp;
-          <SelfDelegateLink />.
-        </span>
-      }
-      message={
-        delegatingToSomeoneElse
-          ? "Your voting power is currently delegated"
-          : canVote
-            ? "You cannot vote on new proposals"
-            : "You cannot vote"
-      }
-      variant="info"
-    />
-  );
-};
 
 function getShowProposalLoading(
   proposal: ReturnType<typeof useProposal>["proposal"],

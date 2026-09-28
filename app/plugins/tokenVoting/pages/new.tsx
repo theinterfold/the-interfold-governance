@@ -11,7 +11,7 @@ import type { ProposalCreateProps } from "@/plugins/governance/hooks/useProposal
 
 export default function Create({ draft, onKindChange }: ProposalCreateProps) {
   const { address: selfAddress, isConnected } = useAccount();
-  const { canCreate, isLoading } = useCanCreateProposal();
+  const { canCreate, isLoading, minProposerVotingPower, votes } = useCanCreateProposal();
   const proposal = useCreateProposal(draft);
 
   return (
@@ -21,6 +21,7 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
       kind="public"
       onKindChange={onKindChange}
       canSubmit={isConnected && canCreate && !isLoading}
+      creationRequirement={{ minimum: minProposerVotingPower, votingPower: votes, loading: isLoading }}
       renderEditor={(editor) => (
         <TokenCreationEligibility
           selfAddress={selfAddress}

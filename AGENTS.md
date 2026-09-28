@@ -4,6 +4,37 @@ Operational entry point for coding agents. **Read [`docs/architecture.md`](docs/
 first** — it is the authoritative explanation of how staged governance works. This file is the
 short operational layer: commands, invariants, and traps.
 
+## UI workflow — user preference
+
+For every new UI request, **reuse first**. Inspect the existing components, their supported
+variants, design tokens and `docs/design/interface-consistency.md` before proposing or
+implementing anything new. Prefer composing existing components with their current API.
+Components serving the same purpose must keep the same presentation and interaction.
+
+**Ask the user before changing an existing UI component.** This includes its appearance,
+dimensions, spacing, typography, icons, states, behavior, API or variants, and shared CSS/tokens
+that would change existing instances. A request for a new feature is not permission to alter
+existing components as a side effect.
+
+Before asking, inspect the code and prepare a concrete proposal: name the component, explain
+why its existing options are insufficient, describe the proposed change and identify the
+other screens affected. Keep the existing implementation unchanged until the user approves
+that change. Continue independent work that does not depend on approval. Do not ask again
+when the user has already explicitly approved the same concrete change in the conversation.
+
+Do not bypass this rule with page-specific overrides, copied components or near-duplicate
+variants. If no existing component fits, explain the gap before introducing a new pattern.
+These instructions apply to future work, not only to the current consistency pass.
+
+**Header and footer follow theinterfold.com.** Their canonical structure and visual styles
+live in `../Interfold-Website/packages/site-header/src`. Aesthetic changes must be global
+across the main website and Governance; only the background colour may differ by site.
+Edit that shared source and run `bun run sync:header` in Interfold-Website to update both
+consumers. Do not modify generated `app/vendor/site-header` or create a Governance-only
+restyling of the header/footer. Application destinations and wallet controls remain slots.
+Footer content is application-specific: Governance uses its own links and copyright,
+without Updates. Supply these through the shared footer's props; keep its styling shared.
+
 ## What this is
 
 A monorepo for the Interfold DAO. Proposals run through **staged governance**: two Aragon OSx

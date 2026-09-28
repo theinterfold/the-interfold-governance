@@ -36,6 +36,7 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
   const [queuedExits, setQueuedExits] = useState<QueuedExit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -75,6 +76,7 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
           : [];
         if (cancelled) return;
 
+        if (ownedReads.some((read) => read.result === undefined)) throw new Error("Incomplete lock data");
         const owned: OwnedLock[] = ownedIds.map((tokenId, i) => {
           const locked = ownedReads[i * 3]?.result as { amount: bigint; start: number } | undefined;
           return {
@@ -99,6 +101,7 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
           : [];
         if (cancelled) return;
 
+        if (queuedReads.some((read) => read.result === undefined)) throw new Error("Incomplete withdrawal data");
         const queued: QueuedExit[] = escrowHeldIds
           .map((tokenId, i) => {
             const holder = queuedReads[i * 4]?.result as Address | undefined;
@@ -120,7 +123,10 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
       } catch {
         if (!cancelled) setError("Could not load your locks");
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setLoadedFor(address.toLowerCase());
+          setIsLoading(false);
+        }
       }
     }
 
@@ -130,5 +136,12 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
     };
   }, [publicClient, address, queue, adapter, refreshKey]);
 
-  return { ownedLocks, queuedExits, isLoading, error, refetch };
+  const currentAccount = !!address && loadedFor === address.toLowerCase();
+  return {
+    ownedLocks: currentAccount ? ownedLocks : [],
+    queuedExits: currentAccount ? queuedExits : [],
+    isLoading: !currentAccount || isLoading,
+    error: currentAccount ? error : null,
+    refetch,
+  };
 }

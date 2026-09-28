@@ -11,7 +11,7 @@ import { PUB_ENABLE_LOCKING, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { DelegateList } from "../components/delegateList";
+import { DelegateDirectory } from "../components/delegateDirectory";
 
 export default function Delegation() {
   const { address, isConnected } = useAccount();
@@ -34,10 +34,9 @@ export default function Delegation() {
     decimals === undefined ? "—" : `${compactNumber(formatUnits(v ?? 0n, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
-    <MainSection narrow>
+    <MainSection narrow={true}>
       <div className="page-head w-full">
         <div>
-          <div className="kicker mb-3">Membership</div>
           <h1 className="display-title">Voting power</h1>
         </div>
       </div>
@@ -74,8 +73,6 @@ export default function Delegation() {
                   ) : (
                     "Nobody — no voting power"
                   )
-                ) : delegatedToSelf ? (
-                  "Yourself"
                 ) : (
                   <AddressText bold={false}>{delegatesTo}</AddressText>
                 )
@@ -125,11 +122,7 @@ export default function Delegation() {
           </Card>
 
           <Card>
-            <p className="text-base font-semibold text-neutral-800">Delegates</p>
-            <p className="text-sm text-neutral-500">
-              Addresses with active {PUB_TOKEN_SYMBOL} voting power. Delegate your power to any of them.
-            </p>
-            <DelegateList refreshKey={delegateListRefreshKey} />
+            <DelegateDirectory refreshKey={delegateListRefreshKey} />
           </Card>
         </div>
       )}

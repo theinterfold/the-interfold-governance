@@ -106,8 +106,8 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
           style={{
             backgroundColor: isError ? "#f3d6c8" : isComplete ? "var(--mint-pale)" : "var(--mint)",
             color: isError ? "#7a3322" : isComplete ? "var(--accent)" : "var(--ink-soft)",
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.04em",
+            fontFamily: "var(--font-sans)",
+            letterSpacing: 0,
           }}
         >
           {!isComplete && !isError && (

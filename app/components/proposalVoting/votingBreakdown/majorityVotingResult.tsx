@@ -1,9 +1,6 @@
-import { capitalizeFirstLetter } from "@/utils/text";
-import { Button, Heading, Progress, RadioCard, RadioGroup } from "@aragon/ods";
+import { Progress } from "@aragon/ods";
 import classNames from "classnames";
-import { useEffect, useId, useRef, useState } from "react";
 import { type VotingCta } from "./types";
-import { Disclosure } from "@/components/motion/Disclosure";
 
 type Choice = "yes" | "no" | "abstain";
 
@@ -25,34 +22,7 @@ const choiceTextClassNames: Record<Choice, string> = {
 };
 
 export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingResult> = (props) => {
-  const { cta, votingScores } = props;
-
-  const [showOptions, setShowOptions] = useState(false);
-  const [option, setOption] = useState<string>();
-  const optionsId = useId();
-  const actionsRef = useRef<HTMLDivElement>(null);
-
-  const closeOptions = () => {
-    setShowOptions(false);
-    actionsRef.current?.querySelector("button")?.focus({ preventScroll: true });
-  };
-
-  const handleVoteClick = () => {
-    if (showOptions || votingScores.length === 1) {
-      cta?.onClick?.(parseInt(option ?? "0"));
-    } else {
-      setShowOptions(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!!cta?.disabled && !!option) {
-      setShowOptions(false);
-    }
-  }, [cta?.disabled, option]);
-
-  const label = showOptions && !cta?.isLoading ? "Submit vote" : cta?.label;
-  const disabled = (!!showOptions && !option) || cta?.disabled;
+  const { votingScores } = props;
 
   return (
     <div className="public-vote-breakdown flex flex-col gap-y-4">
@@ -78,52 +48,6 @@ export const BreakdownMajorityVotingResult: React.FC<IBreakdownMajorityVotingRes
           </div>
         ))}
       </div>
-      {/* Options */}
-      <Disclosure open={showOptions} id={optionsId} className="public-vote-options">
-        <div className="flex flex-col gap-y-3 pt-3">
-          <div className="flex flex-col gap-y-2">
-            <Heading size="h3">Choose your option</Heading>
-            <p className="text-neutral-500">Choose an option, then confirm in your wallet.</p>
-          </div>
-          <RadioGroup value={option} onValueChange={(value) => setOption(value)} className="!gap-y-3">
-            {votingScores?.map((choice, index) => {
-              const parsedChoice = capitalizeFirstLetter(choice.option);
-              return (
-                <RadioCard
-                  key={choice.option}
-                  label={parsedChoice}
-                  description=""
-                  className="public-vote-choice"
-                  value={(index + 1).toString()}
-                />
-              );
-            })}
-          </RadioGroup>
-        </div>
-      </Disclosure>
-      {/* Button group */}
-      {cta && (
-        <div ref={actionsRef} className="flex w-full flex-col gap-y-4 md:flex-row md:gap-x-4">
-          <Button
-            size="md"
-            disabled={disabled}
-            onClick={handleVoteClick}
-            isLoading={cta.isLoading}
-            aria-expanded={showOptions}
-            aria-controls={optionsId}
-          >
-            <span key={label} className="vp-label-change">
-              {label}
-            </span>
-          </Button>
-
-          <Disclosure open={showOptions} className="public-vote-cancel">
-            <Button size="md" onClick={closeOptions} variant="tertiary" className="w-full">
-              Cancel
-            </Button>
-          </Disclosure>
-        </div>
-      )}
     </div>
   );
 };

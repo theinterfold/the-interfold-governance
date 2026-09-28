@@ -1,7 +1,8 @@
 import type { RawAction } from "@/utils/types";
 import { WithdrawalForm } from "@/components/input/withdrawal-form";
 import { FunctionAbiSelectForm } from "@/components/input/function-abi-select-form";
-import { Button, DialogContent, DialogFooter, DialogHeader, DialogRoot, type IDialogRootProps } from "@aragon/ods";
+import { DialogContent, DialogFooter, DialogHeader, DialogRoot, type IDialogRootProps } from "@aragon/ods";
+import { ActionButton } from "@/components/input/actionButton";
 import { ElseIf, If, Then } from "@/components/if";
 import { useState, type RefObject } from "react";
 import type { AbiFunction } from "viem";
@@ -88,12 +89,10 @@ export const NewActionDialog: React.FC<INewActionDialogProps> = (props) => {
             </If>
 
             <div className="flex justify-between">
-              <Button variant="secondary" size="lg" onClick={() => dismiss()}>
-                Cancel
-              </Button>
-              <Button variant="primary" disabled={!stagedActions?.length} size="lg" onClick={() => handleSubmit()}>
+              <ActionButton onClick={() => dismiss()}>Cancel</ActionButton>
+              <ActionButton intent="confirm" disabled={!stagedActions?.length} onClick={() => handleSubmit()}>
                 Add action
-              </Button>
+              </ActionButton>
             </div>
           </div>
         </FluidHeight>

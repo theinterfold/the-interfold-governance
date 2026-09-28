@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Button, ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
 import { useToken } from "../../hooks/useToken";
@@ -9,6 +9,7 @@ import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
 import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
 import { nextStageName } from "@/plugins/spp/utils/status";
+import { ActionIcon } from "@/components/input/actionIcon";
 
 interface IResult {
   option: string;
@@ -55,7 +56,7 @@ interface OutcomeArgs {
   quorum: { reached: boolean } | null;
 }
 
-/** Footer message that reflects the authoritative status, not just the raw vote leader. */
+/** Result summary that reflects the authoritative status, not just the raw vote leader. */
 function getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum }: OutcomeArgs) {
   if (total === 0) return "No votes were cast";
 
@@ -80,8 +81,11 @@ function getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quor
   if (!winner) return "Tied — no clear winner";
 
   return (
-    <span style={{ color: getColor(winner.index) }}>
-      {winner.option} won with {winnerPct}%
+    <span className="tally-outcome-winner">
+      <span style={{ color: getColor(winner.index) }}>
+        <ActionIcon name="check" />
+      </span>
+      <span>{winner.option} won with {winnerPct}%</span>
     </span>
   );
 }
@@ -235,18 +239,24 @@ export const VoteResultCard = ({
       </div>
 
       <div className="vp-body" style={{ gap: 0 }}>
+        <div className="tally-outcome ui-section-title">
+          {getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum })}
+        </div>
         {resultsWithPercentage.map((result) => {
           const isWinner = winner?.index === result.index;
           return (
-            <div key={result.index} className="tally-row">
+            <div
+              key={result.index}
+              className="tally-row"
+              data-leading={isWinner || undefined}
+              style={{ "--tally-color": getColor(result.index) } as CSSProperties}
+            >
               <span className="key">
-                <span className="swatch" style={{ background: getColor(result.index) }} />
-                <span className="truncate" style={{ color: isWinner ? "var(--ink)" : undefined }}>
-                  {result.option}
-                </span>
+                <span className="swatch" style={{ background: "var(--tally-color)" }} />
+                <span className="truncate">{result.option}</span>
               </span>
               <span className="bar">
-                <span style={{ width: `${Math.max(result.percentage, 0)}%`, background: getColor(result.index) }} />
+                <span style={{ width: `${Math.max(result.percentage, 0)}%`, background: "var(--tally-color)" }} />
               </span>
               <span className="pct" title={`${formatAmount(result.tokens)} ${unitLabel}`}>
                 {result.percentage.toFixed(1)}%
@@ -273,13 +283,6 @@ export const VoteResultCard = ({
             </span>
           </div>
         )}
-
-        <div
-          className="vp-foot-note"
-          style={{ textAlign: "left", marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--rule)" }}
-        >
-          {getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum })}
-        </div>
 
         {canExecute && !isSignalling && (
           <Button

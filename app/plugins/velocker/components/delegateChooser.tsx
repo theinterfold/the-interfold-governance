@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, MemberAvatar } from "@aragon/ods";
-import { isAddress, type Address } from "viem";
+import type { Address } from "viem";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { DelegateList } from "@/plugins/members/components/delegateList";
+import { useDelegateSearch } from "@/plugins/members/hooks/useDelegateSearch";
+import { SearchField } from "@/components/input/searchField";
+import { PowerAction } from "./powerAction";
+import { DelegationAmount } from "./delegationAmount";
 
 type Props = {
   active: boolean;
   account: Address;
   currentDelegate?: Address;
+  lockedAmount?: bigint;
   selected?: Address;
   pending: boolean;
   refreshKey: number;
@@ -20,6 +24,7 @@ export function DelegateChooser({
   active,
   account,
   currentDelegate,
+  lockedAmount,
   selected,
   pending,
   refreshKey,
@@ -30,8 +35,8 @@ export function DelegateChooser({
   const searchRef = useRef<HTMLInputElement>(null);
   const selfSelected =
     (draft ? (selected ?? currentDelegate) : currentDelegate)?.toLowerCase() === account.toLowerCase();
-  const customAddress = search.trim();
-  const validAddress = isAddress(customAddress) && customAddress !== ADDRESS_ZERO;
+  const noneSelected = (draft ? (selected ?? currentDelegate) : currentDelegate) === ADDRESS_ZERO;
+  const lookup = useDelegateSearch(search);
 
   useEffect(() => {
     if (active) searchRef.current?.focus({ preventScroll: true });
@@ -42,58 +47,46 @@ export function DelegateChooser({
       <p className="delegate-purpose">
         Choose who votes with your locked FOLD. You keep ownership and control withdrawals.
       </p>
-      <div className="power-delegate-input">
-        <label htmlFor="delegate-search" className="power-label">
-          Find or enter a wallet address
-        </label>
-        <input
-          id="delegate-search"
-          ref={searchRef}
-          placeholder="0x…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </div>
-      {validAddress && customAddress.toLowerCase() !== account.toLowerCase() && (
-        <button
-          type="button"
-          className="delegate-custom"
-          disabled={pending}
-          onClick={() => onPick(customAddress as Address)}
+      <DelegationAmount lockedAmount={lockedAmount} />
+      <div className="delegate-quick-actions" aria-label="Delegation shortcuts">
+        <PowerAction
+          affordance={selfSelected ? "check" : "wallet"}
+          disabled={selfSelected || pending}
+          onClick={() => onPick(account)}
+          aria-label={selfSelected ? "Your wallet selected" : "Delegate to your wallet"}
         >
-          {draft ? "Use this address" : "Review this address"} <span aria-hidden="true">→</span>
-        </button>
-      )}
-      <div className="delegate-picker-scroll delegate-picker-options">
-        <div className="delegate-picker-row delegate-picker-self">
-          <div className="delegate-self-identity">
-            <MemberAvatar address={account} alt="Your wallet" size="sm" />
-            <div>
-              <strong>Myself</strong>
-              <p>Vote with your own wallet</p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            variant="tertiary"
-            disabled={selfSelected || pending}
-            onClick={() => onPick(account)}
-            aria-label={selfSelected ? "Myself selected" : "Select myself"}
-          >
-            {selfSelected ? (draft ? "Selected" : "Delegated") : "Select"}
-          </Button>
+          {selfSelected ? "Your wallet selected" : "Delegate to your wallet"}
+        </PowerAction>
+        <PowerAction
+          affordance={noneSelected ? "check" : "close"}
+          disabled={noneSelected || pending}
+          onClick={() => onPick(ADDRESS_ZERO)}
+          aria-label={noneSelected ? "No delegation selected" : "Remove delegation"}
+        >
+          {noneSelected ? "No delegation" : "Remove delegation"}
+        </PowerAction>
+      </div>
+      <SearchField
+        ref={searchRef}
+        label="Search delegates"
+        placeholder="ENS name or wallet address"
+        value={search}
+        onChange={setSearch}
+        message={lookup.message}
+      />
+      <div className="delegate-picker-options">
+        <div className="delegate-picker-scroll">
+          <DelegateList
+            layout="picker"
+            search={search}
+            lookup={lookup}
+            pending={pending}
+            refreshKey={refreshKey}
+            onSelect={onPick}
+            allowCurrentSelection={!!draft}
+            selectedAddress={draft ? (selected ?? currentDelegate) : undefined}
+          />
         </div>
-        <DelegateList
-          layout="picker"
-          search={search}
-          refreshKey={refreshKey}
-          onSelect={onPick}
-          allowCurrentSelection={!!draft}
-          excludeAddress={account}
-          selectedAddress={draft ? selected : undefined}
-        />
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { DemoWalletPanel } from "@/dev/DemoWalletPanel";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AlertProvider } from "./Alerts";
@@ -50,7 +51,10 @@ export function RootContextProvider({ children }: { children: ReactNode }) {
       <OdsModulesProvider wagmiConfig={config} queryClient={queryClient} coreProviderValues={odsCoreProviderValues}>
         {DESIGN_PREVIEW ? (
           <QueryClientProvider client={queryClient}>
-            <AlertProvider>{children}</AlertProvider>
+            <AlertProvider>
+              {children}
+              <DemoWalletPanel />
+            </AlertProvider>
           </QueryClientProvider>
         ) : (
           <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>

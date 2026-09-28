@@ -2,9 +2,8 @@ import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import { DemoWallet } from "@/dev/DemoWallet";
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
-import { MemberAvatar } from "@aragon/ods";
+import { WalletButton } from "@/components/input/walletButton";
 import { useWalletModal } from "@/hooks/useWalletModal";
-import classNames from "classnames";
 import { useEffect } from "react";
 import { createClient, http } from "viem";
 import { normalize } from "viem/ens";
@@ -50,28 +49,15 @@ const WalletContainer = () => {
     else if (chainId === PUB_CHAIN.id) return;
 
     switchChain({ chainId: PUB_CHAIN.id });
-  }, [chainId]);
+  }, [chainId, switchChain]);
 
   return (
-    <button
-      className={classNames(
-        // Preserve the brand button shape with the governance ink palette.
-        "shrink-none flex h-[41px] items-center rounded-[6px] bg-[var(--ink)] px-1 leading-tight text-[var(--paper)] transition-colors hover:bg-[var(--accent-hover)]",
-        "outline-none focus:outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset", // focus styles
-        { "px-1 md:px-0 md:pl-4 md:pr-1": isConnected },
-        { "px-4": !isConnected }
-      )}
+    <WalletButton
+      address={isConnected ? address : undefined}
+      avatar={ensAvatar ?? undefined}
+      label={isConnected && address ? (ensName ?? formatHexString(address)) : "Connect wallet"}
       onClick={() => open()}
-    >
-      {isConnected && address && (
-        <div className="flex items-center gap-3">
-          <span className="hidden md:block">{ensName ?? formatHexString(address)}</span>
-          <MemberAvatar src={ensAvatar ?? ""} address={address} alt="Profile picture" size="md" />
-        </div>
-      )}
-
-      {!isConnected && <span>Connect</span>}
-    </button>
+    />
   );
 };
 

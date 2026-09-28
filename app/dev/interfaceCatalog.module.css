@@ -1,0 +1,87 @@
+.catalogue {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+  display: grid;
+  gap: 24px;
+}
+.header {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.links,
+.samples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+.links,
+.referenceLink {
+  font: var(--ui-body-font);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.section {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  padding: 32px;
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+  scroll-margin-top: 90px;
+}
+.brandSample {
+  border-radius: var(--ui-radius);
+  background: var(--mint);
+  padding: 24px;
+}
+.brandSample > header {
+  padding: 24px 0 40px;
+}
+.typeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+  padding-block: 20px;
+  border-top: 1px solid var(--rule);
+}
+.typeRow > div {
+  display: grid;
+  gap: 8px;
+}
+.typeRow code {
+  font: 500 11px/1.5 var(--font-mono);
+  color: var(--muted);
+}
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.actionGrid article {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.actionGrid button {
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .catalogue {
+    padding: 32px 16px 64px;
+  }
+  .section {
+    padding: 24px 20px;
+  }
+  .typeRow,
+  .actionGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}

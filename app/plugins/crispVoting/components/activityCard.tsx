@@ -1,3 +1,4 @@
+import { BendingChevron } from "@/vendor/site-header";
 import { useQuery } from "@tanstack/react-query";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
@@ -83,43 +84,47 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const explorerUrl = PUB_CHAIN.blockExplorers?.default?.url;
 
   return (
-    <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-neutral-800">Encrypted ballot activity</p>
-        <span className="text-sm text-neutral-500">{entries?.length ?? 0}</span>
-      </div>
-      <p className="text-xs text-neutral-500">
-        Each entry is an encrypted input posted on-chain for this round — votes, overrides and masks are
-        indistinguishable.
-      </p>
+    <details className="proposal-activity">
+      <summary>
+        <span>
+          Encrypted ballot activity <span className="proposal-detail-count">{entries?.length ?? 0}</span>
+        </span>
+        <BendingChevron />
+      </summary>
+      <div className="proposal-activity-body">
+        <p className="text-xs text-neutral-500">
+          Each entry is an encrypted input posted on-chain for this round — votes, overrides and masks are
+          indistinguishable.
+        </p>
 
-      {isLoading && <p className="text-sm text-neutral-500">Loading…</p>}
-      {!isLoading && (!entries || entries.length === 0) && (
-        <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>
-      )}
+        {isLoading && <p className="text-sm text-neutral-500">Loading…</p>}
+        {!isLoading && (!entries || entries.length === 0) && (
+          <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>
+        )}
 
-      <div className="flex max-h-64 flex-col gap-y-2 overflow-y-auto">
-        {entries?.map((entry) => (
-          <div key={entry.txHash + entry.index.toString()} className="flex items-center justify-between text-sm">
-            <span className="text-neutral-500">#{entry.index.toString()}</span>
-            {explorerUrl ? (
-              <a
-                href={`${explorerUrl}/tx/${entry.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-primary-400 hover:underline"
-              >
-                {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
-              </a>
-            ) : (
-              <span className="font-mono text-neutral-800">
-                {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
-              </span>
-            )}
-            <span className="text-neutral-500">block {entry.blockNumber.toString()}</span>
-          </div>
-        ))}
+        <div className="flex max-h-64 flex-col gap-y-2 overflow-y-auto">
+          {entries?.map((entry) => (
+            <div key={entry.txHash + entry.index.toString()} className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">#{entry.index.toString()}</span>
+              {explorerUrl ? (
+                <a
+                  href={`${explorerUrl}/tx/${entry.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-primary-400 hover:underline"
+                >
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </a>
+              ) : (
+                <span className="font-mono text-neutral-800">
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </span>
+              )}
+              <span className="text-neutral-500">block {entry.blockNumber.toString()}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </details>
   );
 }

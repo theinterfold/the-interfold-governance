@@ -1,29 +1,29 @@
+import { openDemoWalletPanel } from "./DemoWalletPanel";
 import { useEffect, useRef } from "react";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useAccount, useConnect } from "wagmi";
+import { formatHexString } from "@/utils/evm";
+import { WalletButton } from "@/components/input/walletButton";
+import { isDemoWalletDisconnected } from "./demoWalletSession";
 
 export function DemoWallet() {
-  const { isConnected } = useAccount();
+  const { address, isConnected, status } = useAccount();
   const { connect, connectors, isPending, error } = useConnect();
-  const { disconnect } = useDisconnect();
   const started = useRef(false);
   const connector = connectors.find((item) => item.id === "interfold-design-preview");
 
   useEffect(() => {
-    if (started.current || isConnected || !connector) return;
+    if (started.current || status !== "disconnected" || !connector || isDemoWalletDisconnected()) return;
     started.current = true;
     connect({ connector });
-  }, [connect, connector, isConnected]);
+  }, [connect, connector, status]);
 
   return (
-    <button
-      type="button"
-      className="flex h-[41px] shrink-0 items-center gap-2 rounded-[6px] bg-[var(--ink)] px-4 leading-tight text-[var(--paper)] transition-colors hover:bg-[var(--accent-hover)] focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
+    <WalletButton
+      address={isConnected ? address : undefined}
+      label={isPending ? "Connecting…" : isConnected && address ? formatHexString(address) : "Connect wallet"}
       disabled={isPending || !connector}
-      title={error ? error.message : isConnected ? "Disconnect demo wallet" : "Connect demo wallet"}
-      onClick={() => (isConnected ? disconnect() : connector && connect({ connector }))}
-    >
-      <span aria-hidden="true" className={`bg-current h-1.5 w-1.5 rounded-full ${isConnected ? "" : "opacity-40"}`} />
-      {isPending ? "Connecting…" : isConnected ? "Demo wallet" : "Connect demo"}
-    </button>
+      title={error ? error.message : isConnected ? `Wallet controls · ${address}` : "Connect wallet"}
+      onClick={() => (isConnected ? openDemoWalletPanel() : connector && connect({ connector }))}
+    />
   );
 }

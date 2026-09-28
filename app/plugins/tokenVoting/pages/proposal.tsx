@@ -1,30 +1,31 @@
+import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
+import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
+import { shortProposalId } from "@/utils/proposalId";
 import { useProposal } from "../hooks/useProposal";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useProposalVoting } from "../hooks/useProposalVoting";
 import { useProposalExecute } from "../hooks/useProposalExecute";
-import { BodySection } from "@/components/proposal/proposalBodySection";
 import { IBreakdownMajorityVotingResult, ProposalVoting } from "@/components/proposalVoting";
 import type { ITransformedStage, IVote } from "@/utils/types";
 import { ProposalStages } from "@/utils/types";
 import { useProposalStatus } from "../hooks/useProposalVariantStatus";
 import dayjs from "dayjs";
-import { ProposalActions } from "@/components/proposalActions/proposalActions";
-import { CardResources } from "@/components/proposal/cardResources";
 import { VotingPower } from "../components/votingPower";
 import { ParticipationCard } from "../components/participationCard";
-import { Address, formatUnits } from "viem";
+import { formatUnits } from "viem";
 import { useToken } from "../hooks/useToken";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { ElseIf, If, Then } from "@/components/if";
-import { AlertCard, ProposalStatus } from "@aragon/ods";
-import { useAccount } from "wagmi";
-import { useTokenVotes } from "@/hooks/useTokenVotes";
-import { ADDRESS_ZERO } from "@/utils/evm";
-import { AddressText } from "@/components/text/address";
-import { SelfDelegateLink } from "@/components/text/selfDelegate";
+import { ProposalStatus } from "@aragon/ods";
+import { useAccount, useReadContract } from "wagmi";
 import { useCanVote } from "../hooks/useCanVote";
-import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
+import { BallotEligibilityNotice } from "@/components/proposalVoting/ballotEligibility";
+import { PUB_TOKEN_SYMBOL, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
+import { VotingMode } from "../utils/types";
+import { VotingDetails } from "@/components/proposalVoting/votingDetails";
+import { decodeTxError } from "@/utils/tx-errors";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
@@ -78,18 +79,46 @@ function ProposalDetailBody({
   embedded: boolean;
 }) {
   const { address } = useAccount();
-  const { voteProposal, isConfirming: isConfirmingVote } = useProposalVoting(proposalIdx);
+  const voteTransaction = useProposalVoting(proposalIdx);
+  const { voteProposal } = voteTransaction;
+  const { data: previousVote } = useReadContract({
+    address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
+    abi: TokenVotingAbi,
+    functionName: "getVoteOption",
+    args: [proposalIdx, address!],
+    query: { enabled: !!address },
+  });
+  const submittedOption =
+    previousVote === VOTE_YES_VALUE
+      ? 0
+      : previousVote === VOTE_NO_VALUE
+        ? 1
+        : previousVote === ABSTAIN_VALUE
+          ? 2
+          : undefined;
   const { proposal, status: proposalFetchStatus } = useProposal(proposalIdx, true, {
     metadataUri: spp.metadataUri,
     creator: spp.creator,
   });
   const canVote = useCanVote(proposalIdx);
-  const votes = useProposalVoteList(proposalIdx, proposal);
+  const snapshot = useSnapshotVotingPower(PUB_TOKEN_VOTING_PLUGIN_ADDRESS, proposal?.parameters.snapshotTimepoint);
+  const eligibilityNotice = (
+    <BallotEligibilityNotice
+      connected={!!address}
+      canVote={canVote}
+      votingPower={snapshot.votingPower}
+      failed={snapshot.isError}
+    />
+  );
+  const votes = useProposalVoteList(
+    proposalIdx,
+    proposal,
+    voteTransaction.isConfirmed ? voteTransaction.hash : undefined
+  );
   const { symbol: tokenSymbol } = useToken();
   const tokenDecimals = useTokenDecimals();
   // "—" until the on-chain read lands, rather than formatting against an assumed 18.
   const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "—" : formatUnits(v, tokenDecimals));
-  const { balance, delegatesTo } = useTokenVotes(address);
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalIdx);
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const proposalStatus = useProposalStatus(proposal!);
@@ -126,7 +155,7 @@ function ProposalDetailBody({
   } else if (proposalStatus === ProposalStatus.ACTIVE) {
     cta = {
       disabled: !canVote,
-      isLoading: isConfirmingVote,
+      isLoading: voteTransaction.status === "pending" || voteTransaction.isConfirming,
       label: "Vote",
       onClick: (option?: number) => (option ? onVote(option) : null),
     };
@@ -184,10 +213,6 @@ function ProposalDetailBody({
     },
   ];
 
-  const hasBalance = !!balance && balance > ZERO;
-  const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
-  const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
-
   if (!proposal || showProposalLoading) {
     return (
       <section className="flex w-full min-w-0">
@@ -198,32 +223,52 @@ function ProposalDetailBody({
 
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
-      {!embedded && <ProposalHeader proposalIdx={proposalIdx} proposal={proposal} />}
-
       <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
-        <div className="proposal-detail-grid">
-          <div className="flex min-w-0 flex-col gap-y-6">
-            <BodySection body={proposal.description || "No description was provided"} />
-            <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
-              <NoVotePowerWarning
-                delegatingToSomeoneElse={delegatingToSomeoneElse}
-                delegatesTo={delegatesTo}
-                delegatedToZero={delegatedToZero}
-                address={address}
-                canVote={!!canVote}
+        <ProposalDetailLayout
+          breadcrumb={!embedded && <ProposalBreadcrumb identifier={shortProposalId(proposalIdx)} />}
+          header={!embedded && <ProposalHeader proposal={proposal} />}
+          description={proposal.description || "No description was provided"}
+          resources={proposal.resources}
+          actions={[...(spp.proposal?.actions ?? [])]}
+          voting={
+            <>
+              <ProposalVoting
+                key={`${proposalIdx}:${address}`}
+                stage={proposalStage[0]}
+                proposalTitle={proposal.title}
+                votingPower={
+                  <VotingPower
+                    votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
+                    snapshotTimepoint={proposal.parameters.snapshotTimepoint}
+                    compact={true}
+                  />
+                }
+                submittedOption={submittedOption}
+                canVote={canVote === true}
+                eligibilityNotice={eligibilityNotice}
+                canChangeVote={proposal.parameters.votingMode === VotingMode.VoteReplacement && !!canVote}
+                confirmed={voteTransaction.status === "success" && voteTransaction.isConfirmed}
+                error={
+                  voteTransaction.error
+                    ? decodeTxError(voteTransaction.error, "Could not submit the vote").description
+                    : undefined
+                }
+                txHash={voteTransaction.isConfirmed ? voteTransaction.hash : undefined}
               />
-            </If>
-            <ProposalVoting
-              stages={proposalStage}
-              description="This proposal uses the transparent fallback body: votes are visible on-chain. It advances to the foundation veto stage when the support ratio is above the threshold and the minimum participation is met."
+            </>
+          }
+          showVotingDetails={!!spp.proposal && spp.proposal.currentStage >= 1}
+          methodDetails={
+            <VotingDetails
+              startDate={startDate}
+              endDate={endDate}
+              snapshotTakenAt={dayjs(Number(proposal.parameters.snapshotTimepoint) * 1000).toString()}
+              options={"Yes, No, Abstain"}
+              strategy="Transparent fallback"
             />
-            {/* The actions to be executed on the DAO live on the SPP proposal; the body
-                sub-proposal only carries the internal reportProposalResult callback. */}
-            <ProposalActions actions={[...(spp.proposal?.actions ?? [])]} />
-          </div>
-          <div className="flex min-w-0 flex-col gap-y-6">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} />
-            <ParticipationCard proposal={proposal} />
+          }
+          participation={<ParticipationCard proposal={proposal} />}
+          stage={
             <VetoStageCard
               kind="public"
               proposalId={sppProposalId}
@@ -233,56 +278,12 @@ function ProposalDetailBody({
               vetoTally={spp.vetoTally}
               stage0Failed={proposalStatus === ProposalStatus.REJECTED}
             />
-            <CardResources resources={proposal.resources} title="Resources" />
-          </div>
-        </div>
+          }
+        />
       </div>
     </section>
   );
 }
-
-const NoVotePowerWarning = ({
-  delegatingToSomeoneElse,
-  delegatesTo,
-  delegatedToZero,
-  address,
-  canVote,
-}: {
-  delegatingToSomeoneElse: boolean;
-  delegatesTo: Address | undefined;
-  delegatedToZero: boolean;
-  address: Address | undefined;
-  canVote: boolean;
-}) => {
-  return (
-    <AlertCard
-      description={
-        <span className="text-sm">
-          <If true={delegatingToSomeoneElse}>
-            <Then>
-              You are currently delegating your voting power to <AddressText bold={false}>{delegatesTo}</AddressText>.
-              If you wish to participate by yourself in future proposals,
-            </Then>
-            <ElseIf true={delegatedToZero}>
-              You have not self delegated your voting power to participate in the DAO. If you wish to participate in
-              future proposals,
-            </ElseIf>
-          </If>
-          &nbsp;
-          <SelfDelegateLink />.
-        </span>
-      }
-      message={
-        delegatingToSomeoneElse
-          ? "Your voting power is currently delegated"
-          : canVote
-            ? "You cannot vote on new proposals"
-            : "You cannot vote"
-      }
-      variant="info"
-    />
-  );
-};
 
 function getShowProposalLoading(
   proposal: ReturnType<typeof useProposal>["proposal"],

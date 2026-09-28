@@ -3,7 +3,7 @@ import { ProposalStatus } from "@aragon/ods";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useProposal } from "../../hooks/useProposal";
 import { useProposalStatus } from "../../hooks/useProposalStatus";
-import { unixTimestampToDate } from "../../utils/formatProposalDate";
+import { ProposalCountdown } from "@/components/proposal/proposalCountdown";
 import { AddressText } from "@/components/text/address";
 import { e3RoundNumber } from "../../utils/ballotDigest";
 
@@ -98,11 +98,13 @@ export default function ProposalCard(props: ProposalInputs) {
         <span className="time">
           {/* Same rule as the header: an end date only means something once there is a committee
               key to encrypt a ballot against. */}
-          {isActive && endDate > Date.now() && !isCommitteeReady
-            ? "Forming committee"
-            : isActive && endDate > Date.now()
-              ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}`
-              : capitalize(proposalStatus)}
+          {isActive && endDate > Date.now() && !isCommitteeReady ? (
+            "Forming committee"
+          ) : isActive && endDate > Date.now() ? (
+            <ProposalCountdown endMs={endDate} />
+          ) : (
+            capitalize(proposalStatus)
+          )}
         </span>
         {totalVotes > BigInt(0) && (
           <div className="mini-bar" aria-hidden="true">

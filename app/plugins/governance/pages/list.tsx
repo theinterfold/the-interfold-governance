@@ -1,10 +1,15 @@
+import { PanelHeader } from "@/components/panelHeader";
+import { SearchField } from "@/components/input/searchField";
+import styles from "./proposalList.module.css";
+import { NativeSelect } from "@/components/input/nativeSelect";
 import { useAccount, useBlockNumber } from "wagmi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, IconType } from "@aragon/ods";
-import Link from "next/link";
+import { ActionLink } from "@/components/input/actionLink";
 import { formatUnits, isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
 import { MissingContentView } from "@/components/MissingContentView";
+import { PageIntro } from "@/components/pageIntro";
+import { ScrollFadeIn } from "@/vendor/site-header/motion";
 import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 // Aliased: this file already has a local `fetchProposals` callback.
 import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
@@ -170,117 +175,131 @@ export default function Proposals() {
     setStatusFilter("all");
     setSearch("");
   };
+  const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
   return (
     <div className="proposals-page">
-      <div className="page-head proposals-page-head w-full">
-        <div>
-          <div className="kicker mb-3">Governance</div>
-          <h1 className="display-title">Proposals</h1>
-          <p className="proposals-intro">
-            Explore the decisions shaping Interfold. Open a proposal to read and vote here.
-          </p>
-        </div>
-        <div className="justify-self-end text-right">
-          <If true={isConnected && canCreate}>
+      <PageIntro
+        title="Proposals"
+        glyph="proposals"
+        description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
+      />
+      <section aria-labelledby="proposal-list-heading">
+        <PanelHeader
+          id="proposal-list-heading"
+          title="Governance activity"
+          description="Open a proposal to vote or review its results."
+          className={styles.heading}
+          action={
+            showCreate && (
+              <div className={styles.create}>
+                <>
+                  <ActionLink
+                    href="#/new"
+                    intent="create"
+                    affordance="plus"
+                    disabled={!canCreate}
+                    aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}
+                  >
+                    Create proposal
+                  </ActionLink>
+                  {!canCreate && (
+                    <p id="proposal-create-requirement" className="ui-body">
+                      {ineligibleReason}
+                    </p>
+                  )}
+                </>
+              </div>
+            )
+          }
+        />
+        <ScrollFadeIn amount="some" className={`ui-panel ${styles.panel}`}>
+          <If not={entries.length}>
             <Then>
-              <Link href="#/new">
-                <Button iconLeft={IconType.PLUS} size="md" variant="primary">
-                  Create proposal
-                </Button>
-              </Link>
+              <div className={styles.feedback}>
+                <MissingContentView>
+                  {noVotingPlugins
+                    ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
+                    : isLoading
+                      ? "Loading proposals…"
+                      : error
+                        ? error
+                        : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
+                </MissingContentView>
+              </div>
             </Then>
             <Else>
-              <If true={isConnected && !noVotingPlugins && eligibilityKnown}>
-                <Button iconLeft={IconType.PLUS} size="md" variant="primary" disabled={true}>
-                  Create proposal
-                </Button>
-                <p className="mt-2 max-w-xs text-sm text-neutral-500">{ineligibleReason}</p>
+              <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
+                <SearchField
+                  className="proposal-search"
+                  label="Search"
+                  placeholder="Title, proposer or proposal ID"
+                  value={search}
+                  onChange={setSearch}
+                />
+                <label className="proposal-filter">
+                  <span>Status</span>
+                  <NativeSelect
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                  >
+                    {STATUS_FILTERS.map((filter) => (
+                      <option key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label className="proposal-filter">
+                  <span>Voting method</span>
+                  <NativeSelect
+                    value={kindFilter}
+                    onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+                  >
+                    {FILTERS.map((filter) => (
+                      <option key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </div>
+              <div className="proposal-list-caption">
+                <p role="status">
+                  {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
+                  {hasFilters ? ` of ${entries.length}` : ""}
+                </p>
+                <div>
+                  {hasFilters && (
+                    <button type="button" onClick={clearFilters}>
+                      Clear filters
+                    </button>
+                  )}
+                  <span>Newest first</span>
+                </div>
+              </div>
+              <If not={matchCount}>
+                <div className={styles.feedback}>
+                  <MissingContentView>
+                    {resolving ? "Checking proposals…" : "No proposals match your search and filters."}
+                  </MissingContentView>
+                </div>
               </If>
+              <div className="proposal-list">
+                {entries.map((e) => {
+                  const key = entryKey(e);
+                  const hidden = !matches(e);
+                  return e.kind === "private" ? (
+                    <PrivateRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
+                  ) : (
+                    <PublicRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
+                  );
+                })}
+              </div>
             </Else>
           </If>
-        </div>
-      </div>
-
-      <If not={entries.length}>
-        <Then>
-          <MissingContentView>
-            {noVotingPlugins
-              ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
-              : isLoading
-                ? "Loading proposals…"
-                : error
-                  ? error
-                  : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
-          </MissingContentView>
-        </Then>
-        <Else>
-          <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
-            <label className="proposal-filter proposal-search">
-              <span>Search</span>
-              <input
-                type="search"
-                placeholder="Title, proposer or proposal ID"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <label className="proposal-filter">
-              <span>Status</span>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-              >
-                {STATUS_FILTERS.map((filter) => (
-                  <option key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="proposal-filter">
-              <span>Voting method</span>
-              <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}>
-                {FILTERS.map((filter) => (
-                  <option key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="proposal-list-caption">
-            <p role="status">
-              {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
-              {hasFilters ? ` of ${entries.length}` : ""}
-            </p>
-            <div>
-              {hasFilters && (
-                <button type="button" onClick={clearFilters}>
-                  Clear filters
-                </button>
-              )}
-              <span>Newest first</span>
-            </div>
-          </div>
-          <If not={matchCount}>
-            <MissingContentView>
-              {resolving ? "Checking proposals…" : "No proposals match your search and filters."}
-            </MissingContentView>
-          </If>
-          <div className="proposal-list">
-            {entries.map((e) => {
-              const key = entryKey(e);
-              const hidden = !matches(e);
-              return e.kind === "private" ? (
-                <PrivateRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
-              ) : (
-                <PublicRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
-              );
-            })}
-          </div>
-        </Else>
-      </If>
+        </ScrollFadeIn>
+      </section>
     </div>
   );
 }

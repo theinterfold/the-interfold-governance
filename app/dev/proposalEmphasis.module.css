@@ -1,0 +1,75 @@
+.study {
+  --study-green: #205e3d;
+  --study-green-hover: #17492e;
+}
+.controls {
+  width: calc(100% - 2 * var(--page-content-gutter));
+  max-width: var(--page-content-width);
+  margin: 40px auto 28px;
+}
+.intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.intro h1 { margin-top: 8px; font: 600 28px/1.2 var(--font-sans); }
+.intro a { flex-shrink: 0; font: var(--ui-label-font); text-decoration: underline; text-underline-offset: 4px; }
+.options { display: flex; flex-wrap: wrap; gap: 8px; }
+.options button {
+  padding: 10px 16px;
+  min-height: 40px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  font: var(--ui-body-font);
+}
+.options button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: white; }
+.options button:focus-visible { outline: 2px solid var(--study-green); outline-offset: 3px; }
+.description { margin-top: 16px; color: var(--muted); font: var(--ui-body-font); }
+.study :global(.governance-page-intro) { display: none; }
+
+/* Target only the collapsed, open-voting row action. Close/results stay secondary. */
+.study[data-variant="reference"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action) {
+  background: var(--paper); border-color: rgb(18 23 24 / 0.16); color: var(--ink);
+}
+.study[data-variant="reference"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action:hover) {
+  background: var(--surface-muted); border-color: rgb(18 23 24 / 0.32);
+}
+.study[data-variant="ink"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action) {
+  background: var(--ink); border-color: var(--ink); color: white;
+}
+.study[data-variant="ink"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action:hover) {
+  background: #303a37; border-color: #303a37;
+}
+.study:is([data-variant="green"], [data-variant="rail"], [data-variant="action"]) :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action) {
+  background: var(--study-green); border-color: var(--study-green); color: white;
+}
+.study:is([data-variant="green"], [data-variant="rail"], [data-variant="action"]) :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action:hover) {
+  background: var(--study-green-hover); border-color: var(--study-green-hover);
+}
+.study[data-variant="outline"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action) {
+  background: var(--paper); border-color: var(--study-green); color: var(--study-green);
+}
+.study[data-variant="outline"] :global(.proposal-item[data-voting-open="true"][data-expanded="false"] > .proposal-row .proposal-row-action:hover) {
+  background: var(--surface-muted); box-shadow: inset 0 0 0 1px var(--study-green);
+}
+.study[data-variant="rail"] :global(.proposal-item[data-voting-open="true"] > .proposal-row) {
+  box-shadow: inset 3px 0 0 var(--study-green);
+}
+.study[data-variant="action"] :global(.proposal-item[data-voting-open="true"] > .proposal-row .right) {
+  background: var(--surface-muted);
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.study[data-variant="action"] :global(.proposal-item[data-voting-open="true"] > .proposal-row .proposal-countdown) {
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .controls { margin-top: 24px; }
+  .intro { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .intro h1 { font-size: 24px; }
+  .options button { flex: 1 0 auto; }
+}

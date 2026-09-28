@@ -7,6 +7,7 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./dev/**/*.{js,ts,jsx,tsx,mdx}",
     "./plugins/**/*.{js,ts,jsx,tsx,mdx}",
+    "./vendor/site-header/motion.js",
     "./node_modules/@aragon/ods/**/*.js",
   ],
   theme: {

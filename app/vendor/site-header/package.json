@@ -1,0 +1,12 @@
+{
+  "name": "@interfold/site-header",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "framer-motion": "^11.18.2 || ^12.23.24"
+  }
+}

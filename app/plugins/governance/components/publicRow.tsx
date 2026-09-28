@@ -143,7 +143,9 @@ function PublicRowBody({
       creator={proposal.creator}
       statusLabel={statusLabel}
       statusClass={statusClass}
+      votingOpen={isActive && endDate > Date.now() && Number(proposal.parameters.startDate) * 1000 <= Date.now()}
       rightLabel={rightLabel}
+      votingEndMs={endDate}
       bars={bars}
       resultLabel={isActive ? "Live vote share" : endDate <= Date.now() ? "Final vote share" : "Voting results"}
       resultMessage={total === 0n ? "No votes recorded." : undefined}

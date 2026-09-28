@@ -1,3 +1,4 @@
+import { BendingChevron } from "@/vendor/site-header";
 import { DocumentParser } from "@aragon/ods";
 import classNames from "classnames";
 import { useId, useRef, useState } from "react";
@@ -27,17 +28,16 @@ export const BodySection: React.FC<IBodySectionProps> = (props) => {
   if (!body.trim() || body === "<p></p>") body = "No description was provided";
 
   return (
-    <section ref={cardRef} className="proposal-description" data-expanded={expanded}>
+    <section ref={cardRef} className="proposal-description" data-expanded={expanded} aria-label="Proposal description">
       <div className="proposal-description-content" data-truncated={overflows && !expanded}>
         <FluidHeight
           id={contentId}
           expanded={expanded}
-          collapsedHeight={256}
+          collapsedHeight={420}
           onOverflowChange={setOverflows}
           onFocusCapture={() => setExpanded(true)}
         >
           <div className="detail-body flex flex-col gap-y-4">
-            <p className="section-label">— Description</p>
             <DocumentParser document={body} className={proseClasses} />
           </div>
         </FluidHeight>
@@ -51,17 +51,7 @@ export const BodySection: React.FC<IBodySectionProps> = (props) => {
           aria-controls={contentId}
         >
           <span>{expanded ? "Read less" : "Read full description"}</span>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            aria-hidden="true"
-          >
-            <path d="m4 6 4 4 4-4" />
-          </svg>
+          <BendingChevron open={expanded} width={8} thickness={1.5} />
         </button>
       )}
     </section>
@@ -70,6 +60,7 @@ export const BodySection: React.FC<IBodySectionProps> = (props) => {
 
 // Temporary until exported prose has been fixed
 const proseClasses = classNames(
+  "proposal-prose",
   "prose-p:text-base prose-p:md:text-lg", //prose-p
   "prose-a:text-primary-400 prose-a:no-underline prose-a:hover:text-primary-600 prose-a:active:text-primary-800", // prose-a
   "prose-strong:text-base prose-strong:md:text-lg prose-strong:text-neutral-500", // prose-strong

@@ -1,3 +1,4 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import { useEffect } from "react";
 import { useAlerts } from "@/context/Alerts";
 import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
@@ -14,8 +15,13 @@ export type TxLifecycleParams = {
 
 export function useTransactionManager(params: TxLifecycleParams) {
   const { onSuccess, onError } = params;
-  const { writeContract, writeContractAsync, data: hash, error, status } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, writeContractAsync, data: hash, error: writeError, status: writeStatus } = useWriteContract();
+  const { isLoading: isConfirming, data: receipt, error: receiptError } = useWaitForTransactionReceipt({ hash });
+  const receiptMatches = !!hash && receipt?.transactionHash === hash;
+  const isConfirmed = receiptMatches && receipt.status === "success";
+  const reverted = receiptMatches && receipt.status === "reverted";
+  const status = reverted || receiptError ? "error" : writeStatus;
+  const error = writeError ?? receiptError ?? (reverted ? new Error("The transaction reverted.") : undefined);
   const { addAlert } = useAlerts();
 
   useEffect(() => {
@@ -47,7 +53,9 @@ export function useTransactionManager(params: TxLifecycleParams) {
       return;
     } else if (isConfirming) {
       addAlert("Transaction submitted", {
-        description: "Waiting for the transaction to be validated",
+        description: DESIGN_PREVIEW
+          ? "Waiting for the local simulation"
+          : "Waiting for the transaction to be validated",
         txHash: hash,
       });
       return;
@@ -56,7 +64,9 @@ export function useTransactionManager(params: TxLifecycleParams) {
     }
 
     addAlert(params.onSuccessMessage || "Transaction fulfilled", {
-      description: params.onSuccessDescription || "The transaction has been validated on the network",
+      description: DESIGN_PREVIEW
+        ? "Completed in the local simulation."
+        : params.onSuccessDescription || "The transaction has been validated on the network",
       type: "success",
       txHash: hash,
     });
@@ -66,5 +76,5 @@ export function useTransactionManager(params: TxLifecycleParams) {
     }
   }, [status, hash, isConfirming, isConfirmed]);
 
-  return { writeContract, writeContractAsync, hash, status, isConfirming, isConfirmed };
+  return { writeContract, writeContractAsync, hash, status, error, isConfirming, isConfirmed };
 }

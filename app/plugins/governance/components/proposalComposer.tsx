@@ -1,6 +1,10 @@
-import { Button, TextAreaRichText } from "@aragon/ods";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { TextAreaRichText } from "@aragon/ods";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { MainSection } from "@/components/layout/main-section";
+import { ActionButton } from "@/components/input/actionButton";
+import { ActionIcon } from "@/components/input/actionIcon";
+import { FieldError } from "@/components/input/fieldError";
+import { BendingChevron } from "@/vendor/site-header";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewActionDialog";
@@ -9,6 +13,8 @@ import { formatDurationSeconds } from "@/plugins/spp/components/stageDurationNot
 import { downloadAsFile } from "@/utils/download-as-file";
 import { encodeActionsAsJson } from "@/utils/json-actions";
 import type { ProposalDraft, ProposalKind } from "../hooks/useProposalDraft";
+import { ProposalCreationRequirement, type CreationRequirement } from "./proposalCreationRequirement";
+import { validateProposalDetails, type ProposalField } from "../utils/proposalValidation";
 
 type Props = ProposalDraft & {
   kind: ProposalKind;
@@ -16,6 +22,7 @@ type Props = ProposalDraft & {
   durationSeconds?: number;
   isCreating: boolean;
   canSubmit: boolean;
+  creationRequirement: CreationRequirement;
   submitProposal: () => void;
   fee?: ReactNode;
   renderEditor: (editor: ReactNode) => ReactNode;
@@ -45,6 +52,7 @@ export function ProposalComposer(props: Props) {
     durationSeconds,
     isCreating,
     canSubmit,
+    creationRequirement,
     submitProposal,
     fee,
     renderEditor,
@@ -54,55 +62,99 @@ export function ProposalComposer(props: Props) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [addActionType, setAddActionType] = useState<NewActionType>("");
   const actionTrigger = useRef<HTMLButtonElement | null>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const [validationAttempt, setValidationAttempt] = useState(0);
+  const errors = validationAttempt ? validateProposalDetails({ title, summary, resources }) : [];
+  const fieldErrors = new Map(errors.map(({ field, message }) => [field, message]));
+  const hasResourceErrors = errors.some(({ field }) => field.startsWith("resource-"));
+  const validationProps = (field: ProposalField) => ({
+    "aria-invalid": fieldErrors.has(field) || undefined,
+    "aria-describedby": fieldErrors.has(field) ? `${id}-${field}-error` : undefined,
+  });
+
+  useEffect(() => {
+    if (!validationAttempt) return;
+    // Focus after React has exposed any invalid fields in Supporting links.
+    const frame = requestAnimationFrame(() => {
+      const field = composerRef.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        'input[aria-invalid="true"], textarea[aria-invalid="true"]'
+      );
+      if (!field) return;
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({
+        block: "center",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [validationAttempt]);
+
+  const handleSubmit = () => {
+    if (!canSubmit || isCreating) return;
+    const problems = validateProposalDetails({ title, summary, resources });
+    setValidationAttempt((attempt) => attempt + 1);
+    if (problems.length) {
+      if (problems.some(({ field }) => field.startsWith("resource-"))) setResourcesOpen(true);
+      return;
+    }
+    submitProposal();
+  };
 
   const editor = (
     <div className="composer-editor">
-      <div className="composer-field composer-title-field">
-        <label htmlFor={`${id}-title`}>Title</label>
-        <input
-          id={`${id}-title`}
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder="Give your proposal a title"
-          maxLength={100}
-          readOnly={isCreating}
-          required={true}
-        />
-      </div>
-      <div className="composer-field">
-        <div className="composer-field-heading">
-          <label htmlFor={`${id}-summary`}>Summary</label>
-          <span className="composer-count" aria-hidden="true">
-            {summary.length} / 280
-          </span>
+      <section className="composer-writing" aria-label="Proposal content">
+        <div className="composer-field composer-title-field">
+          <label htmlFor={`${id}-title`}>Title</label>
+          <input
+            id={`${id}-title`}
+            {...validationProps("title")}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Give your proposal a title"
+            maxLength={100}
+            readOnly={isCreating}
+            required={true}
+          />
+          <FieldError id={`${id}-title-error`} message={fieldErrors.get("title")} />
         </div>
-        <textarea
-          id={`${id}-summary`}
-          value={summary}
-          onChange={(event) => setSummary(event.target.value)}
-          placeholder="What should change, and why?"
-          maxLength={280}
-          rows={2}
-          readOnly={isCreating}
-          required={true}
-        />
-      </div>
-      <div className="composer-body">
-        <TextAreaRichText
-          label="Proposal details"
-          value={description}
-          onChange={setDescription}
-          disabled={isCreating}
-          immediatelyRender={false}
-          placeholder="Explain the proposal, its rationale and the intended outcome…"
-        />
-      </div>
+        <div className="composer-field">
+          <div className="composer-field-heading">
+            <label htmlFor={`${id}-summary`}>Summary</label>
+            <span className="composer-count" aria-hidden="true">
+              {summary.length} / 280
+            </span>
+          </div>
+          <textarea
+            id={`${id}-summary`}
+            {...validationProps("summary")}
+            value={summary}
+            onChange={(event) => setSummary(event.target.value)}
+            placeholder="What should change, and why?"
+            maxLength={280}
+            rows={2}
+            readOnly={isCreating}
+            required={true}
+          />
+          <FieldError id={`${id}-summary-error`} message={fieldErrors.get("summary")} />
+        </div>
+        <div className="composer-body">
+          <TextAreaRichText
+            label="Description"
+            value={description}
+            onChange={setDescription}
+            disabled={isCreating}
+            immediatelyRender={false}
+            placeholder="Explain the proposal, its rationale and the intended outcome…"
+          />
+        </div>
+      </section>
 
       <section className="composer-disclosure">
         <h2>
           <button
             type="button"
             className="composer-section-trigger"
+            data-invalid={hasResourceErrors || undefined}
             aria-expanded={resourcesOpen}
             aria-controls={`${id}-resources`}
             onClick={() => setResourcesOpen(!resourcesOpen)}
@@ -110,7 +162,7 @@ export function ProposalComposer(props: Props) {
             <span>
               Supporting links <span className="composer-section-note">{resources.length || "Optional"}</span>
             </span>
-            <span className="composer-plus" data-open={resourcesOpen} aria-hidden="true" />
+            <BendingChevron open={resourcesOpen} />
           </button>
         </h2>
         <Disclosure open={resourcesOpen} id={`${id}-resources`}>
@@ -123,6 +175,7 @@ export function ProposalComposer(props: Props) {
                       <label htmlFor={`${id}-resource-${index}-name`}>Link name</label>
                       <input
                         id={`${id}-resource-${index}-name`}
+                        {...validationProps(`resource-${index}-name`)}
                         value={resource.name}
                         placeholder="Discussion or document"
                         readOnly={isCreating}
@@ -132,11 +185,16 @@ export function ProposalComposer(props: Props) {
                           )
                         }
                       />
+                      <FieldError
+                        id={`${id}-resource-${index}-name-error`}
+                        message={fieldErrors.get(`resource-${index}-name`)}
+                      />
                     </div>
                     <div className="composer-field">
                       <label htmlFor={`${id}-resource-${index}-url`}>URL</label>
                       <input
                         id={`${id}-resource-${index}-url`}
+                        {...validationProps(`resource-${index}-url`)}
                         type="url"
                         value={resource.url}
                         placeholder="https://…"
@@ -147,6 +205,10 @@ export function ProposalComposer(props: Props) {
                           )
                         }
                       />
+                      <FieldError
+                        id={`${id}-resource-${index}-url-error`}
+                        message={fieldErrors.get(`resource-${index}-url`)}
+                      />
                     </div>
                     <button
                       type="button"
@@ -155,20 +217,20 @@ export function ProposalComposer(props: Props) {
                       aria-label={`Remove link ${index + 1}`}
                       onClick={() => setResources(resources.filter((_, i) => i !== index))}
                     >
-                      ×
+                      <ActionIcon name="close" />
                     </button>
                   </div>
                 ))}
               </div>
             </FluidHeight>
-            <button
+            <ActionButton
               type="button"
-              className="composer-text-button"
+              affordance="plus"
               disabled={isCreating}
               onClick={() => setResources([...resources, { name: "", url: "" }])}
             >
-              + Add link
-            </button>
+              Add link
+            </ActionButton>
           </div>
         </Disclosure>
       </section>
@@ -185,7 +247,7 @@ export function ProposalComposer(props: Props) {
             <span>
               DAO actions <span className="composer-section-note">{actions.length || "Optional"}</span>
             </span>
-            <span className="composer-plus" data-open={actionsOpen} aria-hidden="true" />
+            <BendingChevron open={actionsOpen} />
           </button>
         </h2>
         <Disclosure open={actionsOpen} id={`${id}-actions`}>
@@ -201,33 +263,33 @@ export function ProposalComposer(props: Props) {
                     compact={true}
                     onRemove={isCreating ? undefined : (index) => setActions(actions.filter((_, i) => i !== index))}
                   />
-                  <button
+                  <ActionButton
                     type="button"
-                    className="composer-text-button"
                     onClick={() => downloadAsFile("actions.json", encodeActionsAsJson(actions), "text/json")}
                   >
-                    Export JSON ↗
-                  </button>
+                    Export JSON
+                  </ActionButton>
                 </div>
               )}
             </FluidHeight>
             <div className="composer-action-types">
               {actionTypes.map((action) => (
-                <button
+                <ActionButton
                   type="button"
                   key={action.type}
+                  affordance="plus"
+                  align="start"
                   disabled={isCreating}
                   onClick={(event) => {
                     actionTrigger.current = event.currentTarget;
                     setAddActionType(action.type);
                   }}
                 >
-                  <span>
+                  <span className="composer-action-type-copy">
                     <strong>{action.title}</strong>
                     <small>{action.description}</small>
                   </span>
-                  <span aria-hidden="true">+</span>
-                </button>
+                </ActionButton>
               ))}
             </div>
           </div>
@@ -246,12 +308,13 @@ export function ProposalComposer(props: Props) {
 
   return (
     <MainSection>
-      <div className="proposal-composer">
+      <div className="proposal-composer" ref={composerRef}>
         <header className="composer-header">
           <a href="#/" className="composer-back">
             ← Proposals
           </a>
-          <h1 className="display-title">New proposal</h1>
+          <h1 className="ui-card-title">New proposal</h1>
+          <p className="ui-body">Describe the decision and choose how the community will vote.</p>
         </header>
         <div className="composer-layout">
           {renderEditor(editor)}
@@ -259,30 +322,51 @@ export function ProposalComposer(props: Props) {
             <FluidHeight>
               <div className="composer-sidebar-content">
                 <section className="composer-voting">
-                  <h2 className="composer-label">Voting method</h2>
+                  <h2 className="ui-section-title">Voting method</h2>
                   {onKindChange ? (
-                    <div className="composer-methods" role="radiogroup" aria-label="Voting method">
-                      <label className="composer-method" data-selected={kind === "private"}>
+                    <div
+                      className="vote-choices composer-methods"
+                      role="radiogroup"
+                      aria-label="Voting method"
+                      aria-describedby={`${id}-method-description`}
+                    >
+                      <label
+                        className={`vote-choice composer-method ${kind === "private" ? "selected" : ""}`}
+                        data-disabled={isCreating}
+                      >
                         <input
+                          className="sr-only"
                           type="radio"
+                          aria-label="Secret ballot"
                           name={`${id}-method`}
                           checked={kind === "private"}
                           disabled={isCreating}
                           onChange={() => onKindChange("private")}
                         />
-                        <span>
+                        <span className="label">
                           Secret ballot <small>Standard</small>
                         </span>
+                        <span className="mark" aria-hidden="true">
+                          {kind === "private" && <ActionIcon name="check" />}
+                        </span>
                       </label>
-                      <label className="composer-method" data-selected={kind === "public"}>
+                      <label
+                        className={`vote-choice composer-method ${kind === "public" ? "selected" : ""}`}
+                        data-disabled={isCreating}
+                      >
                         <input
+                          className="sr-only"
                           type="radio"
+                          aria-label="Transparent fallback"
                           name={`${id}-method`}
                           checked={kind === "public"}
                           disabled={isCreating}
                           onChange={() => onKindChange("public")}
                         />
-                        <span>Transparent fallback</span>
+                        <span className="label">Transparent fallback</span>
+                        <span className="mark" aria-hidden="true">
+                          {kind === "public" && <ActionIcon name="check" />}
+                        </span>
                       </label>
                     </div>
                   ) : (
@@ -290,38 +374,37 @@ export function ProposalComposer(props: Props) {
                       {kind === "private" ? "Secret ballot" : "Transparent fallback"}
                     </p>
                   )}
-                  <p className="composer-help composer-method-description">
+                  <p id={`${id}-method-description`} className="composer-help composer-method-description">
                     {kind === "private"
                       ? "Individual votes stay private. Results are revealed after voting closes."
                       : "Only for when a secret ballot cannot run. Individual votes and the running tally are public."}
                   </p>
-                </section>
-                <section className="composer-timing">
-                  <div className="composer-summary-line">
-                    <h2>Voting period</h2>
-                    <span>{durationSeconds === undefined ? "Loading…" : formatDurationSeconds(durationSeconds)}</span>
+                  <div className="composer-timing">
+                    <div className="composer-summary-line">
+                      <h3>Voting period</h3>
+                      <span>{durationSeconds === undefined ? "Loading…" : formatDurationSeconds(durationSeconds)}</span>
+                    </div>
+                    <p className="composer-help">
+                      Starts when the proposal is created, followed by the foundation veto window.
+                    </p>
                   </div>
-                  <p className="composer-help">
-                    Starts when the proposal is created, followed by the foundation veto window.
-                  </p>
                 </section>
                 {fee}
-                <div className="composer-submit">
-                  <Button
-                    isLoading={isCreating}
-                    disabled={!canSubmit}
-                    size="lg"
-                    variant="primary"
-                    onClick={submitProposal}
-                  >
+                <section className="composer-submit">
+                  <h2 className="ui-section-title">Voting power</h2>
+                  <ProposalCreationRequirement {...creationRequirement} />
+                  <ActionButton isLoading={isCreating} disabled={!canSubmit} intent="confirm" onClick={handleSubmit}>
                     Submit proposal
-                  </Button>
+                  </ActionButton>
+                  {errors.length > 0 && (
+                    <p className="ui-field-error" role="alert">Complete the highlighted fields to continue.</p>
+                  )}
                   <p className="composer-help">
                     {actions.length
                       ? `${actions.length} DAO ${actions.length === 1 ? "action" : "actions"} attached.`
                       : "Signaling vote · No DAO actions"}
                   </p>
-                </div>
+                </section>
               </div>
             </FluidHeight>
           </aside>

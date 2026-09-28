@@ -136,7 +136,11 @@ function PrivateRowBody({
       creator={proposal.creator}
       statusLabel={statusLabel}
       statusClass={statusClass}
+      votingOpen={
+        isActive && !e3Failed && endDate > Date.now() && Number(proposal.parameters.startDate) * 1000 <= Date.now()
+      }
       rightLabel={rightLabel}
+      votingEndMs={endDate}
       bars={bars}
       resultLabel={proposal.isTallied ? "Final vote share" : "Secret ballot"}
       resultMessage={

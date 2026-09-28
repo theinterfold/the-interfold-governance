@@ -2,7 +2,8 @@
 export const DESIGN_PREVIEW =
   process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DESIGN_PREVIEW === "true";
 
-export const DEMO_WALLET = "0x000000000000000000000000000000000000De01" as const;
+// An address-only fixture: no private key or real wallet is created or connected.
+export const DEMO_WALLET = "0x2B49CF50c9b1e03fC96A27Ead77419BaF2C3ED0E" as const;
 export const DEMO_MESSAGE = "Design preview only. No signature, transaction or upload was sent.";
 
 export function previewAddress(id: number) {

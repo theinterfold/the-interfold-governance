@@ -27,6 +27,7 @@ const metadata = {
 export const config = createConfig({
   chains: [PUB_CHAIN],
   ssr: true,
+  ...(DESIGN_PREVIEW ? { pollingInterval: 500 } : {}),
   ...(DESIGN_PREVIEW
     ? {
         storage: createStorage({

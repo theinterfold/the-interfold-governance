@@ -1,0 +1,128 @@
+body {
+  margin: 0;
+  background: var(--mint);
+  color: var(--ink);
+}
+.share-brand {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: var(--site-header-ink);
+}
+.share-brand .site-header-wordmark {
+  width: 284px;
+  height: auto;
+}
+.share-brand > span {
+  font: var(--ui-label-font);
+  white-space: nowrap;
+}
+.share-review {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+.share-intro {
+  margin-bottom: 40px;
+}
+.share-intro h1 {
+  font-family: "ABC Gramercy", serif;
+  font-size: clamp(44px, 5vw, 68px);
+  font-weight: 400;
+  line-height: 1.1;
+  margin: 0 0 16px;
+}
+.share-intro p {
+  font: var(--ui-body-font);
+  margin-bottom: 10px;
+}
+.share-note {
+  display: block;
+  font: var(--ui-label-font);
+  color: var(--muted);
+}
+.share-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.share-options {
+  display: flex;
+  gap: 8px;
+}
+.share-options button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.share-scenarios {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font: var(--ui-label-font);
+}
+.share-scenarios label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.share-scenarios select {
+  padding: 10px 30px 10px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+}
+.share-reset {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.share-description {
+  font: var(--ui-label-font);
+  color: var(--muted);
+  margin: 18px 0 24px;
+}
+.share-footer {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+  font: var(--ui-label-font);
+  color: var(--muted);
+}
+@media (max-width: 767px) {
+  .share-brand {
+    padding: 24px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .share-brand .site-header-wordmark {
+    width: 245px;
+    max-width: 100%;
+  }
+  .share-review {
+    padding: 24px 16px 40px;
+  }
+  .share-options {
+    width: 100%;
+    flex-direction: column;
+  }
+  .share-toolbar {
+    gap: 20px;
+  }
+  .share-scenarios {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .share-scenarios label {
+    gap: 8px;
+  }
+}

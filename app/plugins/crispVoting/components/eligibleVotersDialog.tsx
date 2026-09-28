@@ -1,6 +1,5 @@
 import { useMemo, useState, type RefObject } from "react";
 import { formatUnits } from "viem";
-import { useAccount } from "wagmi";
 import { Button, DialogContent, DialogHeader, DialogRoot, InputText } from "@aragon/ods";
 import { If } from "@/components/if";
 import { PleaseWaitSpinner } from "@/components/please-wait";
@@ -56,7 +55,6 @@ export const EligibleVotersDialog = ({
   chainThreshold,
   creditMode,
 }: EligibleVotersDialogProps) => {
-  const { address } = useAccount();
   const decimals = useTokenDecimals();
   const [filter, setFilter] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -160,20 +158,24 @@ export const EligibleVotersDialog = ({
               <div className="max-h-[45vh] overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-neutral-0">
-                    <tr className="border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
-                      <th className="py-2">Address</th>
-                      <th className="py-2 text-right">Voting power</th>
-                      <th className="py-2 text-right">Share</th>
-                      <th className="py-2 text-right">Verified</th>
+                    <tr className="ui-table-head border-b border-neutral-200">
+                      <th scope="col" className="py-2">
+                        Address
+                      </th>
+                      <th scope="col" className="ui-number py-2">
+                        Voting power
+                      </th>
+                      <th scope="col" className="ui-number py-2">
+                        Share
+                      </th>
+                      <th scope="col" className="py-2 pl-4">
+                        Verified
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.slice(0, limit).map((row) => (
-                      <VoterRow
-                        key={row.address}
-                        row={row}
-                        isYou={row.address.toLowerCase() === address?.toLowerCase()}
-                      />
+                      <VoterRow key={row.address} row={row} />
                     ))}
                   </tbody>
                 </table>
@@ -197,22 +199,19 @@ export const EligibleVotersDialog = ({
     </DialogRoot>
   );
 
-  function VoterRow({ row, isYou }: { row: EligibleVoterRow; isYou: boolean }) {
+  function VoterRow({ row }: { row: EligibleVoterRow }) {
     return (
       <tr className="border-b border-neutral-100 last:border-b-0">
         <td className="py-2">
           <span className="flex items-center gap-x-2">
-            <AddressText bold={false} asLink={false}>
-              {row.address}
-            </AddressText>
-            {isYou && <span className="text-xs text-primary-400">you</span>}
+            <AddressText bold={false}>{row.address}</AddressText>
           </span>
         </td>
-        <td className="font-mono py-2 text-right text-xs">
+        <td className="ui-number py-2 text-sm">
           {fmt(row.servedBalance)} {PUB_TOKEN_SYMBOL}
         </td>
-        <td className="font-mono py-2 text-right text-xs text-neutral-500">{pct(row.servedBalance)}</td>
-        <td className="py-2 text-right">
+        <td className="ui-number py-2 text-sm text-neutral-500">{pct(row.servedBalance)}</td>
+        <td className="py-2 pl-4 text-left">
           {row.onChainPower === undefined ? (
             <span className="font-mono text-xs text-neutral-400">–</span>
           ) : row.matches ? (

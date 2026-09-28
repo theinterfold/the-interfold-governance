@@ -1,5 +1,7 @@
 import { createClient, http, zeroAddress, type Address } from "viem";
-import { createConfig, useEnsName } from "wagmi";
+import { createConfig } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { getEnsNameQueryOptions } from "wagmi/query";
 import { mainnet } from "wagmi/chains";
 
 // Keep directory entries and selected delegates on the same read-only ENS cache.
@@ -12,12 +14,21 @@ export const ensConfig = createConfig({
   },
 });
 
+export function memberNameQueryOptions(address?: Address) {
+  return {
+    ...getEnsNameQueryOptions(ensConfig, {
+      chainId: mainnet.id,
+      address: address?.toLowerCase() as Address | undefined,
+    }),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  };
+}
+
 export function useMemberName(address?: Address) {
-  const { data } = useEnsName({
-    config: ensConfig,
-    chainId: mainnet.id,
-    address,
-    query: { enabled: !!address && address !== zeroAddress, staleTime: 5 * 60 * 1000 },
+  const { data } = useQuery({
+    ...memberNameQueryOptions(address),
+    enabled: !!address && address !== zeroAddress,
   });
   return data;
 }

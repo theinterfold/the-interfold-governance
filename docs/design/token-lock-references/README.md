@@ -19,7 +19,11 @@ São propostas de organização. Não copiar o excesso de texto/caixas dos exemp
 
 ## Proposta em avaliação: lock + delegate
 
+Comparação com a versão original, em 24 de setembro de 2026: a página pública de [Voting power](https://governance.theinterfold.com/plugins/lock/#/) exige ligação à wallet para mostrar as operações. No código original disponível em `main` (`d896294011430a4828ec8da07667208a826dd00c`, `app/plugins/velocker/pages/index.tsx`), **Lock FOLD** contém apenas o montante, saldo, Max e **Approve and lock**; **Delegate your locks to someone else** é um bloco separado, com endereço e **Delegate locks**. Foi consultada a página sem ligar uma wallet; o percurso ligado foi confirmado no código, não executado no site.
+
 O utilizador aprovou uma experiência local para apresentar à equipa, sem tratar a organização como decisão definitiva. O formulário reúne montante, delegado e revisão. A escolha atual aparece no resumo da conta e pode ser alterada sem criar um lock; deixou de ocupar um terceiro bloco principal.
+
+A escolha do delegado acontece na configuração do lock, com o delegado atual selecionado por defeito. A revisão apresenta a identidade e um botão discreto **Edit**. Editar regressa à configuração e exige uma nova passagem pela revisão. O montante mantém o mesmo elemento e os mesmos algarismos tabulares entre os passos; FOLD aproxima-se do valor quando o campo passa a ser apenas de leitura.
 
 Escolher um delegado no formulário altera apenas o rascunho. Mantendo o delegado atual, novos locks seguem-no sem uma nova transação de delegação. Escolhendo outro, a revisão explica que a mudança afeta também os locks existentes e futuros. Bonded e vesting FOLD mantêm as suas regras.
 

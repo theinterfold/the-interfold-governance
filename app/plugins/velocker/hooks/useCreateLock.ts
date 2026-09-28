@@ -7,12 +7,16 @@ import { awaitSuccessfulReceipt } from "@/plugins/crispVoting/utils/awaitReceipt
 import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
 import { lockCreationRequest } from "../utils/lockRequest";
+import { spendableTokenBalance } from "../utils/foldAllocation";
 
 /**
  * Locks FOLD into the voting escrow: an exact-amount approval to the escrow, then
  * `createLock` for yourself or `createLockFor` for another owner. No unlimited approvals.
  */
-export function useCreateLock(onLocked?: () => void) {
+export function useCreateLock(
+  onLocked?: () => void,
+  { vestingBalance }: { vestingBalance?: bigint } = { vestingBalance: 0n }
+) {
   const { address } = useAccount();
   const connectedAccount = useRef(address);
   connectedAccount.current = address;
@@ -96,7 +100,8 @@ export function useCreateLock(onLocked?: () => void) {
   };
 
   return {
-    balance: balanceData as bigint | undefined,
+    balance: spendableTokenBalance(balanceData, vestingBalance),
+    walletBalance: balanceData,
     createLock,
     isLocking,
     error,

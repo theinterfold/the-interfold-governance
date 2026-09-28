@@ -1,10 +1,9 @@
 import { useAccount, useBlockNumber, useReadContract } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { iVotesAbi } from "../artifacts/iVotes";
+import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
 import { useEffect } from "react";
 import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 
-import type { Address } from "viem";
 import type { Proposal } from "../utils/types";
 
 /**
@@ -25,12 +24,6 @@ export function useCanVote(proposalId: bigint) {
   });
   const proposal = proposalData as Proposal | undefined;
 
-  const { data: votingToken } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-    abi: CrispVotingAbi,
-    functionName: "getVotingToken",
-  });
-
   const { data: minVoterVotingPower } = useReadContract({
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
@@ -39,13 +32,10 @@ export function useCanVote(proposalId: bigint) {
 
   const snapshotBlock = proposal?.parameters?.snapshotBlock;
 
-  const { data: pastVotes, refetch: refreshPastVotes } = useReadContract({
-    address: votingToken as Address | undefined,
-    abi: iVotesAbi,
-    functionName: "getPastVotes",
-    args: [address!, snapshotBlock!],
-    query: { enabled: !!address && !!votingToken && snapshotBlock !== undefined },
-  });
+  const { votingPower: pastVotes, refetch: refreshPastVotes } = useSnapshotVotingPower(
+    PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    snapshotBlock
+  );
 
   useEffect(() => {
     refreshPastVotes();

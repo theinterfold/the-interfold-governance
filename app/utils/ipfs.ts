@@ -1,4 +1,5 @@
-import { DESIGN_PREVIEW, DEMO_MESSAGE } from "@/dev/previewMode";
+import { saveDemoMetadata } from "@/dev/simulation";
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import { demoMetadata } from "@/dev/fixtures";
 import { PUB_IPFS_ENDPOINTS, PUB_APP_NAME } from "@/constants";
 import { type Hex, fromHex, toBytes } from "viem";
@@ -29,7 +30,7 @@ export function fetchIpfsAsBlob(ipfsUri: string) {
  * inlined into the bundle and readable by every visitor.
  */
 export async function uploadToPinata(strBody: string) {
-  if (DESIGN_PREVIEW) throw new Error(DEMO_MESSAGE);
+  if (DESIGN_PREVIEW) return saveDemoMetadata(strBody);
   const res = await fetch("/api/ipfs/pin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

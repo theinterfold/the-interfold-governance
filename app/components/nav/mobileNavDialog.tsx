@@ -81,7 +81,7 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
   if (!open) return null;
 
   const titleBase =
-    "interfold-menu-item font-[family-name:var(--font-serif)] capitalize tracking-[-1.08px] transition-colors hover:text-[var(--accent-hover)]";
+    "site-header-menu-link interfold-menu-item font-[family-name:var(--font-serif)] capitalize tracking-[-1.08px] transition-colors";
   // The site caps the size but lets it shrink with the viewport so the longest
   // label always holds one line.
   const titleStyle = {
@@ -94,7 +94,7 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
   return (
     <div
       ref={dialogRef}
-      className="interfold-mobile-menu-overlay fixed inset-0 z-[60] flex w-full flex-col items-center justify-center overflow-hidden bg-[var(--mint)] xl:hidden"
+      className="interfold-mobile-menu-overlay fixed inset-0 z-[60] flex w-full flex-col items-center justify-center overflow-hidden bg-[var(--page-ground)] xl:hidden"
       role="dialog"
       aria-modal="true"
       aria-label="Menu"
@@ -113,7 +113,7 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
             href={navLink.path}
             aria-current={query.id === navLink.id ? "page" : undefined}
             onClick={close}
-            className={`${titleBase} text-[var(--accent)]`}
+            className={`${titleBase} text-[var(--site-header-ink)]`}
             style={{
               ...titleStyle,
               // The site drops word-spacing by -0.1em, but sets its one two-word

@@ -1,3 +1,4 @@
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
 import React, { createContext, useState, useContext } from "react";
 import { IAlert } from "@/utils/types";
 import { usePublicClient } from "wagmi";
@@ -49,7 +50,7 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       description: alertOptions?.description,
       type: alertOptions?.type ?? "info",
     };
-    if (alertOptions?.txHash && client) {
+    if (alertOptions?.txHash && client && !DESIGN_PREVIEW) {
       newAlert.explorerLink = `${client.chain.blockExplorers?.default.url}/tx/${alertOptions.txHash}`;
     }
     const timeout = alertOptions?.timeout ?? DEFAULT_ALERT_TIMEOUT;

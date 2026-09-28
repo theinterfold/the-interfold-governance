@@ -1,5 +1,5 @@
 import { decodeCamelCase } from "@/utils/case";
-import { InputText } from "@aragon/ods";
+import { ActionDetailField } from "./actionDetailField";
 import { toFunctionSignature, type AbiFunction } from "viem";
 import { resolveFieldTitle, resolveParamValue, type CallParameterFieldType } from "@/utils/abi-helpers";
 
@@ -18,7 +18,11 @@ export const CallParamField: React.FC<ICallParamFiledProps> = ({ value, idx, fun
   const resolvedValue = resolveParamValue(value, functionAbi.inputs?.[idx]);
   const label = resolveFieldTitle(functionAbi.inputs?.[idx].name ?? "", functionAbi.inputs?.[idx].type, idx);
 
-  return <InputText label={decodeCamelCase(label)} className="w-full" value={resolvedValue} disabled={true} />;
+  return (
+    <ActionDetailField label={decodeCamelCase(label)} code={true}>
+      {resolvedValue}
+    </ActionDetailField>
+  );
 };
 
 export const CallFunctionSignatureField: React.FC<ICallFunctionSignatureFieldProps> = ({ functionAbi }) => {
@@ -26,5 +30,9 @@ export const CallFunctionSignatureField: React.FC<ICallFunctionSignatureFieldPro
 
   const sig = toFunctionSignature(functionAbi);
 
-  return <InputText label="Contract function" className="w-full" value={sig} disabled={true} />;
+  return (
+    <ActionDetailField label="Contract function" code={true}>
+      {sig}
+    </ActionDetailField>
+  );
 };

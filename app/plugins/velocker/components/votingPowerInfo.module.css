@@ -1,0 +1,20 @@
+.breakdown:global(.power-info-popover) {
+  width: min(380px, calc(100vw - 32px));
+}
+.breakdown:global(.power-info-popover) :global(.power-info-values > div) {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 16px;
+}
+.breakdown:global(.power-info-popover) :global(.power-info-values dd) {
+  text-align: right;
+  white-space: nowrap;
+}
+.breakdown:global(.power-info-popover) .total {
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.breakdown:global(.power-info-popover) .total dt {
+  color: var(--ink);
+  font-weight: 600;
+}

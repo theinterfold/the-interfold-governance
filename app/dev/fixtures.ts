@@ -1,3 +1,5 @@
+import { DEMO_ADAPTER, DEMO_LOCK_NFT, demoState, demoLockVotes, demoTransactionRead } from "./simulation";
+import { lockNftAbi } from "@/plugins/velocker/artifacts/lockNft";
 import {
   custom,
   decodeFunctionData,
@@ -33,18 +35,41 @@ import { exitQueueAbi } from "@/plugins/velocker/artifacts/exitQueue";
 import { DEMO_MESSAGE, DEMO_WALLET, previewAddress, requireLocalPreview } from "./previewMode";
 import delegateSnapshot from "./snapshots/delegates-mainnet.json";
 import type { CrispSDK } from "@crisp-e3/sdk";
+import type { RawAction } from "@/utils/types";
 
 const unit = 10n ** 18n;
 const now = BigInt(Math.floor(Date.now() / 1000));
 const day = 86400n;
-const adapter = previewAddress(0xd101);
+const adapter = DEMO_ADAPTER;
 const queue = previewAddress(0xd102);
-const lockNft = previewAddress(0xd103);
+const lockNft = DEMO_LOCK_NFT;
 const interfold = previewAddress(0xd104);
 const checkpoints = previewAddress(0xd105);
 const otherWallet = previewAddress(0xde02);
 const thirdWallet = previewAddress(0xde03);
 const zeroHash = `0x${"00".repeat(32)}` as Hex;
+
+/** Executable content belongs to the parent SPP; body actions remain separate. */
+export function demoProposalActions(id: bigint, privateVote: boolean): RawAction[] {
+  if (id === 2n)
+    return [
+      { to: otherWallet, value: unit, data: "0x" },
+      { to: thirdWallet, value: unit / 2n, data: "0x" },
+    ];
+  if (id === 1n && privateVote) return [{ to: otherWallet, value: unit / 4n, data: "0x" }];
+  return [];
+}
+
+/** Synthetic chronology for previewing sorting, not dates from the public snapshot. */
+export function demoDelegateFirstSeen() {
+  requireLocalPreview();
+  return new Map(
+    delegateSnapshot.data.delegates.map((entry, index) => [
+      entry.address.toLowerCase(),
+      25800000n + BigInt((index * 7) % delegateSnapshot.data.delegates.length) * 1000n,
+    ])
+  );
+}
 
 const extraAbi = parseAbi([
   "function checkpoints() view returns (address)",
@@ -66,8 +91,9 @@ const capturedDelegatePowers = new Map(
   delegateSnapshot.data.delegates.map((entry) => [entry.address.toLowerCase(), BigInt(entry.voting_power)])
 );
 const power = (address: unknown) =>
-  capturedDelegatePowers.get(String(address).toLowerCase()) ??
-  (same(String(address), DEMO_WALLET) ? 50000n * unit : 25000n * unit);
+  same(String(address), DEMO_WALLET)
+    ? demoLockVotes(address) + 25000n * unit
+    : (capturedDelegatePowers.get(String(address).toLowerCase()) ?? 25000n * unit);
 
 function stages(isPrivate: boolean) {
   return [
@@ -103,7 +129,9 @@ function stages(isPrivate: boolean) {
 
 function valueFor(name: string, address: Address, args: readonly unknown[] = []): unknown {
   const id = typeof args[0] === "bigint" ? args[0] : 1n;
-  const { start, end } = dates(id);
+  const savedProposal = demoState().proposals.find((proposal) => proposal.id === id);
+  const { start, end } = savedProposal ?? dates(id);
+  const localLock = demoState().locks.find((lock) => lock.id === id);
   const finished = id === 2n;
   switch (name) {
     case "decimals":
@@ -113,15 +141,20 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "name":
       return "Demo FOLD";
     case "balanceOf":
-      return same(address, PUB_TOKEN_ADDRESS) ? 125000n * unit : power(args[0]);
+      return same(address, PUB_TOKEN_ADDRESS)
+        ? // The saved demo balance is spendable; vesting FOLD is still held by the token wallet.
+          demoState().balance + 15000n * unit
+        : same(address, PUB_INTERFOLD_FEE_TOKEN_ADDRESS)
+          ? demoState().feeBalance
+          : power(args[0]);
     case "getVotes":
     case "getPastVotes":
-      return same(address, adapter) ? 25000n * unit : power(args[0]);
+      return same(address, adapter) ? demoLockVotes(args[0]) : power(args[0]);
     case "totalSupply":
     case "getPastTotalSupply":
       return 1000000n * unit;
     case "delegates":
-      return DEMO_WALLET;
+      return demoState().delegate;
     case "getVotingToken":
       return PUB_VOTING_POWER_SOURCE;
     case "minProposerVotingPower":
@@ -131,7 +164,7 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "lockNFT":
       return lockNft;
     case "queue":
-      return args.length ? { holder: DEMO_WALLET, exitDate: id === 4n ? now - day : now + 12n * day } : queue;
+      return args.length ? { holder: localLock?.owner ?? zeroAddress, exitDate: localLock?.exitDate ?? 0n } : queue;
     case "ivotesAdapter":
       return adapter;
     case "minDeposit":
@@ -141,23 +174,31 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "cooldown":
       return 30n * day;
     case "ownedTokens":
-      return same(String(args[0]), PUB_VE_LOCKER_ADDRESS) ? [3n, 4n] : [1n, 2n];
+      return demoState()
+        .locks.filter((lock) =>
+          same(String(args[0]), PUB_VE_LOCKER_ADDRESS)
+            ? !!lock.exitDate
+            : !lock.exitDate && same(lock.owner, String(args[0]))
+        )
+        .map((lock) => lock.id);
     case "locked":
-      return { amount: (id === 1n ? 15000n : id === 2n ? 10000n : 2500n) * unit, start: Number(now - 45n * day) };
+      return { amount: localLock?.amount ?? 0n, start: localLock?.start ?? 0 };
     case "votingPower":
-      return (id === 1n ? 15000n : 10000n) * unit;
+      return localLock && !localLock.exitDate ? localLock.amount : 0n;
     case "tokenIsDelegated":
-      return true;
+      return !!localLock && !localLock.exitDate && demoState().delegate !== zeroAddress;
     case "ticketHolder":
-      return DEMO_WALLET;
+      return localLock?.owner ?? zeroAddress;
     case "canExit":
-      return id === 4n;
+      return !!localLock?.exitDate && localLock.exitDate <= BigInt(Math.floor(Date.now() / 1000));
     case "checkpoints":
       return checkpoints;
     case "bonded":
       return 10000n * unit;
     case "allowance":
-      return 0n;
+      return demoState().allowances[`${address.toLowerCase()}:${String(args[1]).toLowerCase()}`] ?? 0n;
+    case "getApproved":
+      return localLock?.approved ?? zeroAddress;
     case "getCurrentConfigIndex":
       return 1n;
     case "getStages":
@@ -171,21 +212,22 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "quoteProposalFee":
       return 1500000n;
     case "feeCredits":
-      return 10000000n;
+      return demoState().feeCredits;
     case "interfold":
       return interfold;
     case "canVote":
       return !finished;
     case "canExecute":
     case "canProposalAdvance":
-    case "hasVoted":
     case "isMember":
       return false;
     case "isMinParticipationReached":
     case "isSupportThresholdReached":
       return true;
+    case "hasVoted":
+      return demoState().votes[`public:${id}`] !== undefined;
     case "getVoteOption":
-      return 0;
+      return demoState().votes[`public:${id}`] ?? 0;
     case "getTally":
       return { counts: finished ? [720000n, 180000n, 100000n] : [0n, 0n, 0n] };
     case "getE3Stage":
@@ -227,7 +269,7 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
           executed: finished,
           canceled: false,
           creator: DEMO_WALLET,
-          actions: [],
+          actions: demoProposalActions(id, same(address, PUB_SPP_PRIVATE_ADDRESS)),
           targetConfig,
         };
       }
@@ -261,7 +303,11 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
           snapshotTimepoint: start - 1n,
           minVotingPower: 10000n * unit,
         },
-        { abstain: 2000n * unit, yes: 18000n * unit, no: 5000n * unit },
+        {
+          abstain: 2000n * unit + (demoState().votes[`public:${id}`] === 1 ? power(DEMO_WALLET) : 0n),
+          yes: 18000n * unit + (demoState().votes[`public:${id}`] === 2 ? power(DEMO_WALLET) : 0n),
+          no: 5000n * unit + (demoState().votes[`public:${id}`] === 3 ? power(DEMO_WALLET) : 0n),
+        },
         [],
         0n,
         targetConfig,
@@ -284,7 +330,7 @@ export function demoCall(address: Address, data: Hex): Hex {
           : undefined;
   const candidates: Abi[] = primary
     ? [primary]
-    : [multicall3Abi, votingEscrowAbi, exitQueueAbi, escrowAdapterAbi, iVotesAbi, erc20Abi, extraAbi];
+    : [multicall3Abi, votingEscrowAbi, lockNftAbi, exitQueueAbi, escrowAdapterAbi, iVotesAbi, erc20Abi, extraAbi];
   for (const abi of candidates) {
     let decoded;
     try {
@@ -323,7 +369,17 @@ export const demoTransport = () =>
       async request({ method, params }: { method: string; params?: unknown }) {
         requireLocalPreview();
         if (method === "eth_chainId") return toHex(PUB_CHAIN_ID);
-        if (method === "eth_blockNumber") return toHex(26000000n);
+        if (
+          [
+            "eth_blockNumber",
+            "eth_getTransactionReceipt",
+            "eth_getTransactionByHash",
+            "eth_getTransactionCount",
+            "eth_getBlockByNumber",
+            "eth_getBlockByHash",
+          ].includes(method)
+        )
+          return demoTransactionRead(method, params);
         if (method === "eth_getBalance") return toHex(2n * unit);
         if (method === "eth_getCode") return "0x";
         if (method === "eth_getLogs") return [];
@@ -338,6 +394,7 @@ export const demoTransport = () =>
   );
 
 export function demoMetadata(uri: string) {
+  if (demoState().metadata[uri]) return demoState().metadata[uri];
   const privateVote = uri.includes("private");
   const finished = uri.endsWith("/2");
   return {
@@ -349,9 +406,12 @@ export function demoMetadata(uri: string) {
     summary: finished
       ? "Fund an initial round of community-led tools and documentation."
       : "Review the proposed programme, share feedback and help shape the next phase of Interfold.",
-    description:
-      "<p>This is a fictional proposal for reviewing the governance interface.</p><h2>Proposal</h2><p>Support participation through clear documentation, community feedback and practical tooling.</p><h2>Next steps</h2><p>Collect feedback, agree on milestones and review progress with the community.</p>",
-    resources: [{ name: "Interfold documentation", url: "https://docs.theinterfold.com/" }],
+    description: finished
+      ? "<h2>Proposal</h2><p>Fund community-led tools and documentation through two grants: 1 ETH for tooling and 0.5 ETH for documentation.</p><h2>Next steps</h2><p>Publish milestones and share progress with the community.</p>"
+      : privateVote
+        ? "<h2>Proposal</h2><p>Allocate 0.25 ETH to support ciphernode operator onboarding, documentation and practical tooling.</p><h2>Next steps</h2><p>Collect operator feedback, agree on milestones and report progress to the community.</p>"
+        : "<h2>Proposal</h2><p>Agree on guidelines for clear documentation, community feedback and participation.</p><h2>Next steps</h2><p>Collect feedback and publish the agreed guidelines. This proposal records community support without transferring funds.</p>",
+    resources: [{ name: "Documentation", url: "https://docs.theinterfold.com/" }],
     options: ["Yes", "No", "Abstain"],
   };
 }
@@ -366,15 +426,23 @@ export function demoIndexer(endpoint: string, input: unknown) {
         : "public";
     return {
       scanned_from: 0,
-      proposals: [1n, 2n]
+      proposals: [
+        1n,
+        2n,
+        ...demoState()
+          .proposals.filter((proposal) =>
+            same(proposal.plugin, kind === "private" ? PUB_SPP_PRIVATE_ADDRESS : PUB_SPP_PUBLIC_ADDRESS)
+          )
+          .map((proposal) => proposal.id),
+      ]
         .filter((id) => !body.proposal_id || String(id) === body.proposal_id)
         .map((id) => ({
           proposal_id: String(id),
           creator: DEMO_WALLET,
-          start_date: Number(dates(id).start),
-          end_date: Number(dates(id).end),
-          metadata: toHex(`demo://${kind}/${id}`),
-          block: 25999000 - Number(id),
+          start_date: Number(demoState().proposals.find((proposal) => proposal.id === id)?.start ?? dates(id).start),
+          end_date: Number(demoState().proposals.find((proposal) => proposal.id === id)?.end ?? dates(id).end),
+          metadata: toHex(demoState().proposals.find((proposal) => proposal.id === id)?.uri ?? `demo://${kind}/${id}`),
+          block: id > 2n ? 26000000 + Number(id) : 25999000 - Number(id),
           transaction_hash: null,
           executed: id === 2n,
           refund_claimed: false,
@@ -385,6 +453,17 @@ export function demoIndexer(endpoint: string, input: unknown) {
     return {
       scanned_from: 0,
       votes: [
+        ...(demoState().votes[`public:${body.proposal_id}`] === undefined
+          ? []
+          : [
+              {
+                voter: DEMO_WALLET,
+                vote_option: demoState().votes[`public:${body.proposal_id}`],
+                voting_power: String(power(DEMO_WALLET)),
+                block: 26000000,
+                transaction_hash: null,
+              },
+            ]),
         {
           voter: otherWallet,
           vote_option: 2,

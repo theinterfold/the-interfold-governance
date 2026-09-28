@@ -64,6 +64,15 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     query: { enabled: !!address },
   });
 
+  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [address!],
+    query: { enabled: !!address },
+  });
+
   const { data: decimalsData } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
@@ -98,6 +107,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     onSuccess: () => {
       setIsDepositing(false);
       refetchCredit();
+      refetchBalance();
     },
     onError: () => setIsDepositing(false),
   });
@@ -108,6 +118,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     onSuccess: () => {
       setIsWithdrawing(false);
       refetchCredit();
+      refetchBalance();
     },
     onError: () => setIsWithdrawing(false),
   });
@@ -145,6 +156,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
         args: [amount],
       });
       await awaitSuccessfulReceipt(client, depositTx, "The deposit");
+      await Promise.all([refetchCredit(), refetchBalance()]);
       return true;
     } catch (err) {
       setError(describeFailure(err, "The deposit could not be completed"));
@@ -188,6 +200,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   return {
     quote,
     credit,
+    balance: balanceData as bigint | undefined,
     shortfall,
     decimals,
     symbol: symbolData as string | undefined,

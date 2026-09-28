@@ -1,8 +1,12 @@
+import { StatusBadge } from "@/components/text/statusBadge";
+import { ActionButton } from "@/components/input/actionButton";
+import { BendingChevron } from "@/vendor/site-header";
 import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
 import { useInert } from "@/components/motion/useInert";
+import { ProposalCountdown, formatEndsIn } from "@/components/proposal/proposalCountdown";
 
 export type RowBar = { width: number; color: string; label: string };
 
@@ -17,6 +21,9 @@ export interface ProposalRowProps {
   creator?: string;
   statusLabel?: string;
   statusClass?: string;
+  /** An open voting window, independent of this wallet's eligibility. */
+  votingOpen?: boolean;
+  votingEndMs?: number;
   rightLabel?: string;
   bars?: RowBar[];
   resultLabel?: string;
@@ -33,6 +40,8 @@ export interface ProposalRowProps {
 export function ProposalRow(props: ProposalRowProps) {
   const [expanded, setExpanded] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
+  const [expiredDeadline, setExpiredDeadline] = useState<number>();
+  const votingOpen = !!props.votingOpen && (props.votingEndMs === undefined || expiredDeadline !== props.votingEndMs);
   const panelRef = useInert(!expanded);
   const panelId = useId();
   const titleId = useId();
@@ -67,11 +76,18 @@ export function ProposalRow(props: ProposalRowProps) {
   }
 
   return (
-    <article ref={rowRef} className="proposal-item" data-expanded={expanded} hidden={props.hidden}>
+    <article
+      ref={rowRef}
+      className="proposal-item"
+      data-expanded={expanded}
+      data-voting-open={votingOpen}
+      data-status={props.statusClass}
+      hidden={props.hidden}
+    >
       <header className="proposal-row">
         <div className="body">
           <div className="meta">
-            {props.statusLabel && <span className={`badge ${props.statusClass ?? ""}`}>{props.statusLabel}</span>}
+            {props.statusLabel && <StatusBadge className={props.statusClass}>{props.statusLabel}</StatusBadge>}
             <span className="proposal-method">{props.kindLabel}</span>
           </div>
           <h2 id={titleId}>
@@ -90,15 +106,25 @@ export function ProposalRow(props: ProposalRowProps) {
           <p className="summary line-clamp-2">{props.summary}</p>
           <div className="author">
             <em>By</em>
-            <AddressText bold={false} asLink={false}>
-              {props.creator}
-            </AddressText>
+            <AddressText bold={false}>{props.creator}</AddressText>
           </div>
         </div>
         <div className="right">
-          {props.rightLabel && <span className="time">{props.rightLabel}</span>}
+          {props.rightLabel && (
+            <span className="time">
+              {votingOpen && props.votingEndMs ? (
+                <ProposalCountdown endMs={props.votingEndMs} onEnd={() => setExpiredDeadline(props.votingEndMs)} />
+              ) : expiredDeadline === props.votingEndMs && expiredDeadline !== undefined ? (
+                "Voting ended"
+              ) : (
+                props.rightLabel
+              )}
+            </span>
+          )}
           <div className="proposal-result">
-            <span className="proposal-result-label">{props.resultLabel ?? "Voting results"}</span>
+            {props.resultLabel !== props.kindLabel && (
+              <span className="proposal-result-label">{props.resultLabel ?? "Voting results"}</span>
+            )}
             {props.bars && props.bars.length > 0 && (
               <>
                 <div className="mini-bar" aria-hidden="true">
@@ -119,16 +145,26 @@ export function ProposalRow(props: ProposalRowProps) {
             )}
             {props.resultMessage && <p className="proposal-result-message">{props.resultMessage}</p>}
           </div>
-          <span className="proposal-row-action" aria-hidden="true">
-            {expanded ? "Close details" : "View proposal"}
-          </span>
+          <ActionButton
+            type="button"
+            intent={votingOpen && !expanded ? "vote" : "open"}
+            className="proposal-row-action"
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            onClick={toggle}
+          >
+            <span>
+              {expanded
+                ? "Close details"
+                : votingOpen
+                  ? "Vote"
+                  : props.statusClass === "executed"
+                    ? "View results"
+                    : "View proposal"}
+            </span>
+            <BendingChevron open={expanded} />
+          </ActionButton>
         </div>
-        <span className="proposal-expand-icon" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M1 7h12" />
-            <path className="proposal-expand-stem" d="M7 1v12" />
-          </svg>
-        </span>
       </header>
       <div
         id={panelId}
@@ -144,12 +180,20 @@ export function ProposalRow(props: ProposalRowProps) {
             <div className="proposal-expanded-content">
               {props.details}
               <div className="proposal-expanded-footer">
-                <Link href={props.href} target="_blank" rel="noopener noreferrer">
+                <Link href={props.href} className="ui-text-action" target="_blank" rel="noopener noreferrer">
                   Open full page ↗
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </Link>
-                <button type="button" onClick={collapse}>
-                  Close details ↑
-                </button>
+                <ActionButton
+                  type="button"
+                  className="proposal-row-action"
+                  onClick={collapse}
+                  aria-expanded={expanded}
+                  aria-controls={panelId}
+                >
+                  <span>Close details</span>
+                  <BendingChevron open={expanded} />
+                </ActionButton>
               </div>
             </div>
           )}
@@ -157,17 +201,6 @@ export function ProposalRow(props: ProposalRowProps) {
       </div>
     </article>
   );
-}
-
-/** "Ends in 3h" / "Ends in 2d 4h" / "Ends in 12m" — the row's compact countdown. */
-export function formatEndsIn(endMs: number, nowMs = Date.now()): string {
-  const secs = Math.max(0, Math.floor((endMs - nowMs) / 1000));
-  const d = Math.floor(secs / 86400);
-  const h = Math.floor((secs % 86400) / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  if (d > 0) return `Ends in ${d}d${h ? ` ${h}h` : ""}`;
-  if (h > 0) return `Ends in ${h}h${m ? ` ${m}m` : ""}`;
-  return `Ends in ${Math.max(1, m)}m`;
 }
 
 /** The compact right-hand state line: countdown while voting, then what the proposal is waiting on. */

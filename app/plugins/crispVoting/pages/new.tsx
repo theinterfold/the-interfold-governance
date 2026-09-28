@@ -22,6 +22,11 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
       kind="private"
       onKindChange={onKindChange}
       canSubmit={isConnected && canCreateState.canCreate && !canCreateState.isLoading}
+      creationRequirement={{
+        minimum: canCreateState.minProposerVotingPower,
+        votingPower: canCreateState.votes,
+        loading: canCreateState.isLoading,
+      }}
       fee={<FeeCreditCard disabled={proposal.isCreating} durationSeconds={proposal.durationSeconds} />}
       renderEditor={(editor) => (
         <CrispCreationEligibility selfAddress={selfAddress} state={canCreateState} isConnected={isConnected}>

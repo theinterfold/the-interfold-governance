@@ -1,6 +1,8 @@
+import { simulateDemoBallot } from "@/dev/simulation";
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_TOKEN_ADDRESS } from "@/constants";
-import { DESIGN_PREVIEW, DEMO_MESSAGE } from "@/dev/previewMode";
-import { useState } from "react";
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { BallotSubmissionResult } from "../utils/ballotSubmission";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
@@ -10,7 +12,7 @@ import { iVotesAbi } from "../artifacts/iVotes";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
-import { getRandomVoterToMask } from "../utils/voters";
+import { getRandomVoterToMask, selectVoterToMask } from "../utils/voters";
 import {
   CensusMode,
   ballotTypedData,
@@ -44,6 +46,7 @@ function toKeyBytes(value: unknown): Uint8Array | undefined {
  * State of the Crisp server
  */
 interface CrispServerState {
+  getRandomMaskTarget: () => Promise<string>;
   isLoading: boolean;
   error: string;
   postVote: (
@@ -52,8 +55,9 @@ interface CrispServerState {
     snapshotBlock: bigint,
     isAMask?: boolean,
     /** Send the vote yourself instead of handing it to the CRISP server to relay. */
-    submitOnChain?: boolean
-  ) => Promise<void>;
+    submitOnChain?: boolean,
+    maskTarget?: string
+  ) => Promise<BallotSubmissionResult>;
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
@@ -111,6 +115,19 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const busy = useRef(false);
+  const connectedAddress = useRef(address);
+  connectedAddress.current = address;
+  useEffect(() => {
+    // Remove the previous preview's mask history; new results remain in memory only.
+    try {
+      for (const key of Object.keys(window.sessionStorage)) {
+        if (key.startsWith("interfold:mask-receipts:v1:")) window.sessionStorage.removeItem(key);
+      }
+    } catch {
+      /* Storage can be unavailable. */
+    }
+  }, []);
 
   // All three go through the SDK (0.12.0) rather than hand-rolled fetches, so the
   // route names and payload shapes stay owned by the SDK.
@@ -127,11 +144,20 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     const holders = await crispSdk.getEligibleAddresses(e3Id);
     return holders.map((v) => ({ address: v.address, balance: BigInt(v.balance) }));
   };
+  const getRandomMaskTarget = useCallback(async () => {
+    if (e3Id === undefined) throw new Error("This proposal is not ready for masking yet.");
+    const holders = await crispSdk.getEligibleAddresses(e3Id);
+    return getRandomVoterToMask(
+      holders.map((v) => ({ address: v.address, balance: BigInt(v.balance) })),
+      address
+    ).address;
+  }, [e3Id, address]);
   const handleMask = async (
     e3Id: bigint,
     numOptions: string,
     /// Set for an ONCHAIN round: the program that will verify the mask.
-    crispProgram?: `0x${string}`
+    crispProgram?: `0x${string}`,
+    target?: string
   ) => {
     const eligibleVoters = await getEligibleVoters(e3Id);
 
@@ -139,7 +165,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       throw new Error("No eligible voters available for masking");
     }
 
-    const voter = getRandomVoterToMask(eligibleVoters);
+    const voter = selectVoterToMask(eligibleVoters, target);
 
     const zeroVote = getZeroVote(Number.parseInt(numOptions));
 
@@ -227,19 +253,44 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     e3Id: bigint,
     snapshotBlock: bigint,
     isAMask: boolean = false,
-    submitOnChain: boolean = false
-  ) => {
+    submitOnChain: boolean = false,
+    maskTarget?: string
+  ): Promise<BallotSubmissionResult> => {
+    if (busy.current) return { success: false, error: "A ballot is already being submitted." };
+    busy.current = true;
+    const submittingAddress = address;
+    const assertSameWallet = () => {
+      if (connectedAddress.current?.toLowerCase() !== submittingAddress?.toLowerCase()) {
+        throw new Error("Your wallet changed. Review the ballot again before continuing.");
+      }
+    };
+    // A retry starts a new receipt; never attach the preceding transaction to it.
+    setError("");
+    setTxHash(null);
+    setVotingStep("idle");
+    setLastActiveStep(null);
     setIsLoading(true);
     try {
-      if (DESIGN_PREVIEW) throw new Error(DEMO_MESSAGE);
       if (!address) {
-        setError("No wallet address found");
-        setVotingStep("error");
-        setStepMessage("No wallet address found");
-        return;
+        throw new Error("Connect your wallet before submitting a ballot.");
       }
-
-      addAlert(`${isAMask ? "Masking" : "Vote"} generation started! Please do not leave the current page.`, {
+      if (DESIGN_PREVIEW) {
+        setError("");
+        setVotingStep("signing");
+        setLastActiveStep("signing");
+        setStepMessage("Confirm in the demo wallet…");
+        if (isAMask) selectVoterToMask(await getEligibleVoters(e3Id), maskTarget);
+        assertSameWallet();
+        await simulateDemoBallot(e3Id, voteOption, isAMask, maskTarget);
+        setVotingStep("complete");
+        setStepMessage(isAMask ? "Mask submitted" : "Vote submitted successfully!");
+        addAlert(isAMask ? "Mask submitted" : "Vote submitted", {
+          type: "success",
+          description: "Completed in the local simulation.",
+        });
+        return { success: true, txHash: null };
+      }
+      addAlert(`${isAMask ? "Mask" : "Vote"} generation started! Please do not leave the current page.`, {
         timeout: 3000,
         type: "info",
       });
@@ -247,10 +298,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const roundState = await getRoundState(e3Id);
 
       if (roundState.status !== "Active") {
-        setError("This round is not accepting votes yet. Please wait and try again.");
-        setVotingStep("error");
-        setStepMessage("This round is not accepting votes yet.");
-        return;
+        throw new Error("This round is not accepting votes. Please check the voting window.");
       }
 
       // Bail out before signing and proof generation when the chain stage or input window
@@ -260,10 +308,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         const reason =
           onChainBlockedReason ??
           "Still checking whether this round accepts on-chain votes. Please try again in a moment.";
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        throw new Error(reason);
       }
 
       // The committee key comes from `CommitteePublished` logs, falling back to the CRISP server
@@ -274,10 +319,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const resolved = await resolveCommitteeKey(toKeyBytes(roundState.committee_public_key));
       if (!resolved.key) {
         const reason = resolved.reason ?? "The committee public key could not be verified.";
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        throw new Error(reason);
       }
 
       const publicKey = resolved.key;
@@ -290,7 +332,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       let voteData;
       if (isAMask) {
-        voteData = await handleMask(e3Id, roundState.num_options, isOnchainCensus ? crispProgram : undefined);
+        voteData = await handleMask(
+          e3Id,
+          roundState.num_options,
+          isOnchainCensus ? crispProgram : undefined,
+          maskTarget
+        );
       } else {
         voteData = await handleVote(
           e3Id,
@@ -363,7 +410,9 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // `signTypedData`, not `signMessage`: `ballotDigest` returns an EIP-712 digest that a
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
         // one, and every ballot would fail looking like a bad signature.
+        assertSameWallet();
         const signature = await signTypedDataAsync({
+          account: submittingAddress,
           domain,
           types,
           primaryType: "Ballot",
@@ -398,20 +447,21 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // proven locally, and `encodedProof` is already the exact payload `publishInput` decodes.
       // The only difference is who sends the transaction — the voter, or the CRISP server acting
       // as a relayer.
+      assertSameWallet();
       if (submitOnChain) {
-        setStepMessage("Publishing your vote on-chain...");
+        setStepMessage("Publishing your ballot on-chain...");
 
         const hash = await publishVoteOnChain(encodedProof as `0x${string}`);
         setTxHash(hash);
 
-        const onChainLabel = isAMask ? "Masking" : "Vote";
+        const onChainLabel = isAMask ? "Mask" : "Vote";
         setVotingStep("complete");
         setStepMessage(`${onChainLabel} published on-chain!`);
         addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
-        return;
+        return { success: true, txHash: hash };
       }
 
-      setStepMessage("Broadcasting vote to the network...");
+      setStepMessage("Broadcasting ballot to the network...");
 
       const response = await fetch(`${PUB_CRISP_SERVER_URL}/voting/broadcast`, {
         method: "POST",
@@ -422,36 +472,39 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       });
 
       if (response.status !== 200) {
-        setError("Failed to broadcast vote");
-        setVotingStep("error");
-        setStepMessage("Failed to broadcast vote");
-        return;
+        throw new Error("Failed to broadcast ballot. Please try again.");
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
+      if (voteResponse.status !== "success") {
+        throw new Error(voteResponse.message ?? "The ballot was not accepted. Please try again.");
+      }
 
       if (voteResponse.tx_hash) {
         setTxHash(voteResponse.tx_hash);
       }
 
-      const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
+      const label = isAMask ? "Mask" : voteResponse.is_vote_update ? "Vote update" : "Vote";
 
       setVotingStep("complete");
       setStepMessage(`${label} submitted successfully!`);
 
       addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
+      return { success: true, txHash: voteResponse.tx_hash ?? null };
     } catch (error) {
-      console.error("Error in postVote:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       setError(errorMessage);
       setVotingStep("error");
       setStepMessage(errorMessage);
+      return { success: false, error: errorMessage };
     } finally {
+      busy.current = false;
       setIsLoading(false);
     }
   };
 
   return {
+    getRandomMaskTarget,
     postVote,
     error,
     isLoading,

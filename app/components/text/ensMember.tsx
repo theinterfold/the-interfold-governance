@@ -22,11 +22,9 @@ export const EnsMember = ({ address }: { address: Address }) => {
   return (
     <div className="flex min-w-0 items-center gap-x-3">
       <MemberAvatar src={ensAvatar ?? ""} address={address} alt="Profile picture" size="sm" />
-      {ensName ? (
-        <span className="truncate font-semibold text-neutral-800">{ensName}</span>
-      ) : (
-        <AddressText bold={false}>{address}</AddressText>
-      )}
+      <AddressText bold={!!ensName} label={ensName ?? undefined}>
+        {address}
+      </AddressText>
     </div>
   );
 };
