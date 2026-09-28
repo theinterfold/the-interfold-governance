@@ -68,6 +68,7 @@ function ProposalDetailBody({
   const directOnly = PUB_CHAIN.id === 1;
   const [submitOnChainChoice, setSubmitOnChainChoice] = useState(false);
   const submitOnChain = directOnly ? true : submitOnChainChoice;
+  const [sendFromAnotherWallet, setSendFromAnotherWallet] = useState(false);
   const [showMaskPicker, setShowMaskPicker] = useState(false);
   const {
     proposal,
@@ -89,6 +90,9 @@ function ProposalDetailBody({
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
+    pendingSubmission,
+    sendPendingSubmission,
+    discardPendingSubmission,
   } = useCrispServer(proposal?.e3Id);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
@@ -114,7 +118,9 @@ function ProposalDetailBody({
       return;
     }
 
-    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
+    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain, {
+      sendFromAnotherWallet,
+    });
   };
 
   const onMask = (target?: Address) => {
@@ -122,6 +128,7 @@ function ProposalDetailBody({
     // Mask uses the next index after the last option
     postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain, {
       maskTarget: target,
+      sendFromAnotherWallet,
     });
   };
 
@@ -189,6 +196,12 @@ function ProposalDetailBody({
                 submitOnChain={submitOnChain}
                 onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
                 onClickMask={() => setShowMaskPicker(true)}
+                sendFromAnotherWallet={sendFromAnotherWallet}
+                onChangeSendFromAnotherWallet={setSendFromAnotherWallet}
+                pendingSubmission={pendingSubmission}
+                connectedAddress={address}
+                onSendPending={sendPendingSubmission}
+                onDiscardPending={discardPendingSubmission}
                 proposalId={proposalIdx}
                 votingStep={votingStep}
                 lastActiveStep={lastActiveStep}

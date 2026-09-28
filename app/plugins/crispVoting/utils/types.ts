@@ -130,6 +130,24 @@ export interface VoteData {
   balance: bigint;
 }
 
+/**
+ * A ballot that is proven and attested but not yet on-chain, held so another wallet can send it.
+ *
+ * `publishInput` checks the payload, never its sender, so any account may submit it — but only
+ * until `expiresAt`, when the availability attestation inside it lapses.
+ */
+export interface PendingSubmission {
+  /** The server's attested `InputCommitmentEnvelope`, submitted verbatim. */
+  payload: `0x${string}`;
+  /** The slot the ballot writes, read back from the payload. */
+  slot: Address;
+  /** Unix seconds from which `publishInput` refuses the payload. */
+  expiresAt: bigint;
+  /** The wallet that prepared the ballot — for a vote, the one that signed it. */
+  preparedBy: Address;
+  isMask: boolean;
+}
+
 export enum CreditsMode {
   CONSTANT,
   CUSTOM,

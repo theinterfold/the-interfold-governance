@@ -1,4 +1,4 @@
-import { decodeAbiParameters, parseAbi, parseAbiParameters, type Address, type PublicClient } from "viem";
+import { decodeAbiParameters, parseAbi, parseAbiParameters, type Address, type Hex, type PublicClient } from "viem";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 
@@ -182,6 +182,26 @@ export const getOnchainVotingPower = async (
     functionName: "votingPowerOf",
     args: [e3Id, slot],
   });
+};
+
+/// `InputCommitmentEnvelope`, the seven-field payload `publishInput` decodes. Not the six-field
+/// `InputEnvelope` the client POSTs: the expiry and the attestation are minted by the server.
+const commitmentEnvelope = parseAbiParameters(
+  "bytes noirProof, address slotAddress, bytes32 encryptedVoteCommitment, bytes32 encryptedVoteHash, uint40 parentIndexPlusOne, uint64 availabilityAttestationExpiresAt, bytes availabilityAttestation"
+);
+
+/**
+ * The slot an attested payload writes, and when `publishInput` stops accepting it.
+ *
+ * Read from the payload rather than the server response: these are the exact values the contract
+ * checks, and it reverts from `availabilityAttestationExpiresAt` on.
+ *
+ * @param payload The server's attested `encoded_proof`.
+ * @returns The slot and the expiry in unix seconds.
+ */
+export const readCommitmentEnvelope = (payload: Hex): { slot: Address; expiresAt: bigint } => {
+  const [, slot, , , , expiresAt] = decodeAbiParameters(commitmentEnvelope, payload);
+  return { slot, expiresAt };
 };
 
 /**

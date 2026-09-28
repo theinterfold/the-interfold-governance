@@ -2,11 +2,11 @@ import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_V
 import { useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
-import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
+import type { EligibleVoter, IRoundDetailsResponse, PendingSubmission, VoteData, VotingStep } from "../utils/types";
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { parseAbi, size, type Address } from "viem";
+import { parseAbi, size, type Address, type Hex } from "viem";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
@@ -20,6 +20,7 @@ import {
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
+  readCommitmentEnvelope,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
 import { usePublishVote } from "./usePublishVote";
@@ -69,11 +70,21 @@ interface CrispServerState {
   canPublishOnChain: boolean;
   /** Why the on-chain route is unavailable, when it is. */
   onChainBlockedReason?: string;
+  /** An attested ballot held for another wallet to send (`sendFromAnotherWallet`). */
+  pendingSubmission: PendingSubmission | null;
+  /** Sends the pending ballot from whichever wallet is connected now. */
+  sendPendingSubmission: () => Promise<void>;
+  discardPendingSubmission: () => void;
 }
 
 interface PostVoteOptions {
   /** Mask this slot instead of a random eligible voter's. Ignored for a real vote. */
   maskTarget?: Address;
+  /**
+   * Stop once the ballot is attested instead of sending it, so the voter can switch wallets
+   * first. Only meaningful when submitting on-chain: the relay route has no sender to choose.
+   */
+  sendFromAnotherWallet?: boolean;
 }
 
 interface VoteResponse {
@@ -133,6 +144,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission | null>(null);
 
   // All three go through the SDK (0.12.0) rather than hand-rolled fetches, so the
   // route names and payload shapes stay owned by the SDK.
@@ -285,6 +297,19 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       balance: adjustedBalance,
       slotAddress: address as string,
     };
+  };
+
+  /** Sends an attested payload from the connected wallet and reports the outcome. */
+  const sendOnChain = async (payload: Hex, isAMask: boolean) => {
+    setStepMessage("Publishing your vote on-chain...");
+
+    const hash = await publishVoteOnChain(payload);
+    setTxHash(hash);
+
+    const label = isAMask ? "Masking" : "Vote";
+    setVotingStep("complete");
+    setStepMessage(`${label} published on-chain!`);
+    addAlert(`${label} published on-chain!`, { timeout: 3000, type: "success" });
   };
 
   const postVote = async (
@@ -546,16 +571,23 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           return;
         }
 
-        setStepMessage("Publishing your vote on-chain...");
+        if (options.sendFromAnotherWallet) {
+          // Held for whichever wallet the voter switches to. `publishInput` checks the payload and
+          // never its sender, and the server stages it without recording one.
+          const { slot, expiresAt } = readCommitmentEnvelope(attestedPayload as Hex);
+          setPendingSubmission({
+            payload: attestedPayload as Hex,
+            slot,
+            expiresAt,
+            preparedBy: address,
+            isMask: isAMask,
+          });
+          setStepMessage("Ready to send. Switch to the wallet that should send it.");
+          return;
+        }
 
         // The ATTESTED payload, not `encodedProof` — see the note above.
-        const hash = await publishVoteOnChain(attestedPayload as `0x${string}`);
-        setTxHash(hash);
-
-        const onChainLabel = isAMask ? "Masking" : "Vote";
-        setVotingStep("complete");
-        setStepMessage(`${onChainLabel} published on-chain!`);
-        addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
+        await sendOnChain(attestedPayload as Hex, isAMask);
         return;
       }
 
@@ -580,6 +612,47 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     }
   };
 
+  const sendPendingSubmission = async () => {
+    if (!pendingSubmission) return;
+
+    // The contract refuses the payload from this second on. Say so rather than prompt the wallet
+    // for a transaction that can only revert.
+    if (BigInt(Math.floor(Date.now() / 1000)) >= pendingSubmission.expiresAt) {
+      const reason = "This ballot's availability attestation has expired. Discard it and prepare it again.";
+      setError(reason);
+      setVotingStep("error");
+      setStepMessage(reason);
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+    setVotingStep("broadcasting");
+    setLastActiveStep("broadcasting");
+    try {
+      await sendOnChain(pendingSubmission.payload, pendingSubmission.isMask);
+      setPendingSubmission(null);
+    } catch (error) {
+      // Keep the ballot: a rejected prompt or the wrong account is fixed by trying again, and the
+      // payload stays valid until its attestation expires.
+      console.error("Error sending the pending ballot:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(errorMessage);
+      setVotingStep("error");
+      setStepMessage(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const discardPendingSubmission = () => {
+    setPendingSubmission(null);
+    setError("");
+    setVotingStep("idle");
+    setLastActiveStep(null);
+    setStepMessage("");
+  };
+
   return {
     postVote,
     error,
@@ -590,5 +663,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
+    pendingSubmission,
+    sendPendingSubmission,
+    discardPendingSubmission,
   };
 }

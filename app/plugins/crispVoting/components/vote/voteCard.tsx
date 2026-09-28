@@ -1,8 +1,10 @@
 import { Button } from "@aragon/ods";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
-import type { VotingStep } from "../../utils/types";
+import type { PendingSubmission, VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { Address } from "viem";
+import { equalAddresses, formatHexString } from "@/utils/evm";
 import VotingStepIndicator from "./voteProgress";
 
 export interface VoteCardProps {
@@ -30,6 +32,15 @@ export interface VoteCardProps {
   submitOnChain?: boolean;
   onChangeSubmitOnChain?: (value: boolean) => void;
   onClickMask: () => void;
+  /** Stop once the ballot is ready so another wallet can send it. Offered only when submitting on-chain. */
+  sendFromAnotherWallet?: boolean;
+  onChangeSendFromAnotherWallet?: (value: boolean) => void;
+  /** A ready ballot waiting for a wallet to send it. */
+  pendingSubmission: PendingSubmission | null;
+  /** The wallet connected now — the one that would send the pending ballot. */
+  connectedAddress?: Address;
+  onSendPending: () => void;
+  onDiscardPending: () => void;
 }
 
 // Interfold earth-tone palette — readable on the cream canvas
@@ -52,6 +63,12 @@ export const VoteCard = ({
   submitOnChain = false,
   onChangeSubmitOnChain,
   onClickMask,
+  sendFromAnotherWallet = false,
+  onChangeSendFromAnotherWallet,
+  pendingSubmission,
+  connectedAddress,
+  onSendPending,
+  onDiscardPending,
   votingStep,
   lastActiveStep,
   stepMessage,
@@ -87,8 +104,10 @@ export const VoteCard = ({
       </div>
 
       <div className="vp-body">
-        {error && <p className="text-sm text-critical-500">{error}</p>}
-        {notice && !error && (
+        {/* While a ready ballot waits for its sender, the connected wallet is only the SENDER: its
+            own eligibility is beside the point, and "you cannot vote" would contradict the panel. */}
+        {!pendingSubmission && error && <p className="text-sm text-critical-500">{error}</p>}
+        {!pendingSubmission && notice && !error && (
           <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
             {notice}
           </p>
@@ -96,7 +115,7 @@ export const VoteCard = ({
 
         {/* Only promise ballot-casting when the voter can actually act. Showing this above a
             "you cannot vote" line was the contradiction that made the card unreadable. */}
-        {!error && !notice && (
+        {!pendingSubmission && !error && !notice && (
           <p className="vp-note">
             Cast your encrypted ballot. You can change your vote at any time before voting closes. Results are tallied
             after the voting period ends. Voting from a Safe or other smart-contract wallet isn&apos;t supported yet.
@@ -129,103 +148,135 @@ export const VoteCard = ({
           </div>
         )}
 
-        {/* Choices */}
-        <div className="vote-choices">
-          {options.map((option, index) => {
-            const isSelected = selectedOption === index;
-            return (
+        {pendingSubmission ? (
+          <PendingSubmissionPanel
+            pending={pendingSubmission}
+            connectedAddress={connectedAddress}
+            isLoading={isLoading}
+            canPublishOnChain={canPublishOnChain}
+            onChainBlockedReason={onChainBlockedReason}
+            onSend={onSendPending}
+            onDiscard={onDiscardPending}
+          />
+        ) : (
+          <>
+            {/* Choices */}
+            <div className="vote-choices">
+              {options.map((option, index) => {
+                const isSelected = selectedOption === index;
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => setSelectedOption(index)}
+                    className={`vote-choice ${isSelected ? "selected" : ""}`}
+                  >
+                    <span className="label">
+                      <span className="swatch" style={{ background: getColor(index) }} />
+                      <span className="truncate">{option}</span>
+                    </span>
+                    <span className="mark">{isSelected ? "●" : "○"}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Submission route. The ballot is encrypted and proven locally either way — this only
+                decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
+            {!onChangeSubmitOnChain && submitOnChain && (
+              <p className="pt-2 text-xs text-neutral-500">
+                Your ballot is encrypted locally and submitted on-chain by your wallet (you pay gas).
+                {canPublishOnChain === false && onChainBlockedReason ? ` ${onChainBlockedReason}` : ""}
+              </p>
+            )}
+            {onChangeSubmitOnChain && (
+              <div className="flex flex-col gap-y-1 pt-2">
+                <label className="flex items-center gap-x-2 text-sm text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={submitOnChain}
+                    disabled={isDisabled || !canPublishOnChain}
+                    onChange={(e) => onChangeSubmitOnChain(e.target.checked)}
+                  />
+                  Submit on-chain myself (you pay gas)
+                </label>
+                <p className="text-xs text-neutral-500">
+                  {canPublishOnChain === false && onChainBlockedReason
+                    ? onChainBlockedReason
+                    : "Bypasses the CRISP server. Your ballot stays encrypted either way; this only changes who sends the transaction."}
+                </p>
+              </div>
+            )}
+            {/* A relayed ballot has no sender to choose, so this only exists on the on-chain route. */}
+            {submitOnChain && onChangeSendFromAnotherWallet && (
+              <div className="flex flex-col gap-y-1 pt-2">
+                <label className="flex items-center gap-x-2 text-sm text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={sendFromAnotherWallet}
+                    disabled={isDisabled}
+                    onChange={(e) => onChangeSendFromAnotherWallet(e.target.checked)}
+                  />
+                  Send the transaction from another wallet
+                </label>
+                <p className="text-xs text-neutral-500">
+                  The ballot is prepared (and, for a vote, signed) with this wallet. Then switch accounts and send it
+                  from another one, which pays the gas and needs no voting power.
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="vp-cta">
+              <Button
+                className="w-full"
+                size="lg"
+                variant="primary"
+                disabled={isDisabled || selectedOption === null}
+                onClick={handleVote}
+              >
+                {isLoading && hasVoted && !isMasking ? (
+                  <PleaseWaitSpinner fullMessage="Encrypting ballot…" />
+                ) : selectedOption !== null ? (
+                  `Submit encrypted ballot · ${options[selectedOption]}`
+                ) : (
+                  "Select an option"
+                )}
+              </Button>
+
               <button
-                key={index}
                 type="button"
                 disabled={isDisabled}
-                onClick={() => setSelectedOption(index)}
-                className={`vote-choice ${isSelected ? "selected" : ""}`}
+                onClick={handleMask}
+                className="vp-foot-note flex items-center justify-center gap-2 py-1"
+                style={{ cursor: isDisabled ? "not-allowed" : "pointer", background: "none", border: 0 }}
               >
-                <span className="label">
-                  <span className="swatch" style={{ background: getColor(index) }} />
-                  <span className="truncate">{option}</span>
-                </span>
-                <span className="mark">{isSelected ? "●" : "○"}</span>
+                {isLoading && isMasking ? (
+                  <PleaseWaitSpinner fullMessage="Masking…" />
+                ) : (
+                  <>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                    <span>Mask vote instead</span>
+                  </>
+                )}
               </button>
-            );
-          })}
-        </div>
-
-        {/* Submission route. The ballot is encrypted and proven locally either way — this only
-            decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
-        {!onChangeSubmitOnChain && submitOnChain && (
-          <p className="pt-2 text-xs text-neutral-500">
-            Your ballot is encrypted locally and submitted on-chain by your wallet (you pay gas).
-            {canPublishOnChain === false && onChainBlockedReason ? ` ${onChainBlockedReason}` : ""}
-          </p>
+            </div>
+          </>
         )}
-        {onChangeSubmitOnChain && (
-          <div className="flex flex-col gap-y-1 pt-2">
-            <label className="flex items-center gap-x-2 text-sm text-neutral-600">
-              <input
-                type="checkbox"
-                checked={submitOnChain}
-                disabled={isDisabled || !canPublishOnChain}
-                onChange={(e) => onChangeSubmitOnChain(e.target.checked)}
-              />
-              Submit on-chain myself (you pay gas)
-            </label>
-            <p className="text-xs text-neutral-500">
-              {canPublishOnChain === false && onChainBlockedReason
-                ? onChainBlockedReason
-                : "Bypasses the CRISP server. Your ballot stays encrypted either way; this only changes who sends the transaction."}
-            </p>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="vp-cta">
-          <Button
-            className="w-full"
-            size="lg"
-            variant="primary"
-            disabled={isDisabled || selectedOption === null}
-            onClick={handleVote}
-          >
-            {isLoading && hasVoted && !isMasking ? (
-              <PleaseWaitSpinner fullMessage="Encrypting ballot…" />
-            ) : selectedOption !== null ? (
-              `Submit encrypted ballot · ${options[selectedOption]}`
-            ) : (
-              "Select an option"
-            )}
-          </Button>
-
-          <button
-            type="button"
-            disabled={isDisabled}
-            onClick={handleMask}
-            className="vp-foot-note flex items-center justify-center gap-2 py-1"
-            style={{ cursor: isDisabled ? "not-allowed" : "pointer", background: "none", border: 0 }}
-          >
-            {isLoading && isMasking ? (
-              <PleaseWaitSpinner fullMessage="Masking…" />
-            ) : (
-              <>
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-                <span>Mask vote instead</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
 
       <div className="privacy">
@@ -235,6 +286,95 @@ export const VoteCard = ({
           Individual votes are <em>never</em> revealed.
         </div>
       </div>
+    </div>
+  );
+};
+
+/**
+ * A ready ballot waiting for a wallet to send it.
+ *
+ * Enabled whatever the connected wallet's own eligibility: the sender needs gas, not voting power.
+ * The deadline is the payload's own `availabilityAttestationExpiresAt`, which `publishInput`
+ * enforces, so after it the only way forward is to prepare the ballot again.
+ */
+const PendingSubmissionPanel = ({
+  pending,
+  connectedAddress,
+  isLoading,
+  canPublishOnChain,
+  onChainBlockedReason,
+  onSend,
+  onDiscard,
+}: {
+  pending: PendingSubmission;
+  connectedAddress?: Address;
+  isLoading: boolean;
+  canPublishOnChain?: boolean;
+  onChainBlockedReason?: string;
+  onSend: () => void;
+  onDiscard: () => void;
+}) => {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const secondsLeft = Number(pending.expiresAt) - now;
+  const expired = secondsLeft <= 0;
+  const deadline = new Date(Number(pending.expiresAt) * 1000).toLocaleTimeString();
+  const countdown = `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}`;
+
+  return (
+    <div
+      className="flex flex-col gap-y-2 border px-4 py-3"
+      style={{ borderColor: "var(--rule)", background: "var(--mint-pale)" }}
+    >
+      <p className="text-sm font-semibold">{pending.isMask ? "Mask ready to send" : "Ballot ready to send"}</p>
+      <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+        It writes slot {formatHexString(pending.slot)}.{" "}
+        {expired ? `It expired at ${deadline}.` : `Send it before ${deadline} (${countdown} left).`}
+      </p>
+      {expired ? (
+        <p className="text-sm text-critical-600">
+          The contract now refuses this {pending.isMask ? "mask" : "ballot"}. Discard it and prepare it again.
+        </p>
+      ) : !connectedAddress ? (
+        <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+          Connect the wallet that should send it.
+        </p>
+      ) : equalAddresses(connectedAddress, pending.preparedBy) ? (
+        <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+          This is the wallet that prepared it. Switch accounts in your wallet to send it from another one.
+        </p>
+      ) : null}
+      {!expired && canPublishOnChain === false && onChainBlockedReason && (
+        <p className="text-sm text-critical-600">{onChainBlockedReason}</p>
+      )}
+      <Button
+        className="w-full"
+        size="lg"
+        variant="primary"
+        disabled={expired || !connectedAddress || isLoading || canPublishOnChain === false}
+        onClick={onSend}
+      >
+        {isLoading ? (
+          <PleaseWaitSpinner fullMessage="Sending…" />
+        ) : connectedAddress ? (
+          `Send from ${formatHexString(connectedAddress)}`
+        ) : (
+          "Send"
+        )}
+      </Button>
+      <button
+        type="button"
+        disabled={isLoading}
+        onClick={onDiscard}
+        className="vp-foot-note py-1"
+        style={{ cursor: isLoading ? "not-allowed" : "pointer", background: "none", border: 0 }}
+      >
+        Discard
+      </button>
     </div>
   );
 };
