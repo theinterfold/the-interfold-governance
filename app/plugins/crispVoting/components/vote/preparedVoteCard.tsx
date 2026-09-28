@@ -100,9 +100,7 @@ export function PreparedVoteCard({
                 ? "Connect sending wallet"
                 : chainId !== PUB_CHAIN.id
                   ? `Switch to ${PUB_CHAIN.name}`
-                  : DESIGN_PREVIEW
-                    ? "Choose demo wallet"
-                    : "Open wallet"}
+                  : "Use a different wallet"}
             </PowerAction>
           )}
           <PowerAction

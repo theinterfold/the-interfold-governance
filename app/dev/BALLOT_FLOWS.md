@@ -18,7 +18,7 @@ This option is separate from relayer sponsorship. The ordinary same-wallet flow 
 
 ## Review demo and validation
 
-The public review uses fake accounts and explicit simulated signing/transaction prompts. The wallet selector lists both the eligible voting account and a sending account with zero voting power, marking the active account. "Choose demo wallet" opens this selector; opening it or discarding a prepared ballot never changes the account. Only the isolated simulator stores a fictitious choice, under a separate demo storage key; demo payloads cannot be published to the live network.
+The public review uses fake accounts and explicit simulated signing/transaction prompts. The wallet selector lists both the eligible voting account and a sending account with zero voting power, marking the active account. "Use a different wallet" opens this selector in the demo and the wallet controls in the live app; opening it or discarding a prepared ballot never changes the account. Only the isolated simulator stores a fictitious choice, under a separate demo storage key; demo payloads cannot be published to the live network.
 
 Automated tests cover storage validation, account/network guards, proof preservation, rejection, confirmation timeout/reload, reverted receipts and demo isolation. Browser checks cover signing, wallet switching, reload, rejection/retry, successful sending and eligible-recipient selection.
 
