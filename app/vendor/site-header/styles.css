@@ -115,6 +115,9 @@
   white-space: nowrap;
   transition: color 200ms;
 }
+.site-header-menu-primary {
+  color: #121718;
+}
 .site-header-link:hover,
 .site-header-link:focus-visible,
 .site-header-menu-link:hover,

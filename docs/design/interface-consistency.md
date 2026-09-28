@@ -15,7 +15,7 @@ See [the component catalogue](interface-catalogue.md) and the local `/design-sys
   aesthetic difference. All future
   aesthetic changes to either header or footer must be made in the canonical source and synced
   to both sites; preserve the user's approval rule for existing components.
-- Header branding, desktop navigation, mobile menu and footer links share the canonical dark-green hover/focus colour. Navigation links retain a visible underline on hover/focus; the current page's underline persists. Use `site-header-menu-link` for mobile destinations; do not restore a bright-mint text hover on pale surfaces. The shared header/footer content frame is 1052px with 16px mobile / 32px desktop gutters, and the page-content tokens alias that frame. Keep both aligned through the canonical package rather than local overrides.
+- Header branding, desktop navigation, mobile menu and footer links share the canonical dark-green hover/focus colour. Navigation links retain a visible underline on hover/focus; the current page's underline persists. Primary mobile destinations use `site-header-menu-primary` in Interfold Black (#121718), matching page titles. Use `site-header-menu-link` for mobile destinations; do not restore a bright-mint text hover on pale surfaces. The shared header/footer content frame is 1052px with 16px mobile / 32px desktop gutters, and the page-content tokens alias that frame. Keep both aligned through the canonical package rather than local overrides.
 - Voting power and Proposals intro glyphs have no coloured fill. Both match the navbar
   symbol's rendered stroke, using its shared width/height tokens, aspect ratio and
   `INTERFOLD_OUTLINE_RATIO`. Use non-scaling strokes so a larger glyph does not become

@@ -113,7 +113,7 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
             href={navLink.path}
             aria-current={query.id === navLink.id ? "page" : undefined}
             onClick={close}
-            className={`${titleBase} text-[var(--site-header-ink)]`}
+            className={`${titleBase} site-header-menu-primary`}
             style={{
               ...titleStyle,
               // The site drops word-spacing by -0.1em, but sets its one two-word
