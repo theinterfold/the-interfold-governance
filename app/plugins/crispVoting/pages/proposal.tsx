@@ -136,6 +136,15 @@ function ProposalDetailBody({
   // sub-proposal only carries the internal reportProposalResult callback.
   const sppActions = [...(spp.proposal?.actions ?? [])];
 
+  // Ballots and masks are gated differently. A ballot needs the connected wallet's own voting
+  // power; a mask writes someone else's slot, and `publishInput` checks THAT slot's eligibility,
+  // never the sender's. So a wallet with no power can still mask, as long as voting is open and
+  // there is a wallet to send from.
+  const votingOpen =
+    isCommitteeReady !== false &&
+    proposalStatus === ProposalStatus.ACTIVE &&
+    Number(proposal?.parameters.startDate) <= Math.round(Date.now() / 1000);
+
   if (!proposal || showProposalLoading) {
     return (
       <section className="justify-left items-left flex w-screen min-w-full max-w-full">
@@ -176,12 +185,8 @@ function ProposalDetailBody({
                 voteEndDate={Number(proposal?.parameters.endDate)}
                 isCommitteeReady={isCommitteeReady}
                 options={options}
-                disabled={
-                  isCommitteeReady === false ||
-                  canVote === false ||
-                  proposalStatus !== ProposalStatus.ACTIVE ||
-                  Number(proposal?.parameters.startDate) > Math.round(Date.now() / 1000)
-                }
+                disabled={!votingOpen || canVote === false}
+                maskDisabled={!votingOpen || !address}
                 isLoading={isLoading}
                 onClickVote={onVote}
                 canPublishOnChain={canPublishOnChain}

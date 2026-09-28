@@ -30,6 +30,8 @@ export interface VoteCardProps {
   submitOnChain?: boolean;
   onChangeSubmitOnChain?: (value: boolean) => void;
   onClickMask: () => void;
+  /** Masking writes someone else's slot, so the connected wallet's own voting power does not gate it. */
+  maskDisabled: boolean;
 }
 
 // Interfold earth-tone palette — readable on the cream canvas
@@ -52,6 +54,7 @@ export const VoteCard = ({
   submitOnChain = false,
   onChangeSubmitOnChain,
   onClickMask,
+  maskDisabled,
   votingStep,
   lastActiveStep,
   stepMessage,
@@ -198,10 +201,10 @@ export const VoteCard = ({
 
           <button
             type="button"
-            disabled={isDisabled}
+            disabled={maskDisabled || isLoading}
             onClick={handleMask}
             className="vp-foot-note flex items-center justify-center gap-2 py-1"
-            style={{ cursor: isDisabled ? "not-allowed" : "pointer", background: "none", border: 0 }}
+            style={{ cursor: maskDisabled || isLoading ? "not-allowed" : "pointer", background: "none", border: 0 }}
           >
             {isLoading && isMasking ? (
               <PleaseWaitSpinner fullMessage="Masking…" />
