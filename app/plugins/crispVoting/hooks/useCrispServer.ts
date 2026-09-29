@@ -11,6 +11,7 @@ import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
+import { formatWeightShare, randomBallotWeight, type WeightConfirmation } from "../utils/ballotWeight";
 import { equalAddresses } from "@/utils/evm";
 import { readServerRejection } from "../utils/readServerRejection";
 import { describeFailure } from "../utils/describeFailure";
@@ -74,11 +75,20 @@ interface CrispServerState {
   canPublishOnChain: boolean;
   /** Why the on-chain route is unavailable, when it is. */
   onChainBlockedReason?: string;
+  /** A random ballot weight that waits for the voter to accept it, or `null`. */
+  pendingWeight: WeightConfirmation | null;
+  /** Answers `pendingWeight`: `true` continues with that weight, `false` cancels the vote. */
+  answerWeight: (accept: boolean) => void;
 }
 
 interface PostVoteOptions {
   /** Mask this slot instead of a random eligible voter's. Ignored for a real vote. */
   maskTarget?: Address;
+  /**
+   * Count a random weight from the top percent of the voting power (`randomBallotWeight`) instead
+   * of all of it. On unless set to `false`. Ignored for a mask, which always weighs zero.
+   */
+  randomWeight?: boolean;
 }
 
 /**
@@ -132,6 +142,16 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
 
+  // `postVote` waits on this answer while the voter reads a drawn weight. An unmount answers
+  // `false`, so no vote goes on from a page that the voter left.
+  const [pendingWeight, setPendingWeight] = useState<WeightConfirmation | null>(null);
+  const weightAnswer = useRef<((accept: boolean) => void) | null>(null);
+  const answerWeight = (accept: boolean) => {
+    weightAnswer.current?.(accept);
+    weightAnswer.current = null;
+    setPendingWeight(null);
+  };
+
   // A wallet prompt must not open from a page that the voter already left. The worker can take
   // minutes to choose who sends a ballot, so the wait can outlive the page.
   const active = useRef(true);
@@ -139,6 +159,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     active.current = true;
     return () => {
       active.current = false;
+      weightAnswer.current?.(false);
     };
   }, []);
 
@@ -234,6 +255,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     blockNumber: bigint,
     numOptions: number,
     roundState: IRoundDetailsResponse,
+    /// Count a random weight from the top percent of the voting power instead of all of it.
+    randomWeight: boolean,
     /// Set for an ONCHAIN round: the program that will verify the ballot, and the only authority
     /// on how much weight the slot may spend.
     crispProgram?: `0x${string}`
@@ -303,9 +326,10 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       adjustedBalance = balance / 10n ** BigInt(decimals - 1);
     }
 
-    const vote = Array.from({ length: numOptions }, (_, i) =>
-      i === Number(voteOption) ? Number.parseInt(adjustedBalance.toString(), 10) : 0
-    );
+    // Only the weight of the chosen option is drawn. `balance` stays the full voting power,
+    // because the proof checks the census leaf or public input 4 against it.
+    const weight = randomWeight ? randomBallotWeight(adjustedBalance) : adjustedBalance;
+    const vote = Array.from({ length: numOptions }, (_, i) => (i === Number(voteOption) ? Number(weight) : 0));
 
     return {
       vote,
@@ -383,6 +407,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const censusMode = await getCensusMode(publicClient, crispProgram, e3Id);
       const isOnchainCensus = censusMode === CensusMode.ONCHAIN;
 
+      const randomWeight = options.randomWeight ?? true;
+
       let voteData;
       if (isAMask) {
         voteData = await handleMask(
@@ -398,8 +424,26 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           snapshotBlock,
           Number.parseInt(roundState.num_options),
           roundState,
+          randomWeight,
           isOnchainCensus ? crispProgram : undefined
         );
+      }
+
+      // The weight the ballot counts: zero for a mask, else a share of `balance`.
+      const weight = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
+
+      // The voter sees a random weight and accepts it before anything is encrypted or signed.
+      if (!isAMask && randomWeight) {
+        setVotingStep("idle");
+        setLastActiveStep(null);
+        setStepMessage("Confirm the voting power of your ballot.");
+        const { promise, resolve } = Promise.withResolvers<boolean>();
+        weightAnswer.current = resolve;
+        setPendingWeight({ weight, power: voteData.balance });
+        if (!(await promise) || !active.current) {
+          setStepMessage("");
+          return;
+        }
       }
 
       // An on-chain census has no tree: `publishInput` reads each voter's power from the token, so
@@ -456,10 +500,14 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // to sign with and no wallet prompt.
         proof = await finishMaskProof(prepared, digest);
       } else {
+        // The voter sees the weight before signing: a random share of the voting power, or all of
+        // it when the voter turned the random weight off.
+        const share = formatWeightShare(weight, voteData.balance);
+
         // Step 3: Signing, now that there is a ciphertext to bind to.
         setVotingStep("signing");
         setLastActiveStep("signing");
-        setStepMessage("Please sign your ballot in your wallet...");
+        setStepMessage(`Please sign your ballot in your wallet. It counts ${share} of your voting power.`);
 
         const { domain, types } = ballotTypedData(PUB_CHAIN.id, crispProgram);
 
@@ -488,7 +536,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
         setVotingStep("generating_proof");
         setLastActiveStep("generating_proof");
-        setStepMessage("Generating proof...");
+        setStepMessage(`Generating proof for a ballot that counts ${share} of your voting power...`);
 
         proof = await finishBallotProof(prepared, digest, signature);
       }
@@ -617,5 +665,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
+    pendingWeight,
+    answerWeight,
   };
 }

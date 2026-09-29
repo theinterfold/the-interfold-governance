@@ -29,6 +29,9 @@ export interface VoteCardProps {
   /** Send the ballot from the voter's wallet rather than via the CRISP server. */
   submitOnChain?: boolean;
   onChangeSubmitOnChain: (value: boolean) => void;
+  /** Count a random weight from the top percent of the voting power instead of all of it. */
+  randomWeight: boolean;
+  onChangeRandomWeight: (value: boolean) => void;
   onClickMask: () => void;
   /** Masking writes someone else's slot, so the connected wallet's own voting power does not gate it. */
   maskDisabled: boolean;
@@ -53,6 +56,8 @@ export const VoteCard = ({
   onChainBlockedReason,
   submitOnChain = false,
   onChangeSubmitOnChain,
+  randomWeight,
+  onChangeRandomWeight,
   onClickMask,
   maskDisabled,
   votingStep,
@@ -152,6 +157,25 @@ export const VoteCard = ({
               </button>
             );
           })}
+        </div>
+
+        {/* Ballot weight. The tally publishes the total of each option and every voting power is
+            public, so a ballot that counts exactly its voting power can be matched to its voter. */}
+        <div className="flex flex-col gap-y-1 pt-2">
+          <label className="flex items-center gap-x-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={randomWeight}
+              disabled={isDisabled}
+              onChange={(e) => onChangeRandomWeight(e.target.checked)}
+            />
+            Count a random 99–100% of my voting power
+          </label>
+          <p className="text-xs text-neutral-500">
+            {randomWeight
+              ? "Your ballot counts a random 99–100% of your voting power, not all of it. This helps protect your privacy."
+              : "Your ballot counts all of your voting power. A random 99–100% helps protect your privacy."}
+          </p>
         </div>
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only

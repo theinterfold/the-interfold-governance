@@ -17,6 +17,7 @@ import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
 import { VoteCard } from "../components/vote/voteCard";
 import { MaskTargetDialog } from "../components/vote/maskTargetDialog";
+import { WeightConfirmDialog } from "../components/vote/weightConfirmDialog";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
 import { RefundCard } from "../components/fee/refundCard";
@@ -65,6 +66,9 @@ function ProposalDetailBody({
   const { address } = useAccount();
   // The CRISP server sends ballots by default. The voter can send from the wallet instead.
   const [submitOnChain, setSubmitOnChain] = useState(false);
+  // A vote counts a random weight from the top percent of the voting power unless the voter
+  // turns it off.
+  const [randomWeight, setRandomWeight] = useState(true);
   const [showMaskPicker, setShowMaskPicker] = useState(false);
   const {
     proposal,
@@ -86,6 +90,8 @@ function ProposalDetailBody({
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
+    pendingWeight,
+    answerWeight,
   } = useCrispServer(proposal?.e3Id);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
@@ -111,7 +117,9 @@ function ProposalDetailBody({
       return;
     }
 
-    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain);
+    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain, {
+      randomWeight,
+    });
   };
 
   const onMask = (target?: Address) => {
@@ -190,6 +198,8 @@ function ProposalDetailBody({
                 onChainBlockedReason={onChainBlockedReason}
                 submitOnChain={submitOnChain}
                 onChangeSubmitOnChain={setSubmitOnChain}
+                randomWeight={randomWeight}
+                onChangeRandomWeight={setRandomWeight}
                 onClickMask={() => setShowMaskPicker(true)}
                 proposalId={proposalIdx}
                 votingStep={votingStep}
@@ -208,6 +218,7 @@ function ProposalDetailBody({
               e3Id={proposal.e3Id}
               exclude={address}
             />
+            <WeightConfirmDialog confirmation={pendingWeight} onAnswer={answerWeight} />
             {error && (
               <div className="border border-critical-200 bg-critical-100 px-4 py-3">
                 <p className="text-sm text-critical-600 [overflow-wrap:anywhere]">{error}</p>
