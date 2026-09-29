@@ -13,6 +13,7 @@ import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
 import { equalAddresses } from "@/utils/evm";
 import { readServerRejection } from "../utils/readServerRejection";
+import { describeFailure } from "../utils/describeFailure";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
   CensusMode,
@@ -571,10 +572,15 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
     } catch (error) {
       console.error("Error in postVote:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      setError(errorMessage);
-      setVotingStep("error");
-      setStepMessage(errorMessage);
+      // viem's `message` appends the request arguments, and a ballot's calldata is tens of KB of
+      // unbroken hex; `describeFailure` keeps the one-line summary and names known contract errors.
+      // A declined prompt is not a failure: the transaction manager already raises its own alert
+      // for a transaction, and a declined ballot signature was the voter's choice — so the card
+      // simply resets.
+      const reason = describeFailure(error, "The ballot could not be submitted");
+      setError(reason ?? "");
+      setVotingStep(reason === undefined ? "idle" : "error");
+      setStepMessage(reason ?? "");
     } finally {
       setIsLoading(false);
     }

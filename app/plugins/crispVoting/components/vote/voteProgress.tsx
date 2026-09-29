@@ -145,7 +145,7 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
               <line x1="9" y1="9" x2="15" y2="15" />
             </svg>
           )}
-          <span>{message}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{message}</span>
           {isComplete && txHash && (
             <a
               href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${txHash}`}

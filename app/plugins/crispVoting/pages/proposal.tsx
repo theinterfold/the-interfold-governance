@@ -213,7 +213,7 @@ function ProposalDetailBody({
             />
             {error && (
               <div className="border border-critical-200 bg-critical-100 px-4 py-3">
-                <p className="text-sm text-critical-600">{error}</p>
+                <p className="text-sm text-critical-600 [overflow-wrap:anywhere]">{error}</p>
               </div>
             )}
             {proposalStatus !== ProposalStatus.ACTIVE && (
