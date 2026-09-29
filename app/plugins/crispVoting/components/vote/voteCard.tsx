@@ -26,9 +26,9 @@ export interface VoteCardProps {
   canPublishOnChain?: boolean;
   /** Why the on-chain route is unavailable, when it is. */
   onChainBlockedReason?: string;
-  /** Submit the ballot yourself rather than via the CRISP server. */
+  /** Send the ballot from the voter's wallet rather than via the CRISP server. */
   submitOnChain?: boolean;
-  onChangeSubmitOnChain?: (value: boolean) => void;
+  onChangeSubmitOnChain: (value: boolean) => void;
   onClickMask: () => void;
   /** Masking writes someone else's slot, so the connected wallet's own voting power does not gate it. */
   maskDisabled: boolean;
@@ -156,30 +156,24 @@ export const VoteCard = ({
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
-        {!onChangeSubmitOnChain && submitOnChain && (
-          <p className="pt-2 text-xs text-neutral-500">
-            Your ballot is encrypted locally and submitted on-chain by your wallet (you pay gas).
-            {canPublishOnChain === false && onChainBlockedReason ? ` ${onChainBlockedReason}` : ""}
+        <div className="flex flex-col gap-y-1 pt-2">
+          <label className="flex items-center gap-x-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={submitOnChain}
+              disabled={isDisabled || !canPublishOnChain}
+              onChange={(e) => onChangeSubmitOnChain(e.target.checked)}
+            />
+            Send from my wallet (you pay gas)
+          </label>
+          <p className="text-xs text-neutral-500">
+            {canPublishOnChain === false && onChainBlockedReason
+              ? onChainBlockedReason
+              : submitOnChain
+                ? "Your wallet sends the transaction, so the chain shows your address as the sender."
+                : "The CRISP server sends the transaction, so the chain shows the server as the sender. If the server cannot send it, your wallet is asked to."}
           </p>
-        )}
-        {onChangeSubmitOnChain && (
-          <div className="flex flex-col gap-y-1 pt-2">
-            <label className="flex items-center gap-x-2 text-sm text-neutral-600">
-              <input
-                type="checkbox"
-                checked={submitOnChain}
-                disabled={isDisabled || !canPublishOnChain}
-                onChange={(e) => onChangeSubmitOnChain(e.target.checked)}
-              />
-              Submit on-chain myself (you pay gas)
-            </label>
-            <p className="text-xs text-neutral-500">
-              {canPublishOnChain === false && onChainBlockedReason
-                ? onChainBlockedReason
-                : "Bypasses the CRISP server. Your ballot stays encrypted either way; this only changes who sends the transaction."}
-            </p>
-          </div>
-        )}
+        </div>
 
         {/* Actions */}
         <div className="vp-cta">

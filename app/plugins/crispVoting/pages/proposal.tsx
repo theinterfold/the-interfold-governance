@@ -1,5 +1,5 @@
 import { useProposal } from "../hooks/useProposal";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { BodySection } from "@/components/proposal/proposalBodySection";
@@ -63,11 +63,8 @@ function ProposalDetailBody({
   spp: ReturnType<typeof useSppProposal>;
 }) {
   const { address } = useAccount();
-  // Mainnet offers no relayer route for now: ballots go on-chain from the voter's wallet,
-  // and the toggle is hidden. Testnets keep the choice.
-  const directOnly = PUB_CHAIN.id === 1;
-  const [submitOnChainChoice, setSubmitOnChainChoice] = useState(false);
-  const submitOnChain = directOnly ? true : submitOnChainChoice;
+  // The CRISP server sends ballots by default. The voter can send from the wallet instead.
+  const [submitOnChain, setSubmitOnChain] = useState(false);
   const [showMaskPicker, setShowMaskPicker] = useState(false);
   const {
     proposal,
@@ -192,7 +189,7 @@ function ProposalDetailBody({
                 canPublishOnChain={canPublishOnChain}
                 onChainBlockedReason={onChainBlockedReason}
                 submitOnChain={submitOnChain}
-                onChangeSubmitOnChain={directOnly ? undefined : setSubmitOnChainChoice}
+                onChangeSubmitOnChain={setSubmitOnChain}
                 onClickMask={() => setShowMaskPicker(true)}
                 proposalId={proposalIdx}
                 votingStep={votingStep}

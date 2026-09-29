@@ -1,5 +1,5 @@
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
@@ -25,6 +25,10 @@ import {
 } from "../utils/ballotDigest";
 import { usePublishVote } from "./usePublishVote";
 import { useCommitteeKeyCheck } from "./useCommitteeKeyCheck";
+import { decideCommitmentStep, waitForCommitmentDecision, type VoteResponse } from "../utils/commitmentDecision";
+
+/** Limit for one read of a staged ballot's job. */
+const JOB_READ_TIMEOUT_MS = 15_000;
 
 /** The plugin is authoritative about which token carries voting power. */
 const votingTokenAbi = parseAbi(["function getVotingToken() view returns (address)"]);
@@ -77,23 +81,6 @@ interface PostVoteOptions {
   maskTarget?: Address;
 }
 
-interface VoteResponse {
-  status: string;
-  tx_hash: string | null;
-  message: string | null;
-  is_vote_update: boolean | null;
-  /**
-   * The ATTESTED `publishInput` payload, present once the server has staged the input.
-   *
-   * This is `InputCommitmentEnvelope` — seven fields, including the
-   * `availabilityAttestationExpiresAt` deadline and the signature the CRISP
-   * `inputAvailabilitySigner` produced over it. A client cannot build it: only the server holds
-   * that key. Submit this verbatim; never re-encode it locally.
-   */
-  encoded_proof?: string | null;
-  job_id?: string | null;
-}
-
 /**
  * Request body for broadcasting a vote to the CRISP server
  */
@@ -104,7 +91,17 @@ export interface BroadcastVoteRequest {
   /// 400 with a message the UI never surfaces.
   round_id: string;
   encoded_proof: string;
+  /**
+   * The slot that the ballot writes to: the connected wallet for a vote, the target slot for a mask.
+   * The encoded proof already contains this slot, so the field gives the server no new data. Never
+   * send the connected wallet for a mask: the server could then link the masker to the slot.
+   */
   address: string;
+  /**
+   * Ask the server to hand the attested payload to this wallet instead of relaying the ballot.
+   * The server then sends nothing for this ballot and uses none of its relay allowance.
+   */
+  send_from_wallet: boolean;
 }
 
 /**
@@ -134,6 +131,35 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
+
+  // A wallet prompt must not open from a page that the voter already left. The worker can take
+  // minutes to choose who sends a ballot, so the wait can outlive the page.
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+
+  /** Read one staged ballot's job: its view, `null` when the server does not know it, else `undefined`. */
+  const readCommitmentView = async (jobId: string): Promise<VoteResponse | null | undefined> => {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), JOB_READ_TIMEOUT_MS);
+    try {
+      const response = await fetch(
+        `${PUB_CRISP_SERVER_URL.replace(/\/$/, "")}/voting/availability/${encodeURIComponent(jobId)}`,
+        { signal: abort.signal }
+      );
+      if (response.status === 404) return null;
+      if (!response.ok) return undefined;
+      return (await response.json()) as VoteResponse;
+    } catch {
+      return undefined;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   // All three go through the SDK (0.12.0) rather than hand-rolled fetches, so the
   // route names and payload shapes stay owned by the SDK.
@@ -469,11 +495,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       const encodedProof = encodeSolidityProof(proof);
 
-      // For now we are mocking
       const voteBody: BroadcastVoteRequest = {
         encoded_proof: encodedProof,
-        address: address as string,
+        address: voteData.slotAddress,
         round_id: e3Id.toString(),
+        send_from_wallet: submitOnChain,
       };
 
       // Step 3: Broadcasting
@@ -481,15 +507,13 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setLastActiveStep("broadcasting");
 
       // Everything above this point is identical for both routes: the ballot is encrypted and
-      // proven locally.
-      // Both routes stage the input with the server first. That is not a relay: staging is what
-      // mints the availability attestation.
+      // proven locally. Both routes stage the input with the server first. That is not a relay:
+      // staging stores the ciphertext and signs the availability attestation.
       //
       // `encodeSolidityProof` builds `InputEnvelope` — six fields, ending in `availabilityProof`.
       //
-      // On mainnet (`chain_id == 1`) the server never relays: it stages, signs, and answers
-      // `ready_for_commitment` with `encoded_proof` for the voter to submit from their own wallet.
-      // That keeps gas on the voter and removes the griefing surface a funded relay would expose.
+      // The server then chooses who sends the commitment (`decideCommitmentStep`). With
+      // `send_from_wallet`, it hands the attested payload to this wallet and does not relay.
       setStepMessage("Preparing your vote for submission...");
 
       const response = await fetch(`${PUB_CRISP_SERVER_URL}/voting/broadcast`, {
@@ -520,56 +544,53 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
+      const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
 
-      if (submitOnChain) {
-        // Check `tx_hash` BEFORE `encoded_proof`: a job whose commitment was already relayed
-        // reports `pending_availability` with BOTH fields populated, and the payload is exposed
-        // only as a fallback for a client that wants the direct path after a relay failure.
-        // Submitting it anyway would be a second commitment for the same statement, which
-        // `publishInput` rejects with `InputAlreadyCommitted`.
-        if (voteResponse.tx_hash) {
-          setTxHash(voteResponse.tx_hash);
-          setVotingStep("complete");
-          setStepMessage("This vote is already committed on-chain.");
-          addAlert("This vote is already committed on-chain.", { timeout: 3000, type: "success" });
-          return;
+      let step = decideCommitmentStep(voteResponse);
+      if (step.action === "wait") {
+        setVotingStep("confirming");
+        setLastActiveStep("confirming");
+        setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
+        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView, () => !active.current);
+        if (!active.current) return;
+        if (decided === null) {
+          step = { action: "error", reason: "The server no longer has this ballot. Submit it again." };
+        } else if (decided) {
+          step = decideCommitmentStep(decided);
         }
+      }
 
-        const attestedPayload = voteResponse.encoded_proof;
-        if (!attestedPayload) {
-          // `pending_commitment` (JobState::Created) carries no payload yet.
-          const reason =
-            voteResponse.message ??
-            "The server has not returned an attested payload for this vote yet. Try again shortly.";
-          setError(reason);
-          setVotingStep("error");
-          setStepMessage(reason);
-          return;
-        }
-
-        setStepMessage("Publishing your vote on-chain...");
-
-        // The ATTESTED payload, not `encodedProof` — see the note above.
-        const hash = await publishVoteOnChain(attestedPayload as `0x${string}`);
-        setTxHash(hash);
-
-        const onChainLabel = isAMask ? "Masking" : "Vote";
-        setVotingStep("complete");
-        setStepMessage(`${onChainLabel} published on-chain!`);
-        addAlert(`${onChainLabel} published on-chain!`, { timeout: 3000, type: "success" });
+      // `wait` remains only when the server chose no sender before the wait ended.
+      if (step.action === "wait" || step.action === "error") {
+        const reason =
+          step.action === "error" ? step.reason : "The server has not processed this ballot yet. Try again later.";
+        setError(reason);
+        setVotingStep("error");
+        setStepMessage(reason);
         return;
       }
 
-      if (voteResponse.tx_hash) {
-        setTxHash(voteResponse.tx_hash);
+      if (step.action === "committed") {
+        if (step.txHash) setTxHash(step.txHash);
+        setVotingStep("complete");
+        setStepMessage(`${label} submitted successfully!`);
+        addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
+        return;
       }
 
-      const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
-
+      // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
+      // The voter chose this route, or the server did not relay the ballot.
+      if (!active.current) return;
+      setStepMessage(
+        submitOnChain
+          ? "Publishing your vote on-chain..."
+          : "The server did not relay this ballot. Confirm the transaction in your wallet to submit it."
+      );
+      const hash = await publishVoteOnChain(step.payload as `0x${string}`);
+      setTxHash(hash);
       setVotingStep("complete");
-      setStepMessage(`${label} submitted successfully!`);
-
-      addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
+      setStepMessage(`${label} published on-chain!`);
+      addAlert(`${label} published on-chain!`, { timeout: 3000, type: "success" });
     } catch (error) {
       console.error("Error in postVote:", error);
       // viem's `message` appends the request arguments, and a ballot's calldata is tens of KB of
