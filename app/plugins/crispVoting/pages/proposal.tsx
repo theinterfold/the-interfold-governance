@@ -291,7 +291,6 @@ function ProposalDetailBody({
               />
             ) : undefined
           }
-          showVotingDetails={!!spp.proposal && spp.proposal.currentStage >= 1}
           participation={<ParticipationCard proposal={proposal} />}
           activity={<ActivityCard e3Id={proposal.e3Id} />}
           stage={

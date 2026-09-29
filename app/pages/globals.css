@@ -1674,7 +1674,15 @@ label div p.leading-tight {
   top: 0;
   bottom: 0;
   border-radius: 999px;
-  transition: width 700ms ease;
+  transition: width var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.vote-panel .vp-body.tally-body { gap: 0; }
+.tally-rows > .tally-row:first-child { border-top: 1px solid var(--rule); }
+.tally-quorum { margin-top: 16px; padding-top: 16px; }
+.tally-submitted { display: flex; align-items: center; gap: var(--ui-space-tight); margin-top: 16px; }
+.tally-submitted svg { width: 16px; height: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .tally-row .bar span { transition: none; }
 }
 .tally-row .pct {
   font-family: var(--font-mono);
@@ -3501,6 +3509,8 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .proposal-action-disclosure > summary, .proposal-activity > summary, .proposal-voting-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; list-style: none; cursor: pointer; font: var(--ui-section-font); color: var(--ink); }
 .proposal-action-disclosure > summary::-webkit-details-marker, .proposal-activity > summary::-webkit-details-marker, .proposal-voting-details > summary::-webkit-details-marker { display: none; }
 .proposal-action-disclosure > summary:focus-visible, .proposal-activity > summary:focus-visible, .proposal-voting-details > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.proposal-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 52px; padding: 0; text-align: left; color: var(--ink); font: 500 14px/1.5 var(--font-sans); }
+.proposal-disclosure-trigger:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 .proposal-detail-count { margin-left: 8px; font: 500 13px/1.4 var(--font-sans); font-variant-numeric: tabular-nums; color: var(--muted); }
 .proposal-action-disclosure > div { border: 0; background: transparent; padding: 0 0 16px; }
 .proposal-action-disclosure p { font-size: 14px; }

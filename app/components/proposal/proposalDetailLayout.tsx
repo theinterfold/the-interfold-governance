@@ -1,3 +1,4 @@
+import { BallotDisclosure } from "../proposalVoting/ballotDisclosure";
 import { BendingChevron } from "@/vendor/site-header";
 import type { ReactNode } from "react";
 import type { IProposalResource, RawAction } from "@/utils/types";
@@ -18,7 +19,6 @@ export function ProposalDetailLayout({
   participation,
   stage,
   activity,
-  showVotingDetails = false,
 }: {
   breadcrumb?: ReactNode;
   header?: ReactNode;
@@ -31,7 +31,6 @@ export function ProposalDetailLayout({
   participation: ReactNode;
   stage: ReactNode;
   activity?: ReactNode;
-  showVotingDetails?: boolean;
 }) {
   return (
     <div className="proposal-detail-layout">
@@ -69,17 +68,13 @@ export function ProposalDetailLayout({
           {voting}
           <div className="proposal-ballot-context">
             {votingPower}
-            <details className="proposal-voting-details" open={showVotingDetails || undefined}>
-              <summary>
-                <span>Voting details</span>
-                <BendingChevron />
-              </summary>
+            <BallotDisclosure title="Voting details">
               <div className="proposal-ballot-facts">
                 {methodDetails}
                 {participation}
                 {stage}
               </div>
-            </details>
+            </BallotDisclosure>
             {activity}
           </div>
         </div>

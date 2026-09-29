@@ -5,7 +5,6 @@ import { useProposal } from "../hooks/useProposal";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useProposalVoting } from "../hooks/useProposalVoting";
-import { useProposalExecute } from "../hooks/useProposalExecute";
 import { IBreakdownMajorityVotingResult, ProposalVoting } from "@/components/proposalVoting";
 import type { ITransformedStage, IVote } from "@/utils/types";
 import { ProposalStages } from "@/utils/types";
@@ -30,7 +29,8 @@ import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
 import { MissingContentView } from "@/components/MissingContentView";
-import { nextStageName } from "@/plugins/spp/utils/status";
+import { PublicVoteResultCard } from "../components/voteResultCard";
+import { PublicVotes } from "@/components/proposalVoting/publicVotes";
 
 const ZERO = BigInt(0);
 const ABSTAIN_VALUE = 1;
@@ -119,7 +119,6 @@ function ProposalDetailBody({
   const tokenDecimals = useTokenDecimals();
   // "—" until the on-chain read lands, rather than formatting against an assumed 18.
   const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "—" : formatUnits(v, tokenDecimals));
-  const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalIdx);
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const proposalStatus = useProposalStatus(proposal!);
 
@@ -139,20 +138,7 @@ function ProposalDetailBody({
   };
 
   let cta: IBreakdownMajorityVotingResult["cta"];
-  if (proposal?.executed) {
-    cta = {
-      disabled: true,
-      label: "Result submitted",
-    };
-  } else if (proposalStatus === ProposalStatus.ACCEPTED || proposalStatus === ProposalStatus.EXECUTABLE) {
-    // Executing the sub-proposal reports the approval to the SPP and advances to the veto stage.
-    cta = {
-      disabled: !canExecute,
-      isLoading: isConfirmingExecution,
-      label: `Submit result & advance to ${nextStageName(spp.vetoStage)} stage`,
-      onClick: executeProposal,
-    };
-  } else if (proposalStatus === ProposalStatus.ACTIVE) {
+  if (proposalStatus === ProposalStatus.ACTIVE) {
     cta = {
       disabled: !canVote,
       isLoading: voteTransaction.status === "pending" || voteTransaction.isConfirming,
@@ -221,6 +207,9 @@ function ProposalDetailBody({
     );
   }
 
+  const showResults =
+    proposal.executed || (!proposal.active && Number(proposal.parameters.endDate) * 1000 <= Date.now());
+
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
       <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
@@ -232,32 +221,51 @@ function ProposalDetailBody({
           actions={[...(spp.proposal?.actions ?? [])]}
           voting={
             <>
-              <ProposalVoting
-                key={`${proposalIdx}:${address}`}
-                stage={proposalStage[0]}
-                proposalTitle={proposal.title}
-                votingPower={
-                  <VotingPower
-                    votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
-                    snapshotTimepoint={proposal.parameters.snapshotTimepoint}
-                    compact={true}
-                  />
-                }
-                submittedOption={submittedOption}
-                canVote={canVote === true}
-                eligibilityNotice={eligibilityNotice}
-                canChangeVote={proposal.parameters.votingMode === VotingMode.VoteReplacement && !!canVote}
-                confirmed={voteTransaction.status === "success" && voteTransaction.isConfirmed}
-                error={
-                  voteTransaction.error
-                    ? decodeTxError(voteTransaction.error, "Could not submit the vote").description
-                    : undefined
-                }
-                txHash={voteTransaction.isConfirmed ? voteTransaction.hash : undefined}
-              />
+              {showResults ? (
+                <PublicVoteResultCard
+                  proposal={proposal}
+                  proposalId={proposalIdx}
+                  status={proposalStatus}
+                  vetoStage={spp.vetoStage}
+                  submittedOption={submittedOption}
+                />
+              ) : (
+                <ProposalVoting
+                  key={`${proposalIdx}:${address}`}
+                  stage={proposalStage[0]}
+                  proposalTitle={proposal.title}
+                  votingPower={
+                    <VotingPower
+                      votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
+                      snapshotTimepoint={proposal.parameters.snapshotTimepoint}
+                      compact={true}
+                    />
+                  }
+                  submittedOption={submittedOption}
+                  canVote={canVote === true}
+                  eligibilityNotice={eligibilityNotice}
+                  canChangeVote={proposal.parameters.votingMode === VotingMode.VoteReplacement && !!canVote}
+                  confirmed={voteTransaction.status === "success" && voteTransaction.isConfirmed}
+                  error={
+                    voteTransaction.error
+                      ? decodeTxError(voteTransaction.error, "Could not submit the vote").description
+                      : undefined
+                  }
+                  txHash={voteTransaction.isConfirmed ? voteTransaction.hash : undefined}
+                />
+              )}
             </>
           }
-          showVotingDetails={!!spp.proposal && spp.proposal.currentStage >= 1}
+          votingPower={
+            showResults ? (
+              <VotingPower
+                votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
+                snapshotTimepoint={proposal.parameters.snapshotTimepoint}
+                compact={true}
+              />
+            ) : undefined
+          }
+          activity={<PublicVotes votes={proposalStage[0].votes ?? []} />}
           methodDetails={
             <VotingDetails
               startDate={startDate}

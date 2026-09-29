@@ -1,9 +1,8 @@
-import { BendingChevron } from "@/vendor/site-header";
+import { BallotDisclosure } from "../ballotDisclosure";
 import type { IBreakdownMajorityVotingResult, ProposalType } from "../votingBreakdown";
 import { VotingBreakdown } from "../votingBreakdown";
 import type { IBreakdownApprovalThresholdResult } from "../votingBreakdown/approvalThresholdResult";
 import type { IVote, IVotingStageDetails } from "@/utils/types";
-import { VotesDataList } from "../votesDataList/votesDataList";
 
 export interface IVotingStageProps<TType extends ProposalType = ProposalType> {
   title: string;
@@ -18,24 +17,11 @@ export interface IVotingStageProps<TType extends ProposalType = ProposalType> {
 }
 
 /** Results are supporting information, never a gate to the ballot. */
-export function VotingStage({ result, status, variant, votes }: IVotingStageProps) {
+export function VotingStage({ result, status, variant }: IVotingStageProps) {
   const active = status?.toLowerCase() === "active";
   return (
-    <details className="proposal-voting-details" open={!active || undefined}>
-      <summary>
-        <span>{active ? "Live results" : "Results"}</span>
-        <BendingChevron />
-      </summary>
-      <div className="public-ballot-results">
-        {result && <VotingBreakdown variant={variant} result={result} />}
-        <details className="proposal-voting-details">
-          <summary>
-            <span>Votes</span>
-            <BendingChevron />
-          </summary>
-          <VotesDataList votes={votes ?? []} />
-        </details>
-      </div>
-    </details>
+    <BallotDisclosure title={active ? "Live results" : "Results"}>
+      <div className="public-ballot-results">{result && <VotingBreakdown variant={variant} result={result} />}</div>
+    </BallotDisclosure>
   );
 }

@@ -1,4 +1,4 @@
-import { BendingChevron } from "@/vendor/site-header";
+import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
 import { useQuery } from "@tanstack/react-query";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
@@ -84,13 +84,13 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const explorerUrl = PUB_CHAIN.blockExplorers?.default?.url;
 
   return (
-    <details className="proposal-activity">
-      <summary>
-        <span>
+    <BallotDisclosure
+      title={
+        <>
           Encrypted ballot activity <span className="proposal-detail-count">{entries?.length ?? 0}</span>
-        </span>
-        <BendingChevron />
-      </summary>
+        </>
+      }
+    >
       <div className="proposal-activity-body">
         <p className="text-xs text-neutral-500">
           Each entry is an encrypted input posted on-chain for this round — votes, overrides and masks are
@@ -125,6 +125,6 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
           ))}
         </div>
       </div>
-    </details>
+    </BallotDisclosure>
   );
 }
