@@ -8,6 +8,50 @@ const OPTION_COLORS = ["#2f8a4f", "#a84932", "#7a7d77", "#355a8a", "#8a6a40", "#
 export const ballotOptionColor = (index: number) => OPTION_COLORS[index % OPTION_COLORS.length];
 export type BallotChoice = number | "mask";
 
+/** Optional ballot actions share one checkbox-card presentation in every review. */
+export function BallotOptionalAction({
+  id,
+  title,
+  description,
+  icon,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  icon: ReactNode;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="ballot-optional-card" data-checked={checked} data-disabled={disabled}>
+      <input
+        id={id}
+        type="checkbox"
+        className="sr-only"
+        checked={checked}
+        disabled={disabled}
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-help`}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span className="ballot-optional-symbol" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="ballot-optional-check" aria-hidden="true">
+        <ActionIcon name="check" />
+      </span>
+      <strong id={`${id}-title`}>{title}</strong>
+      <span id={`${id}-help`} className="ballot-optional-description">
+        {description}
+      </span>
+    </label>
+  );
+}
+
 export function MaskIcon({ className = "" }: { className?: string }) {
   return (
     <svg

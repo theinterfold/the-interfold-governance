@@ -1079,7 +1079,7 @@ label div p.leading-tight {
     background-color: var(--proposal-hover);
   }
 }
-.proposal-item > .proposal-row:has(.proposal-row-toggle:focus-visible) {
+.proposal-item > .proposal-row:has(.proposal-title-link:focus-visible) {
   background-color: var(--proposal-hover);
 }
 .proposal-item .meta {
@@ -1094,21 +1094,18 @@ label div p.leading-tight {
   color: var(--ink);
   margin: 0 0 10px;
 }
-.proposal-row-toggle {
-  text-align: left;
+.proposal-title-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: .2em;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color var(--interfold-ui-duration) var(--interfold-ui-ease);
 }
-.proposal-row-toggle::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-}
-.proposal-row-toggle:focus {
-  outline: none;
-}
-.proposal-row-toggle:focus-visible::after {
+.proposal-title-link:hover, .proposal-title-link:focus-visible { text-decoration-color: currentColor; }
+.proposal-title-link:focus-visible {
   outline: 2px solid var(--ink);
-  outline-offset: -2px;
+  outline-offset: 4px;
 }
 .proposal-item .body .summary {
   font-size: 16px;
@@ -3391,18 +3388,33 @@ label div p.leading-tight,
 .ballot-snapshot-note { display: block; font-size: 12px; }
 .ballot-review-summary .ballot-review-choice { display: inline-flex; justify-self: start; align-items: center; gap: 10px; font-size: 20px; padding: 8px 16px; border: 1px solid var(--rule); border-radius: var(--ui-radius); background: var(--cream); }
 .ballot-review-choice .swatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.ballot-mask-settings { border-top: 1px solid var(--rule); padding-top: 20px; display: flex; flex-direction: column; gap: 18px; }
+.ballot-mask-settings { display: flex; flex-direction: column; }
+.ballot-mask-target { border-top: 1px solid var(--rule); padding-top: 20px; }
+.ballot-optionals + .ballot-mask-settings .ballot-mask-target { margin-top: 20px; }
 /* One height animation owns checkbox, recipient and asynchronous status changes. */
 .ballot-mask-disclosure { opacity: 0; visibility: hidden; transition: height var(--interfold-ui-duration) var(--interfold-ui-ease), opacity 180ms ease, visibility 0s linear var(--interfold-ui-duration); }
 .ballot-mask-disclosure[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 .morph-dialog[data-morphing="opening"] .ballot-mask-disclosure[data-open="false"] { height: 0 !important; }
-.ballot-mask-option { display: flex; align-items: flex-start; gap: 12px; }
-.ballot-mask-option label { cursor: pointer; }
-.ballot-mask-option input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ink); flex-shrink: 0; }
-.ballot-mask-option > span { display: flex; flex-direction: column; gap: 6px; }
-.ballot-mask-option strong { display: flex; align-items: center; gap: 8px; font: 600 16px/1.4 var(--font-sans); }
-.ballot-mask-option strong svg { width: 22px; height: 22px; }
-.ballot-mask-option > span > span { color: var(--muted); font: 400 13px/1.5 var(--font-sans); }
+.ballot-optionals { min-width: 0; margin: 0; padding: 0; border: 0; }
+.ballot-optionals legend { margin-bottom: 12px; padding: 0; color: var(--muted); font: var(--ui-label-font); }
+.ballot-optional-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ballot-optional-card { position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto 1fr; align-content: start; gap: 8px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--rule); border-radius: var(--ui-radius); background: var(--paper); color: var(--ink); cursor: pointer; transition: background-color var(--interfold-ui-duration) var(--interfold-ui-ease), border-color var(--interfold-ui-duration) var(--interfold-ui-ease); }
+.ballot-optional-card:not([data-disabled="true"]):hover { background: var(--surface-muted); border-color: var(--ui-stroke-hover); }
+.ballot-optional-card[data-checked="true"] { background: var(--mint-pale); border-color: var(--ink); }
+.ballot-optional-card[data-checked="true"]:hover { background: var(--mint-pale); }
+.ballot-optional-card:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 3px; }
+.ballot-optional-card[data-disabled="true"] { opacity: .5; cursor: default; }
+.ballot-optional-symbol { display: flex; align-items: center; height: 24px; }
+.ballot-optional-symbol svg { width: 24px; height: 24px; }
+.ballot-optional-check { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--rule-strong); border-radius: var(--ui-radius-inner); }
+.ballot-optional-check svg { opacity: 0; transform: scale(.8); transition: opacity 180ms ease, transform 180ms var(--interfold-ui-ease); }
+.ballot-optional-card[data-checked="true"] .ballot-optional-check { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.ballot-optional-card[data-checked="true"] .ballot-optional-check svg { opacity: 1; transform: scale(1); }
+.ballot-optional-card strong { grid-column: 1 / -1; font: 600 14px/1.4 var(--font-sans); }
+.ballot-optional-description { grid-column: 1 / -1; color: var(--muted); font: 400 12px/1.5 var(--font-sans); }
+.ballot-optional-note { padding-top: 12px; color: var(--muted); font: 400 13px/1.5 var(--font-sans); }
+@media (max-width: 480px) { .ballot-optional-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .ballot-optional-card, .ballot-optional-check svg, .proposal-title-link { transition: none; } }
 .ballot-mask-target { display: flex; flex-direction: column; gap: var(--ui-space-related); }
 .ballot-mask-target > label { display: flex; flex-direction: column; gap: var(--ui-space-tight); margin: 0; color: var(--muted); font: var(--ui-label-font); }
 .ballot-mask-target select { min-width: 0; width: 100%; padding: 12px; border: 1px solid var(--rule-strong); border-radius: var(--action-radius); color: var(--ink); background: var(--paper); font: 500 14px/1.4 var(--font-sans); }

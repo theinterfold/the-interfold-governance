@@ -1,4 +1,6 @@
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
+import { ActionIcon } from "@/components/input/actionIcon";
+import { Disclosure } from "@/components/motion/Disclosure";
 import { MaskRecipientPicker } from "./maskRecipientPicker";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
@@ -15,6 +17,7 @@ import {
   BallotSubmissionInfo,
   BallotChoices,
   BallotReview,
+  BallotOptionalAction,
   MaskIcon,
   ballotOptionColor as getColor,
 } from "@/components/proposalVoting/ballot";
@@ -530,139 +533,130 @@ export const VoteCard = ({
         isMask={isReviewMasking}
         votingPower={votingPower}
       >
-        {!isReviewMasking && (
-          <div className="ballot-mask-option">
-            <input
-              id={otherWalletId}
-              type="checkbox"
-              checked={sendWithAnotherWallet}
-              disabled={!canPublishOnChain || busy}
-              aria-describedby={`${otherWalletId}-help`}
-              onChange={(event) => {
-                setSendWithAnotherWallet(event.target.checked);
-                if (event.target.checked) setIncludeMask(false);
-              }}
-            />
-            <span>
-              <label htmlFor={otherWalletId}>
-                <strong>Send from another wallet</strong>
-              </label>
-              <span id={`${otherWalletId}-help`}>
-                Sign with this wallet, then switch to a wallet with {PUB_CHAIN.nativeCurrency.symbol} for gas. The vote
-                counts for the signing wallet.
-              </span>
-              {sendWithAnotherWallet && (
-                <span>
-                  Your encrypted ballot is saved on this browser until you send or discard it. You can send a mask
-                  separately.
-                </span>
-              )}
-            </span>
-          </div>
-        )}
-        <div className="ballot-mask-settings">
+        <div className="ballot-review-extras">
           {!isReviewMasking && (
-            <div className="ballot-mask-option">
-              <input
-                id={maskOptionId}
-                type="checkbox"
-                checked={includeMask}
-                disabled={sendWithAnotherWallet}
-                aria-describedby={`${maskOptionId}-help`}
-                onChange={(event) => setIncludeMask(event.target.checked)}
-              />
-              <span>
-                <label htmlFor={maskOptionId}>
-                  <strong>
-                    <MaskIcon />
-                    Also send a mask
-                  </strong>
-                </label>
+            <fieldset className="ballot-optionals">
+              <legend>
                 <span className="ui-label-with-info">
-                  <span id={`${maskOptionId}-help`}>Optional · helps protect voter privacy.</span>
-                  <PowerInfo label="How masks work" compact={true}>
+                  Optional
+                  <PowerInfo label="About optional actions" compact={true}>
                     <p>
-                      Masks are encrypted ballots with no voting weight. They add cover for eligible voters, making real
-                      votes harder to distinguish from other submissions. They do not change anyone’s vote or the
-                      result.
+                      Sign with your eligible wallet, then switch to another wallet with{" "}
+                      {PUB_CHAIN.nativeCurrency.symbol} to pay for sending. Your vote uses the signing wallet’s voting
+                      power.
+                    </p>
+                    <p>
+                      Masks are encrypted ballots with no voting weight. They add cover for eligible voters without
+                      changing anyone’s vote or the result.
                     </p>
                   </PowerInfo>
                 </span>
-              </span>
-            </div>
-          )}
-          <FluidHeight
-            expanded={wantsMask}
-            collapsedHeight={0}
-            className="ballot-mask-disclosure"
-            data-open={wantsMask}
-            aria-hidden={!wantsMask}
-          >
-            <div ref={maskSettingsRef}>
-              <div className="ballot-mask-target">
-                <label>
-                  <span>Mask recipient</span>
-                  <NativeSelect
-                    value={targetMode}
-                    onChange={(event) => setTargetMode(event.target.value as typeof targetMode)}
-                  >
-                    <option value="random">Random eligible voter</option>
-                    <option value="self">Your wallet</option>
-                    <option value="address">Another wallet</option>
-                  </NativeSelect>
-                </label>
-                {(targetMode === "self" || (targetMode === "random" && (!randomTarget || targetError))) && (
-                  <div className="ballot-mask-address" aria-live="polite">
-                    {targetMode === "self" && maskTarget ? (
-                      <span key={maskTarget} className="vp-label-change">
-                        <AddressText bold={false}>{maskTarget}</AddressText>
-                      </span>
-                    ) : targetMode === "random" && !targetError ? (
-                      <span>Choosing an eligible voter…</span>
-                    ) : null}
-                    {targetMode === "random" && targetError && (
-                      <>
-                        <p className="vp-submission-error" role="alert">
-                          {targetError}
-                        </p>
-                        <button
-                          type="button"
-                          className="vp-retry-mask"
-                          onClick={() => setTargetAttempt((attempt) => attempt + 1)}
-                        >
-                          Try again
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-                {targetMode !== "random" && recipientError && (
-                  <div role="alert">
-                    <p className="vp-submission-error">{recipientError}</p>
-                    <PowerAction size="compact" onClick={() => setTargetAttempt((attempt) => attempt + 1)}>
-                      Try again
-                    </PowerAction>
-                  </div>
-                )}
-                {targetMode === "self" && recipients && !eligibleTarget && (
-                  <p className="vp-submission-error" role="alert">
-                    Your wallet is not eligible for this proposal. Choose another recipient.
-                  </p>
-                )}
-                {targetMode === "address" && (
-                  <MaskRecipientPicker
-                    voters={recipients}
-                    loading={!recipients && !recipientError}
-                    selected={targetInput}
-                    pending={busy}
-                    creditMode={creditMode}
-                    onSelect={setTargetInput}
-                  />
-                )}
-                <p>Adds cover for voters without changing any votes.</p>
+              </legend>
+              <div className="ballot-optional-grid">
+                <BallotOptionalAction
+                  id={otherWalletId}
+                  title="Send from another wallet"
+                  description="Sign here, then send with another wallet."
+                  icon={<ActionIcon name="send" />}
+                  checked={sendWithAnotherWallet}
+                  disabled={!canPublishOnChain || busy}
+                  onChange={(checked) => {
+                    setSendWithAnotherWallet(checked);
+                    if (checked) setIncludeMask(false);
+                  }}
+                />
+                <BallotOptionalAction
+                  id={maskOptionId}
+                  title="Also send a mask"
+                  description="Add cover for eligible voters. No voting weight."
+                  icon={<MaskIcon />}
+                  checked={includeMask}
+                  disabled={sendWithAnotherWallet || busy}
+                  onChange={setIncludeMask}
+                />
               </div>
-            </div>
-          </FluidHeight>
+              <Disclosure open={sendWithAnotherWallet}>
+                <p className="ballot-optional-note">
+                  Your vote uses this wallet’s voting power. The signed ballot is saved in this browser until you send
+                  or discard it. You can send a mask separately.
+                </p>
+              </Disclosure>
+            </fieldset>
+          )}
+          <div className="ballot-mask-settings" data-open={wantsMask}>
+            <FluidHeight
+              expanded={wantsMask}
+              collapsedHeight={0}
+              className="ballot-mask-disclosure"
+              data-open={wantsMask}
+              aria-hidden={!wantsMask}
+            >
+              <div ref={maskSettingsRef}>
+                <div className="ballot-mask-target">
+                  <label>
+                    <span>Mask recipient</span>
+                    <NativeSelect
+                      value={targetMode}
+                      onChange={(event) => setTargetMode(event.target.value as typeof targetMode)}
+                    >
+                      <option value="random">Random eligible voter</option>
+                      <option value="self">Your wallet</option>
+                      <option value="address">Another wallet</option>
+                    </NativeSelect>
+                  </label>
+                  {(targetMode === "self" || (targetMode === "random" && (!randomTarget || targetError))) && (
+                    <div className="ballot-mask-address" aria-live="polite">
+                      {targetMode === "self" && maskTarget ? (
+                        <span key={maskTarget} className="vp-label-change">
+                          <AddressText bold={false}>{maskTarget}</AddressText>
+                        </span>
+                      ) : targetMode === "random" && !targetError ? (
+                        <span>Choosing an eligible voter…</span>
+                      ) : null}
+                      {targetMode === "random" && targetError && (
+                        <>
+                          <p className="vp-submission-error" role="alert">
+                            {targetError}
+                          </p>
+                          <button
+                            type="button"
+                            className="vp-retry-mask"
+                            onClick={() => setTargetAttempt((attempt) => attempt + 1)}
+                          >
+                            Try again
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {targetMode !== "random" && recipientError && (
+                    <div role="alert">
+                      <p className="vp-submission-error">{recipientError}</p>
+                      <PowerAction size="compact" onClick={() => setTargetAttempt((attempt) => attempt + 1)}>
+                        Try again
+                      </PowerAction>
+                    </div>
+                  )}
+                  {targetMode === "self" && recipients && !eligibleTarget && (
+                    <p className="vp-submission-error" role="alert">
+                      Your wallet is not eligible for this proposal. Choose another recipient.
+                    </p>
+                  )}
+                  {targetMode === "address" && (
+                    <MaskRecipientPicker
+                      voters={recipients}
+                      loading={!recipients && !recipientError}
+                      selected={targetInput}
+                      pending={busy}
+                      creditMode={creditMode}
+                      onSelect={setTargetInput}
+                    />
+                  )}
+                  <p>Adds cover for voters without changing any votes.</p>
+                </div>
+              </div>
+            </FluidHeight>
+          </div>
         </div>
 
         <div className="ballot-review-submission">

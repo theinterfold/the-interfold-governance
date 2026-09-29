@@ -91,17 +91,18 @@ export function ProposalRow(props: ProposalRowProps) {
             <span className="proposal-method">{props.kindLabel}</span>
           </div>
           <h2 id={titleId}>
-            <button
-              ref={toggleRef}
-              type="button"
-              className="proposal-row-toggle"
-              aria-expanded={expanded}
-              aria-controls={panelId}
-              aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
-              onClick={toggle}
+            <Link
+              href={props.href}
+              className="proposal-title-link"
+              onClick={(event) => {
+                // The plugin's hash navigation otherwise keeps the list's scroll position.
+                if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) {
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                }
+              }}
             >
               {title}
-            </button>
+            </Link>
           </h2>
           <p className="summary line-clamp-2">{props.summary}</p>
           <div className="author">
@@ -146,6 +147,7 @@ export function ProposalRow(props: ProposalRowProps) {
             {props.resultMessage && <p className="proposal-result-message">{props.resultMessage}</p>}
           </div>
           <ActionButton
+            ref={toggleRef}
             type="button"
             intent={votingOpen && !expanded ? "vote" : "open"}
             className="proposal-row-action"
@@ -181,8 +183,7 @@ export function ProposalRow(props: ProposalRowProps) {
               {props.details}
               <div className="proposal-expanded-footer">
                 <Link href={props.href} className="ui-text-action" target="_blank" rel="noopener noreferrer">
-                  Open full page ↗
-                  <span className="sr-only"> (opens in a new tab)</span>
+                  Open full page ↗<span className="sr-only"> (opens in a new tab)</span>
                 </Link>
                 <ActionButton
                   type="button"

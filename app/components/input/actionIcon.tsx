@@ -5,6 +5,7 @@ import {
   Clock,
   LockSimple,
   Minus,
+  PaperPlaneTilt,
   Plus,
   Trash,
   Wallet,
@@ -22,6 +23,7 @@ const icons = {
   undo: ArrowCounterClockwise,
   wallet: Wallet,
   check: Check,
+  send: PaperPlaneTilt,
 };
 
 export type ActionIconName = keyof typeof icons;
