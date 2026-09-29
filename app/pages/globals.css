@@ -3739,3 +3739,42 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 @container power-card (max-width: 700px) {
   .power-delegate-list[data-numbered="true"] .power-delegate-votes { padding-left: 72px; }
 }
+
+/* Proposal navigation shares Family's continuous geometry and sequential content timing. */
+.proposal-route-shell { width: 100%; min-width: 0; }
+.proposal-route-shell > [hidden] { display: none !important; }
+.proposal-breadcrumb { align-items: center; justify-content: space-between; }
+.proposal-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; }
+.proposal-back svg { transition: transform var(--interfold-ui-duration, 360ms) var(--interfold-ui-ease, cubic-bezier(.2,.8,.2,1)); }
+.proposal-back:hover svg { transform: translateX(-3px); }
+html[data-proposal-navigation] .proposal-route-shell { view-transition-name: proposal-page; }
+html[data-proposal-navigation]::view-transition-group(*) { animation-duration: 400ms; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+html[data-proposal-navigation]::view-transition-old(root),
+html[data-proposal-navigation]::view-transition-new(root) { animation: none; }
+html[data-proposal-navigation]::view-transition-old(proposal-page) { animation: proposal-page-out 140ms ease both; }
+html[data-proposal-navigation]::view-transition-new(proposal-page) { animation: proposal-page-in 180ms 320ms cubic-bezier(.2,.8,.2,1) both; }
+html[data-proposal-navigation="back"]::view-transition-old(proposal-page) { animation-name: proposal-page-back-out; }
+html[data-proposal-navigation="back"]::view-transition-new(proposal-page) { animation-name: proposal-page-back-in; }
+@keyframes proposal-page-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes proposal-page-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes proposal-page-back-out { to { opacity: 0; transform: translateY(8px); } }
+@keyframes proposal-page-back-in { from { opacity: 0; transform: translateY(-12px); } }
+.ui-choice-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ui-choice-field > span { font: var(--ui-label-font); color: var(--muted); }
+.ui-choice-trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; min-height: var(--action-height); padding: 12px 16px; border: 1px solid var(--rule); border-radius: var(--ui-radius); background: var(--paper); color: var(--ink); font: 400 14px/1.4 var(--font-sans); text-align: left; transition: border-color 180ms ease, background 180ms ease; }
+.ui-choice-trigger:hover { border-color: var(--ui-stroke-hover); }
+.ui-choice-trigger:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.ui-choice-trigger:disabled { opacity: .5; }
+.ui-choice-menu { width: var(--radix-dropdown-menu-trigger-width); min-width: 0; max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.ui-choice-menu[data-state="open"] { animation: choice-menu-in 180ms cubic-bezier(.2,.8,.2,1); }
+.ui-choice-menu[data-state="closed"] { animation: choice-menu-out 120ms ease; }
+@keyframes choice-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes choice-menu-out { to { opacity: 0; transform: translateY(-2px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) {
+  .proposal-back svg { transition: none; transform: none !important; }
+  .ui-choice-menu[data-state] { animation: none; }
+  .ui-choice-trigger { transition: none; }
+  html[data-proposal-navigation]::view-transition-group(*),
+  html[data-proposal-navigation]::view-transition-old(*),
+  html[data-proposal-navigation]::view-transition-new(*) { animation: none !important; }
+}

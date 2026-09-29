@@ -6,6 +6,7 @@ import ProposalList from "./pages/list";
 import CreateProposal from "./pages/new";
 import CrispProposalDetail from "@/plugins/crispVoting/pages/proposal";
 import TokenProposalDetail from "@/plugins/tokenVoting/pages/proposal";
+import { ProposalNavigation } from "@/components/proposal/proposalNavigation";
 
 const NOT_INSTALLED = "This voting process is not installed in the DAO yet, so the proposal cannot exist.";
 
@@ -18,8 +19,10 @@ const NOT_INSTALLED = "This voting process is not installed in the DAO yet, so t
  */
 export default function PluginPage() {
   const { hash } = useUrl();
+  return <ProposalNavigation hash={hash} list={<ProposalList />} detail={proposalRoute} />;
+}
 
-  if (!hash || hash === "#/") return <ProposalList />;
+function proposalRoute(hash: string) {
   if (hash === "#/new") {
     if (!isAddress(PUB_CRISP_VOTING_PLUGIN_ADDRESS) && !isAddress(PUB_TOKEN_VOTING_PLUGIN_ADDRESS)) {
       return (
@@ -34,12 +37,12 @@ export default function PluginPage() {
     // over from another deployment) — explain, rather than render a detail page over nothing.
     if (!isAddress(PUB_CRISP_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
     const id = hash.replace("#/proposals/private/", "");
-    return <CrispProposalDetail index={BigInt(id)} />;
+    return /^\d+$/.test(id) ? <CrispProposalDetail index={BigInt(id)} /> : <NotFound />;
   }
   if (hash.startsWith("#/proposals/public/")) {
     if (!isAddress(PUB_TOKEN_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
     const id = hash.replace("#/proposals/public/", "");
-    return <TokenProposalDetail index={BigInt(id)} />;
+    return /^\d+$/.test(id) ? <TokenProposalDetail index={BigInt(id)} /> : <NotFound />;
   }
 
   return <NotFound />;

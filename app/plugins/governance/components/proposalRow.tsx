@@ -91,16 +91,7 @@ export function ProposalRow(props: ProposalRowProps) {
             <span className="proposal-method">{props.kindLabel}</span>
           </div>
           <h2 id={titleId}>
-            <Link
-              href={props.href}
-              className="proposal-title-link"
-              onClick={(event) => {
-                // The plugin's hash navigation otherwise keeps the list's scroll position.
-                if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0) {
-                  window.scrollTo({ top: 0, behavior: "instant" });
-                }
-              }}
-            >
+            <Link href={props.href} className="proposal-title-link" scroll={false}>
               {title}
             </Link>
           </h2>

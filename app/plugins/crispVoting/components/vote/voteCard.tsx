@@ -2,7 +2,7 @@ import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { ActionIcon } from "@/components/input/actionIcon";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { MaskRecipientPicker } from "./maskRecipientPicker";
-import { NativeSelect } from "@/components/input/nativeSelect";
+import { ChoiceMenu } from "@/components/input/choiceMenu";
 import { AddressText } from "@/components/text/address";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import type { CreditsMode, EligibleVoter, VotingStep } from "../../utils/types";
@@ -593,17 +593,17 @@ export const VoteCard = ({
             >
               <div ref={maskSettingsRef}>
                 <div className="ballot-mask-target">
-                  <label>
-                    <span>Mask recipient</span>
-                    <NativeSelect
-                      value={targetMode}
-                      onChange={(event) => setTargetMode(event.target.value as typeof targetMode)}
-                    >
-                      <option value="random">Random eligible voter</option>
-                      <option value="self">Your wallet</option>
-                      <option value="address">Another wallet</option>
-                    </NativeSelect>
-                  </label>
+                  <ChoiceMenu
+                    label="Mask recipient"
+                    value={targetMode}
+                    onChange={setTargetMode}
+                    disabled={busy}
+                    options={[
+                      { value: "random", label: "Random eligible voter" },
+                      { value: "self", label: "Your wallet" },
+                      { value: "address", label: "Another wallet" },
+                    ]}
+                  />
                   {(targetMode === "self" || (targetMode === "random" && (!randomTarget || targetError))) && (
                     <div className="ballot-mask-address" aria-live="polite">
                       {targetMode === "self" && maskTarget ? (
