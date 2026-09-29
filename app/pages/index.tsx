@@ -25,7 +25,7 @@ function HomeStep({
     <ScrollFadeIn className="step-track">
       <Link
         href={href}
-        className="group step"
+        className="step group"
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
       >
@@ -35,11 +35,7 @@ function HomeStep({
         <div className="step-body">
           <h2 className="step-title">
             <span>{title}</span>
-            <ArrowSlide
-              isExternal={external}
-              className="home-link-arrow"
-              rowClassName="home-link-arrow-row"
-            />
+            <ArrowSlide isExternal={external} className="home-link-arrow" rowClassName="home-link-arrow-row" />
           </h2>
           <p className="step-desc">{description}</p>
         </div>
@@ -66,17 +62,10 @@ export default function StandardHome() {
         <div>
           {/* No second Connect here. The navbar already carries the wallet control at
               all times, and it is the one that also shows the connected address — two
-              connect buttons a screen apart read as two different actions. The three
+              connect buttons a screen apart read as two different actions. The two
               cards below are this page's actions. */}
           <div className="step-strip">
             {/* Keep the SVG posters only until loop startup is optimized. */}
-            <HomeStep
-              href={PUB_GET_FOLD_URL}
-              title="Get FOLD"
-              external={true}
-              image="get-fold"
-              description="Get FOLD on Uniswap to take part in Interfold governance."
-            />
             <HomeStep
               href={votingPowerHref}
               title="Activate voting power"
@@ -90,17 +79,32 @@ export default function StandardHome() {
               description="Explore proposals, cast your vote and follow the results."
             />
           </div>
+          <ScrollFadeIn className="home-token-link">
+            <span>Need FOLD?</span>
+            <UnderlinedArrowLink
+              href={PUB_GET_FOLD_URL}
+              className="home-learn-link"
+              textClassName="home-link-label"
+              arrowClassName="home-link-arrow"
+              arrowRowClassName="home-link-arrow-row"
+              underlineClassName="home-link-underline"
+            >
+              Get FOLD on Uniswap
+            </UnderlinedArrowLink>
+          </ScrollFadeIn>
         </div>
 
         <section aria-labelledby="home-voting-heading">
           <ScrollFadeIn className="home-voting-note">
             <h2 id="home-voting-heading" className="home-voting-note-title">
-              Private votes.<br />Verifiable results.
+              Private votes.
+              <br />
+              Verifiable results.
             </h2>
             <div className="home-voting-note-copy">
               <p>
-                CRISP secret ballots keep individual choices private and make votes harder to buy or coerce.
-                The community can verify the final tally.
+                CRISP secret ballots keep individual choices private and make votes harder to buy or coerce. The
+                community can verify the final tally.
               </p>
               <UnderlinedArrowLink
                 href={PUB_CRISP_INFO_URL}

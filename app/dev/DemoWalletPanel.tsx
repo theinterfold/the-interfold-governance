@@ -1,11 +1,13 @@
 import { selectDemoAccount, DEMO_SENDING_WALLET } from "./demoWalletSession";
 import { DEMO_WALLET } from "./previewMode";
 import { formatHexString } from "@/utils/evm";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount, useDisconnect } from "wagmi";
 import { ActionTray } from "@/plugins/velocker/components/actionTray";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
+import { Disclosure } from "@/components/motion/Disclosure";
+import { BendingChevron } from "@/vendor/site-header";
 import {
   getDemoRequest,
   getServerDemoRequest,
@@ -24,6 +26,8 @@ export function DemoWalletPanel() {
   const request = useSyncExternalStore(subscribeDemoRequest, getDemoRequest, getServerDemoRequest);
   const [settings, setSettings] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [showFailures, setShowFailures] = useState(false);
+  const failuresId = useId();
   const trigger = useRef<HTMLElement | null>(null);
   const query = useQueryClient();
   const { address } = useAccount();
@@ -48,6 +52,7 @@ export function DemoWalletPanel() {
     if (request) resolveDemoRequest(request.id, "reject");
     setSettings(false);
   };
+  useEffect(() => setShowFailures(false), [request?.id]);
   return (
     <ActionTray
       open={!!request || settings}
@@ -56,6 +61,7 @@ export function DemoWalletPanel() {
       triggerRef={trigger}
       onClose={close}
       className="demo-wallet-panel"
+      overlayClassName="demo-wallet-overlay"
     >
       <p className="demo-wallet-mode">Local simulation · no real funds</p>
       {request ? (
@@ -68,15 +74,25 @@ export function DemoWalletPanel() {
             </PowerAction>
             <PowerAction onClick={() => resolveDemoRequest(request.id, "reject")}>Reject</PowerAction>
           </div>
-          <details className="demo-wallet-failures">
-            <summary>Test a failure</summary>
-            <button type="button" onClick={() => resolveDemoRequest(request.id, "revert")}>
-              {request.kind === "transaction" ? "Transaction reverts" : "Submission fails"}
+          <div className="demo-wallet-failures">
+            <button
+              className="demo-wallet-failures-toggle"
+              type="button"
+              aria-expanded={showFailures}
+              aria-controls={failuresId}
+              onClick={() => setShowFailures(!showFailures)}
+            >
+              Test a failure <BendingChevron open={showFailures} />
             </button>
-            <button type="button" onClick={() => resolveDemoRequest(request.id, "network")}>
-              Connection fails
-            </button>
-          </details>
+            <Disclosure id={failuresId} open={showFailures}>
+              <button type="button" onClick={() => resolveDemoRequest(request.id, "revert")}>
+                {request.kind === "transaction" ? "Transaction reverts" : "Submission fails"}
+              </button>
+              <button type="button" onClick={() => resolveDemoRequest(request.id, "network")}>
+                Connection fails
+              </button>
+            </Disclosure>
+          </div>
         </>
       ) : (
         <>

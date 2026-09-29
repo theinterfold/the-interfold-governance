@@ -13,6 +13,7 @@ type Props = {
   onBack?: () => void;
   backLabel?: string;
   className?: string;
+  overlayClassName?: string;
   children: ReactNode;
 };
 
@@ -26,6 +27,7 @@ export function ActionTray({
   onBack,
   backLabel = "Back",
   className = "",
+  overlayClassName,
   children,
 }: Props) {
   return (
@@ -36,6 +38,7 @@ export function ActionTray({
         if (!value && !pending) onClose();
       }}
       containerClassName={`interfold-dialog power-tray ${className}`}
+      overlayClassName={overlayClassName}
       onEscapeKeyDown={(event) => {
         if (pending) event.preventDefault();
       }}

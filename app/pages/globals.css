@@ -609,10 +609,7 @@ label div p.leading-tight {
   .governance-page-intro h1 { font-size: var(--type-h1-md); line-height: var(--type-h1-leading); letter-spacing: var(--type-h1-tracking); }
   .governance-page-intro-copy { max-width: 440px; margin-top: 12px; font-size: var(--type-support-md); }
 }
-/* The three entry points on the homepage. */
-/* Three equal cards, as on the marketing site — a flex row with a 260px basis
-   left the third card alone on its own row at tablet widths. auto-fit keeps them
-   equal and drops to fewer columns only when 220px each stops fitting. */
+/* Equal participation cards, dropping to one column when 220px each stops fitting. */
 .step-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -686,6 +683,8 @@ label div p.leading-tight {
 .home-link-arrow { width: 1em; height: 1em; font: inherit; font-family: var(--font-serif); color: inherit; line-height: 1; }
 .home-link-arrow-row { width: 1em; height: 1em; line-height: 1; }
 .home-learn-link { display: inline-flex; align-items: center; gap: var(--ui-space-tight); }
+.home-token-link { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ui-space-related); margin-top: var(--ui-space-controls); color: var(--muted); font: var(--ui-body-font); }
+.home-token-link a { color: var(--ink); }
 .home-link-underline { border-bottom: 1px solid currentColor; padding-bottom: 3px; }
 .hero-text-link.home-learn-link:hover { text-decoration: none; }
 .step-strip .step-desc {
@@ -3217,6 +3216,9 @@ button.power-lock-summary--states { width: 100%; container: lock-summary / inlin
 }
 
 /* The demo wallet is a local test surface, separate from the product's forms. */
+/* Wallet prompts sit above the product dialog, with their backdrop between the two. */
+.demo-wallet-overlay { z-index: calc(var(--ods-dialog-content-z-index) + 1); }
+.demo-wallet-panel { z-index: calc(var(--ods-dialog-content-z-index) + 2); }
 .demo-wallet-mode {
   color: var(--muted);
   font: 500 12px/1.5 var(--font-sans);
@@ -3244,17 +3246,15 @@ button.power-lock-summary--states { width: 100%; container: lock-summary / inlin
   border-top: 1px solid var(--rule);
   font: 500 13px/1.5 var(--font-sans);
 }
-.demo-wallet-failures summary {
-  cursor: pointer;
-  color: var(--muted);
-}
-.demo-wallet-failures button {
+.demo-wallet-failures .motion-disclosure button {
   display: block;
   margin-top: 12px;
   min-height: 36px;
   text-align: left;
   color: #943d2e;
 }
+.demo-wallet-failures-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 36px; text-align: left; color: var(--muted); }
+.demo-wallet-failures-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 /* Shared interface hierarchy across locks, delegates, proposal lists, forms and
    voting dialogs. Marketing headings and footer retain the brand typography.
    Keep role styling here instead of adding per-page casing/alignment overrides. */

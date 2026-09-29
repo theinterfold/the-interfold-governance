@@ -2,7 +2,6 @@ import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { MaskRecipientPicker } from "./maskRecipientPicker";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { AddressText } from "@/components/text/address";
-import { Button } from "@aragon/ods";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import type { CreditsMode, EligibleVoter, VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
@@ -240,6 +239,7 @@ export const VoteCard = ({
   };
 
   const changeMode = () => {
+    if (isMasking && selectedChoice === "mask") setSelectedChoice(null);
     setMode(isMasking ? "vote" : "mask");
     setShowFeedback(false);
   };
@@ -429,17 +429,29 @@ export const VoteCard = ({
           <div className="vp-cta">
             {isSubmitted ? (
               <>
-                <Button
+                {isMasking && (
+                  <PowerAction
+                    intent={!voteDisabled && !receipts.vote && !votingClosed ? "vote" : "open"}
+                    affordance="next"
+                    disabled={busy}
+                    onClick={changeMode}
+                  >
+                    {receipts.vote
+                      ? "View your vote"
+                      : !voteDisabled && !votingClosed
+                        ? "Vote on this proposal"
+                        : "Back to proposal"}
+                  </PowerAction>
+                )}
+                <PowerAction
                   className="vp-edit-submission"
-                  size="lg"
-                  variant="secondary"
                   disabled={isDisabled}
                   onClick={(event: MouseEvent<HTMLButtonElement>) =>
                     isMasking ? openReview(event.currentTarget, "mask") : editSubmission()
                   }
                 >
                   {votingClosed ? "Voting closed" : isMasking ? "Submit another mask" : "Change vote"}
-                </Button>
+                </PowerAction>
               </>
             ) : (
               <PowerAction
@@ -464,7 +476,7 @@ export const VoteCard = ({
               </PowerAction>
             )}
 
-            {isMasking && (
+            {isMasking && !isSubmitted && (
               <button type="button" disabled={isDisabled} onClick={changeMode} className="vp-foot-note vp-mode-toggle">
                 <svg
                   width="16"
