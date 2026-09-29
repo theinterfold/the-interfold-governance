@@ -1,26 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { erc20Abi, formatUnits, isAddress, parseAbi, type Address } from "viem";
+import { erc20Abi, formatUnits, isAddress, type Address } from "viem";
 import { useAccount, usePublicClient, useReadContract } from "wagmi";
 import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_VE_LOCKER_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { awaitSuccessfulReceipt } from "@/plugins/crispVoting/utils/awaitReceipt";
 import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
+import { foldLockAbi } from "../artifacts/foldLock";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
-
-/**
- * FOLD's lock-aware balance reads.
- *
- * `balanceOf` is NOT what may be locked. FOLD carries vesting/claim locks and blocks any
- * transfer above `transferableBalanceOf` in `_update`, so an escrow `createLock` of an amount
- * the wallet holds but has not yet vested reverts inside the TOKEN — as
- * `InsufficientUnlockedBalance(account, spendable, value)`, selector `0x3f0c4e2d` — long before
- * the escrow gets a say. Bonded FOLD offsets the locked amount, which is why this is a contract
- * read rather than a subtraction the app could do itself.
- */
-const foldLockAbi = parseAbi([
-  "function transferableBalanceOf(address account) view returns (uint256)",
-  "function lockedBalanceOf(address account) view returns (uint256)",
-]);
 
 /**
  * Locks FOLD into the voting escrow: an exact-amount approval to the escrow, then

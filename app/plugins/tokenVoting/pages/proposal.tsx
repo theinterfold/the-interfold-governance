@@ -23,8 +23,9 @@ import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
+import { UncountedFoldNotice } from "@/plugins/velocker/components/uncountedFoldNotice";
 import { useCanVote } from "../hooks/useCanVote";
-import { PUB_TOKEN_SYMBOL, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_ENABLE_LOCKING, PUB_TOKEN_SYMBOL, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
@@ -194,15 +195,19 @@ function ProposalDetailBody({
         <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
           <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
             <BodySection body={proposal.description || "No description was provided"} />
-            <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
-              <NoVotePowerWarning
-                delegatingToSomeoneElse={delegatingToSomeoneElse}
-                delegatesTo={delegatesTo}
-                delegatedToZero={delegatedToZero}
-                address={address}
-                canVote={!!canVote}
-              />
-            </If>
+            {PUB_ENABLE_LOCKING ? (
+              <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
+            ) : (
+              <If all={[hasBalance, delegatingToSomeoneElse || delegatedToZero]}>
+                <NoVotePowerWarning
+                  delegatingToSomeoneElse={delegatingToSomeoneElse}
+                  delegatesTo={delegatesTo}
+                  delegatedToZero={delegatedToZero}
+                  address={address}
+                  canVote={!!canVote}
+                />
+              </If>
+            )}
             <ProposalVoting
               stages={proposalStage}
               description="This proposal uses the transparent fallback body: votes are visible on-chain. It advances to the foundation veto stage when the support ratio is above the threshold and the minimum participation is met."
@@ -212,7 +217,10 @@ function ProposalDetailBody({
             <ProposalActions actions={[...(spp.proposal?.actions ?? [])]} />
           </div>
           <div className="flex flex-col gap-y-6 md:w-[33%]">
-            <VotingPower snapshotTimepoint={proposal.parameters.snapshotTimepoint} plugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS} />
+            <VotingPower
+              snapshotTimepoint={proposal.parameters.snapshotTimepoint}
+              plugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
+            />
             <ParticipationCard proposal={proposal} />
             <VetoStageCard
               kind="public"

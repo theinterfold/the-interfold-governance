@@ -1,5 +1,5 @@
 import { useProposal } from "../hooks/useProposal";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_ENABLE_LOCKING } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { BodySection } from "@/components/proposal/proposalBodySection";
@@ -18,6 +18,7 @@ import { useCanVote } from "../hooks/useCanVote";
 import { VoteCard } from "../components/vote/voteCard";
 import { MaskTargetDialog } from "../components/vote/maskTargetDialog";
 import { WeightConfirmDialog } from "../components/vote/weightConfirmDialog";
+import { UncountedFoldNotice } from "@/plugins/velocker/components/uncountedFoldNotice";
 import { useCrispServer } from "../hooks/useCrispServer";
 import { VoteResultCard } from "../components/vote/voteResultCard";
 import { RefundCard } from "../components/fee/refundCard";
@@ -130,9 +131,9 @@ function ProposalDetailBody({
     });
   };
 
-  // Warn only about power that is NOT already counted. With the velocker, `votingPower` comes from
-  // the BondedVotes adapter and includes FOLD bonded as ciphernode collateral and escrow-locked
-  // FOLD; comparing against a raw balance flagged holders whose power is fully represented.
+  // Without a voting escrow, wallet FOLD votes through the token's own delegation, so a balance
+  // above the votes means that the holder has not delegated. With the escrow, delegation only
+  // activates locks, and `UncountedFoldNotice` names each part of the FOLD that does not count.
   const hasUnrepresentedBalance = !!balance && balance > ZERO && votingPower !== undefined && votingPower < balance;
   const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
   const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
@@ -172,15 +173,19 @@ function ProposalDetailBody({
         <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
           <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
             <BodySection body={proposal.description || "No description was provided"} />
-            <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
-              <NoVotePowerWarning
-                delegatingToSomeoneElse={delegatingToSomeoneElse}
-                delegatesTo={delegatesTo}
-                delegatedToZero={delegatedToZero}
-                address={address}
-                canVote={!!canVote}
-              />
-            </If>
+            {PUB_ENABLE_LOCKING ? (
+              <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
+            ) : (
+              <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
+                <NoVotePowerWarning
+                  delegatingToSomeoneElse={delegatingToSomeoneElse}
+                  delegatesTo={delegatesTo}
+                  delegatedToZero={delegatedToZero}
+                  address={address}
+                  canVote={!!canVote}
+                />
+              </If>
+            )}
             {/* Voting lives in the main column, mirroring the public (TokenVoting) page layout. */}
             {proposalStatus === ProposalStatus.ACTIVE && (
               <VoteCard
