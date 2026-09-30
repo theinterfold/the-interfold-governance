@@ -1,6 +1,6 @@
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
@@ -30,6 +30,9 @@ import { decideCommitmentStep, waitForCommitmentDecision, type VoteResponse } fr
 
 /** Limit for one read of a staged ballot's job. */
 const JOB_READ_TIMEOUT_MS = 15_000;
+
+/** How long a signature request waits before the card says where to look for it. */
+const SIGNATURE_WAIT_HINT_MS = 30_000;
 
 /** The plugin is authoritative about which token carries voting power. */
 const votingTokenAbi = parseAbi(["function getVotingToken() view returns (address)"]);
@@ -119,7 +122,8 @@ export interface BroadcastVoteRequest {
  * @returns an error, a loading state and a function to cast votes
  */
 export function useCrispServer(e3Id?: bigint): CrispServerState {
-  const { address } = useAccount();
+  const { address, chainId: walletChainId, connector } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const { addAlert } = useAlerts();
 
   // The on-chain route needs the round up front to check `publishInput`'s preconditions, so the
@@ -338,6 +342,20 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     };
   };
 
+  /**
+   * Move the wallet to the chain that the ballot names, before the wallet signs or sends.
+   *
+   * The header asks for this switch only once and does not wait for it, so a dismissed request is
+   * not repeated. A relayed ballot sends no transaction, so nothing else moves the wallet. Rainbow
+   * compares the chain of an EIP-712 domain with the chain of the site's session. On a mismatch it
+   * answers with an error and does not open its window, so the voter sees no request at all.
+   */
+  const putWalletOnVotingChain = async () => {
+    if (walletChainId === PUB_CHAIN.id) return;
+    setStepMessage(`Please switch your wallet to ${PUB_CHAIN.name}.`);
+    await switchChainAsync({ chainId: PUB_CHAIN.id });
+  };
+
   const postVote = async (
     voteOption: bigint,
     e3Id: bigint,
@@ -507,9 +525,24 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // Step 3: Signing, now that there is a ciphertext to bind to.
         setVotingStep("signing");
         setLastActiveStep("signing");
-        setStepMessage(`Please sign your ballot in your wallet. It counts ${share} of your voting power.`);
+        await putWalletOnVotingChain();
+        // Name the connection, so the voter knows where the request went. A WalletConnect session
+        // sends it to the wallet app on the phone, not to a browser extension.
+        const walletName =
+          connector?.type === "walletConnect"
+            ? "the wallet app that you connected with WalletConnect"
+            : (connector?.name ?? "your wallet");
+        setStepMessage(`Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`);
 
         const { domain, types } = ballotTypedData(PUB_CHAIN.id, crispProgram);
+
+        // A wallet can accept a request and never show it. After a delay, say where to look.
+        const stillWaiting = setTimeout(() => {
+          if (!active.current) return;
+          setStepMessage(
+            `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
+          );
+        }, SIGNATURE_WAIT_HINT_MS);
 
         // `signTypedData`, not `signMessage`: `ballotDigest` returns an EIP-712 digest that a
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
@@ -523,7 +556,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
             slot: voteData.slotAddress as `0x${string}`,
             ciphertextCommitment: prepared.ctCommitment,
           },
-        });
+        }).finally(() => clearTimeout(stillWaiting));
 
         // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
         // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
@@ -629,6 +662,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
       // The voter chose this route, or the server did not relay the ballot.
       if (!active.current) return;
+      await putWalletOnVotingChain();
       setStepMessage(
         submitOnChain
           ? "Publishing your vote on-chain..."

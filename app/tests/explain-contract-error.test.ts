@@ -75,6 +75,14 @@ describe("describeFailure", () => {
     expect(describeFailure({ message: "User rejected the request" }, "fallback")).toBeUndefined();
   });
 
+  /** Rainbow refuses a signature for another chain without opening; viem hides why behind a generic line. */
+  test("tells the voter to switch networks when the wallet refused for a chain mismatch", () => {
+    const err = { shortMessage: "JSON is not a valid request object.", details: "Chain Id mismatch" };
+    expect(describeFailure(err, "fallback")).toBe(
+      "Your wallet is on a different network. Switch it to Ethereum and try again."
+    );
+  });
+
   test("uses the fallback when the error carries nothing readable", () => {
     expect(describeFailure({}, "The lock could not be completed")).toBe("The lock could not be completed");
   });

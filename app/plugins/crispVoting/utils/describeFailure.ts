@@ -1,3 +1,4 @@
+import { PUB_CHAIN } from "@/constants";
 import { explainContractError } from "@/utils/explainContractError";
 
 /**
@@ -17,6 +18,14 @@ export function describeFailure(err: unknown, fallback: string): string | undefi
   const message = (err as { shortMessage?: string })?.shortMessage ?? (err as Error)?.message ?? fallback;
 
   if (/user rejected/i.test(message)) return undefined;
+
+  // A wallet on another network refuses to sign or send for this one. Rainbow answers a signature
+  // request with "Chain Id mismatch", which viem shows only as "JSON is not a valid request object".
+  const details =
+    err && typeof err === "object" && "details" in err && typeof err.details === "string" ? err.details : "";
+  if (/chain ?id mismatch|does not match the (connection's|target) chain/i.test(`${details} ${message}`)) {
+    return `Your wallet is on a different network. Switch it to ${PUB_CHAIN.name} and try again.`;
+  }
 
   const explained = explainContractError(err);
   if (explained) return `${explained.title}. ${explained.detail}`;
