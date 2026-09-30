@@ -49,13 +49,13 @@ export function SettlementProgressCard({
         <li>3. Encrypted tally computed and the result published</li>
       </ol>
 
-      {/* The deadline is the honest answer to "when will I see a result?", and it is a contract
-          value rather than an estimate. */}
+      {/* The deadline is a contract value, not an estimate. Counting takes a few hours after it, so
+          the text must not promise the result at the deadline. */}
       {deadline !== undefined && (
         <p className="text-sm text-neutral-500">
           {tallyDue
-            ? "The settlement window has closed and the tally is due — the result should appear shortly."
-            : `The tally is scheduled once the settlement window closes, ${formatSettlementOpensAt(deadline)}.`}
+            ? "The settlement window has closed and the tally is due. The result should appear within a few hours."
+            : `The tally is scheduled once the settlement window closes, ${formatSettlementOpensAt(deadline)}. It then takes a few hours.`}
         </p>
       )}
 

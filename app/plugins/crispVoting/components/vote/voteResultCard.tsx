@@ -218,8 +218,8 @@ export const VoteResultCard = ({
             <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
           </svg>
           <p className="vp-note text-center">
-            Voting has closed. Counting starts once every ballot is confirmed on the data availability layer, then takes
-            a few hours. The result will appear here.
+            Counting starts once every ballot is confirmed on the data availability layer, then takes a few hours. The
+            result will appear here.
           </p>
         </div>
       </div>
