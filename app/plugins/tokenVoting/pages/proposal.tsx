@@ -83,7 +83,7 @@ function ProposalDetailBody({
   const { balance, delegatesTo } = useTokenVotes(address);
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalIdx);
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const proposalStatus = useProposalStatus(proposal!);
+  const { status: proposalStatus } = useProposalStatus(proposal!);
 
   const startDate = dayjs(Number(proposal?.parameters.startDate) * 1000).toString();
   const endDate = dayjs(Number(proposal?.parameters.endDate) * 1000).toString();

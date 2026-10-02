@@ -6,7 +6,7 @@ import { Else, ElseIf, If, Then } from "@/components/if";
 import { getSimpleRelativeTimeFromDate } from "@/utils/dates";
 import { HeaderSection } from "@/components/layout/header-section";
 import { getTagVariantFromStatus } from "@/utils/ui-variants";
-import { capitalizeFirstLetter } from "@/utils/text";
+import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import { shortProposalId } from "@/utils/proposalId";
 import dayjs from "dayjs";
 
@@ -19,7 +19,7 @@ interface ProposalHeaderProps {
 }
 
 const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }) => {
-  const proposalStatus = useProposalStatus(proposal);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
   const tagVariant = getTagVariantFromStatus(proposalStatus);
 
   const breadcrumbs: IBreadcrumbsLink[] = [{ label: "Proposals", href: "#/" }, { label: shortProposalId(proposalIdx) }];
@@ -33,7 +33,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }
           links={breadcrumbs}
           tag={
             proposalStatus && {
-              label: capitalizeFirstLetter(proposalStatus),
+              label: bodyStatusLabel(proposalStatus, quorumNotMet),
               variant: tagVariant,
             }
           }
@@ -60,7 +60,9 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }
                   <span className="text-neutral-500">The proposal has been accepted</span>
                 </Then>
                 <ElseIf val={proposalStatus} is={ProposalStatus.REJECTED}>
-                  <span className="text-neutral-500">The proposal has been rejected</span>
+                  <span className="text-neutral-500">
+                    {quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected"}
+                  </span>
                 </ElseIf>
                 <ElseIf true={endDateIsInThePast}>
                   <span className="text-neutral-500">The voting period is over</span>

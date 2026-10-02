@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Proposal } from "../../utils/types";
 import { useProposalStatus } from "../../hooks/useProposalStatus";
 import { HeaderSection } from "@/components/layout/header-section";
-import { capitalizeFirstLetter } from "@/utils/text";
+import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import { AddressText } from "@/components/text/address";
 import { useEffect, useState } from "react";
 import { e3RoundNumber } from "../../utils/ballotDigest";
@@ -30,7 +30,8 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
   e3Failed,
   isCommitteeReady,
 }) => {
-  const proposalStatus = useProposalStatus(proposal, totalVotingPower, e3Failed);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal, totalVotingPower, e3Failed);
+  const statusLabel = bodyStatusLabel(proposalStatus, quorumNotMet);
   const countdown = useCountdown(Number(proposal.parameters.endDate) * 1000);
   const startCountdown = useCountdown(Number(proposal.parameters.startDate) * 1000);
 
@@ -42,7 +43,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
   let endLabel: string;
   if (e3Failed) endLabel = "Round failed";
   else if (proposalStatus === ProposalStatus.ACCEPTED) endLabel = "Accepted";
-  else if (proposalStatus === ProposalStatus.REJECTED) endLabel = "Rejected";
+  else if (proposalStatus === ProposalStatus.REJECTED) endLabel = statusLabel;
   else if (endDateIsInThePast) endLabel = "Voting closed";
   // "Forming committee" only once voting has actually opened. Before the start the protocol
   // deliberately sizes the gap to cover sortition and DKG, so a committee still forming is on
@@ -65,7 +66,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
 
         <div className="flex w-full flex-col">
           <div className="flex flex-wrap items-center gap-3">
-            {proposalStatus && <span className={`badge ${statusClass}`}>{capitalizeFirstLetter(proposalStatus)}</span>}
+            {proposalStatus && <span className={`badge ${statusClass}`}>{statusLabel}</span>}
             {/* "Rejected" on its own reads as "the DAO voted this down". A failed round was never
                 decided at all — the encrypted vote could not complete. */}
             {e3Failed && <span className="badge failed">Round failed</span>}
@@ -87,7 +88,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
           </div>
           <div className="item">
             <div className="lbl">Status</div>
-            <div className="val">{proposalStatus ? capitalizeFirstLetter(proposalStatus) : "—"}</div>
+            <div className="val">{proposalStatus ? statusLabel : "—"}</div>
           </div>
           {/* Before the start, "Ends in 1h 31m" is true but answers the wrong question: the reader
               wants to know when they can vote, and an end time alone implies voting is already

@@ -29,8 +29,15 @@ function hasPassed(tally: bigint[], supportThreshold: bigint): boolean {
   return meetsSupportThreshold(tally[0] ?? 0n, tally[1] ?? 0n, supportThreshold);
 }
 
+/**
+ * The body-level status of a CRISP proposal, mirroring `CrispVoting._canExecute`.
+ *
+ * @returns `status`, and `quorumNotMet` — true only alongside REJECTED, when turnout fell short of the
+ *          proposal's frozen quorum rather than the vote going against it.
+ */
 export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint, e3Failed = false) => {
   const [status, setStatus] = useState<ProposalStatus>(ProposalStatus.PENDING);
+  const [quorumNotMet, setQuorumNotMet] = useState(false);
 
   const { decimals } = useToken();
   // Quorum uses the total voting power at the snapshot timepoint, mirroring the
@@ -61,6 +68,8 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       Number(decimals)
     );
 
+    let quorumFailed = false;
+
     // Checked BEFORE `active`. `active` means only "the end date is in the future", and the
     // most common failures — committee formation timeout, DKG timeout — happen early, well
     // inside the voting window. Testing `active` first therefore advertised a dead round as
@@ -74,9 +83,10 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       setStatus(ProposalStatus.EXECUTED);
     } else if (!proposal?.isTallied) {
       setStatus(ProposalStatus.PENDING);
-    } else if (totalVotes === 0n) {
-      setStatus(ProposalStatus.REJECTED);
     } else if (quorum && !quorum.reached) {
+      // An empty tally lands here whenever a quorum is required. Without one (minParticipation 0)
+      // it fails support below instead: `hasPassed` is false on zero votes.
+      quorumFailed = true;
       setStatus(ProposalStatus.REJECTED);
     } else if (hasPassed(tally, supportThreshold) && proposal.actions.length > 0) {
       setStatus(ProposalStatus.EXECUTABLE);
@@ -87,7 +97,8 @@ export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?:
       // (a tie at the 50 default included) is a rejection, matching `_canExecute`.
       setStatus(ProposalStatus.REJECTED);
     }
+    setQuorumNotMet(quorumFailed);
   }, [proposal, effectiveTotalSupply, decimals, e3Failed]);
 
-  return status;
+  return { status, quorumNotMet };
 };

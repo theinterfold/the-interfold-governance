@@ -25,25 +25,35 @@ function computeOutcome(proposal: Proposal): {
   return { passed: supportReached && !lowTurnout, lowTurnout };
 }
 
+/**
+ * The body-level status of a TokenVoting proposal.
+ *
+ * @returns `status`, and `quorumNotMet` — true only alongside REJECTED, when turnout fell short of
+ *          `minVotingPower` rather than the vote going against it.
+ */
 export const useProposalStatus = (proposal: Proposal) => {
   const [status, setStatus] = useState<ProposalStatus>();
+  const [quorumNotMet, setQuorumNotMet] = useState(false);
 
   useEffect(() => {
     if (!proposal || !proposal.parameters || !proposal.tally) return;
 
+    let quorumFailed = false;
     if (proposal.active) {
       setStatus(ProposalStatus.ACTIVE);
     } else if (proposal.executed) {
       setStatus(ProposalStatus.EXECUTED);
     } else {
       const { passed, lowTurnout } = computeOutcome(proposal);
+      quorumFailed = lowTurnout;
       if (lowTurnout) setStatus(ProposalStatus.REJECTED);
       else if (passed) setStatus(proposal.actions.length ? ProposalStatus.EXECUTABLE : ProposalStatus.ACCEPTED);
       else setStatus(ProposalStatus.REJECTED);
     }
+    setQuorumNotMet(quorumFailed);
   }, [proposal?.tally, proposal?.active, proposal?.executed, proposal?.parameters]);
 
-  return status;
+  return { status, quorumNotMet };
 };
 
 export const useProposalVariantStatus = (proposal: Proposal) => {

@@ -6,6 +6,7 @@ import { useProposalStatus } from "../../hooks/useProposalStatus";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import { AddressText } from "@/components/text/address";
 import { e3RoundNumber } from "../../utils/ballotDigest";
+import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 
 const DEFAULT_PROPOSAL_METADATA_TITLE = "(No proposal title)";
 const DEFAULT_PROPOSAL_METADATA_SUMMARY = "(The metadata of the proposal is not available)";
@@ -38,7 +39,7 @@ export default function ProposalCard(props: ProposalInputs) {
     isCommitteeReady,
     status: proposalFetchStatus,
   } = useProposal(props.proposalId);
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const showLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const e3Label = proposal ? `E3 · ${e3RoundNumber(proposal.e3Id).toString()}` : "E3 · …";
@@ -69,6 +70,7 @@ export default function ProposalCard(props: ProposalInputs) {
   const options = proposal?.options ?? ["Yes", "No"];
   const totalVotes = tally.reduce((sum, count) => sum + (count ?? BigInt(0)), BigInt(0));
   const statusClass = (proposalStatus ?? "").toString().toLowerCase();
+  const statusLabel = bodyStatusLabel(proposalStatus, quorumNotMet);
   const isActive = proposalStatus === ProposalStatus.ACTIVE;
   const endDate = Number(proposal!.parameters.endDate) * 1000;
 
@@ -77,7 +79,7 @@ export default function ProposalCard(props: ProposalInputs) {
       <div className="num">{e3Label}</div>
       <div className="body">
         <div className="meta">
-          <span className={`badge ${statusClass}`}>{capitalize(proposalStatus)}</span>
+          <span className={`badge ${statusClass}`}>{statusLabel}</span>
           {/* A failed round and a voted-down proposal both resolve to REJECTED, but they mean
               very different things — one was decided, the other never got to run. Say which. */}
           {e3Failed && <span className="badge failed">Round failed</span>}
@@ -102,7 +104,7 @@ export default function ProposalCard(props: ProposalInputs) {
             ? "Forming committee"
             : isActive && endDate > Date.now()
               ? `Ends ${unixTimestampToDate(Math.round(endDate / 1000))}`
-              : capitalize(proposalStatus)}
+              : statusLabel}
         </span>
         {totalVotes > BigInt(0) && (
           <div className="mini-bar" aria-hidden="true">
@@ -119,11 +121,6 @@ export default function ProposalCard(props: ProposalInputs) {
       </div>
     </Link>
   );
-}
-
-function capitalize(s?: string): string {
-  if (!s) return "";
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
 function getShowProposalLoading(

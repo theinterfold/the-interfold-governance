@@ -66,10 +66,10 @@ function getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quor
   if (quorum && !quorum.reached) {
     return winner ? (
       <span style={{ color: "var(--muted-ink, #9a9a9a)" }}>
-        Rejected — quorum not reached ({winner.option} led with {winnerPct}% of votes cast)
+        Quorum not met ({winner.option} led with {winnerPct}% of votes cast)
       </span>
     ) : (
-      "Rejected — quorum not reached"
+      "Quorum not met"
     );
   }
 

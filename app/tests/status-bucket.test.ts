@@ -1,5 +1,11 @@
 import { expect, test, describe } from "bun:test";
-import { matchesStatusFilter, statusBucketOf, STATUS_BUCKETS } from "@/plugins/governance/utils/statusBucket";
+import { ProposalStatus } from "@aragon/ods";
+import {
+  bodyStatusLabel,
+  matchesStatusFilter,
+  statusBucketOf,
+  STATUS_BUCKETS,
+} from "@/plugins/governance/utils/statusBucket";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
 import { SppProposalState } from "@/plugins/spp/utils/types";
 
@@ -57,6 +63,17 @@ describe("statusBucketOf", () => {
     expect(statusBucketOf("Pending")).toBe("pending");
     expect(statusBucketOf("Active")).toBe("active");
     expect(statusBucketOf("Rejected")).toBe("rejected");
+  });
+
+  // The quorum label is produced by `bodyStatusLabel` and matched by `statusBucketOf`. A label the
+  // switch does not know shows only under "All", so renaming either side alone would silently drop
+  // quorum failures out of the "Rejected" filter.
+  test("a quorum failure reads differently from a vote against, but buckets the same", () => {
+    const votedDown = bodyStatusLabel(ProposalStatus.REJECTED, false);
+    const quorumNotMet = bodyStatusLabel(ProposalStatus.REJECTED, true);
+    expect(quorumNotMet).not.toBe(votedDown);
+    expect(statusBucketOf(votedDown)).toBe("rejected");
+    expect(statusBucketOf(quorumNotMet)).toBe("rejected");
   });
 
   // A private row labels a dead E3 round "Round failed". It was never decided, so it must not be

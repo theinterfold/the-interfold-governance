@@ -1,3 +1,7 @@
+import { capitalizeFirstLetter } from "@/utils/text";
+
+import type { ProposalStatus } from "@aragon/ods";
+
 /**
  * Collapses the status labels a proposal row can render into the coarse buckets
  * the list filters on.
@@ -5,8 +9,8 @@
  * Rows label themselves from two sources: the SPP-level override
  * (`getSppStatusOverride` — Executed / Canceled / Vetoed / Executable / Expired /
  * Veto period / Foundation Approval) and, while stage 0 is undecided, the body-level `ProposalStatus`
- * (Pending / Active / Executed / Executable / Accepted / Rejected). Both funnel
- * through here so private and public rows bucket identically.
+ * (Pending / Active / Executed / Executable / Accepted / Rejected / Quorum not met — see
+ * `bodyStatusLabel`). Both funnel through here so private and public rows bucket identically.
  *
  * `failed` is not a vote outcome: the private round broke (E3 died, or the sub-proposal was
  * never created), so the proposal was never decided. It is kept apart from `rejected` so the
@@ -36,6 +40,22 @@ export function matchesStatusFilter(bucket: StatusBucket | undefined, filter: St
 }
 
 /**
+ * The label a body-level `ProposalStatus` renders as, in the list rows and the detail headers alike.
+ *
+ * A quorum failure stays `REJECTED` — the chain refuses it exactly like a vote against, and every
+ * status check keys on that — but "Rejected" reads as "voted down", and a quorum failure was not:
+ * too few voted for the result to count. The label says which.
+ *
+ * @param status The status from the body's `useProposalStatus`.
+ * @param quorumNotMet Whether that status is a rejection for lack of quorum.
+ * @returns The label; empty while the status is unresolved.
+ */
+export function bodyStatusLabel(status: ProposalStatus | undefined, quorumNotMet: boolean): string {
+  if (quorumNotMet) return "Quorum not met";
+  return status ? capitalizeFirstLetter(status) : "";
+}
+
+/**
  * Maps a rendered status label to its bucket. Returns undefined for labels we
  * don't recognise, so a row is never silently filed under the wrong filter —
  * unknown rows simply only show under "All".
@@ -62,6 +82,7 @@ export function statusBucketOf(label?: string): StatusBucket | undefined {
       return "failed";
     // Every terminal not-happening state reads as rejected to a filtering user.
     case "rejected":
+    case "quorum not met":
     case "vetoed":
     case "expired":
     case "canceled":

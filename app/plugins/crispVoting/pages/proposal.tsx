@@ -98,7 +98,7 @@ function ProposalDetailBody({
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
+  const { status: proposalStatus } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const results = useMemo(() => {
     if (!proposal || !proposal.options || !proposal.tally) return undefined;

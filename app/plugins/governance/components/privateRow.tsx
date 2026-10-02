@@ -4,8 +4,8 @@ import { useProposal } from "@/plugins/crispVoting/hooks/useProposal";
 import { useProposalStatus } from "@/plugins/crispVoting/hooks/useProposalStatus";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
-import { statusBucketOf } from "../utils/statusBucket";
-import { ProposalRow, capitalize, rowTimingLabel } from "./proposalRow";
+import { bodyStatusLabel, statusBucketOf } from "../utils/statusBucket";
+import { ProposalRow, rowTimingLabel } from "./proposalRow";
 
 import type { StatusBucket } from "../utils/statusBucket";
 
@@ -79,7 +79,7 @@ function PrivateRowBody({
   hidden?: boolean;
 }) {
   const { proposal, totalVotingPower, e3Failed, status } = useProposal(subProposalId, { metadataUri, creator });
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
   const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
@@ -88,7 +88,7 @@ function PrivateRowBody({
   // a canceled or expired process is the more specific fact about the proposal.
   const resolvedLabel = loading
     ? undefined
-    : (sppOverride?.label ?? (e3Failed ? "Round failed" : capitalize(proposalStatus)));
+    : (sppOverride?.label ?? (e3Failed ? "Round failed" : bodyStatusLabel(proposalStatus, quorumNotMet)));
   // Bucket on `e3Failed` itself, not the label: once stage 0 lapses the SPP override relabels a
   // dead round "Expired", which would otherwise file it with genuine rejections.
   const bucket: StatusBucket | undefined = e3Failed ? "failed" : statusBucketOf(resolvedLabel);

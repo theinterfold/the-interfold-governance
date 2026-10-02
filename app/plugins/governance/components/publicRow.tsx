@@ -4,8 +4,8 @@ import { useProposal } from "@/plugins/tokenVoting/hooks/useProposal";
 import { useProposalStatus } from "@/plugins/tokenVoting/hooks/useProposalVariantStatus";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
-import { statusBucketOf } from "../utils/statusBucket";
-import { ProposalRow, capitalize, rowTimingLabel } from "./proposalRow";
+import { bodyStatusLabel, statusBucketOf } from "../utils/statusBucket";
+import { ProposalRow, rowTimingLabel } from "./proposalRow";
 
 import type { StatusBucket } from "../utils/statusBucket";
 
@@ -78,11 +78,11 @@ function PublicRowBody({
   hidden?: boolean;
 }) {
   const { proposal, status } = useProposal(subProposalId, false, { metadataUri, creator });
-  const proposalStatus = useProposalStatus(proposal!);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!);
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
   const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
-  const resolvedLabel = loading ? undefined : (sppOverride?.label ?? capitalize(proposalStatus));
+  const resolvedLabel = loading ? undefined : (sppOverride?.label ?? bodyStatusLabel(proposalStatus, quorumNotMet));
   const bucket = statusBucketOf(resolvedLabel);
 
   useEffect(() => {
