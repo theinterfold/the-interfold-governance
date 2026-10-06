@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { PUB_CHAIN } from "@/constants";
 import { explainContractError, KNOWN_ERROR_SELECTORS } from "@/utils/explainContractError";
 import { describeFailure } from "@/plugins/crispVoting/utils/describeFailure";
 
@@ -79,7 +80,7 @@ describe("describeFailure", () => {
   test("tells the voter to switch networks when the wallet refused for a chain mismatch", () => {
     const err = { shortMessage: "JSON is not a valid request object.", details: "Chain Id mismatch" };
     expect(describeFailure(err, "fallback")).toBe(
-      "Your wallet is on a different network. Switch it to Ethereum and try again."
+      `Your wallet is on a different network. Switch it to ${PUB_CHAIN.name} and try again.`
     );
   });
 
