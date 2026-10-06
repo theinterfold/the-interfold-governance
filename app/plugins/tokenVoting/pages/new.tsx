@@ -8,6 +8,7 @@ import { useCreateProposal } from "../hooks/useCreateProposal";
 import { useAccount } from "wagmi";
 import { useCanCreateProposal } from "../hooks/useCanCreateProposal";
 import { MissingContentView } from "@/components/MissingContentView";
+import { AddressText } from "@/components/text/address";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
 import { Address, formatEther } from "viem";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
@@ -19,7 +20,8 @@ import { encodeActionsAsJson } from "@/utils/json-actions";
 
 export default function Create() {
   const { address: selfAddress, isConnected } = useAccount();
-  const { canCreate, needsDelegation, hasNoTokens, isLoading, minProposerVotingPower, votes } = useCanCreateProposal();
+  const { canCreate, needsDelegation, bondedDelegate, hasNoTokens, isLoading, minProposerVotingPower, votes } =
+    useCanCreateProposal();
   const [addActionType, setAddActionType] = useState<NewActionType>("");
   const {
     title,
@@ -88,6 +90,7 @@ export default function Create() {
           canCreate={canCreate}
           isConnected={isConnected}
           needsDelegation={needsDelegation}
+          bondedDelegate={bondedDelegate}
           hasNoTokens={hasNoTokens}
           isLoading={isLoading}
           minProposerVotingPower={minProposerVotingPower}
@@ -272,6 +275,7 @@ const PlaceHolderOr = ({
   canCreate,
   children,
   needsDelegation,
+  bondedDelegate,
   hasNoTokens,
   isLoading,
   minProposerVotingPower,
@@ -282,6 +286,7 @@ const PlaceHolderOr = ({
   canCreate: boolean | undefined;
   children: ReactNode;
   needsDelegation?: boolean;
+  bondedDelegate?: Address;
   hasNoTokens?: boolean;
   isLoading?: boolean;
   minProposerVotingPower?: bigint;
@@ -309,7 +314,7 @@ const PlaceHolderOr = ({
         <MissingContentView>
           {`You hold enough ${PUB_TOKEN_SYMBOL} to create a proposal, but your voting power is not delegated. ` +
             `Proposal creation counts delegated voting power${threshold ? ` (${threshold} required)` : ""}, ` +
-            `so delegate to yourself on the Members page and then return here.`}
+            `so delegate to yourself on the Voting power page and then return here.`}
         </MissingContentView>
       </ElseIf>
       <ElseIf true={!canCreate && hasNoTokens}>
@@ -317,6 +322,15 @@ const PlaceHolderOr = ({
         <MissingContentView>
           {`Creating a proposal requires${threshold ? ` ${threshold} of` : ""} delegated voting power, ` +
             `and this account holds no ${PUB_TOKEN_SYMBOL}.`}
+        </MissingContentView>
+      </ElseIf>
+      <ElseIf true={!canCreate && !!bondedDelegate}>
+        {/* The bonded voting power counts for a delegate, and delegation to self cannot bring it back. */}
+        <MissingContentView>
+          {`Creating a proposal requires${threshold ? ` ${threshold} of` : ""} delegated voting power` +
+            `${current ? `, and this account has ${current}` : ""}. Your bonded voting power votes through `}
+          <AddressText bold={false}>{bondedDelegate}</AddressText>. To use it yourself, stop the delegation on the
+          Voting power page.
         </MissingContentView>
       </ElseIf>
       <ElseIf true={!canCreate}>

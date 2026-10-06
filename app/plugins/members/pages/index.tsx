@@ -5,6 +5,8 @@ import { formatUnits, isAddress, type Address } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { AddressText } from "@/components/text/address";
+import { BondedDelegationCards } from "@/components/cards/BondedDelegationCards";
+import { useBondedDelegation } from "@/hooks/useBondedDelegation";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useDelegate } from "@/hooks/useDelegate";
 import { PUB_ENABLE_LOCKING, PUB_TOKEN_SYMBOL } from "@/constants";
@@ -18,12 +20,13 @@ export default function Delegation() {
   const { balance, votingPower, delegatesTo, refetch } = useTokenVotes(address);
   // Delegating from here changes the directory below too, so both are refreshed.
   const [delegateListRefreshKey, setDelegateListRefreshKey] = useState(0);
-  const { delegate, delegateToSelf, isConfirming } = useDelegate(() =>
+  const onChanged = () =>
     setTimeout(() => {
       refetch();
       setDelegateListRefreshKey((k) => k + 1);
-    }, 1000 * 2)
-  );
+    }, 1000 * 2);
+  const { delegate, delegateToSelf, isConfirming } = useDelegate(onChanged);
+  const bonded = useBondedDelegation(address, onChanged);
   const [target, setTarget] = useState("");
 
   const delegatedToSelf = !!delegatesTo && !!address && delegatesTo.toLowerCase() === address.toLowerCase();
@@ -47,11 +50,13 @@ export default function Delegation() {
           ? `Voting power in the Interfold comes from ${PUB_TOKEN_SYMBOL} that is committed, not just held: ` +
             `${PUB_TOKEN_SYMBOL} locked in the voting escrow, bonded as ciphernode collateral, or still under a ` +
             `vesting lock. Locked ${PUB_TOKEN_SYMBOL} votes through delegation — activate it for yourself or hand it ` +
-            `to someone you trust; bonded and vesting ${PUB_TOKEN_SYMBOL} always count for their owner and need no ` +
-            `delegation. Delegating never moves your tokens, and you can change it at any time.`
+            `to someone you trust; bonded and vesting ${PUB_TOKEN_SYMBOL} count for their owner without delegation` +
+            `${bonded.supported ? ", and the owner can give them to one other address" : ""}. ` +
+            `Delegating never moves your tokens, and you can change it at any time.`
           : `Voting power comes from delegated ${PUB_TOKEN_SYMBOL}: delegate to yourself to vote with your own ` +
-            `balance, or hand it to someone you trust. Delegating never moves your tokens, and you can change it at ` +
-            `any time.`}
+            `balance, or hand it to someone you trust. ` +
+            `${bonded.supported ? `Bonded ${PUB_TOKEN_SYMBOL} counts for its owner without delegation, and the owner can give it to one other address. ` : ""}` +
+            `Delegating never moves your tokens, and you can change it at any time.`}
       </p>
 
       {!isConnected || !address ? (
@@ -67,12 +72,14 @@ export default function Delegation() {
               label="Delegating to"
               value={
                 notDelegated ? (
-                  // Under the velocker, "nobody" only inactivates LOCK power — bonded and
-                  // vesting-locked FOLD count for their owner regardless of delegation.
+                  // "Nobody" turns off one source of voting power: the locks under the velocker, the
+                  // wallet balance without it. Bonded FOLD, and vesting FOLD under the velocker, do not
+                  // follow this delegation. They count for their owner unless a bonded delegate
+                  // represents it.
                   PUB_ENABLE_LOCKING ? (
                     "Nobody — locks not activated"
                   ) : (
-                    "Nobody — no voting power"
+                    "Nobody — balance not activated"
                   )
                 ) : delegatedToSelf ? (
                   "Yourself"
@@ -123,6 +130,8 @@ export default function Delegation() {
               </Button>
             </span>
           </Card>
+
+          <BondedDelegationCards address={address} bonded={bonded} />
 
           <Card>
             <p className="text-base font-semibold text-neutral-800">Delegates</p>

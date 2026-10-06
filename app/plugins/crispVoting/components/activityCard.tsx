@@ -8,7 +8,7 @@ import { CrispVotingAbi } from "../artifacts/CrispVoting";
 
 // Minimal slice of IInterfold.getE3 — only the fields before and including e3Program matter here.
 const interfoldAbi = parseAbi([
-  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bool proofAggregationEnabled; }",
+  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bytes32 ciphertextCommitment; }",
   "function getE3(uint256 e3Id) view returns (E3 memory e3)",
 ]);
 

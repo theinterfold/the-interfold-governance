@@ -6,6 +6,8 @@ import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
+import { BondedDelegationCards } from "@/components/cards/BondedDelegationCards";
+import { useBondedDelegation } from "@/hooks/useBondedDelegation";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { PUB_CONSTITUTION_URL, PUB_TOKEN_SYMBOL } from "@/constants";
@@ -36,7 +38,8 @@ export default function Locker() {
     }, 1000 * 2);
   };
   const delegation = useVeDelegation(address, escrow.adapter, onChanged);
-  const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes);
+  const bonded = useBondedDelegation(address, onChanged);
+  const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes, bonded);
   // Proposal eligibility mirrors the on-chain create gates (delegated votes vs
   // minProposerVotingPower); the shown minimum is the cheapest path across the
   // installed processes, same as the proposals page.
@@ -121,7 +124,10 @@ export default function Locker() {
           <li>
             Delegate your locked {PUB_TOKEN_SYMBOL} — to yourself or someone you trust — to activate its voting power.
           </li>
-          <li>Bonded and vesting {PUB_TOKEN_SYMBOL} count automatically, no delegation needed.</li>
+          <li>
+            Bonded and vesting {PUB_TOKEN_SYMBOL} count for you without delegation.
+            {bonded.supported && " You can also give their voting power to one other address."}
+          </li>
           <li>
             Unlock any time: start the withdrawal, wait out {cooldownText}, then claim your {PUB_TOKEN_SYMBOL}. Voting
             power stops as soon as the withdrawal starts.
@@ -149,8 +155,22 @@ export default function Locker() {
             {breakdown.available && (
               <div className="flex flex-col gap-y-1 border-l-2 border-neutral-100 pl-3">
                 <Row label="Locked + delegated" value={fmt(breakdown.lockedAndDelegated)} />
-                <Row label="Bonded" value={fmt(breakdown.bonded)} />
-                <Row label="Vesting" value={fmt(breakdown.vesting)} />
+                {breakdown.delegate ? (
+                  <Row
+                    label="Bonded + vesting"
+                    value={
+                      <span className="flex items-center gap-x-1">
+                        Votes through <AddressText bold={false}>{breakdown.delegate}</AddressText>
+                      </span>
+                    }
+                  />
+                ) : (
+                  <>
+                    <Row label="Bonded" value={fmt(breakdown.bonded)} />
+                    <Row label="Vesting" value={fmt(breakdown.vesting)} />
+                  </>
+                )}
+                {!!breakdown.represented && <Row label="Represented owners" value={fmt(breakdown.represented)} />}
               </div>
             )}
             <Row
@@ -311,6 +331,8 @@ export default function Locker() {
               </Button>
             </span>
           </Card>
+
+          <BondedDelegationCards address={address} bonded={bonded} />
 
           <Card>
             <p className="text-base font-semibold text-neutral-800">Your locks</p>

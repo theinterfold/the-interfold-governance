@@ -60,6 +60,12 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     ///      and the app's tally rendering together.
     uint256 internal constant NUM_OPTIONS = 3;
 
+    /// @notice The encryption scheme and circuit version that the coordinator hashes into a crypto
+    ///         config id, as `ActiveCryptoConfig.ENCRYPTION_SCHEME_ID` and `CIRCUIT_VERSION` in the
+    ///         Interfold contracts. See `_buildRequestParams`.
+    bytes32 internal constant ENCRYPTION_SCHEME_ID = keccak256("fhe.rs:BFV");
+    bytes32 internal constant CIRCUIT_VERSION = keccak256("interfold-bfv-v3");
+
     /// @notice The interface id for the Crisp Voting plugin
     bytes4 internal constant CRISP_VOTING_INTERFACE_ID = this.initialize.selector ^ this.minProposerVotingPower.selector
         ^ this.minVoterVotingPower.selector ^ this.totalVotingPower.selector ^ this.getVotingToken.selector
@@ -732,11 +738,16 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
             // the protocol fails the request rather than spending an asset the plugin never
             // reserved.
             expectedFeeToken: interfoldFeeToken,
-            // Read live, so a circuit-config change does not block proposals. That makes the
-            // assertion tautological: it cannot detect the change it exists to catch. Pinning an
-            // expected id at install time would restore it, at the cost of a reconfiguration step
-            // after every legitimate circuit upgrade.
-            expectedCryptoConfigId: interfold.activeCryptoConfigId(),
+            // `request` accepts this only when it equals the id of the requested parameter set
+            // (`ActiveCryptoConfig.configIdForParamSet`). `activeCryptoConfigId()` cannot stand in for
+            // it: it reports one fixed configuration on every chain, so a plugin on the insecure set
+            // would assert the secure id and every request would revert `CryptoConfigChanged`. The id
+            // hashes the parameter bytes the coordinator registered for `paramSet` with the circuit
+            // version this plugin was built for, so a circuit-version change on the protocol stops
+            // new requests until the plugin is upgraded.
+            expectedCryptoConfigId: keccak256(
+                abi.encode(ENCRYPTION_SCHEME_ID, keccak256(interfold.paramSetRegistry(paramSet)), CIRCUIT_VERSION)
+            ),
             // Unbounded here because `_buildRequestParams` also feeds `quoteProposalFee`, where
             // nothing is charged and the limit is not checked. `createProposal` tightens it to the
             // quoted fee before requesting.

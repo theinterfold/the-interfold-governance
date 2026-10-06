@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, testnet]
 
 # A new push to the same branch supersedes the previous run.
 concurrency:

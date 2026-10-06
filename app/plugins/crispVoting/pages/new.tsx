@@ -8,6 +8,7 @@ import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewAct
 import { Else, ElseIf, If, Then } from "@/components/if";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
+import { AddressText } from "@/components/text/address";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { downloadAsFile } from "@/utils/download-as-file";
 import { encodeActionsAsJson } from "@/utils/json-actions";
@@ -332,6 +333,14 @@ const PlaceHolderOr = ({
         {/* No tokens at all */}
         <MissingContentView>
           You cannot create a proposal because your account holds no FOLD voting tokens.
+        </MissingContentView>
+      </ElseIf>
+      <ElseIf true={!state.canCreate && !!state.bondedDelegate}>
+        {/* The bonded voting power counts for a delegate, and delegation to self cannot bring it back. */}
+        <MissingContentView>
+          You do not have enough voting power to create a proposal. Your bonded voting power votes through{" "}
+          <AddressText bold={false}>{state.bondedDelegate}</AddressText>. To use it yourself, stop the delegation on the
+          Voting power page.
         </MissingContentView>
       </ElseIf>
       <ElseIf true={!state.canCreate}>
