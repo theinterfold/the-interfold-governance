@@ -64,7 +64,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     ///         config id, as `ActiveCryptoConfig.ENCRYPTION_SCHEME_ID` and `CIRCUIT_VERSION` in the
     ///         Interfold contracts. See `_buildRequestParams`.
     bytes32 internal constant ENCRYPTION_SCHEME_ID = keccak256("fhe.rs:BFV");
-    bytes32 internal constant CIRCUIT_VERSION = keccak256("interfold-bfv-v3");
+    bytes32 internal constant CIRCUIT_VERSION = keccak256("interfold-bfv-v4");
 
     /// @notice The interface id for the Crisp Voting plugin
     bytes4 internal constant CRISP_VOTING_INTERFACE_ID = this.initialize.selector ^ this.minProposerVotingPower.selector

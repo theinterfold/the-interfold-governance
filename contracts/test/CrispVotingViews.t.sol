@@ -285,7 +285,7 @@ contract CrispVotingViewsTest is Test {
     ///      `activeCryptoConfigId()` returns the secure id on every chain, so a plugin that asserted
     ///      it on the insecure set had every Sepolia request revert `CryptoConfigChanged`. The
     ///      encodings are the protocol's `BFV_PARAMS`, and the expected ids are its
-    ///      `INSECURE_CONFIG_ID` and `SECURE_CONFIG_ID` for circuit version `interfold-bfv-v3`.
+    ///      `INSECURE_CONFIG_ID` and `SECURE_CONFIG_ID` for circuit version `interfold-bfv-v4`.
     function test_requestAssertsTheCryptoConfigOfItsParameterSet() public {
         uint256[] memory insecureModuli = new uint256[](2);
         insecureModuli[0] = 0xffffee001;
@@ -293,32 +293,32 @@ contract CrispVotingViewsTest is Test {
         interfold.setParamSet(0, abi.encode(BfvParams(512, 100, insecureModuli, "3")));
 
         uint256[] memory secureModuli = new uint256[](3);
-        secureModuli[0] = 0x02000000015a0001;
-        secureModuli[1] = 0x0200000001460001;
-        secureModuli[2] = 0x0200000001210001;
+        secureModuli[0] = 0x0400000000c00001;
+        secureModuli[1] = 0x0400000000a40001;
+        secureModuli[2] = 0x0400000000990001;
         interfold.setParamSet(
-            1, abi.encode(BfvParams(8192, 1000000, secureModuli, "18148392902450051384713312396360971277653333"))
+            2, abi.encode(BfvParams(8192, 1000000, secureModuli, "17723039943798878305460955570711717478400"))
         );
 
         _create();
         assertEq(interfold.lastParamSet(), 0);
         assertEq(
             interfold.lastExpectedCryptoConfigId(),
-            0x20d76557cc2aee078754ad9a563d61d0697809da363f1979895ec15f6ea30db9,
+            0x119c9bde7d7a31aaeef3e696ea29f8590c611d431921b6981434bd2c0fb5f7d1,
             "insecure-512 config id"
         );
 
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 1, bytes(""));
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 2, bytes(""));
         spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
         _depositAs(creator, 100 ether);
         vm.prank(sppAddr);
         plugin.createProposal(
             abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
-        assertEq(interfold.lastParamSet(), 1);
+        assertEq(interfold.lastParamSet(), 2);
         assertEq(
             interfold.lastExpectedCryptoConfigId(),
-            0x3115e08eb5c87d6d245eda5dff0cf377c42e29b9741f94fc7a83efc3da7da920,
+            0x5ebb3432396f21cd97fca47e006b9dd38c021bf2902d3e555cf74cb91b28e44e,
             "secure-8192 config id"
         );
     }
