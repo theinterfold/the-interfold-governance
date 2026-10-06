@@ -28,8 +28,12 @@ const UrlRegex = new RegExp(URL_PATTERN);
  * try/catch, so eth_estimateGas converges on a limit where the CRISP sub-proposal (E3 request
  * included) runs out of gas, gets swallowed, and the outer tx still "succeeds". Over-provision
  * instead of trusting the estimate; unused gas is refunded.
+ *
+ * On Sepolia, where EIP-8037 makes new storage slots much more expensive, the sub-proposal needs a
+ * limit of at least 13.3M gas (12.7M used, 10M of it in the E3 request). The limit stays below
+ * 2^24 (16,777,216) gas because EIP-7825 rejects a higher limit on chains without EIP-8037.
  */
-const CREATE_PROPOSAL_GAS_LIMIT = 5_000_000n;
+const CREATE_PROPOSAL_GAS_LIMIT = 16_000_000n;
 
 export function useCreateProposal() {
   const { push } = useRouter();
