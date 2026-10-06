@@ -141,10 +141,13 @@ contract MockInterfold {
         return feeTokenAddr;
     }
 
-    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin now reads
-    ///         when building request params. Without it the call reverts and every proposal path
-    ///         fails, which is how its absence first showed up.
-    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+    /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping. The plugin hashes the
+    ///         bytes registered for its parameter set into the crypto config id it asserts.
+    mapping(uint8 => bytes) public paramSetRegistry;
+
+    function setParamSet(uint8 paramSet, bytes calldata encodedParams) external {
+        paramSetRegistry[paramSet] = encodedParams;
+    }
 
     /// @notice The last request's asserted fee limits, so tests can pin what the plugin promises.
     address public lastExpectedFeeToken;

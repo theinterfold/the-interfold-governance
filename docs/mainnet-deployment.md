@@ -412,11 +412,17 @@ all history are untouched.
 
 ### Preconditions
 
-- [ ] Mainnet Interfold E3 coordinator deployed; `INTERFOLD_ADDRESS` set.
-- [ ] Mainnet CRISP program deployed; `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the
-      program the CRISP server requests E3s against**.
-- [ ] Ciphernode set live; `COMMITTEE_SIZE` and `PARAM_SET` confirmed against that stack (the
-      template's values are carried over from testnet).
+- [ ] Mainnet Interfold E3 coordinator on the v3 crypto configuration: the Interfold repo's
+      `upgrade:secure-crisp` batch executed and validated, so `activeCryptoConfigId()` returns
+      `0x3115e08eb5c87d6d245eda5dff0cf377c42e29b9741f94fc7a83efc3da7da920`. `INTERFOLD_ADDRESS` set.
+- [ ] Mainnet CRISP program deployed from the same Interfold source as the `@crisp-e3` release that
+      the CRISP server and the app use, and registered (`e3Programs(program)` returns `true`).
+      `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server requests
+      E3s against**.
+- [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
+      In the existing mainnet repo that is build 3 ([why](./publish-crisp-build.md#why-build-3)).
+- [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
+      and `PARAM_SET=1` (secure-8192): the mainnet policy rejects other values.
 - [ ] CRISP server configured for mainnet, and its vote-scaling factor matches
       `CrispVoting._tallyScale()` and the app — a three-way sync
       ([INV-16](../AGENTS.md#cross-boundary-sync-contract--server--app)).

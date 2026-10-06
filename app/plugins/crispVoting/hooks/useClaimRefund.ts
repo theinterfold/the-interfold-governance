@@ -47,7 +47,10 @@ const refundManagerAbi = parseAbi([
  *
  *   1. `markE3Failed(e3Id)` moves the round from its stalled stage into `Failed`. Interfold never
  *      does this itself — it is a permissionless call someone must send once a stage deadline
- *      passes, so a round whose DKG timed out days ago still reads as live until then.
+ *      passes, so a round whose DKG timed out days ago still reads as live until then. While
+ *      Interfold's `markFailedGracePeriod` runs after that deadline, only the requester, the
+ *      protocol owner or a committee member may send it; anyone else reverts
+ *      `MarkE3FailedInGracePeriod` and must retry once the grace period ends.
  *   2. `processE3Failure(e3Id)` transfers the payment to the refund manager and calculates the
  *      distribution. Without it `claimRequesterRefund` reverts with `RefundNotCalculated`.
  *   3. `claimRefund(proposalId)` on the plugin, which credits the recorded `proposalPayer`.
@@ -58,7 +61,8 @@ const refundManagerAbi = parseAbi([
  *
  * Step 3 is permissionless by design — the refund manager only ever pays the requester (the
  * plugin), and the plugin credits the recorded payer — so the caller gains nothing by claiming on
- * someone else's behalf. Steps 1 and 2 are permissionless in Interfold for the same reason.
+ * someone else's behalf. Steps 1 and 2 are permissionless in Interfold for the same reason (step 1
+ * only after its grace period).
  */
 export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | undefined, enabled = true) {
   const { address } = useAccount();

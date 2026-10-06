@@ -10,7 +10,7 @@ The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
 ## What this does, and what it does not
 
-Publishes a new **build** (release 1, build 2) of the CRISP plugin into the repo that already
+Publishes a new **build** (release 1, build 3) of the CRISP plugin into the repo that already
 exists at `interfold-crisp.plugin.dao.eth`. A build is a new `CrispVotingSetup` plus the
 `CrispVoting` implementation it pins.
 
@@ -19,6 +19,29 @@ point at their own implementation and are untouched. Installing the new build in
 separate, later step (see [After execution](#after-execution)).
 
 It does **not** mint a repo. The repo exists — see the warning below.
+
+## Why build 3
+
+Build 3 contains the current `CrispVoting` source of this repository. Each E3 request carries the
+crypto config id that the plugin expects. Build 3 calculates this id from the requested parameter
+set and the circuit version that it pins:
+
+```solidity
+keccak256(abi.encode(
+    keccak256("fhe.rs:BFV"),
+    keccak256(interfold.paramSetRegistry(paramSet)),
+    keccak256("interfold-bfv-v3")
+))
+```
+
+Interfold accepts a request only when this id is the id of the requested parameter set. Build 3
+therefore needs the Interfold v3 upgrade (see [Open items](#open-items-outside-this-batch)). If the
+protocol changes its circuit version again, new requests stop until the DAO updates the plugin.
+
+Build 2 sends `interfold.activeCryptoConfigId()`. After the v3 upgrade, that function returns the
+secure id on every chain. On mainnet (`PARAM_SET=1`) the check therefore always passes, and it
+cannot detect a circuit change. On the insecure set (`PARAM_SET=0`) every request reverts with
+`CryptoConfigChanged`.
 
 ## Do not use `make safe-create-repo` for this
 
@@ -42,8 +65,9 @@ same batch as well — a wasted signing round, not a partial success. Use
 | CRISP plugin repo | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
 | Foundation Safe (signer) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
 | CREATE2 deployer | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
-| New `CrispVoting` implementation | `0xb3d51BDe9cB8401cE9C630448Da2619279eF97DA` |
-| New `CrispVotingSetup` | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
+| New `CrispVoting` implementation (build 3) | `0x3fEa2cF187Eb48555FDBD699a7be754ED1b1f6E1` |
+| New `CrispVotingSetup` (build 3) | `0x96C2CcAC29D6120b93Db2fBaaD7b6be360D69CaD` |
+| Current `CrispVotingSetup` (build 2) | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
 
 The repo address is not in any receipt — it was resolved from ENS:
 
@@ -117,8 +141,8 @@ checkable in advance.
 1. **Both target addresses are empty.** If either already holds code the batch reverts:
 
    ```bash
-   cast codesize 0xb3d51BDe9cB8401cE9C630448Da2619279eF97DA --rpc-url "$RPC_URL"   # expect 0
-   cast codesize 0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B --rpc-url "$RPC_URL"   # expect 0
+   cast codesize 0x3fEa2cF187Eb48555FDBD699a7be754ED1b1f6E1 --rpc-url "$RPC_URL"   # expect 0
+   cast codesize 0x96C2CcAC29D6120b93Db2fBaaD7b6be360D69CaD --rpc-url "$RPC_URL"   # expect 0
    ```
 
 2. **tx2 decodes to the setup from tx1.** The setup address must appear in the `createVersion`
@@ -132,22 +156,32 @@ checkable in advance.
 3. **The release is 1** — publishing under a different release creates a parallel line rather than
    the next build.
 
-4. **Current state is release 1, build 1**, so this publishes build 2:
+4. **Current state is release 1, build 2**, so this publishes build 3:
 
    ```bash
    cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 \
-     'buildCount(uint8)(uint16)' 1 --rpc-url "$RPC_URL"   # expect 1 before, 2 after
+     'buildCount(uint8)(uint16)' 1 --rpc-url "$RPC_URL"   # expect 2 before, 3 after
    ```
 
-This batch was simulated against a mainnet fork, executed as the Safe: all three calls succeed and
-`buildCount(1)` goes `1 → 2`.
+5. **The implementation pins circuit version `interfold-bfv-v3`.** tx0 carries the `CrispVoting`
+   initcode, which contains `keccak256("interfold-bfv-v3")`:
+
+   ```bash
+   cast keccak interfold-bfv-v3
+   # -> 0x40c214c1c8d701e4186f06e5dd97b31fe3f009e937df359826a4fc94f96387fe
+   jq -r '.transactions[0].data' safe-actions/12-publish-crisp-build.json \
+     | grep -c 40c214c1c8d701e4186f06e5dd97b31fe3f009e937df359826a4fc94f96387fe   # expect 1
+   ```
+
+This batch was simulated on a mainnet fork on 2026-10-05, executed as the Safe. All three calls
+succeed, `buildCount(1)` goes `2 → 3`, and the new implementation contains the v3 constant.
 
 ---
 
 ## After execution
 
 1. **Read the new build number** from the `VersionCreated` event in the receipt — expect
-   `release 1, build 2`. Confirm on chain:
+   `release 1, build 3`. Confirm on chain:
 
    ```bash
    cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 \
@@ -156,33 +190,52 @@ This batch was simulated against a mainnet fork, executed as the Safe: all three
 
 2. **Confirm code** at both CREATE2 addresses (non-zero).
 
-3. **Set `CRISP_BUILD=2`** in `contracts/.env.mainnet` — it still reads `1`.
+3. **Set `CRISP_BUILD=3`** in `contracts/.env.mainnet`.
 
 4. **Point the app at the new build**: `crispPlugin.installVersion` in the Aragon app config. The
    app and the published build must agree — `CrispVotingSetup` decodes the installation params, so
    an app pointing at a build whose setup decodes a different tuple will fail to install.
 
 5. **Installing into a DAO is a separate step.** It needs `CRISP_INSTALL_DATA`, produced by
-   `make print-crisp-install-data`, which requires `CRISP_PROGRAM_ADDRESS` — still empty in
-   `contracts/.env.mainnet`. Once that address exists, follow
-   [`production-multisig-install.md`](./production-multisig-install.md) from step 3.
+   `make print-crisp-install-data`, which requires `CRISP_PROGRAM_ADDRESS`. That address must be a
+   new CRISP program (see [Open items](#open-items-outside-this-batch)). For the mainnet DAO, follow
+   [`private-install-runbook.md`](./private-install-runbook.md).
 
-## Open item, unrelated to this batch
+## Open items outside this batch
 
-Mainnet `Interfold` (`0x28cF63B459e6218C69EA97ea7D90541cf648c715`) currently returns the
-**insecure** crypto config id:
+Both items belong to a separate repository (`theinterfold/interfold`). Build 3 cannot request an E3
+until both are done.
+
+### Interfold v3 upgrade
+
+Mainnet `Interfold` (`0x28cF63B459e6218C69EA97ea7D90541cf648c715`) still uses the crypto
+configuration from before v3:
 
 ```bash
 cast call 0x28cF63B459e6218C69EA97ea7D90541cf648c715 \
   'activeCryptoConfigId()(bytes32)' --rpc-url "$RPC_URL"
-# -> 0x04f3677e73b0f5066d6caf5cbd92e3fb2e38338edaf5cfc971ab28f7b684da78  (INSECURE_CONFIG_ID)
+# -> 0xd9c86e581f8291ffb5b63595600e8d096ed30b16e2e0a6634a76c22b1f58fb4e  (secure, before v3)
 ```
 
-Mainnet permits only `SECURE_PARAM_SET`, so `validateQuoteLimit` compares this against
-`configIdForParamSet(1)` = `SECURE_CONFIG_ID` and every E3 request would revert
-`CryptoConfigChanged`. It is currently masked because `requestsPaused = true`.
+Build 3 sends the v3 secure id, `0x3115e08eb5c87d6d245eda5dff0cf377c42e29b9741f94fc7a83efc3da7da920`.
+Until the upgrade, each build 3 request reverts with `CryptoConfigChanged`. Requests are paused
+(`requestsPaused()` is `true`), so no request fails today.
 
-This needs an `Interfold` implementation upgrade through its ProxyAdmin
-(`0xB3985D7fF844FA0F5E0aaC5feb5DD8BE15e88580`, owner `0x652a31c669f9AB37f6040f279139a75D04F2679e`)
-before requests are unpaused. It is a **separate repository** (`theinterfold/interfold`) and a
-separate Safe batch — not part of this one.
+The upgrade goes through the `Interfold` ProxyAdmin (`0xB3985D7fF844FA0F5E0aaC5feb5DD8BE15e88580`,
+owner `0x652a31c669f9AB37f6040f279139a75D04F2679e`). In the Interfold repository, generate the batch
+with:
+
+```bash
+pnpm --dir packages/interfold-contracts upgrade:secure-crisp -- --network mainnet
+```
+
+The same batch registers and binds the CRISP program recorded for mainnet. The "Deploying" section
+of `examples/CRISP/RELEASING.md` in that repository gives the validation and unpause steps.
+
+### New CRISP program
+
+Interfold registers `0x53FCdb21E73A461CfE6c64B19855204384B91BA3` as the CRISP program. Its vote-proof
+verifiers come from an older circuit generation, so it cannot verify proofs from `@crisp-e3` 0.24.0.
+Deploy a new CRISP program before you generate the upgrade batch. Record it for mainnet in
+`examples/CRISP/packages/crisp-contracts/deployed_contracts.json`, because the batch registers the
+address recorded there.

@@ -138,7 +138,7 @@ foundation window) rather than Sepolia's testing values. Every address in it was
 
 ```bash
 cd contracts
-cp .env.mainnet.example .env.mainnet   # then fill the four TODO(mainnet) entries
+cp .env.mainnet.example .env.mainnet   # then fill the TODO(mainnet) entries
 
 make predeploy ENV_FILE=.env.mainnet
 make deploy    ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
@@ -146,9 +146,10 @@ make sync-env  ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
 make wire-spp  ENV_FILE=.env.mainnet
 ```
 
-Four things must be filled before phase 1 can run — the template marks each `TODO(mainnet)`:
-`FOLD_TOKEN_ADDRESS`, `FOUNDATION_ADDRESS` (**a multisig, never an EOA**), and — for phase 2 only —
-`INTERFOLD_ADDRESS` and `CRISP_PROGRAM_ADDRESS`.
+The template marks each value that you must fill with `TODO(mainnet)`. Phase 1 needs
+`FOLD_TOKEN_ADDRESS` and `FOUNDATION_ADDRESS` (**a multisig, never an EOA**). Phase 2 also needs
+`CRISP_PROGRAM_ADDRESS`, a new mainnet CRISP program. `INTERFOLD_ADDRESS` is prefilled with the
+mainnet coordinator.
 
 Phase 2 (`publish-crisp-repo` → `prepare-private-process` → `install-private-process`) and phase 3
 (`disarm-admin`) are commands too. **Disarming is never bundled into a deploy or an install** — it

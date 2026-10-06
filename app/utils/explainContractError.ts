@@ -62,6 +62,11 @@ const EXPLANATIONS: Record<string, ErrorExplanation> = {
     title: "This round is already marked as failed",
     detail: "Someone has already recorded the failure — continue with the remaining settlement steps.",
   },
+  "0x9352e23c": {
+    title: "The round cannot be marked as failed yet",
+    detail:
+      "After a deadline passes, Interfold gives the requester and the committee a grace period to act first. When it ends, anyone can mark the round as failed. Try again later.",
+  },
   "0x4cc9c0f4": {
     title: "The voting window is outside the allowed range",
     detail: "The requested start or duration does not satisfy the round's minimum voting period.",

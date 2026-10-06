@@ -112,9 +112,9 @@ contract MockInterfold {
         e3RefundManager = address(new MockRefundManager(MockFeeToken(_feeToken)));
     }
 
-    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin reads when
-    ///         building request params. Absent, every proposal path reverts.
-    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+    /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping, which the plugin reads
+    ///         when building request params. Absent, every proposal path reverts.
+    mapping(uint8 => bytes) public paramSetRegistry;
 
     function feeToken() external view returns (address) {
         return feeTokenAddr;
