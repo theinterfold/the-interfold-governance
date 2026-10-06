@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { PUB_CHAIN } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
-import { useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useConfig, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { decodeTxError } from "@/utils/tx-errors";
+import { rememberSentTx, waitForWalletSync } from "@/utils/wallet-sync";
 
 export type TxLifecycleParams = {
   onSuccessMessage?: string;
@@ -14,9 +16,31 @@ export type TxLifecycleParams = {
 
 export function useTransactionManager(params: TxLifecycleParams) {
   const { onSuccess, onError } = params;
-  const { writeContract, writeContractAsync, data: hash, error, status } = useWriteContract();
+  const config = useConfig();
+  const {
+    writeContract: send,
+    writeContractAsync: sendAsync,
+    data: hash,
+    error,
+    status,
+  } = useWriteContract({ mutation: { onSuccess: (sentHash) => rememberSentTx(config, sentHash) } });
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
   const { addAlert } = useAlerts();
+
+  // Each send first waits until the wallet's node has the account's previous transaction mined.
+  const writeContract = useCallback(
+    (...args: Parameters<typeof send>) => {
+      void waitForWalletSync(config, PUB_CHAIN.id).then(() => send(...args));
+    },
+    [config, send]
+  ) as typeof send;
+  const writeContractAsync = useCallback(
+    async (...args: Parameters<typeof sendAsync>) => {
+      await waitForWalletSync(config, PUB_CHAIN.id);
+      return sendAsync(...args);
+    },
+    [config, sendAsync]
+  ) as typeof sendAsync;
 
   useEffect(() => {
     if (status === "idle" || status === "pending") {
