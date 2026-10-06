@@ -12,8 +12,11 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 // token directly reports zero weight for an operator who has bonded everything — while that same
 // FOLD still counts in the quorum denominator.
 //
-// Reads only. It holds no delegation state: `delegate()` reverts `DelegationNotSupported`, and it
-// emits no `DelegateChanged`, so delegation and the delegate list must stay on the token itself.
+// Wallet and escrowed FOLD do not delegate here: `delegate()` reverts `DelegationNotSupported`, and
+// the adapter emits no `DelegateChanged`. Its only delegation is bonded delegation, which gives an
+// owner's bonded (and, under the escrow, vesting) FOLD to one delegate: `delegateBonded` asks,
+// `acceptBonded` moves the weight, `dropBonded` returns it. Adapters deployed before bonded
+// delegation lack those functions, so `useBondedDelegation` probes for them and hides the controls.
 //
 // Falls back to the token when unset, which keeps the app working against a deployment that has
 // no adapter — it just cannot see bonded weight.
@@ -120,6 +123,11 @@ export const PUB_VE_LOCKER_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_VE_
 /** Where `DelegateChanged` history starts, for whichever contract actually emits it. */
 export const PUB_DELEGATION_DEPLOYMENT_BLOCK =
   (PUB_ENABLE_LOCKING && PUB_VE_LOCKER_DEPLOYMENT_BLOCK) || PUB_TOKEN_DEPLOYMENT_BLOCK;
+// Block the BondedVotes adapter was deployed at — where the scan for bonded delegation requests
+// starts. Falls back to the token's block when unset, which is correct but scans history that
+// cannot contain a request.
+export const PUB_BONDED_VOTES_DEPLOYMENT_BLOCK =
+  Number(process.env.NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK ?? 0) || PUB_TOKEN_DEPLOYMENT_BLOCK;
 export const PUB_APP_NAME = "Interfold Governance";
 export const PUB_APP_DESCRIPTION =
   "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";

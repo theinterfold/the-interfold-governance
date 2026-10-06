@@ -50,11 +50,14 @@ export default function Proposals() {
     .filter((v): v is bigint => v !== undefined)
     .reduce<bigint | undefined>((min, v) => (min === undefined || v < min ? v : min), undefined);
   const needsDelegation = privateCreate.needsDelegation || publicCreate.needsDelegation;
+  const bondedAway = !!(privateCreate.bondedDelegate ?? publicCreate.bondedDelegate);
   const ineligibleReason = needsDelegation
     ? `You hold ${PUB_TOKEN_SYMBOL} but haven't delegated your voting power. Delegate (even to yourself) to submit proposals.`
-    : minPower !== undefined && decimals !== undefined
-      ? `Submitting proposals requires at least ${formatUnits(minPower, decimals)} ${PUB_TOKEN_SYMBOL} of delegated voting power.`
-      : `Your delegated voting power is below the minimum required to submit proposals.`;
+    : bondedAway
+      ? "Your bonded voting power votes through a delegate. To use it yourself, stop the delegation on the Voting power page."
+      : minPower !== undefined && decimals !== undefined
+        ? `Submitting proposals requires at least ${formatUnits(minPower, decimals)} ${PUB_TOKEN_SYMBOL} of delegated voting power.`
+        : `Your delegated voting power is below the minimum required to submit proposals.`;
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const [entries, setEntries] = useState<Entry[]>([]);
