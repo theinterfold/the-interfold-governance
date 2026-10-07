@@ -1,5 +1,7 @@
-import { Button, DialogContent, DialogHeader, DialogRoot } from "@aragon/ods";
+import { useRef } from "react";
 import { formatUnits } from "viem";
+import { ActionTray } from "@/plugins/velocker/components/actionTray";
+import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { formatWeightShare, type WeightConfirmation } from "../../utils/ballotWeight";
 
@@ -13,40 +15,49 @@ interface WeightConfirmDialogProps {
 /**
  * Shows the random weight drawn for a ballot, and asks the voter to accept it before the ballot is
  * encrypted and signed.
+ *
+ * The question arrives after the review tray has closed, so there is no control to morph from: the
+ * tray opens in place.
  */
-export const WeightConfirmDialog = ({ confirmation, onAnswer }: WeightConfirmDialogProps) => (
-  <DialogRoot open={confirmation !== null} containerClassName="!max-w-[520px]">
-    <DialogHeader
+export const WeightConfirmDialog = ({ confirmation, onAnswer }: WeightConfirmDialogProps) => {
+  const noTrigger = useRef<HTMLElement>(null);
+
+  return (
+    <ActionTray
+      open={confirmation !== null}
       title="Confirm your ballot"
-      onCloseClick={() => onAnswer(false)}
-      onBackClick={() => onAnswer(false)}
-    />
-    <DialogContent className="flex flex-col gap-y-4">
+      pending={false}
+      triggerRef={noTrigger}
+      onClose={() => onAnswer(false)}
+      className="ballot-review"
+    >
       {confirmation && (
-        <>
-          <p className="text-sm text-neutral-500">
+        <div className="ballot-review-body">
+          <p className="ballot-review-proposal">
             Your ballot counts a random 99–100% of your voting power, not all of it. This helps protect your privacy.
           </p>
-          <div className="border px-4 py-3" style={{ borderColor: "var(--rule)", background: "var(--mint-pale)" }}>
-            <p className="text-2xl text-neutral-800">{formatWeightShare(confirmation.weight, confirmation.power)}</p>
-            <p className="font-mono text-sm text-neutral-600">
-              {/* Ballot units are scaled by 10^(decimals-1); one decimal place restores tokens. */}
-              {formatUnits(confirmation.weight, 1)} of {formatUnits(confirmation.power, 1)} {PUB_TOKEN_SYMBOL}
-            </p>
+          <div className="ballot-review-summary">
+            <div className="ballot-review-row">
+              <span>Counted weight</span>
+              <strong>{formatWeightShare(confirmation.weight, confirmation.power)}</strong>
+            </div>
+            <div className="ballot-review-row">
+              <span>Voting power</span>
+              <strong>
+                {/* Ballot units are scaled by 10^(decimals-1); one decimal place restores tokens. */}
+                {formatUnits(confirmation.weight, 1)} of {formatUnits(confirmation.power, 1)} {PUB_TOKEN_SYMBOL}
+              </strong>
+            </div>
           </div>
-          <p className="text-xs text-neutral-500">
+          <p className="ballot-review-proposal">
             To count all of your voting power, cancel and clear &ldquo;Count a random 99–100% of my voting power&rdquo;.
           </p>
-          <div className="flex flex-wrap items-center justify-end gap-3 pb-6 pt-2">
-            <Button size="md" variant="tertiary" onClick={() => onAnswer(false)}>
-              Cancel
-            </Button>
-            <Button size="md" variant="primary" onClick={() => onAnswer(true)}>
-              Continue
-            </Button>
-          </div>
-        </>
+          <PowerAction intent="vote" onClick={() => onAnswer(true)}>
+            Continue
+          </PowerAction>
+          <PowerAction onClick={() => onAnswer(false)}>Cancel</PowerAction>
+        </div>
       )}
-    </DialogContent>
-  </DialogRoot>
-);
+    </ActionTray>
+  );
+};

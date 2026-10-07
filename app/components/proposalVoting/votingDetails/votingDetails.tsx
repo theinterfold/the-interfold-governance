@@ -22,14 +22,14 @@ export const VotingDetails: React.FC<IVotingDetailsProps> = (props) => {
         <DefinitionList.Container className="">
           <If true={startDate}>
             <DefinitionList.Item term="Starting" className="!gap-y-1 *:text-neutral-500">
-              <div className="w-full text-neutral-800 md:text-right">{startDate}</div>
+              <div className="w-full text-neutral-800">{startDate}</div>
             </DefinitionList.Item>
           </If>
           <DefinitionList.Item term="Ending" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{endDate}</div>
+            <div className="w-full text-neutral-800">{endDate}</div>
           </DefinitionList.Item>
           <DefinitionList.Item term="Census Snapshot" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">
+            <div className="w-full text-neutral-800">
               <If true={!!snapshotBlockURL}>
                 <Then>
                   <Link iconRight={IconType.LINK_EXTERNAL} href={snapshotBlockURL} target="_blank">
@@ -47,16 +47,16 @@ export const VotingDetails: React.FC<IVotingDetailsProps> = (props) => {
         <DefinitionList.Container>
           <If true={!!tokenAddress}>
             <DefinitionList.Item term="Token contract" className="!gap-y-1 *:text-neutral-500">
-              <div className="w-full text-ellipsis text-neutral-800 md:text-right">
+              <div className="w-full text-ellipsis text-neutral-800">
                 <AddressText>{tokenAddress}</AddressText>
               </div>
             </DefinitionList.Item>
           </If>
           <DefinitionList.Item term="Strategy" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{strategy}</div>
+            <div className="w-full text-neutral-800">{strategy}</div>
           </DefinitionList.Item>
           <DefinitionList.Item term="Voting options" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{options}</div>
+            <div className="w-full text-neutral-800">{options}</div>
           </DefinitionList.Item>
         </DefinitionList.Container>
       </div>

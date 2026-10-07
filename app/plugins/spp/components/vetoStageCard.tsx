@@ -126,18 +126,15 @@ export const VetoStageCard = ({
   };
 
   return (
-    <div className="vote-panel">
+    <div className="vote-panel proposal-stage-panel">
       <div className="vp-head">
         <h3>{approvalMode ? "Approval stage" : "Veto stage"}</h3>
-        <span className="vp-meta">{META_LABELS[status]}</span>
+        <span className={`badge ${BADGE_CLASSES[status]}`}>{META_LABELS[status]}</span>
       </div>
       <div className="vp-body">
-        <div className="flex items-center gap-3">
-          <span className={`badge ${BADGE_CLASSES[status]}`}>{META_LABELS[status]}</span>
-          <If true={status === "active" && !!vetoWindowEndsAt}>
-            <span className="text-sm text-neutral-500">Ends in {countdown}</span>
-          </If>
-        </div>
+        <If true={status === "active" && !!vetoWindowEndsAt}>
+          <span className="text-sm text-neutral-500">Ends in {countdown}</span>
+        </If>
 
         <p className="vp-note">
           <If true={status === "pending"}>

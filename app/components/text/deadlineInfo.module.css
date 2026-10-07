@@ -1,0 +1,23 @@
+.tooltip:global(.power-info-popover) {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  min-width: 180px;
+}
+.tooltip:global(.power-info-popover) dt {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.tooltip time {
+  display: grid;
+  gap: 4px;
+}
+.date {
+  color: var(--ink);
+  font: 600 14px/1.4 var(--font-sans);
+}
+.clock {
+  color: var(--muted);
+  font: 400 12px/1.5 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

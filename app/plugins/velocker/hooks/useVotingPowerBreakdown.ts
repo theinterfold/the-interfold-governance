@@ -10,6 +10,11 @@ export type VotingPowerBreakdown = VotingPowerSplit & {
   available: boolean;
   /** The address that votes with the account's own bonded and vesting FOLD, if any. */
   delegate?: Address;
+  /**
+   * The account's bonded FOLD whoever votes with it. `bonded` is absent while a delegate represents
+   * the account; the FOLD asset overview describes ownership, so it needs this one.
+   */
+  ownBonded?: bigint;
 };
 
 /**
@@ -61,5 +66,6 @@ export function useVotingPowerBreakdown(
     }),
     available,
     delegate: bonded.delegate,
+    ownBonded: bondedFold,
   };
 }

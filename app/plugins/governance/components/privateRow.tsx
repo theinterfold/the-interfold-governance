@@ -8,6 +8,7 @@ import { bodyStatusLabel, statusBucketOf } from "../utils/statusBucket";
 import { ProposalRow, rowTimingLabel } from "./proposalRow";
 
 import type { StatusBucket } from "../utils/statusBucket";
+import ProposalDetail from "@/plugins/crispVoting/pages/proposal";
 
 // Interfold earth-tone palette (matches the CRISP vote card option colors)
 const OPTION_COLORS = ["#2f8a4f", "#a84932", "#7a7d77", "#355a8a", "#8a6a40", "#5a4a8a", "#2f7a6a", "#9a7a30"];
@@ -16,11 +17,12 @@ interface PrivateRowProps {
   proposalId: bigint;
   /** Reports the resolved status bucket up to the list, which filters on it. */
   onStatus?: (bucket: StatusBucket | undefined) => void;
+  onSearchText?: (text: string) => void;
   hidden?: boolean;
 }
 
 /** `proposalId` is the SPP (staged process) proposal id; the CRISP sub-proposal id is resolved on-chain. */
-export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
+export function PrivateRow({ proposalId, onStatus, onSearchText, hidden }: PrivateRowProps) {
   const spp = useSppProposal("private", proposalId);
   const href = `#/proposals/private/${proposalId}`;
 
@@ -51,11 +53,13 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
   return (
     <PrivateRowBody
       href={href}
+      proposalId={proposalId}
       subProposalId={spp.subProposalId}
       metadataUri={spp.metadataUri}
       creator={spp.creator}
       spp={spp}
       onStatus={onStatus}
+      onSearchText={onSearchText}
       hidden={hidden}
     />
   );
@@ -63,19 +67,23 @@ export function PrivateRow({ proposalId, onStatus, hidden }: PrivateRowProps) {
 
 function PrivateRowBody({
   href,
+  proposalId,
   subProposalId,
   metadataUri,
   creator,
   spp,
   onStatus,
+  onSearchText,
   hidden,
 }: {
   href: string;
+  proposalId: bigint;
   subProposalId: bigint;
   metadataUri?: string;
   creator?: string;
   spp: ReturnType<typeof useSppProposal>;
   onStatus?: (bucket: StatusBucket | undefined) => void;
+  onSearchText?: (text: string) => void;
   hidden?: boolean;
 }) {
   const { proposal, totalVotingPower, e3Failed, status } = useProposal(subProposalId, { metadataUri, creator });
@@ -97,6 +105,13 @@ function PrivateRowBody({
     onStatus?.(bucket);
   }, [bucket, onStatus]);
 
+  const searchText = proposal
+    ? `${proposal.title ?? ""} ${proposal.summary ?? ""} ${proposal.creator ?? ""}`
+    : undefined;
+  useEffect(() => {
+    if (searchText !== undefined) onSearchText?.(searchText);
+  }, [searchText, onSearchText]);
+
   if (loading) {
     return (
       <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
@@ -113,10 +128,11 @@ function PrivateRowBody({
   const rightLabel = rowTimingLabel({ isActive, endMs: endDate, statusLabel });
 
   const bars =
-    totalVotes > 0n
-      ? options.map((_, i) => ({
+    proposal.isTallied && totalVotes > 0n
+      ? options.map((label, i) => ({
           width: Number(((tally[i] ?? 0n) * 10000n) / totalVotes) / 100,
           color: OPTION_COLORS[i % OPTION_COLORS.length],
+          label,
         }))
       : [];
 
@@ -129,8 +145,23 @@ function PrivateRowBody({
       creator={proposal.creator}
       statusLabel={statusLabel}
       statusClass={statusClass}
+      votingOpen={
+        isActive && !e3Failed && endDate > Date.now() && Number(proposal.parameters.startDate) * 1000 <= Date.now()
+      }
       rightLabel={rightLabel}
+      votingEndMs={endDate}
       bars={bars}
+      resultLabel={proposal.isTallied ? "Final vote share" : "Secret ballot"}
+      resultMessage={
+        e3Failed
+          ? "This voting round could not complete."
+          : !proposal.isTallied
+            ? "Results stay private until the tally is published."
+            : totalVotes === 0n
+              ? "No votes recorded."
+              : undefined
+      }
+      details={<ProposalDetail index={proposalId} embedded={true} />}
       hidden={hidden}
     />
   );

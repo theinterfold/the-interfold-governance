@@ -4,24 +4,21 @@ import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
 import { useReadContract } from "wagmi";
 import {
   MINIMUM_START_DELAY_IN_SECONDS,
-  PUB_APP_NAME,
   PUB_CHAIN,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_PROJECT_URL,
   PUB_SPP_PRIVATE_ADDRESS,
 } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
 import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
-import { URL_PATTERN } from "@/utils/input-values";
+import { validateProposalDetails } from "@/plugins/governance/utils/proposalValidation";
+import { useProposalDraft, type ProposalDraft } from "@/plugins/governance/hooks/useProposalDraft";
 import { uploadToPinata } from "@/utils/ipfs";
-import type { ProposalMetadata, RawAction } from "@/utils/types";
+import type { ProposalMetadata } from "@/utils/types";
 import { useFeeCredits } from "./useFeeCredits";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { scheduleVotingStart } from "../utils/votingSchedule";
-
-const UrlRegex = new RegExp(URL_PATTERN);
 
 /**
  * Explicit gas limit for SPP createProposal. The SPP wraps the body's sub-proposal creation in
@@ -35,17 +32,23 @@ const UrlRegex = new RegExp(URL_PATTERN);
  */
 const CREATE_PROPOSAL_GAS_LIMIT = 16_000_000n;
 
-export function useCreateProposal() {
+export function useCreateProposal(draft?: ProposalDraft) {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
-  const [title, setTitle] = useState<string>("");
-  const [summary, setSummary] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
-  const [actions, setActions] = useState<RawAction[]>([]);
-  const [resources, setResources] = useState<{ name: string; url: string }[]>([
-    { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
-  ]);
+  const localDraft = useProposalDraft();
+  const {
+    title,
+    summary,
+    description,
+    actions,
+    resources,
+    setTitle,
+    setSummary,
+    setDescription,
+    setActions,
+    setResources,
+  } = draft ?? localDraft;
 
   // The voting window is the stage-configured one (5 days on mainnet), never creator-chosen:
   // the SPP creates the sub-proposal with endDate = start + stage.voteDuration, and the
@@ -92,31 +95,14 @@ export function useCreateProposal() {
   });
 
   const submitProposal = async () => {
-    if (!title.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a title",
+    const [detailsError] = validateProposalDetails({ title, summary, resources });
+    if (detailsError) {
+      return addAlert("Check your proposal", {
+        description: detailsError.message,
         type: "error",
       });
     }
-    if (!summary.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a summary of what the proposal is about",
-        type: "error",
-      });
-    }
-    for (const item of resources) {
-      if (!item.name.trim()) {
-        return addAlert("Invalid resource name", {
-          description: "Please enter a name for all the resources",
-          type: "error",
-        });
-      } else if (!UrlRegex.test(item.url.trim())) {
-        return addAlert("Invalid resource URL", {
-          description: "Please enter valid URL for all the resources",
-          type: "error",
-        });
-      }
-    }
+
     if (durationSeconds === undefined) {
       return addAlert("Voting window unavailable", {
         description: "Could not read the stage voting window. Please try again.",

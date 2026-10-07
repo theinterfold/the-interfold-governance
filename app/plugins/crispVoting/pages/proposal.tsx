@@ -1,11 +1,11 @@
+import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
+import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
+import { e3RoundNumber } from "../utils/ballotDigest";
 import { useProposal } from "../hooks/useProposal";
 import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_ENABLE_LOCKING } from "@/constants";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
-import { BodySection } from "@/components/proposal/proposalBodySection";
 import { useProposalStatus } from "../hooks/useProposalStatus";
-import { ProposalActions } from "@/components/proposalActions/proposalActions";
-import { CardResources } from "@/components/proposal/cardResources";
 import type { Address } from "viem";
 import { ElseIf, If, Then } from "@/components/if";
 import { AlertCard, ProposalStatus } from "@aragon/ods";
@@ -15,8 +15,12 @@ import { ADDRESS_ZERO } from "@/utils/evm";
 import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useCanVote } from "../hooks/useCanVote";
+import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
+import { BallotEligibilityNotice } from "@/components/proposalVoting/ballotEligibility";
 import { VoteCard } from "../components/vote/voteCard";
-import { MaskTargetDialog } from "../components/vote/maskTargetDialog";
+import { PreparedVoteCard } from "../components/vote/preparedVoteCard";
+import { SubmittedVoteCard } from "../components/vote/submittedVoteCard";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { WeightConfirmDialog } from "../components/vote/weightConfirmDialog";
 import { UncountedFoldNotice } from "@/plugins/velocker/components/uncountedFoldNotice";
 import { useCrispServer } from "../hooks/useCrispServer";
@@ -34,7 +38,13 @@ import { SettlementProgressCard } from "../components/settlementProgressCard";
 const ZERO = BigInt(0);
 
 /** `index` is the SPP (staged process) proposal id; the CRISP sub-proposal id is resolved on-chain. */
-export default function ProposalDetail({ index: sppProposalId }: { index: bigint }) {
+export default function ProposalDetail({
+  index: sppProposalId,
+  embedded = false,
+}: {
+  index: bigint;
+  embedded?: boolean;
+}) {
   const spp = useSppProposal("private", sppProposalId);
 
   if (spp.subProposalFailed) {
@@ -46,31 +56,35 @@ export default function ProposalDetail({ index: sppProposalId }: { index: bigint
   }
   if (spp.subProposalId === undefined) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
-  return <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} />;
+  return (
+    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} />
+  );
 }
 
 function ProposalDetailBody({
   proposalIdx,
   sppProposalId,
   spp,
+  embedded,
 }: {
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
+  embedded: boolean;
 }) {
   const { address } = useAccount();
+  const { open: openWallet } = useWalletModal();
   // The CRISP server sends ballots by default. The voter can send from the wallet instead.
   const [submitOnChain, setSubmitOnChain] = useState(false);
   // A vote counts a random weight from the top percent of the voting power unless the voter
   // turns it off.
   const [randomWeight, setRandomWeight] = useState(true);
-  const [showMaskPicker, setShowMaskPicker] = useState(false);
   const {
     proposal,
     isCommitteeReady,
@@ -93,12 +107,19 @@ function ProposalDetailBody({
     onChainBlockedReason,
     pendingWeight,
     answerWeight,
+    preparedBallot,
+    preparedReceipt,
+    changePreparedVote,
+    prepareVote,
+    sendPreparedVote,
+    discardPreparedVote,
   } = useCrispServer(proposal?.e3Id);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
+  const snapshot = useSnapshotVotingPower(PUB_CRISP_VOTING_PLUGIN_ADDRESS, proposal?.parameters.snapshotBlock);
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const { status: proposalStatus } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
+  const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
 
   const results = useMemo(() => {
     if (!proposal || !proposal.options || !proposal.tally) return undefined;
@@ -113,22 +134,27 @@ function ProposalDetailBody({
     return proposal?.options ?? ["Yes", "No"];
   }, [proposal]);
 
-  const onVote = (optionIndex: number) => {
-    if (!proposal) {
-      return;
-    }
+  const onVote = async (optionIndex: number) => {
+    if (!proposal) return { success: false as const, error: "Proposal unavailable." };
 
-    postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain, {
+    return postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain, {
       randomWeight,
     });
   };
 
-  const onMask = (target?: Address) => {
-    if (!proposal) return;
+  const onMask = async (target?: Address) => {
+    if (!proposal) return { success: false as const, error: "Proposal unavailable." };
+
     // Mask uses the next index after the last option
-    postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain, {
+    return postVote(BigInt(options.length), proposal.e3Id, proposal.parameters.snapshotBlock, true, submitOnChain, {
       maskTarget: target,
     });
+  };
+
+  const onPrepare = async (optionIndex: number) => {
+    if (!proposal) return { success: false as const, error: "Proposal unavailable." };
+
+    return prepareVote(BigInt(optionIndex), proposal.parameters.snapshotBlock, { randomWeight });
   };
 
   // Without a voting escrow, wallet FOLD votes through the token's own delegation, so a balance
@@ -153,120 +179,160 @@ function ProposalDetailBody({
 
   if (!proposal || showProposalLoading) {
     return (
-      <section className="justify-left items-left flex w-screen min-w-full max-w-full">
+      <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
       </section>
     );
   }
 
   return (
-    <section className="flex w-screen min-w-full max-w-full flex-col items-center">
-      <ProposalHeader
-        proposalIdx={proposalIdx}
-        proposal={proposal}
-        isCommitteeReady={isCommitteeReady}
-        totalVotingPower={totalVotingPower}
-        e3Failed={e3Failed}
-      />
-
-      <div className="mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10">
-        <div className="flex w-full flex-col gap-x-12 gap-y-6 md:flex-row">
-          <div className="flex flex-col gap-y-6 md:w-[63%] md:shrink-0">
-            <BodySection body={proposal.description || "No description was provided"} />
-            {PUB_ENABLE_LOCKING ? (
-              <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
-            ) : (
-              <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
-                <NoVotePowerWarning
-                  delegatingToSomeoneElse={delegatingToSomeoneElse}
-                  delegatesTo={delegatesTo}
-                  delegatedToZero={delegatedToZero}
-                  address={address}
-                  canVote={!!canVote}
-                />
-              </If>
-            )}
-            {/* Voting lives in the main column, mirroring the public (TokenVoting) page layout. */}
-            {proposalStatus === ProposalStatus.ACTIVE && (
-              <VoteCard
-                error={voteBlockIsTimingOnly ? undefined : cannotVoteMessage}
-                notice={voteBlockIsTimingOnly ? cannotVoteMessage : undefined}
-                voteStartDate={Number(proposal?.parameters.startDate)}
-                voteEndDate={Number(proposal?.parameters.endDate)}
+    <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
+      <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
+        <ProposalDetailLayout
+          breadcrumb={!embedded && <ProposalBreadcrumb identifier={`E3 · ${e3RoundNumber(proposal.e3Id)}`} />}
+          header={
+            !embedded && (
+              <ProposalHeader
+                proposal={proposal}
                 isCommitteeReady={isCommitteeReady}
-                options={options}
-                disabled={!votingOpen || canVote === false}
-                maskDisabled={!votingOpen || !address}
-                isLoading={isLoading}
-                onClickVote={onVote}
-                canPublishOnChain={canPublishOnChain}
-                onChainBlockedReason={onChainBlockedReason}
-                submitOnChain={submitOnChain}
-                onChangeSubmitOnChain={setSubmitOnChain}
-                randomWeight={randomWeight}
-                onChangeRandomWeight={setRandomWeight}
-                onClickMask={() => setShowMaskPicker(true)}
-                proposalId={proposalIdx}
-                votingStep={votingStep}
-                lastActiveStep={lastActiveStep}
-                stepMessage={stepMessage}
-                txHash={txHash}
-              />
-            )}
-            <MaskTargetDialog
-              open={showMaskPicker}
-              onClose={() => setShowMaskPicker(false)}
-              onPick={(target) => {
-                setShowMaskPicker(false);
-                onMask(target);
-              }}
-              e3Id={proposal.e3Id}
-              exclude={address}
-            />
-            <WeightConfirmDialog confirmation={pendingWeight} onAnswer={answerWeight} />
-            {error && (
-              <div className="border border-critical-200 bg-critical-100 px-4 py-3">
-                <p className="text-sm text-critical-600 [overflow-wrap:anywhere]">{error}</p>
-              </div>
-            )}
-            {proposalStatus !== ProposalStatus.ACTIVE && (
-              <SettlementProgressCard
-                // Derive from the clock, not the status. A round whose voting has closed but which
-                // has no tally yet reads as PENDING — exactly the window this card explains — so
-                // gating on the status hid it precisely when it was needed.
-                votingClosed={Number(proposal.parameters.endDate) * 1000 < Date.now()}
-                isTallied={proposal.isTallied}
-                isDead={e3Failed || e3FailurePending}
-                inputDeadline={e3InputDeadline}
-              />
-            )}
-            {proposalStatus !== ProposalStatus.ACTIVE && (
-              <VoteResultCard
-                vetoStage={spp.vetoStage}
-                isSignalling={false}
-                proposalId={proposalIdx}
-                results={results}
-                isTallied={proposal.isTallied}
-                proposalStatus={proposalStatus}
-                minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
-                snapshotBlock={proposal.parameters.snapshotBlock}
-                numOptions={proposal.numOptions}
-                creditMode={proposal.parameters.creditMode}
+                totalVotingPower={totalVotingPower}
                 e3Failed={e3Failed}
-                e3FailureReason={e3FailureReason}
-                e3FailurePending={e3FailurePending}
               />
-            )}
-            {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
-            <ProposalActions actions={sppActions} />
-          </div>
-          <div className="flex flex-col gap-y-6 md:w-[33%]">
-            <VotingPower
-              snapshotTimepoint={proposal.parameters.snapshotBlock}
-              plugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
-            />
-            <ParticipationCard proposal={proposal} />
-            <ActivityCard e3Id={proposal.e3Id} />
+            )
+          }
+          description={proposal.description || "No description was provided"}
+          resources={proposal.resources}
+          actions={sppActions}
+          voting={
+            <>
+              {preparedBallot && (
+                <PreparedVoteCard
+                  ballot={preparedBallot}
+                  busy={isLoading}
+                  error={error}
+                  onSend={sendPreparedVote}
+                  onDiscard={discardPreparedVote}
+                />
+              )}
+              {preparedReceipt && !preparedBallot && (
+                <SubmittedVoteCard
+                  receipt={preparedReceipt}
+                  walletAddress={address}
+                  canChangeVote={proposalStatus === ProposalStatus.ACTIVE}
+                  onChangeVote={changePreparedVote}
+                  onSwitchWallet={openWallet}
+                />
+              )}
+              {proposalStatus === ProposalStatus.ACTIVE && !preparedBallot && !preparedReceipt && (
+                <VoteCard
+                  key={`${proposalIdx}-${address}`}
+                  votingPower={
+                    <VotingPower
+                      votingPlugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+                      snapshotTimepoint={proposal.parameters.snapshotBlock}
+                      compact={true}
+                    />
+                  }
+                  proposalTitle={proposal.title}
+                  creditMode={proposal.parameters.creditMode}
+                  e3Id={proposal.e3Id}
+                  walletAddress={address}
+                  eligibilityNotice={
+                    <BallotEligibilityNotice
+                      connected={!!address}
+                      canVote={canVote}
+                      votingPower={snapshot.votingPower}
+                      failed={snapshot.isError}
+                    />
+                  }
+                  notice={voteBlockIsTimingOnly ? cannotVoteMessage : undefined}
+                  voteStartDate={Number(proposal.parameters.startDate)}
+                  voteEndDate={Number(proposal.parameters.endDate)}
+                  isCommitteeReady={isCommitteeReady}
+                  options={options}
+                  disabled={!votingOpen}
+                  voteDisabled={canVote !== true}
+                  canMask={votingOpen && !!address}
+                  isLoading={isLoading}
+                  onClickVote={onVote}
+                  onClickMask={onMask}
+                  onPrepareVote={onPrepare}
+                  canPublishOnChain={canPublishOnChain}
+                  onChainBlockedReason={onChainBlockedReason}
+                  submitOnChain={submitOnChain}
+                  onChangeSubmitOnChain={setSubmitOnChain}
+                  randomWeight={randomWeight}
+                  onChangeRandomWeight={setRandomWeight}
+                  proposalId={proposalIdx}
+                  votingStep={votingStep}
+                  lastActiveStep={lastActiveStep}
+                  stepMessage={stepMessage}
+                  txHash={txHash}
+                />
+              )}
+              <WeightConfirmDialog confirmation={pendingWeight} onAnswer={answerWeight} />
+              {PUB_ENABLE_LOCKING ? (
+                <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
+              ) : (
+                <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
+                  <NoVotePowerWarning
+                    delegatingToSomeoneElse={delegatingToSomeoneElse}
+                    delegatesTo={delegatesTo}
+                    delegatedToZero={delegatedToZero}
+                    address={address}
+                    canVote={!!canVote}
+                  />
+                </If>
+              )}
+              {error && proposalStatus !== ProposalStatus.ACTIVE && (
+                <div className="border border-critical-200 bg-critical-100 px-4 py-3">
+                  <p className="text-sm text-critical-600 [overflow-wrap:anywhere]">{error}</p>
+                </div>
+              )}
+              {proposalStatus !== ProposalStatus.ACTIVE && (
+                <SettlementProgressCard
+                  // Derive from the clock, not the status. A round whose voting has closed but which
+                  // has no tally yet reads as PENDING — exactly the window this card explains — so
+                  // gating on the status hid it precisely when it was needed.
+                  votingClosed={Number(proposal.parameters.endDate) * 1000 < Date.now()}
+                  isTallied={proposal.isTallied}
+                  isDead={e3Failed || e3FailurePending}
+                  inputDeadline={e3InputDeadline}
+                />
+              )}
+              {proposalStatus !== ProposalStatus.ACTIVE && (
+                <VoteResultCard
+                  vetoStage={spp.vetoStage}
+                  isSignalling={false}
+                  proposalId={proposalIdx}
+                  results={results}
+                  isTallied={proposal.isTallied}
+                  proposalStatus={proposalStatus}
+                  quorumNotMet={quorumNotMet}
+                  minParticipation={Number(proposal.parameters.minParticipation ?? 0n)}
+                  snapshotBlock={proposal.parameters.snapshotBlock}
+                  numOptions={proposal.numOptions}
+                  creditMode={proposal.parameters.creditMode}
+                  e3Failed={e3Failed}
+                  e3FailureReason={e3FailureReason}
+                  e3FailurePending={e3FailurePending}
+                />
+              )}
+              {e3Failed && <RefundCard proposalId={proposalIdx} e3Id={proposal.e3Id} />}
+            </>
+          }
+          votingPower={
+            proposalStatus !== ProposalStatus.ACTIVE ? (
+              <VotingPower
+                votingPlugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+                snapshotTimepoint={proposal.parameters.snapshotBlock}
+                compact={true}
+              />
+            ) : undefined
+          }
+          participation={<ParticipationCard proposal={proposal} />}
+          activity={<ActivityCard e3Id={proposal.e3Id} />}
+          stage={
             <VetoStageCard
               kind="private"
               proposalId={sppProposalId}
@@ -276,9 +342,8 @@ function ProposalDetailBody({
               vetoTally={spp.vetoTally}
               stage0Failed={proposalStatus === ProposalStatus.REJECTED}
             />
-            <CardResources resources={proposal.resources} title="Resources" />
-          </div>
-        </div>
+          }
+        />
       </div>
     </section>
   );

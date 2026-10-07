@@ -1,29 +1,24 @@
+import { AccordionHeader } from "@/components/motion/AccordionHeader";
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
-import {
-  AccordionContainer,
-  AccordionItem,
-  AccordionItemContent,
-  AccordionItemHeader,
-  AvatarIcon,
-  Button,
-  IconType,
-  InputText,
-} from "@aragon/ods";
-import Link from "next/link";
+import { AccordionContainer, AccordionItem, Button, Icon, IconType } from "@aragon/ods";
 import { CallFunctionSignatureField, CallParamField } from "./callParamField";
+import { ActionDetailField } from "./actionDetailField";
+import { AddressText } from "@/components/text/address";
 import { EncodedView } from "./encodedView";
 import type { RawAction } from "@/utils/types";
-import { Else, ElseIf, If, Then } from "../if";
+import { If } from "../if";
 import { useAction } from "@/hooks/useAction";
 import { decodeCamelCase } from "@/utils/case";
 import { formatEther } from "viem";
+import { AccordionContent } from "@/components/motion/AccordionContent";
 
 const DEFAULT_DESCRIPTION =
   "When the proposal passes the community vote, the following actions will be executable by the DAO.";
 const DEFAULT_EMPTY_LIST_DESCRIPTION = "The proposal has no actions defined, it will behave as a signaling poll.";
 
 interface IProposalActionsProps {
+  compact?: boolean;
   description?: string;
   emptyListDescription?: string;
   actions?: RawAction[];
@@ -31,28 +26,28 @@ interface IProposalActionsProps {
 }
 
 export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
-  const { actions, description, emptyListDescription, onRemove } = props;
+  const { actions, description, emptyListDescription, onRemove, compact = false } = props;
 
   let message: string;
   if (actions?.length) {
-    message = description ? description : DEFAULT_DESCRIPTION;
+    message = description ?? DEFAULT_DESCRIPTION;
   } else {
-    message = emptyListDescription ? emptyListDescription : DEFAULT_EMPTY_LIST_DESCRIPTION;
+    message = emptyListDescription ?? DEFAULT_EMPTY_LIST_DESCRIPTION;
   }
 
   return (
-    <div className="overflow-hidden border border-neutral-800 bg-neutral-0 pb-2">
+    <div className={`proposal-actions ${compact ? "composer-action-list" : "proposal-actions-card"}`}>
       {/* Header */}
-      <div className="flex flex-col gap-y-2 px-4 py-4 md:gap-y-3 md:px-6 md:py-6">
-        <div className="flex justify-between gap-x-2 gap-y-2">
-          <p className="text-xl leading-tight text-neutral-800 md:text-2xl">Actions</p>
+      {!compact && (
+        <div className="proposal-actions-heading">
+          <h3>Actions</h3>
+          <p>{message}</p>
         </div>
-        <p className="md:text-md text-base leading-normal text-neutral-500">{message}</p>
-      </div>
+      )}
 
       {/* Content */}
       <If lengthOf={actions} above={0}>
-        <AccordionContainer isMulti={true} className="border-t border-t-neutral-100">
+        <AccordionContainer isMulti={true} className="proposal-action-items">
           {actions?.map((action, index) => (
             <ActionItem
               key={index}
@@ -74,70 +69,53 @@ const ActionItem = ({ index, rawAction, onRemove }: { index: number; rawAction: 
   const isEthTransfer = !action.data || action.data === "0x";
   const functionName = isEthTransfer
     ? `Transfer ${coinName}`
-    : decodeCamelCase(action.functionName || "(function call)");
+    : decodeCamelCase(action.functionName ?? "(function call)");
   const functionAbi = action.functionAbi ?? null;
-  const explorerUrl = `${PUB_CHAIN.blockExplorers?.default.url}/address/${action.to}`;
 
   return (
-    <AccordionItem className="border-t border-t-neutral-100 bg-neutral-0" value={title}>
-      <AccordionItemHeader className="!items-start">
-        <div className="flex w-full gap-x-6">
-          <div className="flex flex-1 flex-col items-start gap-y-2">
-            <div className="flex">
-              {/* Method name */}
-              <span className="flex w-full text-left text-lg leading-tight text-neutral-800 md:text-xl">
-                {functionName}
+    <AccordionItem className="proposal-action-item" value={title}>
+      <AccordionHeader className="proposal-action-trigger">
+        <span className="proposal-action-number">
+          {index + 1}
+          <span className="sr-only">. Action</span>
+        </span>
+        <span className="proposal-action-summary">
+          <strong>{functionName}</strong>
+          <span className="proposal-action-destination">
+            {formatHexString(rawAction.to)}
+            {!isEthTransfer && (
+              <span className="proposal-action-verification">
+                <Icon icon={functionAbi ? IconType.CHECKMARK : IconType.WARNING} />
+                {functionAbi ? "Decoded" : "Not verified"}
               </span>
-            </div>
-            <div className="flex w-full gap-x-6 text-sm leading-tight md:text-base">
-              <Link href={explorerUrl} target="_blank">
-                <span className="flex items-center gap-x-2 text-neutral-500">
-                  {formatHexString(rawAction.to)}
-                  <If true={functionAbi}>
-                    <Then>
-                      <AvatarIcon variant="primary" size="sm" icon={IconType.CHECKMARK} />
-                    </Then>
-                    <ElseIf not={isEthTransfer}>
-                      <span className="flex items-center gap-x-2">
-                        – &nbsp;Not Verified <AvatarIcon variant="warning" size="sm" icon={IconType.WARNING} />
-                      </span>
-                    </ElseIf>
-                  </If>
-                </span>
-              </Link>
-            </div>
-          </div>
-          <span className="hidden text-sm leading-tight text-neutral-500 sm:block md:text-base">{title}</span>
-        </div>
-      </AccordionItemHeader>
+            )}
+          </span>
+        </span>
+      </AccordionHeader>
 
-      <AccordionItemContent className="!overflow-none">
-        <div className="flex flex-col gap-y-4">
-          <If not={action?.functionAbi}>
-            <Then>
-              <EncodedView rawAction={rawAction} />
-            </Then>
-            <ElseIf not={action?.args?.length}>
+      <AccordionContent>
+        <div className="proposal-action-facts">
+          {!functionAbi ? (
+            <EncodedView rawAction={rawAction} />
+          ) : (
+            <>
+              <ActionDetailField label="To">
+                <AddressText bold={false} label={rawAction.to}>
+                  {rawAction.to}
+                </AddressText>
+              </ActionDetailField>
               <CallFunctionSignatureField functionAbi={functionAbi} />
-              <p>The action receives no parameters</p>
-            </ElseIf>
-            <Else>
-              <CallFunctionSignatureField functionAbi={functionAbi} />
-              {action?.args?.map((arg, i) => (
-                <div className="flex" key={i}>
-                  <CallParamField value={arg} idx={i} functionAbi={functionAbi} />
-                </div>
+              {action.args.map((arg, i) => (
+                <CallParamField key={i} value={arg} idx={i} functionAbi={functionAbi} />
               ))}
-              <If val={action.value} above={BigInt(0)}>
-                <InputText
-                  label={coinName + " value"}
-                  className="w-full"
-                  value={formatEther(action.value ?? BigInt(0)) + " " + coinName}
-                  disabled={true}
-                />
-              </If>
-            </Else>
-          </If>
+              {!action.args.length && <p className="proposal-action-note">This action has no parameters.</p>}
+              {action.value > 0n && (
+                <ActionDetailField label="Value">
+                  {formatEther(action.value)} {coinName}
+                </ActionDetailField>
+              )}
+            </>
+          )}
           <If true={!!onRemove}>
             <div className="mt-2">
               <Button variant="tertiary" size="sm" iconLeft={IconType.CLOSE} onClick={onRemove}>
@@ -146,7 +124,7 @@ const ActionItem = ({ index, rawAction, onRemove }: { index: number; rawAction: 
             </div>
           </If>
         </div>
-      </AccordionItemContent>
+      </AccordionContent>
     </AccordionItem>
   );
 };

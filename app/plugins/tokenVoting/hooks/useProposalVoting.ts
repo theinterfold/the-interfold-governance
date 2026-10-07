@@ -1,19 +1,21 @@
 import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
-import { useRouter } from "next/router";
+import { useQueryClient } from "@tanstack/react-query";
 import { PUB_CHAIN, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 
 export function useProposalVoting(proposalId: bigint) {
-  const { reload } = useRouter();
+  const queryClient = useQueryClient();
 
   const {
     writeContract,
     status: votingStatus,
     isConfirming,
     isConfirmed,
+    error,
+    hash,
   } = useTransactionManager({
     onSuccessMessage: "Vote registered",
-    onSuccess: () => setTimeout(() => reload(), 1000 * 2),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["readContract"] }),
     onErrorMessage: "Could not submit the vote",
   });
 
@@ -32,5 +34,7 @@ export function useProposalVoting(proposalId: bigint) {
     status: votingStatus,
     isConfirming,
     isConfirmed,
+    error,
+    hash,
   };
 }

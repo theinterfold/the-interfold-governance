@@ -31,9 +31,11 @@ type StepStatus = "complete" | "active" | "error" | "pending";
 
 const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message, lastActiveStep, txHash }) => {
   const stepOrder = steps.map((s) => s.key);
+  // `confirming` is the server deciding who sends a staged ballot: still the broadcast step.
+  const indexOfStep = (s: VotingStep) => stepOrder.indexOf(s === "confirming" ? "broadcasting" : s);
 
   const getStepStatus = (stepKey: VotingStep): StepStatus => {
-    const currentIndex = step === "error" ? stepOrder.indexOf(lastActiveStep ?? "signing") : stepOrder.indexOf(step);
+    const currentIndex = step === "error" ? indexOfStep(lastActiveStep ?? "signing") : indexOfStep(step);
     const stepIndex = stepOrder.indexOf(stepKey);
 
     if (step === "complete") return "complete";
@@ -48,14 +50,14 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
 
   const currentStepIndex =
     step === "error"
-      ? stepOrder.indexOf(lastActiveStep ?? "signing")
+      ? indexOfStep(lastActiveStep ?? "signing")
       : step === "complete"
         ? steps.length
-        : stepOrder.indexOf(step);
+        : indexOfStep(step);
   const progressPercent = step === "complete" ? 100 : ((currentStepIndex + 0.5) / steps.length) * 100;
 
   return (
-    <div className="overflow-hidden border border-neutral-200">
+    <div className="vote-progress overflow-hidden border border-neutral-200">
       {/* Progress track */}
       <div className="relative h-1 w-full bg-neutral-100">
         <div
@@ -100,11 +102,14 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
         {/* Message */}
         <div
           className="font-medium flex items-center gap-2 px-3 py-2 text-xs"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           style={{
             backgroundColor: isError ? "#f3d6c8" : isComplete ? "var(--mint-pale)" : "var(--mint)",
             color: isError ? "#7a3322" : isComplete ? "var(--accent)" : "var(--ink-soft)",
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.04em",
+            fontFamily: "var(--font-sans)",
+            letterSpacing: 0,
           }}
         >
           {!isComplete && !isError && (
@@ -145,7 +150,9 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
               <line x1="9" y1="9" x2="15" y2="15" />
             </svg>
           )}
-          <span className="min-w-0 [overflow-wrap:anywhere]">{message}</span>
+          <span key={message} className="vp-label-change min-w-0 [overflow-wrap:anywhere]">
+            {message}
+          </span>
           {isComplete && txHash && (
             <a
               href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${txHash}`}
@@ -163,13 +170,6 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
         @keyframes step-pulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(47, 138, 79, 0.3); }
           50% { box-shadow: 0 0 0 6px rgba(47, 138, 79, 0); }
-        }
-        @keyframes step-pulse-error {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(168, 73, 50, 0.3); }
-          50% { box-shadow: 0 0 0 6px rgba(168, 73, 50, 0); }
-        }
-        @keyframes dash-flow {
-          to { stroke-dashoffset: -8; }
         }
       `}</style>
     </div>
@@ -199,12 +199,7 @@ const StepNode: React.FC<{
         style={{
           backgroundColor: c.bg,
           borderColor: c.border,
-          animation:
-            status === "active"
-              ? "step-pulse 2s ease-in-out infinite"
-              : status === "error"
-                ? "step-pulse-error 2s ease-in-out infinite"
-                : "none",
+          animation: status === "active" ? "step-pulse 2s ease-in-out infinite" : "none",
         }}
       >
         {status === "complete" ? (
@@ -270,16 +265,7 @@ const StepConnector: React.FC<{ filled: boolean; isError: boolean }> = ({ filled
 
   return (
     <svg width="100%" height="2" className="overflow-visible">
-      <line
-        x1="0"
-        y1="1"
-        x2="100%"
-        y2="1"
-        stroke="var(--cream-line)"
-        strokeWidth="2"
-        strokeDasharray="4 4"
-        style={{ animation: "dash-flow 0.8s linear infinite" }}
-      />
+      <line x1="0" y1="1" x2="100%" y2="1" stroke="var(--cream-line)" strokeWidth="2" strokeDasharray="4 4" />
     </svg>
   );
 };

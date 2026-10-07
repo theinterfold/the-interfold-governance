@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Button, ProposalStatus } from "@aragon/ods";
+import { useMemo } from "react";
+import { ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
 import { useToken } from "../../hooks/useToken";
 import { usePastSupply } from "../../hooks/usePastSupply";
@@ -9,6 +9,8 @@ import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
 import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
 import { nextStageName } from "@/plugins/spp/utils/status";
+import { ActionButton } from "@/components/input/actionButton";
+import { ResultPanel, formatResultAmount, resultPercentages } from "@/components/proposalVoting/resultPanel";
 
 interface IResult {
   option: string;
@@ -32,66 +34,14 @@ interface VoteResultCardProps {
   numOptions?: number;
   /** Credit mode — controls whether the tally is scaled (token mode) or raw (CONSTANT). */
   creditMode?: CreditsMode;
+  /** Turnout fell short of the frozen quorum (from `useProposalStatus`): the vote did not go against it. */
+  quorumNotMet?: boolean;
   /** The E3 round failed on-chain (or meets the failure condition): there will never be a tally. */
   e3Failed?: boolean;
   /** The on-chain failure reason, when `e3Failed` is set. */
   e3FailureReason?: E3FailureReason;
   /** The round meets the failure condition but nobody has sent `markE3Failed` yet. */
   e3FailurePending?: boolean;
-}
-
-// Interfold earth-tone palette — matches the vote card option colors
-const OPTION_COLORS = ["#2f8a4f", "#a84932", "#7a7d77", "#355a8a", "#8a6a40", "#5a4a8a", "#2f7a6a", "#9a7a30"];
-
-function getColor(index: number): string {
-  return OPTION_COLORS[index % OPTION_COLORS.length];
-}
-
-interface OutcomeArgs {
-  total: number;
-  winner: { option: string; index: number } | null;
-  resultsWithPercentage: { index: number; percentage: number }[];
-  proposalStatus?: ProposalStatus;
-  quorum: { reached: boolean } | null;
-}
-
-/** Footer message that reflects the authoritative status, not just the raw vote leader. */
-function getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum }: OutcomeArgs) {
-  if (total === 0) return "No votes were cast";
-
-  const winnerPct = winner ? resultsWithPercentage.find((r) => r.index === winner.index)?.percentage.toFixed(1) : null;
-
-  // Quorum failed: the leading option may have 100% of votes cast, but turnout
-  // was too low for the proposal to pass.
-  if (quorum && !quorum.reached) {
-    return winner ? (
-      <span style={{ color: "var(--muted-ink, #9a9a9a)" }}>
-        Quorum not met ({winner.option} led with {winnerPct}% of votes cast)
-      </span>
-    ) : (
-      "Quorum not met"
-    );
-  }
-
-  if (proposalStatus === ProposalStatus.REJECTED) {
-    return <span style={{ color: "var(--muted-ink, #9a9a9a)" }}>Rejected</span>;
-  }
-
-  if (!winner) return "Tied — no clear winner";
-
-  return (
-    <span style={{ color: getColor(winner.index) }}>
-      {winner.option} won with {winnerPct}%
-    </span>
-  );
-}
-
-/** Compact human-friendly amount: trims trailing zeros, keeps up to 4 decimals. */
-function formatAmount(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  if (value === 0) return "0";
-  if (value >= 1000) return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 export const VoteResultCard = ({
@@ -103,8 +53,8 @@ export const VoteResultCard = ({
   proposalStatus,
   minParticipation,
   snapshotBlock,
-  numOptions,
   creditMode,
+  quorumNotMet,
   e3Failed,
   e3FailureReason,
   e3FailurePending,
@@ -112,52 +62,22 @@ export const VoteResultCard = ({
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalId);
   const { decimals, symbol } = useToken();
   const pastSupply = usePastSupply(snapshotBlock);
-  const [isVisible, setIsVisible] = useState(false);
 
   // Undefined until the on-chain read lands — tally scaling depends on it, so the
   // derived token figures stay empty rather than being computed against a guess.
   const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
   const unitLabel = creditMode === CreditsMode.CONSTANT ? "credits" : symbol && symbol.length > 0 ? symbol : "tokens";
 
-  const parsedResults = useMemo(() => {
-    if (!results || tokenDecimals === undefined) return [];
-    return results.map((r, idx) => ({
-      option: r.option,
-      value: Number(r.value),
-      tokens: tallyCountToTokens(BigInt(r.value || "0"), creditMode, tokenDecimals),
-      index: idx,
-    }));
-  }, [results, creditMode, tokenDecimals]);
-
-  const total = useMemo(() => parsedResults.reduce((sum, r) => sum + r.value, 0), [parsedResults]);
-  const totalTokens = useMemo(() => parsedResults.reduce((sum, r) => sum + r.tokens, 0), [parsedResults]);
-
-  // Quorum mirrors the contract: turnout (scaled votes) vs. minParticipation% of
-  // the total voting power at the snapshot timepoint. Signaling-only polls have none.
-  const quorum = useMemo(() => {
-    if (minParticipation == null || !pastSupply || !results || tokenDecimals === undefined) return null;
-
-    const totalVotes = results.reduce((sum, r) => sum + BigInt(r.value || "0"), 0n);
-    return computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);
-  }, [numOptions, minParticipation, pastSupply, results, creditMode, tokenDecimals]);
-
-  const resultsWithPercentage = useMemo(() => {
-    return parsedResults
-      .map((r) => ({ ...r, percentage: total > 0 ? (r.value / total) * 100 : 0 }))
-      .sort((a, b) => b.value - a.value);
-  }, [parsedResults, total]);
-
-  const winner = useMemo(() => {
-    if (total === 0) return null;
-    const sorted = [...parsedResults].sort((a, b) => b.value - a.value);
-    if (sorted.length < 2) return sorted[0] ?? null;
-    if (sorted[0].value === sorted[1].value) return null; // tie
-    return sorted[0];
-  }, [parsedResults, total]);
-
-  useEffect(() => {
-    setIsVisible(true);
-  }, []);
+  const values = useMemo(() => (results ?? []).map((result) => BigInt(result.value || "0")), [results]);
+  const percentages = resultPercentages(values);
+  const totalVotes = values.reduce((sum, value) => sum + value, 0n);
+  const amount = (value: bigint) =>
+    tokenDecimals === undefined ? "—" : formatResultAmount(tallyCountToTokens(value, creditMode, tokenDecimals));
+  // CRISP tally units are scaled; preserve its own contract-aligned quorum calculation.
+  const quorum =
+    tokenDecimals === undefined || minParticipation == null
+      ? null
+      : computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);
 
   // Before the empty-results guard: a failed round usually has no tally at all, and that is
   // exactly the case where the reader most needs to be told why.
@@ -227,73 +147,31 @@ export const VoteResultCard = ({
   }
 
   return (
-    <div className="vote-panel" style={{ opacity: isVisible ? 1 : 0, transition: "opacity 500ms" }}>
-      <div className="vp-head">
-        <h3>Result</h3>
-        <span className="vp-meta">
-          {formatAmount(totalTokens)} {unitLabel}
-        </span>
-      </div>
-
-      <div className="vp-body" style={{ gap: 0 }}>
-        {resultsWithPercentage.map((result) => {
-          const isWinner = winner?.index === result.index;
-          return (
-            <div key={result.index} className="tally-row">
-              <span className="key">
-                <span className="swatch" style={{ background: getColor(result.index) }} />
-                <span className="truncate" style={{ color: isWinner ? "var(--ink)" : undefined }}>
-                  {result.option}
-                </span>
-              </span>
-              <span className="bar">
-                <span style={{ width: `${Math.max(result.percentage, 0)}%`, background: getColor(result.index) }} />
-              </span>
-              <span className="pct" title={`${formatAmount(result.tokens)} ${unitLabel}`}>
-                {result.percentage.toFixed(1)}%
-              </span>
-            </div>
-          );
-        })}
-
-        {quorum && (
-          <div className="tally-row" style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--rule)" }}>
-            <span className="key">
-              <span className="truncate">Quorum {quorum.reached ? "✓" : ""}</span>
-            </span>
-            <span className="bar">
-              <span
-                style={{
-                  width: `${Math.min(quorum.requiredPct > 0 ? (quorum.turnoutPct / quorum.requiredPct) * 100 : 0, 100)}%`,
-                  background: quorum.reached ? "var(--accent)" : "var(--muted-ink, #9a9a9a)",
-                }}
-              />
-            </span>
-            <span className="pct">
-              {quorum.turnoutPct.toFixed(1)}% / {quorum.requiredPct}%
-            </span>
-          </div>
-        )}
-
-        <div
-          className="vp-foot-note"
-          style={{ textAlign: "left", marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--rule)" }}
-        >
-          {getOutcome({ total, winner, resultsWithPercentage, proposalStatus, quorum })}
-        </div>
-
-        {canExecute && !isSignalling && (
-          <Button
+    <ResultPanel
+      rows={results.map((result, index) => ({
+        option: result.option,
+        index,
+        percentage: percentages[index],
+        amount: `${amount(values[index])} ${unitLabel}`,
+      }))}
+      total={`${amount(totalVotes)} ${unitLabel}`}
+      status={proposalStatus}
+      quorum={quorum}
+      quorumNotMet={quorumNotMet}
+      submitted={proposalStatus === ProposalStatus.EXECUTED}
+      action={
+        canExecute && !isSignalling ? (
+          <ActionButton
             className="mt-4 w-full"
-            size="lg"
-            variant="primary"
+            intent="vote"
             disabled={isConfirmingExecution}
+            isLoading={isConfirmingExecution}
             onClick={executeProposal}
           >
             Submit result & advance to {nextStageName(vetoStage)} stage
-          </Button>
-        )}
-      </div>
-    </div>
+          </ActionButton>
+        ) : undefined
+      }
+    />
   );
 };

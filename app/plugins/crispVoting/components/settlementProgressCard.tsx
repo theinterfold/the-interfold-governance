@@ -1,4 +1,4 @@
-import { AlertCard } from "@aragon/ods";
+import { BallotPanel } from "@/components/proposalVoting/ballot";
 import { formatSettlementOpensAt } from "../utils/formatSettlementOpensAt";
 
 /**
@@ -35,35 +35,37 @@ export function SettlementProgressCard({
   const tallyDue = deadline !== undefined && now >= deadline;
 
   return (
-    <div className="flex w-full flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-6 shadow-neutral-sm">
-      <p className="text-base font-semibold text-neutral-800">Settling the round</p>
-
-      <p className="text-sm text-neutral-500">
-        Voting has closed. Before the result can be decrypted, every encrypted ballot is published to Avail data
-        availability and finalized on Ethereum — the tally cannot run on data that is not yet final.
-      </p>
-
-      <ol className="flex flex-col gap-y-1 text-sm text-neutral-500">
-        <li>1. Ballots published to data availability</li>
-        <li>2. Publication finalized on Ethereum by the bridge</li>
-        <li>3. Encrypted tally computed and the result published</li>
-      </ol>
-
-      {/* The deadline is a contract value, not an estimate. Counting takes a few hours after it, so
-          the text must not promise the result at the deadline. */}
-      {deadline !== undefined && (
-        <p className="text-sm text-neutral-500">
-          {tallyDue
-            ? "The settlement window has closed and the tally is due. The result should appear within a few hours."
-            : `The tally is scheduled once the settlement window closes, ${formatSettlementOpensAt(deadline)}. It then takes a few hours.`}
+    <BallotPanel title="Settling the round">
+      <div className="vp-body">
+        <p className="vp-note">
+          Voting has closed. Before the result can be decrypted, every encrypted ballot is published to Avail data
+          availability and finalized on Ethereum — the tally cannot run on data that is not yet final.
         </p>
-      )}
 
-      <AlertCard
-        variant="info"
-        message="This wait is expected"
-        description="Publication and finalization are not instant, and the delay is part of how the round stays verifiable. No action is needed from voters — ballots already cast are recorded on-chain."
-      />
-    </div>
+        <ol className="vp-note flex flex-col gap-y-1">
+          <li>1. Ballots published to data availability</li>
+          <li>2. Publication finalized on Ethereum by the bridge</li>
+          <li>3. Encrypted tally computed and the result published</li>
+        </ol>
+
+        {/* The deadline is a contract value, not an estimate. Counting takes a few hours after it, so
+            the text must not promise the result at the deadline. */}
+        {deadline !== undefined && (
+          <p className="vp-note">
+            {tallyDue
+              ? "The settlement window has closed and the tally is due. The result should appear within a few hours."
+              : `The tally is scheduled once the settlement window closes, ${formatSettlementOpensAt(deadline)}. It then takes a few hours.`}
+          </p>
+        )}
+
+        <div className="ballot-eligibility" role="status">
+          <strong>This wait is expected</strong>
+          <p>
+            Publication and finalization are not instant, and the delay is part of how the round stays verifiable. No
+            action is needed from voters — ballots already cast are recorded on-chain.
+          </p>
+        </div>
+      </div>
+    </BallotPanel>
   );
 }

@@ -37,24 +37,15 @@ export const NavLink: React.FC<INavLinkProps> = (props) => {
     selected = pathname.startsWith(path);
   }
 
-  const containerClasses = classNames(
-    "group relative md:-mb-0.25 md:border-b md:hover:border-b-neutral-800", // base styles
-    {
-      "md:border-b-transparent md:active:border-b-primary-400": !selected, // unselected link styles
-      "md:border-b-primary-400 md:hover:border-b-primary-400": selected, // base selected link styles
-
-      // using after so that the size of the links don't change when one is selected and active
-      "md:after:bg-primary-400 md:after:content-[attr(aria-current)] md:active:after:hidden": selected,
-      "md:after:absolute md:after:-bottom-0 md:after:left-0 md:after:right-0 md:after:h-[1px]": selected,
-    }
-  );
+  // The shared header owns the active underline, inset to the link's text.
+  const containerClasses = "group relative flex items-center";
 
   const anchorClasses = classNames(
-    "w-full py-3", // base styles
-    "group-hover:text-neutral-800", // hover styles
-    "outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset", // focus styles
-    "flex h-12 flex-1 items-center justify-between gap-3 rounded-xl px-4 leading-tight", // mobile styles
-    "md:h-11 md:rounded-none md:px-0 md:leading-normal" // desktop nav styles
+    // `interfold-top-nav-link` owns the horizontal padding on purpose — the
+    // underline insets by the same custom property, so the two cannot drift.
+    "site-header-link interfold-top-nav-link",
+    { "is-active": selected },
+    "outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
   );
 
   return (
@@ -69,16 +60,7 @@ export const NavLink: React.FC<INavLinkProps> = (props) => {
             })}
           />
         )}
-        <span
-          className={classNames(
-            "flex-1 truncate text-[13px] uppercase tracking-[0.12em] text-neutral-500 group-hover:text-neutral-800",
-            {
-              "text-neutral-800": selected,
-            }
-          )}
-        >
-          {name}
-        </span>
+        <span>{name}</span>
       </Link>
     </li>
   );

@@ -21,10 +21,15 @@ export function useTransactionManager(params: TxLifecycleParams) {
     writeContract: send,
     writeContractAsync: sendAsync,
     data: hash,
-    error,
-    status,
+    error: writeError,
+    status: writeStatus,
   } = useWriteContract({ mutation: { onSuccess: (sentHash) => rememberSentTx(config, sentHash) } });
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, data: receipt, error: receiptError } = useWaitForTransactionReceipt({ hash });
+  const receiptMatches = !!hash && receipt?.transactionHash === hash;
+  const isConfirmed = receiptMatches && receipt.status === "success";
+  const reverted = receiptMatches && receipt.status === "reverted";
+  const status = reverted || receiptError ? "error" : writeStatus;
+  const error = writeError ?? receiptError ?? (reverted ? new Error("The transaction reverted.") : undefined);
   const { addAlert } = useAlerts();
 
   // Each send first waits until the wallet's node has the account's previous transaction mined.
@@ -90,5 +95,5 @@ export function useTransactionManager(params: TxLifecycleParams) {
     }
   }, [status, hash, isConfirming, isConfirmed]);
 
-  return { writeContract, writeContractAsync, hash, status, isConfirming, isConfirmed };
+  return { writeContract, writeContractAsync, hash, status, error, isConfirming, isConfirmed };
 }

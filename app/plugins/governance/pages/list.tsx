@@ -1,12 +1,15 @@
+import { PanelHeader } from "@/components/panelHeader";
+import { SearchField } from "@/components/input/searchField";
+import styles from "./proposalList.module.css";
+import { NativeSelect } from "@/components/input/nativeSelect";
 import { useAccount, useBlockNumber } from "wagmi";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, IconType } from "@aragon/ods";
-import classNames from "classnames";
-import Link from "next/link";
+import { ActionLink } from "@/components/input/actionLink";
 import { formatUnits, isAddress } from "viem";
 import { Else, If, Then } from "@/components/if";
-import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
+import { PageIntro } from "@/components/pageIntro";
+import { ScrollFadeIn } from "@/vendor/site-header/motion";
 import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 // Aliased: this file already has a local `fetchProposals` callback.
 import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
@@ -25,12 +28,15 @@ type Kind = "private" | "public";
 type Entry = { kind: Kind; id: bigint; block: bigint };
 
 const FILTERS: { label: string; value: "all" | Kind }[] = [
-  { label: "All", value: "all" },
+  { label: "All voting methods", value: "all" },
   { label: "Secret ballot", value: "private" },
   { label: "Transparent fallback", value: "public" },
 ];
 
-const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [{ label: "All", value: "all" }, ...STATUS_BUCKETS];
+const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
+  { label: "All statuses", value: "all" },
+  ...STATUS_BUCKETS,
+];
 
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
@@ -65,6 +71,8 @@ export default function Proposals() {
   const [isLoading, setIsLoading] = useState(false);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const [searchTexts, setSearchTexts] = useState<Record<string, string>>({});
   // Status lives in the per-row hooks (metadata + tally + SPP state), so rows
   // report it back up here and the list filters on what they resolved.
   const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
@@ -72,6 +80,10 @@ export default function Proposals() {
 
   const reportStatus = useCallback((key: string, bucket: StatusBucket | undefined) => {
     setStatuses((prev) => (prev[key] === bucket ? prev : { ...prev, [key]: bucket }));
+  }, []);
+
+  const reportSearchText = useCallback((key: string, text: string) => {
+    setSearchTexts((prev) => (prev[key] === text ? prev : { ...prev, [key]: text }));
   }, []);
 
   const fetchProposals = useCallback(async () => {
@@ -138,107 +150,163 @@ export default function Proposals() {
   }, [blockNumber, fetchProposals]);
 
   // Stable per-row reporters so the rows' effects don't re-fire on every render.
-  const statusHandlers = useMemo(() => {
-    const map: Record<string, (bucket: StatusBucket | undefined) => void> = {};
+  const rowHandlers = useMemo(() => {
+    const map: Record<
+      string,
+      { onStatus: (bucket: StatusBucket | undefined) => void; onSearchText: (text: string) => void }
+    > = {};
     for (const e of entries) {
       const key = entryKey(e);
-      map[key] = (bucket) => reportStatus(key, bucket);
+      map[key] = {
+        onStatus: (bucket) => reportStatus(key, bucket),
+        onSearchText: (text) => reportSearchText(key, text),
+      };
     }
     return map;
-  }, [entries, reportStatus]);
+  }, [entries, reportStatus, reportSearchText]);
 
-  const visible = entries.filter((e) => kindFilter === "all" || e.kind === kindFilter);
-  // Rows stay mounted when filtered out (their hooks are what resolve the status),
-  // so "nothing matches" is counted here rather than by an empty render.
-  const matchCount = visible.filter((e) => matchesStatusFilter(statuses[entryKey(e)], statusFilter)).length;
+  const searchTerm = search.trim().toLowerCase();
+  const matches = (e: Entry) =>
+    (kindFilter === "all" || e.kind === kindFilter) &&
+    matchesStatusFilter(statuses[entryKey(e)], statusFilter) &&
+    (!searchTerm || `${e.id} ${searchTexts[entryKey(e)] ?? ""}`.toLowerCase().includes(searchTerm));
+  const matchCount = entries.filter(matches).length;
+  const resolving = entries.some((e) => searchTexts[entryKey(e)] === undefined);
+  const hasFilters = kindFilter !== "all" || statusFilter !== "all" || !!searchTerm;
+  const clearFilters = () => {
+    setKindFilter("all");
+    setStatusFilter("all");
+    setSearch("");
+  };
+  const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
   return (
-    <MainSection narrow={true}>
-      <div className="page-head w-full">
-        <div>
-          <div className="kicker mb-3">Governance</div>
-          <h1 className="display-title">Proposals</h1>
-        </div>
-        <div className="justify-self-end text-right">
-          <If true={isConnected && canCreate}>
+    <div className="proposals-page">
+      <PageIntro
+        title="Proposals"
+        glyph="proposals"
+        description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
+      />
+      <section aria-labelledby="proposal-list-heading">
+        <PanelHeader
+          id="proposal-list-heading"
+          title="Governance activity"
+          description="Open a proposal to vote or review its results."
+          className={styles.heading}
+          action={
+            showCreate && (
+              <div className={styles.create}>
+                <>
+                  <ActionLink
+                    href="#/new"
+                    intent="create"
+                    affordance="plus"
+                    disabled={!canCreate}
+                    aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}
+                  >
+                    Create proposal
+                  </ActionLink>
+                  {!canCreate && (
+                    <p id="proposal-create-requirement" className="ui-body">
+                      {ineligibleReason}
+                    </p>
+                  )}
+                </>
+              </div>
+            )
+          }
+        />
+        <ScrollFadeIn amount="some" className={`ui-panel ${styles.panel}`}>
+          <If not={entries.length}>
             <Then>
-              <Link href="#/new">
-                <Button iconLeft={IconType.PLUS} size="md" variant="primary">
-                  Create proposal
-                </Button>
-              </Link>
+              <div className={styles.feedback}>
+                <MissingContentView>
+                  {noVotingPlugins
+                    ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
+                    : isLoading
+                      ? "Loading proposals…"
+                      : error
+                        ? error
+                        : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
+                </MissingContentView>
+              </div>
             </Then>
             <Else>
-              <If true={isConnected && !noVotingPlugins && eligibilityKnown}>
-                <Button iconLeft={IconType.PLUS} size="md" variant="primary" disabled={true}>
-                  Create proposal
-                </Button>
-                <p className="mt-2 max-w-xs text-sm text-neutral-500">{ineligibleReason}</p>
+              <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
+                <SearchField
+                  className="proposal-search"
+                  label="Search"
+                  placeholder="Title, proposer or proposal ID"
+                  value={search}
+                  onChange={setSearch}
+                />
+                <label className="proposal-filter">
+                  <span>Status</span>
+                  <NativeSelect
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                  >
+                    {STATUS_FILTERS.map((filter) => (
+                      <option key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label className="proposal-filter">
+                  <span>Voting method</span>
+                  <NativeSelect
+                    value={kindFilter}
+                    onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+                  >
+                    {FILTERS.map((filter) => (
+                      <option key={filter.value} value={filter.value}>
+                        {filter.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </label>
+              </div>
+              <div className="proposal-list-caption">
+                <p role="status">
+                  {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
+                  {hasFilters ? ` of ${entries.length}` : ""}
+                </p>
+                <div>
+                  {hasFilters && (
+                    <button type="button" onClick={clearFilters}>
+                      Clear filters
+                    </button>
+                  )}
+                  <span>Newest first</span>
+                </div>
+              </div>
+              <If not={matchCount}>
+                <div className={styles.feedback}>
+                  <MissingContentView>
+                    {resolving
+                      ? "Checking proposals…"
+                      : hasFilters
+                        ? "No proposals match your search and filters."
+                        : "No proposals to show."}
+                  </MissingContentView>
+                </div>
               </If>
+              <div className="proposal-list">
+                {entries.map((e) => {
+                  const key = entryKey(e);
+                  const hidden = !matches(e);
+                  return e.kind === "private" ? (
+                    <PrivateRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
+                  ) : (
+                    <PublicRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
+                  );
+                })}
+              </div>
             </Else>
           </If>
-        </div>
-      </div>
-
-      <If not={entries.length}>
-        <Then>
-          <MissingContentView>
-            {noVotingPlugins
-              ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
-              : isLoading
-                ? "Loading proposals…"
-                : error
-                  ? error
-                  : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
-          </MissingContentView>
-        </Then>
-        <Else>
-          <div className="chip-group-label">Type</div>
-          <div className="chips">
-            {FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                className={classNames("chip", { on: kindFilter === f.value })}
-                onClick={() => setKindFilter(f.value)}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <div className="chip-group-label mt-3">Status</div>
-          <div className="chips">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                className={classNames("chip", { on: statusFilter === f.value })}
-                onClick={() => setStatusFilter(f.value)}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <If not={matchCount}>
-            <MissingContentView>
-              {kindFilter === "all" && statusFilter === "all"
-                ? "No proposals to show."
-                : "No proposals match the selected filters."}
-            </MissingContentView>
-          </If>
-          <div className="proposal-list">
-            {visible.map((e) => {
-              const key = entryKey(e);
-              const hidden = !matchesStatusFilter(statuses[key], statusFilter);
-              return e.kind === "private" ? (
-                <PrivateRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
-              ) : (
-                <PublicRow key={key} proposalId={e.id} onStatus={statusHandlers[key]} hidden={hidden} />
-              );
-            })}
-          </div>
-        </Else>
-      </If>
-    </MainSection>
+        </ScrollFadeIn>
+      </section>
+    </div>
   );
 }

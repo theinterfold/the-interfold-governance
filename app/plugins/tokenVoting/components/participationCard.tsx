@@ -45,7 +45,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
 
   return (
     <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">
-      <div className="flex items-center justify-between">
+      <div className="ui-fact-row">
         <p className="text-sm font-semibold text-neutral-800">Participation {reached ? "✓" : ""}</p>
         <span className="text-sm text-neutral-500">
           {turnoutPct.toFixed(2)}% / {requiredPct.toFixed(2)}%
@@ -60,15 +60,15 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
           }}
         />
       </div>
-      <div className="flex items-center justify-between text-sm">
+      <div className="ui-fact-row text-sm">
         <span className="text-neutral-500">Voted</span>
         <span className="font-semibold text-neutral-800">{fmt(totalVotes)}</span>
       </div>
-      <div className="flex items-center justify-between text-sm">
+      <div className="ui-fact-row text-sm">
         <span className="text-neutral-500">Required minimum</span>
         <span className="font-semibold text-neutral-800">{fmt(required)}</span>
       </div>
-      <div className="flex items-center justify-between text-sm">
+      <div className="ui-fact-row text-sm">
         <span className="text-neutral-500">Total voting power</span>
         <span className="font-semibold text-neutral-800">{fmt(supply)}</span>
       </div>

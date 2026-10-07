@@ -1,4 +1,3 @@
-import { AlertCard } from "@aragon/ods";
 import Link from "next/link";
 import { formatUnits, isAddress, type Address } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
@@ -17,6 +16,7 @@ import { ADDRESS_ZERO, equalAddresses } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
 import { foldLockAbi } from "../artifacts/foldLock";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
+import { PowerWarning } from "./powerWarning";
 
 /**
  * Names the FOLD of an account that gives it no voting power under the voting escrow, and what
@@ -80,46 +80,41 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
   if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere && !bondedAway) return null;
 
   const fmt = (v: bigint) => `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const link = "underline underline-offset-2";
   return (
-    <AlertCard
-      variant="info"
-      message={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}
-      description={
-        <span className="flex flex-col gap-y-1 text-sm">
-          {unlocked > 0n && (
-            <span>
-              {fmt(unlocked)} in your wallet is not locked.{" "}
-              <Link href="/plugins/lock/#/" className="!text-sm text-primary-400 hover:underline">
-                Lock it
-              </Link>{" "}
-              to vote with it.
-            </span>
-          )}
-          {undelegated > 0n && (
-            <span>
-              {fmt(undelegated)} in the voting escrow is not delegated.{" "}
-              <SelfDelegateLink label="Delegate it to yourself" /> to vote with it.
-            </span>
-          )}
-          {delegatedElsewhere && (
-            <span>
-              Your locked {PUB_TOKEN_SYMBOL} votes through <AddressText bold={false}>{delegatesTo}</AddressText>.{" "}
-              <SelfDelegateLink label="Delegate it to yourself" /> to vote with it yourself.
-            </span>
-          )}
-          {bondedAway && (
-            <span>
-              Your bonded and vesting {PUB_TOKEN_SYMBOL} votes through{" "}
-              <AddressText bold={false}>{bondedDelegate}</AddressText>.{" "}
-              <Link href="/plugins/lock/#/" className="!text-sm text-primary-400 hover:underline">
-                Stop the delegation
-              </Link>{" "}
-              to vote with it yourself.
-            </span>
-          )}
-          <span>A change counts only for proposals created after it.</span>
+    <PowerWarning title={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}>
+      {unlocked > 0n && (
+        <span className="block">
+          {fmt(unlocked)} in your wallet is not locked.{" "}
+          <Link href="/plugins/lock/#/" className={link}>
+            Lock it
+          </Link>{" "}
+          to vote with it.
         </span>
-      }
-    />
+      )}
+      {undelegated > 0n && (
+        <span className="block">
+          {fmt(undelegated)} in the voting escrow is not delegated.{" "}
+          <SelfDelegateLink label="Delegate it to yourself" /> to vote with it.
+        </span>
+      )}
+      {delegatedElsewhere && (
+        <span className="block">
+          Your locked {PUB_TOKEN_SYMBOL} votes through <AddressText bold={false}>{delegatesTo}</AddressText>.{" "}
+          <SelfDelegateLink label="Delegate it to yourself" /> to vote with it yourself.
+        </span>
+      )}
+      {bondedAway && (
+        <span className="block">
+          Your bonded and vesting {PUB_TOKEN_SYMBOL} votes through{" "}
+          <AddressText bold={false}>{bondedDelegate}</AddressText>.{" "}
+          <Link href="/plugins/lock/#/" className={link}>
+            Stop the delegation
+          </Link>{" "}
+          to vote with it yourself.
+        </span>
+      )}
+      <span className="block">A change counts only for proposals created after it.</span>
+    </PowerWarning>
   );
 }

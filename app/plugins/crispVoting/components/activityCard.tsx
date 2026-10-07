@@ -1,3 +1,4 @@
+import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
 import { useQuery } from "@tanstack/react-query";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
@@ -146,60 +147,64 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const published = entries?.filter((e) => e.published).length ?? 0;
 
   return (
-    <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-neutral-800">Encrypted ballot activity</p>
-        <span className="text-sm text-neutral-500">{committed}</span>
-      </div>
-      <p className="text-xs text-neutral-500">
-        Each entry is an encrypted input recorded on-chain for this round — votes, overrides and masks are
-        indistinguishable. A ballot counts as soon as it is committed; publishing it to data availability follows
-        separately and can take a few hours.
-      </p>
-
-      {/* The counts answer two different questions: "did my ballot register?" (committed) and
-          "is the round ready to compute?" (published). Conflating them is what made a committed
-          vote look lost. */}
-      {committed > 0 && (
+    <BallotDisclosure
+      title={
+        <>
+          Encrypted ballot activity <span className="proposal-detail-count">{committed}</span>
+        </>
+      }
+    >
+      <div className="proposal-activity-body">
         <p className="text-xs text-neutral-500">
-          {published} of {committed} published to data availability
-          {published < committed ? " — the rest are awaiting publication." : "."}
+          Each entry is an encrypted input recorded on-chain for this round — votes, overrides and masks are
+          indistinguishable. A ballot counts as soon as it is committed; publishing it to data availability follows
+          separately and can take a few hours.
         </p>
-      )}
 
-      {isLoading && <p className="text-sm text-neutral-500">Loading…</p>}
-      {/* A failed read is not an empty round: "no inputs" here reads as "my vote was lost". */}
-      {!isLoading && entries === undefined && isError && (
-        <p className="text-sm text-critical-500">Could not load the ballot activity right now.</p>
-      )}
-      {!isLoading && entries !== undefined && committed === 0 && (
-        <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>
-      )}
+        {/* The counts answer two different questions: "did my ballot register?" (committed) and
+            "is the round ready to compute?" (published). Conflating them is what made a committed
+            vote look lost. */}
+        {committed > 0 && (
+          <p className="text-xs text-neutral-500">
+            {published} of {committed} published to data availability
+            {published < committed ? " — the rest are awaiting publication." : "."}
+          </p>
+        )}
 
-      <div className="flex max-h-64 flex-col gap-y-2 overflow-y-auto">
-        {entries?.map((entry) => (
-          <div key={entry.txHash + entry.index.toString()} className="flex items-center justify-between text-sm">
-            <span className="text-neutral-500">#{entry.index.toString()}</span>
-            {explorerUrl ? (
-              <a
-                href={`${explorerUrl}/tx/${entry.txHash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-primary-400 hover:underline"
-              >
-                {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
-              </a>
-            ) : (
-              <span className="font-mono text-neutral-800">
-                {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+        {isLoading && <p className="text-sm text-neutral-500">Loading…</p>}
+        {/* A failed read is not an empty round: "no inputs" here reads as "my vote was lost". */}
+        {!isLoading && entries === undefined && isError && (
+          <p className="text-sm text-critical-500">Could not load the ballot activity right now.</p>
+        )}
+        {!isLoading && entries !== undefined && committed === 0 && (
+          <p className="text-sm text-neutral-500">No encrypted inputs posted yet.</p>
+        )}
+
+        <div className="flex max-h-64 flex-col gap-y-2 overflow-y-auto">
+          {entries?.map((entry) => (
+            <div key={entry.txHash + entry.index.toString()} className="flex items-center justify-between text-sm">
+              <span className="text-neutral-500">#{entry.index.toString()}</span>
+              {explorerUrl ? (
+                <a
+                  href={`${explorerUrl}/tx/${entry.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-primary-400 hover:underline"
+                >
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </a>
+              ) : (
+                <span className="font-mono text-neutral-800">
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </span>
+              )}
+              <span className={entry.published ? "text-success-600" : "text-neutral-400"}>
+                {entry.published ? "published" : "committed"}
               </span>
-            )}
-            <span className={entry.published ? "text-success-600" : "text-neutral-400"}>
-              {entry.published ? "published" : "committed"}
-            </span>
-          </div>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </BallotDisclosure>
   );
 }

@@ -121,6 +121,7 @@ export type VotingStep = "idle" | "signing" | "generating_proof" | "broadcasting
 
 export interface EligibleVoter {
   address: string;
+  /** Scaled CRISP credits, not raw ERC-20 base units. */
   balance: bigint;
 }
 

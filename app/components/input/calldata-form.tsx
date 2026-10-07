@@ -1,9 +1,10 @@
 import { type RawAction } from "@/utils/types";
 import { type FC, useEffect, useState } from "react";
 import { InputText, InputNumber, TextArea, AlertInline } from "@aragon/ods";
-import { type Address, parseEther, isHex, decodeFunctionData, Hex, toFunctionSelector, AbiFunction } from "viem";
+import { type Address, isHex, decodeFunctionData, Hex, toFunctionSelector, AbiFunction } from "viem";
 import { isAddress } from "@/utils/evm";
 import { If } from "../if";
+import { parseActionValue } from "@/utils/action-value";
 import { PUB_CHAIN } from "@/constants";
 import { useIsContract } from "@/hooks/useIsContract";
 import { PleaseWaitSpinner } from "../please-wait";
@@ -11,7 +12,7 @@ import { useAbi } from "@/hooks/useAbi";
 import { CallFunctionSignatureField, CallParamField } from "../proposalActions/callParamField";
 
 interface ICalldataFormProps {
-  onChange: (action: RawAction) => any;
+  onChange: (action: RawAction | null) => any;
   onSubmit?: () => any;
 }
 
@@ -19,15 +20,16 @@ export const CalldataForm: FC<ICalldataFormProps> = ({ onChange, onSubmit }) => 
   const coinName = PUB_CHAIN.nativeCurrency.symbol;
   const [to, setTo] = useState<Address>();
   const [calldata, setCalldata] = useState<string>("");
-  const [value, setValue] = useState<string>("");
+  const [value, setValue] = useState<bigint | null>(0n);
   const { isContract, isLoading, error: isContractError } = useIsContract(to);
   const { abi, isLoading: isLoadingAbi } = useAbi((to || "") as Address);
 
   useEffect(() => {
-    if (!isAddress(to)) return;
-    else if (!isHex(calldata) || calldata.trim().length % 2 !== 0) return;
-
-    onChange({ to, value: BigInt(value || "0"), data: calldata } as unknown as RawAction);
+    if (!to || !isAddress(to) || !isHex(calldata) || calldata.trim().length % 2 !== 0 || value === null) {
+      onChange(null);
+      return;
+    }
+    onChange({ to, value, data: calldata });
   }, [to, calldata, value]);
 
   const handleTo = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,7 +97,7 @@ export const CalldataForm: FC<ICalldataFormProps> = ({ onChange, onSubmit }) => 
             label={`${coinName} amount (optional)`}
             placeholder="1.234"
             min={0}
-            onChange={(val: string) => setValue(parseEther(val).toString())}
+            onChange={(val: string) => setValue(parseActionValue(val, true))}
             onKeyDown={(e) => (e.key === "Enter" ? onSubmit?.() : null)}
           />
         </div>

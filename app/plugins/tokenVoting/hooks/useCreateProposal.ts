@@ -1,17 +1,17 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
-import type { ProposalMetadata, RawAction } from "@/utils/types";
+import type { ProposalMetadata } from "@/utils/types";
 import { useAlerts } from "@/context/Alerts";
-import { PUB_APP_NAME, PUB_CHAIN, PUB_PROJECT_URL, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
+import { PUB_CHAIN, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
 import { uploadToPinata } from "@/utils/ipfs";
-import { URL_PATTERN } from "@/utils/input-values";
+import { validateProposalDetails } from "@/plugins/governance/utils/proposalValidation";
 import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
 import { VoteOption } from "../utils/types";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
 import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
 
-const UrlRegex = new RegExp(URL_PATTERN);
+import { useProposalDraft, type ProposalDraft } from "@/plugins/governance/hooks/useProposalDraft";
 
 /**
  * Explicit gas limit for SPP createProposal. The SPP wraps the body's sub-proposal creation in
@@ -21,17 +21,23 @@ const UrlRegex = new RegExp(URL_PATTERN);
  */
 const CREATE_PROPOSAL_GAS_LIMIT = 3_000_000n;
 
-export function useCreateProposal() {
+export function useCreateProposal(draft?: ProposalDraft) {
   const { push } = useRouter();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
-  const [title, setTitle] = useState<string>("");
-  const [summary, setSummary] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
-  const [actions, setActions] = useState<RawAction[]>([]);
-  const [resources, setResources] = useState<{ name: string; url: string }[]>([
-    { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
-  ]);
+  const localDraft = useProposalDraft();
+  const {
+    title,
+    summary,
+    description,
+    actions,
+    resources,
+    setTitle,
+    setSummary,
+    setDescription,
+    setActions,
+    setResources,
+  } = draft ?? localDraft;
 
   // The voting window is governed by the SPP stage config, not the form.
   const { votingStage } = useSppStages("public");
@@ -51,32 +57,12 @@ export function useCreateProposal() {
 
   const submitProposal = async () => {
     // Check metadata
-    if (!title.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a title",
+    const [detailsError] = validateProposalDetails({ title, summary, resources });
+    if (detailsError) {
+      return addAlert("Check your proposal", {
+        description: detailsError.message,
         type: "error",
       });
-    }
-
-    if (!summary.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a summary of what the proposal is about",
-        type: "error",
-      });
-    }
-
-    for (const item of resources) {
-      if (!item.name.trim()) {
-        return addAlert("Invalid resource name", {
-          description: "Please enter a name for all the resources",
-          type: "error",
-        });
-      } else if (!UrlRegex.test(item.url.trim())) {
-        return addAlert("Invalid resource URL", {
-          description: "Please enter valid URL for all the resources",
-          type: "error",
-        });
-      }
     }
 
     try {

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { type Hex, encodeFunctionData, parseEther } from "viem";
+import { type Hex, encodeFunctionData } from "viem";
 import { AlertInline, InputNumber } from "@aragon/ods";
 import { type AbiFunction } from "abitype";
 import { If } from "@/components/if";
 import { InputParameter } from "./input-parameter";
 import { type InputValue } from "@/utils/input-values";
+import { parseActionValue } from "@/utils/action-value";
 import { PUB_CHAIN } from "@/constants";
 
 interface IFunctionParamsFormProps {
@@ -21,7 +22,7 @@ export const FunctionParamsForm = ({
 }: IFunctionParamsFormProps) => {
   const coinName = PUB_CHAIN.nativeCurrency.symbol;
   const [inputValues, setInputValues] = useState<InputValue[]>([]);
-  const [value, setValue] = useState<string>("");
+  const [value, setValue] = useState<bigint | null>(0n);
 
   const canSend = (() => {
     if (!functionAbi) return false;
@@ -51,7 +52,7 @@ export const FunctionParamsForm = ({
   };
 
   const trySubmit = () => {
-    if (!functionAbi || !canSend) {
+    if (!functionAbi || !canSend || value === null) {
       onActionCleared();
       return;
     }
@@ -62,7 +63,7 @@ export const FunctionParamsForm = ({
         functionName: functionAbi.name,
         args: inputValues,
       });
-      onActionChanged(data, BigInt(value ?? "0"), functionAbi);
+      onActionChanged(data, value, functionAbi);
     } catch (err) {
       console.error("Invalid parameters", err);
       onActionCleared();
@@ -87,7 +88,7 @@ export const FunctionParamsForm = ({
             label={`${coinName} amount (optional)`}
             placeholder="1.234"
             min={0}
-            onChange={(val: string) => setValue(parseEther(val).toString())}
+            onChange={(val: string) => setValue(parseActionValue(val, true))}
             onKeyDown={(e) => (e.key === "Enter" ? onSubmit?.() : null)}
           />
         </div>
