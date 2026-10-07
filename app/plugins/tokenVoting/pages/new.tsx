@@ -28,11 +28,11 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
         votingPower: state.votes,
         loading: state.isLoading,
       }}
-      renderEditor={(editor) => (
+      eligibilityNotice={
         <TokenCreationEligibility selfAddress={selfAddress} isConnected={isConnected} state={state}>
-          {editor}
+          {null}
         </TokenCreationEligibility>
-      )}
+      }
     />
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
-import { formatUnits, parseUnits, type Address } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PageIntro } from "@/components/pageIntro";
 import { ScrollFadeIn } from "@/vendor/site-header/motion";
@@ -9,13 +9,11 @@ import { AddressText } from "@/components/text/address";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useMemberName } from "@/hooks/useMemberName";
-import { DelegateDirectory } from "@/plugins/members/components/delegateDirectory";
 import { BondedDelegationCards } from "@/components/cards/BondedDelegationCards";
 import { useBondedDelegation } from "@/hooks/useBondedDelegation";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber, exactNumber } from "@/utils/numbers";
-import { DelegateDialog } from "../components/delegateDialog";
 import { VotingPowerInfo } from "../components/votingPowerInfo";
 import { AccountOverview } from "../components/accountOverview";
 import accountStyles from "../components/accountPanels.module.css";
@@ -23,7 +21,6 @@ import { PowerInfo } from "../components/powerInfo";
 import { YourLocks } from "../components/yourLocks";
 import { foldAllocation } from "../utils/foldAllocation";
 import { delegatedLockTokens } from "../utils/delegatedLockPower";
-import { createDelegateConnection } from "../utils/delegateConnection";
 import { PowerAction } from "../components/powerAction";
 import { LockForm } from "../components/lockForm";
 import { WithdrawalDialog, type WithdrawalAction } from "../components/withdrawalDialog";
@@ -46,18 +43,13 @@ export default function Locker() {
   const delegationHeading = (
     <PanelHeader
       id="power-delegation-heading"
-      title={isConnected && address ? "Your delegation" : "Delegates"}
-      description={
-        isConnected && address
-          ? "Vote with your locked FOLD or choose someone to vote for you."
-          : "Explore delegates and choose who votes with your locked FOLD."
-      }
+      title="Your delegation"
+      description={`Delegate your locked ${PUB_TOKEN_SYMBOL} to yourself to vote with it.`}
     />
   );
   const escrow = useVeEscrow();
   const locks = useVeLocks(address, escrow);
   const { votingPower, refetch: refetchVotes } = useTokenVotes(address);
-  const [delegateRefreshKey, setDelegateRefreshKey] = useState(0);
   const onChanged = () => {
     setWithdrawalAction(undefined);
     // Give the RPC a beat to index the new state before refetching.
@@ -66,13 +58,9 @@ export default function Locker() {
       void refetchVotes();
       void refetchBalance();
       void delegation.refetch();
-      setDelegateRefreshKey((key) => key + 1);
     }, 1000 * 2);
   };
-  const delegation = useVeDelegation(address, escrow.adapter, () => {
-    setDelegateDialogOpen(false);
-    onChanged();
-  });
+  const delegation = useVeDelegation(address, escrow.adapter, onChanged);
   const bonded = useBondedDelegation(address, onChanged);
   const breakdown = useVotingPowerBreakdown(address, votingPower, delegation.lockVotes, bonded);
   // Proposal eligibility mirrors the on-chain create gates (delegated votes vs
@@ -106,23 +94,23 @@ export default function Locker() {
   const [amountInput, setAmountInput] = useState("");
   const [lockOpen, setLockOpen] = useState(false);
   const lockTrigger = useRef<HTMLElement | null>(null);
-  const [delegateDialogOpen, setDelegateDialogOpen] = useState(false);
-  const [delegateChoice, setDelegateChoice] = useState<Address>();
-  const [delegateConnection, setDelegateConnection] = useState<ReturnType<typeof createDelegateConnection>>();
-  const delegateTrigger = useRef<HTMLElement | null>(null);
   const decimals = useTokenDecimals();
-  const { open: openWallet, isOpen: walletModalOpen } = useWalletModal();
-  useEffect(() => {
-    delegateConnection?.update({ connected: isConnected && !!address, modalOpen: walletModalOpen });
-  }, [delegateConnection, isConnected, address, walletModalOpen]);
-  useEffect(() => () => delegateConnection?.dispose(), [delegateConnection]);
-  useEffect(() => {
-    if (!isConnected) setDelegateDialogOpen(false);
-  }, [isConnected]);
+  const { open: openWallet } = useWalletModal();
   const withdrawalTrigger = useRef<HTMLElement | null>(null);
   const [withdrawalAction, setWithdrawalAction] = useState<WithdrawalAction>();
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
   const [withdrawalAttempted, setWithdrawalAttempted] = useState(false);
+  const previousAccount = useRef(address);
+  useEffect(() => {
+    const changedAccount = previousAccount.current && previousAccount.current.toLowerCase() !== address?.toLowerCase();
+    if (!isConnected || !address || changedAccount) {
+      setLockOpen(false);
+      setWithdrawalAction(undefined);
+      setWithdrawalAttempted(false);
+      setAmountInput("");
+    }
+    previousAccount.current = address;
+  }, [address, isConnected]);
   const busy = isLocking || delegation.isConfirming || pendingTokenId !== undefined || withdrawalSubmitting;
   const openWithdrawal = (action: WithdrawalAction, trigger: HTMLElement) => {
     withdrawalTrigger.current = trigger;
@@ -141,27 +129,6 @@ export default function Locker() {
       setWithdrawalSubmitting(false);
     }
   };
-  const selectDelegate = (target?: Address) => {
-    if (delegateConnection) return;
-    delegateTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (!isConnected || !address) {
-      const request = createDelegateConnection(
-        target,
-        (selected) => {
-          setDelegateChoice(selected);
-          setDelegateDialogOpen(true);
-          setDelegateConnection(undefined);
-        },
-        () => setDelegateConnection(undefined)
-      );
-      setDelegateConnection(request);
-      void openWallet().catch(() => request.cancel());
-      return;
-    }
-    setDelegateChoice(target);
-    setDelegateDialogOpen(true);
-  };
-
   const fmt = (v?: bigint) =>
     v === undefined || decimals === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
@@ -207,7 +174,11 @@ export default function Locker() {
   const compact = (value?: bigint) =>
     value === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(value, decimals));
   const delegationLabel = !delegationKnown ? (
-    "Loading…"
+    delegation.readError ? (
+      "Unavailable"
+    ) : (
+      "Loading…"
+    )
   ) : notActivated ? (
     "No delegate"
   ) : (
@@ -224,10 +195,9 @@ export default function Locker() {
         titleId="power-page-title"
         description={
           <>
-            Lock {PUB_TOKEN_SYMBOL} to vote yourself or choose a delegate.
+            Lock {PUB_TOKEN_SYMBOL} and delegate it to yourself to vote.
             <br />
-            You keep ownership of your tokens and{" "}
-            <span className="power-intro-withdrawals">control withdrawals.</span>
+            You keep ownership of your tokens and <span className="power-intro-withdrawals">control withdrawals.</span>
           </>
         }
       />
@@ -269,7 +239,7 @@ export default function Locker() {
                           <span>Not eligible to create proposals</span>
                           <PowerInfo label="About proposal creation eligibility" compact={true}>
                             <p>Creating a proposal requires at least {fmt(minProposalPower)} of voting power.</p>
-                            <p>Your wallet balance and power delegated to others do not count toward this minimum.</p>
+                            <p>Your wallet balance does not count toward this minimum.</p>
                           </PowerInfo>
                         </div>
                       )}
@@ -304,20 +274,17 @@ export default function Locker() {
           )}
         </div>
       </section>
-      <section className="power-block power-delegation-block" aria-labelledby="power-delegation-heading">
-        {delegationHeading}
-        <ScrollFadeIn amount="some" className="power-card">
-          {isConnected && address && (
+      {isConnected && address && (
+        <section className="power-block power-delegation-block" aria-labelledby="power-delegation-heading">
+          {delegationHeading}
+          <ScrollFadeIn amount="some" className="power-card">
             <div className="power-delegation-summary">
               <div className="power-delegation-overview">
                 <dl className="power-delegated-total">
                   <dt>
                     Delegated tokens
                     <PowerInfo label="About delegated tokens" compact={true}>
-                      <p>
-                        FOLD in your active locks delegated to the wallet shown here, including yourself. All your locks
-                        share one voting delegate.
-                      </p>
+                      <p>FOLD in your active locks that have a voting delegate. All your locks share one delegate.</p>
                       <p>
                         Locks in cooldown or ready to withdraw are excluded. You keep ownership and control withdrawals.
                       </p>
@@ -329,58 +296,74 @@ export default function Locker() {
                 </dl>
               </div>
               <div className="power-delegation-content">
+                {delegation.readError && (
+                  <div className="power-help" role="alert">
+                    <p>Voting delegate could not be loaded.</p>
+                    <button type="button" className="ui-text-action" onClick={() => void delegation.retryRead()}>
+                      Try again
+                    </button>
+                  </div>
+                )}
                 <dl className="power-delegation-identity">
-                  <dt>Voting delegate</dt>
+                  <dt>Votes with your locks</dt>
                   <dd className="power-current-delegate-name">
-                    {delegationKnown && !notActivated ? (
+                    {delegatedToSelf ? (
+                      "You"
+                    ) : delegationKnown && !notActivated ? (
                       <AddressText bold={false} label={delegateName} withAddress={true}>
                         {delegation.delegatesTo}
                       </AddressText>
+                    ) : notActivated ? (
+                      "Nobody"
                     ) : (
                       delegationLabel
                     )}
                   </dd>
-                  <dd className="power-current-delegate-note">
-                    {needsActivation
-                      ? `${fmt(committedByMe)} is locked without voting power. You can choose a delegate at any time.`
-                      : notActivated
-                        ? "Your locks have no voting delegate. You can choose one at any time."
-                        : delegatedToSelf
-                          ? "You vote with your locked FOLD."
-                          : "Votes with your locked FOLD. You keep ownership and control withdrawals."}
-                  </dd>
+                  {delegationKnown && (
+                    <dd className="power-current-delegate-note">
+                      {delegatedToSelf ? (
+                        "You vote with your locked FOLD."
+                      ) : notActivated ? (
+                        needsActivation ? (
+                          `${fmt(committedByMe)} is locked without voting power. Delegate it to yourself to vote.`
+                        ) : (
+                          "Your locks vote for you after you delegate to yourself."
+                        )
+                      ) : (
+                        <>
+                          <AddressText bold={false} label={delegateName}>
+                            {delegation.delegatesTo}
+                          </AddressText>{" "}
+                          votes with your locked FOLD. Delegate to yourself to vote with it.
+                        </>
+                      )}
+                    </dd>
+                  )}
                 </dl>
-                <div className="power-current-delegate-actions" role="group" aria-label="Manage delegation">
-                  <PowerAction
-                    size="compact"
-                    affordance="next"
-                    aria-haspopup="dialog"
-                    disabled={!delegationKnown || busy}
-                    onClick={() => selectDelegate()}
-                  >
-                    {notActivated ? "Choose delegate" : "Change delegate"}
-                  </PowerAction>
-                  {delegationKnown && !notActivated && (
+                {delegationKnown && !delegatedToSelf && (
+                  <div className="power-current-delegate-actions" role="group" aria-label="Vote with your locks">
                     <PowerAction
                       size="compact"
-                      affordance="close"
-                      aria-haspopup="dialog"
-                      disabled={busy}
-                      onClick={() => selectDelegate(ADDRESS_ZERO)}
+                      affordance="next"
+                      isLoading={delegation.isConfirming}
+                      disabled={busy || !escrow.adapter}
+                      onClick={() => void delegation.delegateToSelf()}
                     >
-                      Remove delegation
+                      Delegate to myself
                     </PowerAction>
-                  )}
-                </div>
+                  </div>
+                )}
+                {delegation.error && (
+                  <div className="power-help" role="alert">
+                    <p>{delegation.error}</p>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-          <DelegateDirectory refreshKey={delegateRefreshKey} onSelect={selectDelegate} pending={!!delegateConnection} />
-        </ScrollFadeIn>
-      </section>
-      {isConnected && address && (
-        <BondedDelegationCards address={address} bonded={bonded} blockClassName="power-block" />
+          </ScrollFadeIn>
+        </section>
       )}
+      {isConnected && address && <BondedDelegationCards bonded={bonded} blockClassName="power-block" />}
       {isConnected && address && (
         <>
           <LockForm
@@ -402,12 +385,10 @@ export default function Locker() {
             account={address}
             currentDelegate={delegation.delegatesTo}
             existingLockedAmount={fmt(locksKnown ? committedByMe : undefined)}
-            existingLockedValue={locksKnown ? committedByMe : undefined}
             hasExistingLocks={!locksKnown || committedByMe > 0n}
-            canDelegate={!!escrow.adapter && locksKnown}
-            refreshKey={delegateRefreshKey}
-            onDelegate={delegation.delegate}
-            delegationError={delegation.error}
+            canActivate={!!escrow.adapter && locksKnown}
+            onActivate={delegation.delegateToSelf}
+            activationError={delegation.error}
             belowMinimum={belowMinimum}
             aboveBalance={aboveBalance}
             canLock={canLock}
@@ -435,21 +416,6 @@ export default function Locker() {
             triggerRef={withdrawalTrigger}
             onClose={() => setWithdrawalAction(undefined)}
             onConfirm={(kind) => void confirmWithdrawal(kind)}
-          />
-          <DelegateDialog
-            open={delegateDialogOpen}
-            selected={delegateChoice}
-            account={address}
-            currentDelegate={delegation.delegatesTo}
-            lockedAmount={locksKnown ? committedByMe : undefined}
-            pending={delegation.isConfirming}
-            error={delegation.error}
-            canDelegate={!!escrow.adapter}
-            refreshKey={delegateRefreshKey}
-            triggerRef={delegateTrigger}
-            onSelect={setDelegateChoice}
-            onClose={() => setDelegateDialogOpen(false)}
-            onConfirm={(target) => delegation.delegate(target)}
           />
         </>
       )}

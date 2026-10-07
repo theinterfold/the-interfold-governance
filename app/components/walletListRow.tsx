@@ -1,20 +1,17 @@
 import type { ReactNode } from "react";
 
-/** Shared identity, data and action layout for delegate and eligible-voter lists. */
+/** Identity, data and action layout for wallet lists, such as the eligible-voter list. */
 export function WalletListRow({
   layout = "picker",
-  currentDelegate = false,
   identity,
   children,
 }: {
   layout?: "default" | "table" | "picker";
-  currentDelegate?: boolean;
   identity: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div
-      data-current-delegate={currentDelegate || undefined}
       className={
         layout === "picker"
           ? "delegate-picker-row"

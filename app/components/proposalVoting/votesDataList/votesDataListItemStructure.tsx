@@ -11,19 +11,17 @@ export interface IVotesDataListItemStructureProps extends IDataListItemProps {
   ensAvatar?: string;
   ensName?: string;
   connectedAccount?: boolean;
-  delegate?: boolean;
   votingPower?: string;
 }
 
 export const VotesDataListItemStructure: React.FC<IVotesDataListItemStructureProps> = (props) => {
-  const { address, connectedAccount, delegate, ensAvatar, ensName, variant, className, votingPower, ...otherProps } =
-    props;
+  const { address, connectedAccount, ensAvatar, ensName, variant, className, votingPower, ...otherProps } = props;
 
   // Always the blockie, matching the explorer this row already links to. Etherscan never
   // substitutes an ENS avatar, and a synchronous value means no post-paint swap.
   const blockie = blockieDataUrl(address);
 
-  const label = connectedAccount ? "You" : delegate ? "Your delegate" : null;
+  const label = connectedAccount ? "You" : null;
 
   const dataListVariantToTagVariant: Record<IVotesDataListVariant, TagVariant> = {
     yes: "success",

@@ -1,0 +1,134 @@
+.hero {
+  position: relative;
+  min-height: 900px;
+  isolation: isolate;
+}
+.copy {
+  position: relative;
+  z-index: 1;
+  padding-top: 72px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  color: var(--ink);
+  font: 400 var(--type-h1-md)/var(--type-h1-leading) var(--font-serif);
+  letter-spacing: var(--type-h1-tracking);
+}
+.support {
+  max-width: 560px;
+  margin: 24px auto 0;
+  color: var(--muted);
+  font: 400 18px/1.5 var(--font-sans);
+  text-wrap: balance;
+}
+.art {
+  position: absolute;
+  z-index: 0;
+  top: 245px;
+  left: 50%;
+  width: 1200px;
+  max-width: 132%;
+  aspect-ratio: 600 / 305;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.art canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.art canvas {
+  position: absolute;
+  inset: 0;
+}
+.art:not([data-ready="true"]) canvas {
+  visibility: hidden;
+}
+.motion {
+  position: absolute;
+  right: 0;
+  bottom: 28px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 400 12px/1.4 var(--font-sans);
+  cursor: pointer;
+}
+.motion:hover {
+  color: var(--ink);
+}
+.motion:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+.story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  padding-block: 40px 48px;
+  border-top: 1px solid var(--rule);
+}
+.storyTitle {
+  margin: 0;
+  color: var(--ink);
+  font: 400 32px/0.95 var(--font-serif);
+  letter-spacing: -0.96px;
+}
+.story p {
+  margin: 0;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.participation {
+  margin-top: 24px;
+}
+.participation h3 {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font: 400 24px/1.05 var(--font-serif);
+  letter-spacing: -0.48px;
+}
+@media (max-width: 767px) {
+  .hero {
+    min-height: 760px;
+  }
+  .copy {
+    padding-top: 56px;
+  }
+  .title {
+    font-size: var(--type-h1);
+    line-height: 0.95;
+    letter-spacing: -1.2px;
+  }
+  .support {
+    max-width: 360px;
+    margin-top: 20px;
+    font-size: 16px;
+  }
+  .art {
+    top: 285px;
+    width: 690px;
+    max-width: 175%;
+    aspect-ratio: 600 / 400;
+  }
+  .story {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-block: 32px;
+  }
+  .storyTitle {
+    font-size: 24px;
+    letter-spacing: -0.72px;
+  }
+}
+@media (pointer: coarse) {
+  .motion {
+    min-height: 44px;
+  }
+}

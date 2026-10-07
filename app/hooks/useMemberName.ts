@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getEnsNameQueryOptions } from "wagmi/query";
 import { mainnet } from "wagmi/chains";
 
-// Keep directory entries and selected delegates on the same read-only ENS cache.
+// Keep every address name on the same read-only ENS cache.
 // ENS lives on mainnet, independently of the governance deployment.
 export const ensConfig = createConfig({
   chains: [mainnet],

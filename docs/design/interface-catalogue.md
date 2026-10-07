@@ -29,12 +29,12 @@ behaviour remain Interfold’s. The atlas is research, not an implementation spe
 | Page introduction | `PageIntro` | Gramercy regular; existing responsive website scale | Voting power, Proposals |
 | Panel title | `PanelHeader` | Inter 20 / 600 | Your account, Locks, Proposals |
 | Document title | `--ui-title-font` / `ui-card-title` | Inter 24 / 500 | Proposal titles |
-| Section introduction | `power-section-intro` / site type ladder | Gramercy 24–32 title, 16–18 copy | Choose a delegate, outside its white card |
+| Section introduction | `power-section-intro` / site type ladder | Gramercy 24–32 title, 16–18 copy | Your delegation, outside its white card |
 | Section title | `--ui-section-font` / `ui-section-title` | Inter 16 / 600 | Voting power, Voting power sources, Voting details, Actions |
 | Supporting text | `--ui-body-font` / `ui-body` | Inter 14 / 400 | Account explanations, source names, lock summary |
-| Label / metadata | `--ui-label-font` / `ui-label` | Inter 12 / 500 | Locked FOLD, Unlocked FOLD, directory headings, proposal filters and metadata |
-| List amount | `ListTokenAmount` / `--ui-list-value-font` | Inter 16 / 600; tabular numerals | Locks and delegate voting power |
-| List identifier | `RowIdentifier` | Inter 12 / 500; tabular numerals | Stable lock IDs and positional delegate ranks |
+| Label / metadata | `--ui-label-font` / `ui-label` | Inter 12 / 500 | Locked FOLD, Unlocked FOLD, proposal filters and metadata |
+| List amount | `ListTokenAmount` / `--ui-list-value-font` | Inter 16 / 600; tabular numerals | Locks and eligible-voter FOLD amounts |
+| List identifier | `RowIdentifier` | Inter 12 / 500; tabular numerals | Stable lock IDs |
 | State | `--ui-status-font` / `StatusBadge`, `LockStatusBadge` | Inter 12 / 600 | Locks and proposal states |
 | Address / technical identifier | Existing address components | Office Code Pro 500 | Addresses and code; list IDs use RowIdentifier |
 
@@ -45,7 +45,7 @@ another size just to fit a particular label.
 
 ## Form spacing
 
-Shared tokens in `globals.css` define the rhythm for lock/delegation reviews and ballot forms:
+Shared tokens in `globals.css` define the rhythm for lock forms, withdrawal reviews and ballot forms:
 
 | Role | Token | Space |
 | --- | --- | --- |
@@ -63,11 +63,11 @@ fields appear. Its heading says “Lock for your wallet” or “Lock for anothe
 is explicit before entry. Only the editable wallet address has an underline.
 
 The overview follows the main page introduction directly, without repeating “Your voting power”.
-The delegate section uses `power-section-intro` outside its white card: Gramercy headings and
+The delegation section uses `power-section-intro` outside its white card: Gramercy headings and
 supporting copy from the existing site type ladder, an 8px title/copy gap and 24px before the card.
 Inter remains the font for data, card headings and controls.
 
-`LockPartyGroup` shares the owner/delegate hierarchy: a section title and secondary text action
+`LockPartyGroup` shares the owner/voting-power hierarchy: a section title and secondary text action
 outside each neutral group, 12px before its content, and supporting copy inside. The neutral
 surface extends 12px into the dialog gutter on each side, with matching 12px horizontal padding,
 so headings, wallet fields, helper copy, warning edges and form facts share the same left axis.
@@ -96,13 +96,13 @@ amount stays raw, so presentation never changes transaction values. Both amount 
 | --- | --- | --- |
 | Primary | `ActionButton intent="create"` or `"confirm"` | Lock FOLD and confirmation/submission actions |
 | Voting | `ActionButton intent="vote"` | Green Vote, public/private vote submission and review confirmation |
-| Secondary | `ActionButton intent="open"` | View results/View proposal/Close details, Change delegate, Remove delegation and row actions |
+| Secondary | `ActionButton intent="open"` | View results/View proposal/Close details and row actions |
 | Navigation | `ActionLink`, with the same intent and surface as ActionButton | Create proposal uses `intent="create"` in the external Proposals header |
 | Domain action | `PowerAction` alias; `WithdrawalButton` wrapper | Same underlying button; no independent sizing |
 | Saved lock studies | `LockSummaryToggle` + `ActionButton` | Historical alternatives retained in `/design-locks`; production locks are always visible |
-| Row state | `LockStatusBadge`, `DelegateStatus`, `.badge` | Read-only status; never presented as a transaction action |
-| Utility | Sort, info, close, copy | Compact controls serving a different role from standard actions |
-| Secondary text action | `.ui-text-action` | Lock for another wallet and Change delegate inside the lock form; reveals additional fields or the delegate chooser |
+| Row state | `LockStatusBadge`, `.badge` | Read-only status; never presented as a transaction action |
+| Utility | Info, close, copy | Compact controls serving a different role from standard actions |
+| Secondary text action | `.ui-text-action` | Lock for another wallet inside the lock form; reveals the additional wallet address field |
 | Wallet identity | `AddressText`, also used by `EnsMember` | One details trigger; connected wallets show their address followed by a “Your wallet” badge using the metadata type role |
 | Wallet menu control | `WalletButton` | Compact light surface, 6px corners, 12px monospace address; shared by the header and menu in live and preview modes |
 | Transaction facts | `ActionDetailField`, `EncodedView`, `CallParamField` | Shared read-only recipient, value and calldata rows in proposal details and composer previews; exact values, no disabled inputs |
@@ -119,10 +119,6 @@ explicit recipient choices keep their relevant identity or input. The review's m
 owns its height transition directly, keeping the dialog surface and footer in sync without a
 second height animator. Reversal preserves focus and draft input; reduced motion is immediate.
 
-The delegate chooser and review share `DelegationAmount`: only the locked FOLD covered by the
-change, excluding withdrawal positions. Bonded, vesting and incoming voting power do not belong
-in this action. The amount is a plain readout, label above value, left-aligned, without a
-field-like background, border or inset. The overview uses the neutral label “Voting power”.
 The account overview shows Your voting power at the upper left and the owned balance legend and
 ring to its right. The ring follows the height of the legend. Its three categories are Unlocked
 FOLD, Locked FOLD and Bonded. Vesting is included in the relevant owned balance, while the
@@ -131,34 +127,22 @@ A separate Locks card follows, always expanded, with a count and compact Lock FO
 The balance values are not repeated there. Missing reads stay unavailable; zero has an empty ring.
 Hover/focus on balance categories highlights the corresponding ring segment.
 
-The review names the new voting delegate and the current delegate it replaces. When a new lock
-also changes existing delegation, its warning identifies the delegate being replaced or removed
-using the shared wallet identity, with ENS when available. Both ownership and delegation warnings
-use the same small Phosphor warning icon, with title and body aligned in one text column.
-A zero current delegate is not shown as
-a wallet. Proposal voting-power info sits beside its label, with the snapshot note below;
+Lock warnings use a small Phosphor warning icon, with title and body aligned in one text column.
+Proposal voting-power info sits beside its label, with the snapshot note below;
 `ui-label-with-info` keeps the same grouping for mask privacy info. Where lock-table
-headers collapse, each delegate address keeps its “Delegated to” label. Self-delegation and removal are quick actions; the connected wallet also appears
-in the ordinary directory. Both the directory and chooser show ten delegates initially, with
-“Load more” adding ten. Search and sorting cover the full directory and reset the visible count.
-Both choosers and the directory use `SearchField`: a rounded outline, 16px search icon, clear
-control and an ENS-or-address placeholder. Search matches partial primary ENS names across the
-whole directory, with bounded lookups using the wallet-label cache. Complete ENS names also
-resolve to a selectable wallet even outside the directory; resolution and network failures have
-explicit feedback. The delegation review shows the current and proposed delegate, without a
-redundant lock-owner row (the connected wallet owns the locks in this flow).
+headers collapse, each delegate address keeps its “Delegated to” label. Self-delegation is a quick
+action. Mask recipient search uses `SearchField`: a rounded outline, 16px search icon, clear
+control and a wallet-address placeholder.
 All action affordances use `ActionIcon`: Phosphor regular, 16px, trailing, with an 8px gap.
 `ActionButton` owns their shared reveal through `ActionLabel`: hidden at rest, revealed on hover
 or keyboard focus, visible without animation on touch or with reduced motion. This includes
-Change/Select delegate, self-delegation, removal, custom-address selection, lock and withdrawal
-actions. Never insert a separate leading action icon into a button's children. Status checks
-(Delegated, Selected, No delegation) use the same icon family and size but remain visible.
-The footer announces the displayed/total count. Locks and delegates share a full-width white row
-surface, thin separators, neutral hover/focus and 12px vertical padding. At desktop both have a
-76px minimum row height and a 196px compact action column. `RowIdentifier` and `ListTokenAmount`
-share typography; lock IDs retain # because they are persistent identifiers, while delegate
-numbers are positions in the currently displayed order. Mobile groups identity and amount,
-then state and action, without a fixed height. Days remain to the left of right-aligned lock badges.
+self-delegation, mask recipient selection, lock and withdrawal actions. Never insert a separate leading action icon into a button's children. Status checks
+(Selected) use the same icon family and size but remain visible.
+Locks use a full-width white row surface, thin separators, neutral hover/focus and 12px vertical
+padding. At desktop they have a 76px minimum row height and a 196px compact action column.
+`RowIdentifier` and `ListTokenAmount` share typography; lock IDs retain # because they are
+persistent identifiers. Mobile groups identity and amount, then state and action, without a
+fixed height. Days remain to the left of right-aligned lock badges.
 
 Shared information bubbles use `PowerInfoArrow`, whose fill overlaps the surface border and whose
 outline continues along the two pointer edges, so the pointer belongs to the same shape.
@@ -171,7 +155,7 @@ grey backgrounds. Keep semantic state borders and circular avatars, indicators a
 
 Standard actions are 46px mobile / 52px from 768px, with 6px corners and 14px/600 type.
 The explicit `size="compact"` variant is 40px desktop / at least 44px mobile or touch, used for
-Lock FOLD and lock/delegate row actions. `ActionLabel` owns trailing icons and `BendingChevron`
+Lock FOLD and lock row actions. `ActionLabel` owns trailing icons and `BendingChevron`
 remains visible for disclosures. Disabled/loading styling belongs to the action family.
 
 Create proposal is in the external Proposals header, beside the title/intro and eligibility feedback,
@@ -179,7 +163,7 @@ using the same `PanelHeader` and spacing above the white panel as Your locks.
 It has the same regular dimensions as Vote: 260px wide on desktop, growing to the available
 width on small screens. Vote, vote submission and vote confirmation use `intent="vote"` (green).
 Create proposal and Lock FOLD retain black; closed/result actions are white. Search uses the
-same `SearchField` as the directory. `DeadlineInfo` unifies exact dates in countdown/cooldown
+shared `SearchField`. `DeadlineInfo` unifies exact dates in countdown/cooldown
 tooltips, always including UTC and seconds, without changing their visible relative summaries.
 `PanelHeader` and `.ui-panel` / `.power-card` own shared card headings and surfaces.
 

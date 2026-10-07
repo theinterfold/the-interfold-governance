@@ -44,8 +44,8 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
       schedule={
         <>
           <p className="composer-help">
-            A proposal first gives the ciphernode committee time to prepare its key. Voting starts at the scheduled
-            time and remains open for the full stage-configured window. Avail finalization, computation, and decryption
+            A proposal first gives the ciphernode committee time to prepare its key. Voting starts at the scheduled time
+            and remains open for the full stage-configured window. Avail finalization, computation, and decryption
             happen after voting closes. A passed proposal then moves to the foundation stage before execution.
           </p>
           {durationSeconds !== undefined && (
@@ -62,11 +62,11 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
           )}
         </>
       }
-      renderEditor={(editor) => (
+      eligibilityNotice={
         <CrispCreationEligibility selfAddress={selfAddress} state={canCreateState} isConnected={isConnected}>
-          {editor}
+          {null}
         </CrispCreationEligibility>
-      )}
+      }
     />
   );
 }

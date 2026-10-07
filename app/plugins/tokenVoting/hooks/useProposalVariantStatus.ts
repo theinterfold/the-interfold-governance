@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
 import { RATIO_BASE, type Proposal } from "../utils/types";
 
@@ -25,54 +24,48 @@ function computeOutcome(proposal: Proposal): {
   return { passed: supportReached && !lowTurnout, lowTurnout };
 }
 
+/** Final vote outcome requires a chain read made after the voting deadline. */
+export function derivePublicProposalStatus(
+  proposal: Proposal | null | undefined,
+  nowMs: number,
+  proposalReadAtMs?: number
+): ProposalStatus | undefined {
+  if (!proposal?.parameters || !proposal.tally) return undefined;
+  if (proposal.executed) return ProposalStatus.EXECUTED;
+
+  const startMs = Number(proposal.parameters.startDate) * 1000;
+  const endMs = Number(proposal.parameters.endDate) * 1000;
+  if (nowMs < startMs) return ProposalStatus.PENDING;
+  if (nowMs < endMs) return ProposalStatus.ACTIVE;
+  if (proposalReadAtMs === undefined || proposalReadAtMs < endMs || proposal.active) return ProposalStatus.PENDING;
+
+  const { passed, lowTurnout } = computeOutcome(proposal);
+  if (lowTurnout || !passed) return ProposalStatus.REJECTED;
+  return proposal.actions.length ? ProposalStatus.EXECUTABLE : ProposalStatus.ACCEPTED;
+}
+
 /**
  * The body-level status of a TokenVoting proposal.
  *
  * @returns `status`, and `quorumNotMet` — true only alongside REJECTED, when turnout fell short of
  *          `minVotingPower` rather than the vote going against it.
  */
-export const useProposalStatus = (proposal: Proposal) => {
-  const [status, setStatus] = useState<ProposalStatus>();
-  const [quorumNotMet, setQuorumNotMet] = useState(false);
-
-  useEffect(() => {
-    if (!proposal || !proposal.parameters || !proposal.tally) return;
-
-    let quorumFailed = false;
-    if (proposal.active) {
-      setStatus(ProposalStatus.ACTIVE);
-    } else if (proposal.executed) {
-      setStatus(ProposalStatus.EXECUTED);
-    } else {
-      const { passed, lowTurnout } = computeOutcome(proposal);
-      quorumFailed = lowTurnout;
-      if (lowTurnout) setStatus(ProposalStatus.REJECTED);
-      else if (passed) setStatus(proposal.actions.length ? ProposalStatus.EXECUTABLE : ProposalStatus.ACCEPTED);
-      else setStatus(ProposalStatus.REJECTED);
-    }
-    setQuorumNotMet(quorumFailed);
-  }, [proposal?.tally, proposal?.active, proposal?.executed, proposal?.parameters]);
-
+export const useProposalStatus = (proposal: Proposal, nowMs = Date.now(), proposalReadAtMs?: number) => {
+  const status = derivePublicProposalStatus(proposal, nowMs, proposalReadAtMs);
+  const quorumNotMet = status === ProposalStatus.REJECTED && computeOutcome(proposal).lowTurnout;
   return { status, quorumNotMet };
 };
 
-export const useProposalVariantStatus = (proposal: Proposal) => {
-  const [status, setStatus] = useState({ variant: "", label: "" });
-
-  useEffect(() => {
-    if (!proposal || !proposal.parameters || !proposal.tally) return;
-
-    if (proposal.active) {
-      setStatus({ variant: "info", label: "Active" });
-    } else if (proposal.executed) {
-      setStatus({ variant: "primary", label: "Executed" });
-    } else {
-      const { passed, lowTurnout } = computeOutcome(proposal);
-      if (lowTurnout) setStatus({ variant: "critical", label: "Rejected — low turnout" });
-      else if (passed) setStatus({ variant: "success", label: "Executable" });
-      else setStatus({ variant: "critical", label: "Rejected" });
-    }
-  }, [proposal?.tally, proposal?.active, proposal?.executed, proposal?.parameters]);
-
-  return status;
+export const useProposalVariantStatus = (proposal: Proposal, nowMs = Date.now(), proposalReadAtMs?: number) => {
+  const status = derivePublicProposalStatus(proposal, nowMs, proposalReadAtMs);
+  if (status === ProposalStatus.ACTIVE) return { variant: "info", label: "Active" };
+  if (status === ProposalStatus.EXECUTED) return { variant: "primary", label: "Executed" };
+  if (status === ProposalStatus.REJECTED) {
+    const { lowTurnout } = computeOutcome(proposal);
+    return { variant: "critical", label: lowTurnout ? "Rejected — low turnout" : "Rejected" };
+  }
+  if (status === ProposalStatus.EXECUTABLE || status === ProposalStatus.ACCEPTED) {
+    return { variant: "success", label: "Executable" };
+  }
+  return { variant: "", label: status === ProposalStatus.PENDING ? "Pending" : "" };
 };

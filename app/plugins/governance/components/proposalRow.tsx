@@ -16,14 +16,8 @@ export interface ProposalRowProps {
   kindLabel: string;
   loading?: boolean;
   loadingMessage?: string;
-  /**
-   * A permanent, non-recoverable state for this row — render it as settled, not pending.
-   *
-   * Distinct from `loading`: a failed sub-proposal never resolves, so showing a spinner beside
-   * its explanation tells the reader to keep waiting for something that will never arrive. The
-   * SPP writes its failure sentinel once at creation and offers no retry path.
-   */
-  failedMessage?: string;
+  failureMessage?: string;
+  onRetry?: () => void;
   title?: string;
   summary?: string;
   creator?: string;
@@ -78,24 +72,43 @@ export function ProposalRow(props: ProposalRowProps) {
   if (props.hidden) return null;
 
   // Checked before `loading`: a row can be handed both while its reads settle, and the permanent
-  // state is the one worth showing.
-  if (props.failedMessage) {
+  // state is the one worth showing. A failed sub-proposal never resolves, so the row shows no
+  // spinner beside its explanation.
+  if (props.failureMessage) {
     return (
       <article className="proposal-item" data-status="failed">
-        <header className="proposal-row">
+        <div className="proposal-row" data-proposal-part="surface">
           <div className="body">
             <div className="meta">
-              <StatusBadge className="failed">Failed</StatusBadge>
-              <span className="proposal-method">{props.kindLabel}</span>
+              <StatusBadge className="failed" data-proposal-part="status">
+                {props.statusLabel ?? "Unavailable"}
+              </StatusBadge>
+              <StatusBadge className="kind" data-proposal-part="method">
+                {props.kindLabel}
+              </StatusBadge>
             </div>
-            <p className="summary">{props.failedMessage}</p>
+            <h2>
+              <Link href={props.href} className="proposal-title-link" scroll={false}>
+                <span className="proposal-motion-title" data-proposal-part="title">
+                  {title}
+                </span>
+              </Link>
+            </h2>
+            <p className="summary" role="alert">
+              {props.failureMessage}
+            </p>
           </div>
           <div className="right">
-            <Link href={props.href} className="ui-text-action" scroll={false}>
-              View proposal
+            <Link href={props.href} className="ui-text-action">
+              Open proposal
             </Link>
+            {props.onRetry && (
+              <button type="button" className="ui-text-action" onClick={props.onRetry}>
+                Try again
+              </button>
+            )}
           </div>
-        </header>
+        </div>
       </article>
     );
   }
@@ -118,36 +131,48 @@ export function ProposalRow(props: ProposalRowProps) {
       data-voting-open={votingOpen}
       data-status={props.statusClass}
     >
-      <header className="proposal-row">
+      <header className="proposal-row" data-proposal-part="surface">
         <div className="body">
           <div className="meta">
-            {props.statusLabel && <StatusBadge className={props.statusClass}>{props.statusLabel}</StatusBadge>}
-            <span className="proposal-method">{props.kindLabel}</span>
+            {props.statusLabel && (
+              <StatusBadge className={props.statusClass} data-proposal-part="status">
+                {props.statusLabel}
+              </StatusBadge>
+            )}
+            <StatusBadge className="kind" data-proposal-part="method">
+              {props.kindLabel}
+            </StatusBadge>
           </div>
           <h2 id={titleId}>
             <Link href={props.href} className="proposal-title-link" scroll={false}>
-              {title}
+              <span className="proposal-motion-title" data-proposal-part="title">
+                {title}
+              </span>
             </Link>
           </h2>
-          <p className="summary line-clamp-2">{props.summary}</p>
-          <div className="author">
+          <p className="summary line-clamp-2" data-proposal-part="summary">
+            {props.summary}
+          </p>
+          <div className="author" data-proposal-part="author">
             <em>By</em>
             <AddressText bold={false}>{props.creator}</AddressText>
           </div>
         </div>
         <div className="right">
           {props.rightLabel && (
-            <span className="time">
+            <span className="time" data-proposal-part="timing">
               {votingOpen && props.votingEndMs ? (
                 <ProposalCountdown endMs={props.votingEndMs} onEnd={() => setExpiredDeadline(props.votingEndMs)} />
-              ) : expiredDeadline === props.votingEndMs && expiredDeadline !== undefined ? (
+              ) : expiredDeadline === props.votingEndMs &&
+                expiredDeadline !== undefined &&
+                props.statusLabel === "Active" ? (
                 "Voting ended"
               ) : (
                 props.rightLabel
               )}
             </span>
           )}
-          <div className="proposal-result">
+          <div className="proposal-result" data-proposal-part="list-result">
             {props.resultLabel !== props.kindLabel && (
               <span className="proposal-result-label">{props.resultLabel ?? "Voting results"}</span>
             )}
@@ -158,7 +183,7 @@ export function ProposalRow(props: ProposalRowProps) {
                     b.width > 0 ? <span key={i} style={{ width: `${b.width}%`, background: b.color }} /> : null
                   )}
                 </div>
-                <ul className="proposal-result-legend" aria-label="Share of voting weight cast">
+                <ul className="proposal-result-legend" aria-label="Share of voting power cast">
                   {props.bars.map((bar, i) => (
                     <li key={`${bar.label}-${i}`}>
                       <span className="proposal-result-dot" style={{ background: bar.color }} aria-hidden="true" />
@@ -176,6 +201,7 @@ export function ProposalRow(props: ProposalRowProps) {
             type="button"
             intent={votingOpen && !expanded ? "vote" : "open"}
             className="proposal-row-action"
+            data-proposal-part="list-action"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={toggle}
@@ -238,9 +264,8 @@ export function rowTimingLabel(opts: {
 }): string {
   const now = opts.nowMs ?? Date.now();
   if (opts.isActive && opts.endMs > now) return formatEndsIn(opts.endMs, now);
-  if (opts.statusLabel === "Foundation Approval" || opts.statusLabel === "Veto period") {
-    return "Awaiting Foundation approval";
-  }
+  if (opts.statusLabel === "Foundation Approval") return "Awaiting Foundation approval";
+  if (opts.statusLabel === "Veto period") return "Veto period";
   // Voting closed but no verdict rendered yet (tally pending / stage not advanced).
   if (opts.endMs <= now && (opts.statusLabel === "Pending" || opts.statusLabel === "Active")) {
     return "Voting ended";

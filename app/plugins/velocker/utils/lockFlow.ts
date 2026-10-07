@@ -1,22 +1,22 @@
-export type LockFlowPhase = "locking" | "delegating";
-export type LockFlowResult = "complete" | "lock-failed" | "delegation-failed" | "paused";
+export type LockFlowPhase = "locking" | "activating";
+export type LockFlowResult = "complete" | "lock-failed" | "activation-failed" | "paused";
 
-/** Retry delegation without creating a second lock after a partial success. */
+/** Retry activation without creating a second lock after a partial success. */
 export async function runLockFlow({
   lockConfirmed,
   ownerIsAccount,
-  needsDelegation,
+  needsActivation,
   createLock,
-  delegate,
+  activate,
   onLockConfirmed,
   onPhase,
   canContinue,
 }: {
   lockConfirmed: boolean;
   ownerIsAccount: boolean;
-  needsDelegation: boolean;
+  needsActivation: boolean;
   createLock: () => Promise<boolean>;
-  delegate: () => Promise<boolean>;
+  activate: () => Promise<boolean>;
   onLockConfirmed: () => void;
   onPhase: (phase: LockFlowPhase) => void;
   canContinue: () => boolean;
@@ -29,10 +29,10 @@ export async function runLockFlow({
   }
   // Never prompt a different account after a wallet switch during the lock receipt.
   if (!canContinue()) return "paused";
-  // A payer cannot choose delegation on behalf of another lock owner.
-  if (ownerIsAccount && needsDelegation) {
-    onPhase("delegating");
-    if (!(await delegate())) return "delegation-failed";
+  // A payer cannot activate voting power on behalf of another lock owner.
+  if (ownerIsAccount && needsActivation) {
+    onPhase("activating");
+    if (!(await activate())) return "activation-failed";
   }
   return "complete";
 }

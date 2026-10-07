@@ -30,11 +30,39 @@ export function FluidHeight({
   useClientLayoutEffect(() => {
     const content = contentRef.current;
     if (!content) return;
+    let disposed = false;
+    const observedMotion = new Set<Animation>();
+    const heightProperties = ["gridTemplateRows", "height", "marginTop", "marginBottom", "paddingTop", "paddingBottom"];
 
-    const measure = () => {
+    const measure = (settle = false) => {
       // Filtering a proposal hides an ancestor. Preserve its last size until it is visible again.
       // Measure layout height so an ancestor's modal morph cannot feed a scaled height back into layout.
       if (!content.getClientRects().length) return;
+      // A disclosure already owns its intermediate layout heights. Following it
+      // directly prevents a second full-duration animation from restarting each frame.
+      const contentMotion =
+        layoutKey === undefined
+          ? []
+          : content
+              .getAnimations({ subtree: true })
+              .filter(
+                (animation) =>
+                  animation.playState === "running" &&
+                  animation.effect instanceof KeyframeEffect &&
+                  animation.effect
+                    .getKeyframes()
+                    .some((frame) => heightProperties.some((property) => property in frame))
+              );
+      contentMotion.forEach((animation) => {
+        if (observedMotion.has(animation)) return;
+        observedMotion.add(animation);
+        const finish = () => {
+          observedMotion.delete(animation);
+          // The final resize can arrive after the descendant stops animating.
+          if (!disposed) measure(true);
+        };
+        void animation.finished.then(finish, finish);
+      });
       const next = content.offsetHeight;
       if (next === targetHeight.current) return;
       const surface = surfaceRef.current;
@@ -47,6 +75,8 @@ export function FluidHeight({
         if (
           targetHeight.current !== undefined &&
           animate &&
+          !settle &&
+          !contentMotion.length &&
           !surface.closest("[data-morphing]") &&
           !window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ) {
@@ -60,12 +90,28 @@ export function FluidHeight({
       setHeight(next);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => measure());
     observer.observe(content);
-    return () => observer.disconnect();
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
   }, [layoutKey, animate]);
 
-  useEffect(() => () => heightAnimation.current?.cancel(), []);
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const settle = () => {
+      if (!preference.matches) return;
+      // The target height is already in layout; cancellation reveals it immediately.
+      heightAnimation.current?.cancel();
+      heightAnimation.current = undefined;
+    };
+    preference.addEventListener("change", settle);
+    return () => {
+      preference.removeEventListener("change", settle);
+      heightAnimation.current?.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     if (height !== undefined && collapsedHeight !== undefined) onOverflowChange?.(height > collapsedHeight);

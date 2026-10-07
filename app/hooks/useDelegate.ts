@@ -1,17 +1,16 @@
 import { useAccount } from "wagmi";
-import type { Address } from "viem";
 import { iVotesAbi } from "@/plugins/crispVoting/artifacts/iVotes";
 import { PUB_CHAIN, PUB_ENABLE_LOCKING, PUB_TOKEN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { useVeEscrow } from "@/plugins/velocker/hooks/useVeEscrow";
 
 /**
- * Delegate the connected account's voting power to a target (or to self).
+ * Delegate the connected account's voting power to the account itself.
  *
- * With the velocker enabled, delegation lives on the escrow's IVotes ADAPTER — locks are what
- * carry voting power, and the raw token's own delegation feeds a read nothing consumes. Both
- * contracts expose the same `delegate(address)` surface, so only the target differs. The
- * adapter address is read off the escrow on-chain, hence `canDelegate` waits for it.
+ * With the velocker enabled, delegation lives on the escrow's IVotes ADAPTER. Locks carry voting
+ * power, and the raw token's own delegation feeds a read nothing consumes. Without it, delegation
+ * lives on the token. The adapter address is read off the escrow on-chain, so `canDelegate` waits
+ * for it. An account that delegated to another address takes its voting power back the same way.
  */
 export function useDelegate(onSuccess?: () => void) {
   const { address } = useAccount();
@@ -19,25 +18,21 @@ export function useDelegate(onSuccess?: () => void) {
   const delegationTarget = PUB_ENABLE_LOCKING ? adapter : PUB_TOKEN_ADDRESS;
 
   const { writeContract, isConfirming, isConfirmed } = useTransactionManager({
-    onSuccessMessage: "Voting power delegated",
+    onSuccessMessage: "Voting power activated",
     onSuccess,
-    onErrorMessage: "Could not delegate voting power",
+    onErrorMessage: "Could not activate voting power",
   });
 
-  const delegate = (target: Address) => {
-    if (!delegationTarget) return;
+  const delegateToSelf = () => {
+    if (!address || !delegationTarget) return;
     writeContract({
       chainId: PUB_CHAIN.id,
       abi: iVotesAbi,
       address: delegationTarget,
       functionName: "delegate",
-      args: [target],
+      args: [address],
     });
   };
 
-  const delegateToSelf = () => {
-    if (address) delegate(address);
-  };
-
-  return { delegate, delegateToSelf, isConfirming, isConfirmed, canDelegate: !!address && !!delegationTarget };
+  return { delegateToSelf, isConfirming, isConfirmed, canDelegate: !!address && !!delegationTarget };
 }

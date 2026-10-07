@@ -10,12 +10,16 @@ import { PUB_CHAIN } from "@/constants";
 
 interface IFunctionParamsFormProps {
   functionAbi?: AbiFunction;
+  active: boolean;
+  selectionRevision: number;
   onActionChanged: (calldata: Hex, value: bigint, abi: AbiFunction) => void;
   onActionCleared: () => any;
   onSubmit?: () => any;
 }
 export const FunctionParamsForm = ({
   functionAbi,
+  active,
+  selectionRevision,
   onActionChanged,
   onActionCleared,
   onSubmit,
@@ -41,9 +45,15 @@ export const FunctionParamsForm = ({
   }, [functionAbi]);
 
   useEffect(() => {
-    // Attempt to sync when possible
+    // The panel stays mounted for its exit animation. Re-entering the same
+    // function must encode the retained inputs again, but an inactive panel
+    // must never prepare an action.
+    if (!active) {
+      onActionCleared();
+      return;
+    }
     trySubmit();
-  }, [functionAbi, inputValues.join(","), value, canSend]);
+  }, [active, selectionRevision, functionAbi, inputValues.join(","), value, canSend]);
 
   const onParameterChange = (paramIdx: number, value: InputValue) => {
     const newInputValues = [...inputValues];

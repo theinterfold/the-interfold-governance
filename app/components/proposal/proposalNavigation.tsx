@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { proposalTransitionStyles, type ProposalPartPosition } from "./proposalTransition";
 
 type ViewTransition = { finished: Promise<void>; ready: Promise<void>; skipTransition: () => void };
 type TransitionDocument = Document & {
@@ -9,6 +10,8 @@ const NavigationContext = createContext<(() => boolean) | undefined>(undefined);
 export const useProposalBack = () => useContext(NavigationContext);
 const isList = (hash: string) => !hash || hash === "#/";
 const isDetail = (hash: string) => /^#\/proposals\/(private|public)\/\d+$/.test(hash);
+const isCreate = (hash: string) => hash === "#/new";
+const isPage = (hash: string) => isDetail(hash) || isCreate(hash);
 
 /** Keep the list's filters, expanded rows and scroll while its shareable detail URL is open. */
 export function ProposalNavigation({
@@ -46,16 +49,18 @@ export function ProposalNavigation({
     const previous = current.current;
     current.current = hash;
     const returning = isList(hash);
-    const moving = (isList(previous) && isDetail(hash)) || (isDetail(previous) && returning);
+    const moving = (isList(previous) && isPage(hash)) || (isPage(previous) && returning);
+    const creating = isCreate(previous) || isCreate(hash);
     const run = ++generation.current;
     active.current?.skipTransition();
+    const findOrigin = (routeHash: string) =>
+      Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".proposal-title-link, a[href$='#/new']") ?? []).find(
+        (link) => new URL(link.href).hash === routeHash
+      ) ?? null;
     if (isList(previous)) {
       listScroll.current = window.scrollY;
-      origin.current =
-        Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".proposal-title-link") ?? []).find(
-          (link) => new URL(link.href).hash === hash
-        ) ?? null;
-      fromList.current = isDetail(hash);
+      origin.current = findOrigin(hash);
+      fromList.current = isPage(hash);
     } else if (!returning) fromList.current = false;
 
     // Start outside React's effect commit so the update callback can commit the destination atomically.
@@ -63,19 +68,49 @@ export function ProposalNavigation({
       if (run !== generation.current || !root.current) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const named: HTMLElement[] = [];
-      const name = (element: HTMLElement | null | undefined, value: string) => {
-        if (!element || !element.getClientRects().length) return;
-        element.style.setProperty("view-transition-name", value);
-        element.dataset.proposalTransition = String(run);
-        named.push(element);
-      };
+      let positions = new Map<string, ProposalPartPosition>();
+      let motionStyle: HTMLStyleElement | undefined;
       const nameShared = () => {
-        const row = origin.current?.closest(".proposal-row");
-        const header = root.current?.querySelector("[data-proposal-route]:not([hidden]) .proposal-reading-header");
-        const source = isList(current.current) ? row : header;
-        // Before updating the route the visible source can still be the other one.
-        const visible = [source, row, header].find((node) => node && node.getClientRects().length);
-        name(visible?.querySelector<HTMLElement>("h1, h2"), "proposal-title");
+        const route = root.current?.querySelector<HTMLElement>("[data-proposal-route]:not([hidden])");
+        const scope = route?.dataset.proposalRoute === "list"
+          ? creating ? origin.current : origin.current?.closest(".proposal-row")
+          : route;
+        // Scope to the originating action/row, never a hidden route or an expanded ballot.
+        const measured = new Map<string, ProposalPartPosition>();
+        if (!scope || !scope.getClientRects().length) return measured;
+        const elements = creating && route?.dataset.proposalRoute === "list"
+          ? [
+              { element: scope as HTMLElement, part: "surface" },
+              ...Array.from(route.querySelectorAll<HTMLElement>(".governance-page-intro, .ui-panel-heading-copy"))
+                .map((element) => ({ element, part: element.matches(".governance-page-intro") ? "create-list-intro" : "create-list-heading" })),
+              ...Array.from(scope.querySelectorAll<HTMLElement>(".ui-action-content"))
+                .map((element) => ({ element, part: "create-action" })),
+            ]
+          : Array.from(scope.querySelectorAll<HTMLElement>("[data-proposal-part]"))
+              .map((element) => ({ element, part: element.dataset.proposalPart! }));
+        if (scope.matches("[data-proposal-part]"))
+          elements.unshift({ element: scope as HTMLElement, part: (scope as HTMLElement).dataset.proposalPart! });
+        // Read all geometry before assigning names, avoiding a style/layout flush per fact.
+        const visible = elements.filter(({ element, part }) => {
+          const rect = element.getBoundingClientRect();
+          if (!rect.width || !rect.height) return false;
+          const style = getComputedStyle(element);
+          measured.set(part, {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+            fontSize: parseFloat(style.fontSize),
+            radius: parseFloat(style.borderTopLeftRadius) || 0,
+          });
+          return true;
+        });
+        visible.forEach(({ element, part }) => {
+          element.style.setProperty("view-transition-name", `proposal-${part}`);
+          element.dataset.proposalTransition = String(run);
+          named.push(element);
+        });
+        return measured;
       };
       const clearNames = () =>
         named.forEach((element) => {
@@ -93,9 +128,10 @@ export function ProposalNavigation({
         // Cached proposals are immediate. On a cold route, allow data to arrive before capturing the destination.
         await new Promise<void>((resolve) => {
           const ready = () =>
-            returning ||
-            !isDetail(hash) ||
-            !!root.current?.querySelector("[data-proposal-route]:not([hidden]) [data-proposal-ready]");
+            returning
+              ? !!root.current?.querySelector(creating ? '[data-proposal-route="list"]' : '[data-proposal-route="list"] .proposal-title-link')
+              : !isPage(hash) ||
+                !!root.current?.querySelector("[data-proposal-route]:not([hidden]) [data-proposal-ready]");
           if (ready()) return resolve();
           const observer = new MutationObserver(() => {
             if (ready()) finish();
@@ -106,14 +142,28 @@ export function ProposalNavigation({
             clearTimeout(timeout);
             resolve();
           };
-          if (root.current) observer.observe(root.current, { childList: true, subtree: true });
+          if (root.current)
+            observer.observe(root.current, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ["data-proposal-ready"],
+            });
         });
         if (run !== generation.current) return;
+        // A direct URL (or development refresh) has no stored link yet. Match its row after the list loads.
+        if (returning) origin.current = findOrigin(previous);
         window.scrollTo({ top: returning ? listScroll.current : 0, behavior: "instant" });
-        if (!reduced && moving) nameShared();
+        if (!reduced && moving) {
+          const destination = nameShared();
+          motionStyle = document.createElement("style");
+          motionStyle.textContent = proposalTransitionStyles(positions, destination);
+          document.head.append(motionStyle);
+        }
       };
       const finish = () => {
         clearNames();
+        motionStyle?.remove();
         if (run !== generation.current) return;
         delete document.documentElement.dataset.proposalNavigation;
         const focus = returning ? origin.current : root.current?.querySelector<HTMLElement>("[data-proposal-ready]");
@@ -123,7 +173,7 @@ export function ProposalNavigation({
       const start = (document as TransitionDocument).startViewTransition;
       if (start && moving && !reduced) {
         document.documentElement.dataset.proposalNavigation = returning ? "back" : "forward";
-        nameShared();
+        positions = nameShared();
         const transition = start.call(document, update);
         active.current = transition;
         void transition.ready.catch(() => {});
@@ -131,18 +181,7 @@ export function ProposalNavigation({
       } else {
         void update().then(() => {
           if (run !== generation.current) return;
-          if (moving && !reduced) {
-            root.current?.animate(
-              [
-                { opacity: 0, transform: `translateY(${returning ? -12 : 12}px)` },
-                { opacity: 1, transform: "none" },
-              ],
-              {
-                duration: 360,
-                easing: "cubic-bezier(.2,.8,.2,1)",
-              }
-            );
-          }
+          // Unsupported browsers keep the full destination visible immediately as well.
           finish();
         });
       }

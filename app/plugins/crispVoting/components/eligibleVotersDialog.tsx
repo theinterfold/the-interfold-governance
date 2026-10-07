@@ -1,6 +1,8 @@
-import { useMemo, useState, type RefObject } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { formatUnits } from "viem";
-import { Button, DialogContent, DialogHeader, DialogRoot, InputText } from "@aragon/ods";
+import { ActionTray } from "@/plugins/velocker/components/actionTray";
+import { SearchField } from "@/components/input/searchField";
+import { ActionButton } from "@/components/input/actionButton";
 import { If } from "@/components/if";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
@@ -8,6 +10,7 @@ import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useEligibleVoters } from "../hooks/useEligibleVoters";
 import { FluidHeight } from "@/components/motion/FluidHeight";
+import { MotionPanel } from "@/components/motion/MotionPanel";
 
 import type { CreditsMode } from "../utils/types";
 import type { EligibleVoterRow, VerificationCheck } from "../hooks/useEligibleVoters";
@@ -56,6 +59,7 @@ export const EligibleVotersDialog = ({
   const decimals = useTokenDecimals();
   const [filter, setFilter] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const fallbackTrigger = useRef<HTMLButtonElement>(null);
 
   const { data, isLoading, error } = useEligibleVoters(e3Id, {
     chainSnapshot,
@@ -63,13 +67,23 @@ export const EligibleVotersDialog = ({
     decimals,
     enabled: open,
   });
+  const reportKey = `${e3Id}:${chainSnapshot}:${decimals}`;
+  const retainedKey = useRef(reportKey);
+  const lastData = useRef(data);
+  if (retainedKey.current !== reportKey) {
+    retainedKey.current = reportKey;
+    lastData.current = undefined;
+  }
+  if (data) lastData.current = data;
+  const shownData = data ?? lastData.current;
+  const phase = isLoading ? "loading" : error ? "error" : data ? "results" : "loading";
 
   const filtered = useMemo(() => {
-    if (!data) return [];
+    if (!shownData) return [];
     const q = filter.trim().toLowerCase();
-    if (!q) return data.rows;
-    return data.rows.filter((r) => r.address.toLowerCase().includes(q));
-  }, [data, filter]);
+    if (!q) return shownData.rows;
+    return shownData.rows.filter((r) => r.address.toLowerCase().includes(q));
+  }, [shownData, filter]);
 
   const fmt = (v?: bigint) => {
     if (v === undefined || decimals === undefined) return "—";
@@ -79,121 +93,122 @@ export const EligibleVotersDialog = ({
   };
 
   const pct = (v: bigint) => {
-    if (!data?.servedTotal) return "—";
-    return `${((Number(v) / Number(data.servedTotal)) * 100).toFixed(2)}%`;
+    if (!shownData?.servedTotal) return "—";
+    return `${((Number(v) / Number(shownData.servedTotal)) * 100).toFixed(2)}%`;
   };
 
   return (
-    <DialogRoot
+    <ActionTray
       open={open}
-      onOpenChange={(value) => {
-        if (!value) onClose();
-      }}
-      containerClassName="interfold-dialog !max-w-[760px]"
-      overlayClassName="interfold-dialog-overlay"
-      onCloseAutoFocus={(event) => {
-        if (triggerRef?.current) {
-          event.preventDefault();
-          triggerRef.current.focus({ preventScroll: true });
-        }
-      }}
+      title="Eligible voters"
+      pending={false}
+      triggerRef={triggerRef ?? fallbackTrigger}
+      onClose={onClose}
+      size="wide"
     >
-      <DialogHeader title="Eligible voters" onCloseClick={onClose} onBackClick={onClose} />
-      <DialogContent>
-        <FluidHeight>
-          <div className="flex flex-col gap-y-4">
-            <p className="text-sm text-neutral-500">
-              Voting power is snapshotted when the proposal is created. Ballots stay encrypted — this shows{" "}
-              <em>who could vote and with how much weight</em>, never how anyone voted. Every entry is re-read from the
-              token on-chain and compared with what the CRISP server served.
-            </p>
+      <FluidHeight layoutKey={phase}>
+        <div className="flex flex-col gap-y-4">
+          <p className="text-sm text-neutral-500">
+            Voting power is snapshotted when the proposal is created. Ballots stay encrypted — this shows{" "}
+            <em>who could vote and with how much weight</em>, never how anyone voted. Every entry is re-read from the
+            token on-chain and compared with what the CRISP server served.
+          </p>
 
-            <If true={isLoading}>
+          <div className="motion-tab-panels">
+            <MotionPanel active={phase === "loading"} direction="left">
               <div className="py-8">
                 <PleaseWaitSpinner fullMessage="Loading and verifying the voter set…" />
               </div>
-            </If>
+            </MotionPanel>
 
-            <If true={!!error}>
+            <MotionPanel active={phase === "error"} direction="left">
               <p className="text-sm text-critical-600">Could not load the eligible voters from the CRISP server.</p>
-            </If>
+            </MotionPanel>
 
-            <If true={!!data && !isLoading}>
-              {/* Verification summary */}
-              <div className="flex flex-col gap-y-2 rounded-xl border border-neutral-200 p-4">
-                {data?.checks.map((c) => (
-                  <div key={c.id} className="flex items-start justify-between gap-x-4 text-sm">
-                    <span className="flex items-start gap-x-2">
-                      <span className={`font-mono ${STATUS_CLASS[c.status]}`}>{STATUS_MARK[c.status]}</span>
-                      <span className="text-neutral-800">{c.label}</span>
-                    </span>
-                    <span className="font-mono shrink-0 text-right text-xs text-neutral-500">{c.detail}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm text-neutral-500">
-                  {data?.rows.length ?? 0} eligible {data?.rows.length === 1 ? "voter" : "voters"}
-                  {data?.chainSnapshot !== undefined && (
-                    <>
-                      {" · "}snapshot <span className="font-mono text-xs">{data.chainSnapshot.toString()}</span>{" "}
-                      <span className="text-neutral-400">(token clock)</span>
-                    </>
-                  )}
-                </span>
-                <InputText
-                  placeholder="Filter by address…"
-                  value={filter}
-                  onChange={(e) => {
-                    setFilter(e.target.value);
-                    setLimit(PAGE_SIZE);
-                  }}
-                />
-              </div>
-
-              <div className="max-h-[45vh] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-neutral-0">
-                    <tr className="ui-table-head border-b border-neutral-200">
-                      <th scope="col" className="py-2">
-                        Address
-                      </th>
-                      <th scope="col" className="ui-number py-2">
-                        Voting power
-                      </th>
-                      <th scope="col" className="ui-number py-2">
-                        Share
-                      </th>
-                      <th scope="col" className="py-2 pl-4">
-                        Verified
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.slice(0, limit).map((row) => (
-                      <VoterRow key={row.address} row={row} />
+            <MotionPanel active={phase === "results"} direction="right">
+              {shownData && (
+                <div className="flex flex-col gap-y-4">
+                  {/* Verification summary */}
+                  <div className="flex flex-col gap-y-2 rounded-xl border border-neutral-200 p-4">
+                    {shownData.checks.map((c) => (
+                      <div key={c.id} className="flex items-start justify-between gap-x-4 text-sm">
+                        <span className="flex min-w-0 flex-1 items-start gap-x-2">
+                          <span className={`font-mono ${STATUS_CLASS[c.status]}`}>{STATUS_MARK[c.status]}</span>
+                          <span className="text-neutral-800">{c.label}</span>
+                        </span>
+                        <span className="font-mono min-w-0 flex-1 break-all text-right text-xs text-neutral-500">
+                          {c.detail}
+                        </span>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-
-                <If true={filtered.length > limit}>
-                  <div className="py-3 text-center">
-                    <Button size="sm" variant="tertiary" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
-                      Show more ({filtered.length - limit} remaining)
-                    </Button>
                   </div>
-                </If>
 
-                <If true={!filtered.length}>
-                  <p className="py-6 text-center text-sm text-neutral-500">No addresses match that filter.</p>
-                </If>
-              </div>
-            </If>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm text-neutral-500">
+                      {shownData.rows.length} eligible {shownData.rows.length === 1 ? "voter" : "voters"}
+                      {shownData.chainSnapshot !== undefined && (
+                        <>
+                          {" · "}snapshot{" "}
+                          <span className="font-mono text-xs">{shownData.chainSnapshot.toString()}</span>{" "}
+                          <span className="text-neutral-400">(token clock)</span>
+                        </>
+                      )}
+                    </span>
+                    <SearchField
+                      label="Search eligible voters"
+                      placeholder="Wallet address"
+                      value={filter}
+                      onChange={(value) => {
+                        setFilter(value);
+                        setLimit(PAGE_SIZE);
+                      }}
+                    />
+                  </div>
+
+                  <div className="max-h-[45vh] overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="sticky top-0 bg-neutral-0">
+                        <tr className="ui-table-head border-b border-neutral-200">
+                          <th scope="col" className="py-2">
+                            Address
+                          </th>
+                          <th scope="col" className="ui-number py-2">
+                            Voting power
+                          </th>
+                          <th scope="col" className="ui-number py-2">
+                            Share
+                          </th>
+                          <th scope="col" className="py-2 pl-4">
+                            Verified
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.slice(0, limit).map((row) => (
+                          <VoterRow key={row.address} row={row} />
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <If true={filtered.length > limit}>
+                      <div className="py-3 text-center">
+                        <ActionButton size="compact" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
+                          Show more ({filtered.length - limit} remaining)
+                        </ActionButton>
+                      </div>
+                    </If>
+
+                    <If true={!filtered.length}>
+                      <p className="py-6 text-center text-sm text-neutral-500">No addresses match that filter.</p>
+                    </If>
+                  </div>
+                </div>
+              )}
+            </MotionPanel>
           </div>
-        </FluidHeight>
-      </DialogContent>
-    </DialogRoot>
+        </div>
+      </FluidHeight>
+    </ActionTray>
   );
 
   function VoterRow({ row }: { row: EligibleVoterRow }) {

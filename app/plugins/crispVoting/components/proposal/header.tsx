@@ -5,6 +5,7 @@ import { useProposalStatus } from "../../hooks/useProposalStatus";
 import type { ReactNode } from "react";
 import { ProposalCountdown } from "@/components/proposal/proposalCountdown";
 import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
+import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 
 interface ProposalHeaderProps {
@@ -15,9 +16,16 @@ interface ProposalHeaderProps {
   /** Whether the ciphernode committee has published its key. Until it has there is nothing to
    *  encrypt a ballot against, so the round is open on chain but not votable. */
   isCommitteeReady?: boolean;
+  presentation?: ProposalPresentation;
 }
 
-const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposal, totalVotingPower, e3Failed, isCommitteeReady }) => {
+const ProposalHeader: React.FC<ProposalHeaderProps> = ({
+  proposal,
+  totalVotingPower,
+  e3Failed,
+  isCommitteeReady,
+  presentation,
+}) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal, totalVotingPower, e3Failed);
   const statusLabel = bodyStatusLabel(proposalStatus, quorumNotMet);
 
@@ -26,7 +34,8 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposal, totalVotingPo
   const hasNotStarted = !isEmergency && Number(proposal.parameters.startDate) * 1000 > Date.now();
 
   let timing: ReactNode;
-  if (e3Failed) timing = "Round failed";
+  if (presentation && !presentation.votingOpen) timing = presentation.timing;
+  else if (e3Failed) timing = "Round failed";
   else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "Accepted";
   else if (proposalStatus === ProposalStatus.REJECTED) timing = statusLabel;
   else if (endDateIsInThePast) timing = "Voting closed";
@@ -47,18 +56,12 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposal, totalVotingPo
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
-      status={proposalStatus}
-      statusLabel={statusLabel}
+      status={presentation?.label ?? proposalStatus}
+      statusClass={presentation?.className}
+      statusLabel={presentation ? undefined : statusLabel}
       kind="Secret ballot"
       timing={timing}
-      badges={
-        <>
-          {/* "Rejected" on its own reads as "the DAO voted this down". A failed round was never
-              decided at all — the encrypted vote could not complete. */}
-          {e3Failed && <span className="badge failed">Round failed</span>}
-          {isEmergency && <span className="badge failed">Emergency</span>}
-        </>
-      }
+      badges={<>{isEmergency && <span className="badge failed">Emergency</span>}</>}
     />
   );
 };

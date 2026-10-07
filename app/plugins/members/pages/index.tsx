@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { Button, InputText } from "@aragon/ods";
-import { formatUnits, isAddress, type Address } from "viem";
+import { Button } from "@aragon/ods";
+import { formatUnits } from "viem";
 import { MainSection } from "@/components/layout/main-section";
 import { MissingContentView } from "@/components/MissingContentView";
 import { AddressText } from "@/components/text/address";
@@ -13,25 +13,16 @@ import { PUB_ENABLE_LOCKING, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { DelegateDirectory } from "../components/delegateDirectory";
 
 export default function Delegation() {
   const { address, isConnected } = useAccount();
   const { balance, votingPower, delegatesTo, refetch } = useTokenVotes(address);
-  // Delegating from here changes the directory below too, so both are refreshed.
-  const [delegateListRefreshKey, setDelegateListRefreshKey] = useState(0);
-  const onChanged = () =>
-    setTimeout(() => {
-      refetch();
-      setDelegateListRefreshKey((k) => k + 1);
-    }, 1000 * 2);
-  const { delegate, delegateToSelf, isConfirming } = useDelegate(onChanged);
+  const onChanged = () => setTimeout(() => refetch(), 1000 * 2);
+  const { delegateToSelf, isConfirming } = useDelegate(onChanged);
   const bonded = useBondedDelegation(address, onChanged);
-  const [target, setTarget] = useState("");
 
   const delegatedToSelf = !!delegatesTo && !!address && delegatesTo.toLowerCase() === address.toLowerCase();
   const notDelegated = !delegatesTo || delegatesTo === ADDRESS_ZERO;
-  const targetValid = isAddress(target);
   const decimals = useTokenDecimals();
   const fmt = (v?: bigint) =>
     decimals === undefined ? "—" : `${compactNumber(formatUnits(v ?? 0n, decimals))} ${PUB_TOKEN_SYMBOL}`;
@@ -48,14 +39,13 @@ export default function Delegation() {
         {PUB_ENABLE_LOCKING
           ? `Voting power in the Interfold comes from ${PUB_TOKEN_SYMBOL} that is committed, not just held: ` +
             `${PUB_TOKEN_SYMBOL} locked in the voting escrow, bonded as ciphernode collateral, or still under a ` +
-            `vesting lock. Locked ${PUB_TOKEN_SYMBOL} votes through delegation — activate it for yourself or hand it ` +
-            `to someone you trust; bonded and vesting ${PUB_TOKEN_SYMBOL} count for their owner without delegation` +
-            `${bonded.supported ? ", and the owner can give them to one other address" : ""}. ` +
-            `Delegating never moves your tokens, and you can change it at any time.`
-          : `Voting power comes from delegated ${PUB_TOKEN_SYMBOL}: delegate to yourself to vote with your own ` +
-            `balance, or hand it to someone you trust. ` +
-            `${bonded.supported ? `Bonded ${PUB_TOKEN_SYMBOL} counts for its owner without delegation, and the owner can give it to one other address. ` : ""}` +
-            `Delegating never moves your tokens, and you can change it at any time.`}
+            `vesting lock. Delegate your locked ${PUB_TOKEN_SYMBOL} to yourself to activate it. ` +
+            `Bonded and vesting ${PUB_TOKEN_SYMBOL} count for their owner without delegation. ` +
+            `Delegating never moves your tokens.`
+          : `Voting power comes from ${PUB_TOKEN_SYMBOL} that you delegate to yourself. ` +
+            `Delegate once to vote with your own balance. ` +
+            `${bonded.supported ? `Bonded ${PUB_TOKEN_SYMBOL} counts for its owner without delegation. ` : ""}` +
+            `Delegating never moves your tokens.`}
       </p>
 
       {!isConnected || !address ? (
@@ -73,8 +63,7 @@ export default function Delegation() {
                 notDelegated ? (
                   // "Nobody" turns off one source of voting power: the locks under the velocker, the
                   // wallet balance without it. Bonded FOLD, and vesting FOLD under the velocker, do not
-                  // follow this delegation. They count for their owner unless a bonded delegate
-                  // represents it.
+                  // follow this delegation. They count for their owner.
                   PUB_ENABLE_LOCKING ? (
                     "Nobody — locks not activated"
                   ) : (
@@ -91,8 +80,8 @@ export default function Delegation() {
             <p className="text-base font-semibold text-neutral-800">Activate your own voting power</p>
             <p className="text-sm text-neutral-500">
               {PUB_ENABLE_LOCKING
-                ? `Delegate to yourself to vote with your locked ${PUB_TOKEN_SYMBOL} — locks carry no voting power until delegated. Applies to all your locks, current and future.`
-                : `Delegate to yourself to vote with your ${PUB_TOKEN_SYMBOL}. Voting power applies to proposals created after you delegate.`}
+                ? `Delegate to yourself to vote with your locked ${PUB_TOKEN_SYMBOL}. Locks carry no voting power until you delegate. This applies to all your locks, current and future. If you delegated to another address, this takes your voting power back.`
+                : `Delegate to yourself to vote with your ${PUB_TOKEN_SYMBOL}. Voting power applies to proposals created after you delegate. If you delegated to another address, this takes your voting power back.`}
             </p>
             <span>
               <Button
@@ -106,33 +95,7 @@ export default function Delegation() {
               </Button>
             </span>
           </Card>
-
-          <Card>
-            <p className="text-base font-semibold text-neutral-800">Delegate to someone else</p>
-            <p className="text-sm text-neutral-500">
-              {PUB_ENABLE_LOCKING
-                ? `Hand your locks' voting power to another address. They vote on your behalf until you change it — your ${PUB_TOKEN_SYMBOL} stays yours, and starting a withdrawal takes the power back automatically.`
-                : "Hand your voting power to another address. They vote on your behalf until you change it."}
-            </p>
-            <InputText placeholder="0x… delegate address" value={target} onChange={(e) => setTarget(e.target.value)} />
-            <span>
-              <Button
-                size="md"
-                variant="secondary"
-                isLoading={isConfirming}
-                disabled={!targetValid}
-                onClick={() => delegate(target as Address)}
-              >
-                Delegate
-              </Button>
-            </span>
-          </Card>
-
-          <BondedDelegationCards address={address} bonded={bonded} headingPlacement="inside" />
-
-          <Card>
-            <DelegateDirectory refreshKey={delegateListRefreshKey} />
-          </Card>
+          <BondedDelegationCards bonded={bonded} headingPlacement="inside" />
         </div>
       )}
     </MainSection>

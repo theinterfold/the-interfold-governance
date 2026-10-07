@@ -7,9 +7,9 @@ import Delegation from "./pages/index";
 export default function PluginPage() {
   const { hash } = useUrl();
 
-  if (!hash || hash === "#/" || hash.startsWith("#/delegates")) {
-    // With the velocker enabled, locking and delegation merged into one page — old
-    // /plugins/members links keep working by rendering it here.
+  if (!hash || hash === "#/") {
+    // With the velocker enabled, locking and self-delegation share one page, which also serves
+    // old /plugins/members links.
     return PUB_ENABLE_LOCKING ? <Locker /> : <Delegation />;
   }
 

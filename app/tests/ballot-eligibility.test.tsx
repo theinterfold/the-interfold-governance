@@ -34,11 +34,17 @@ const notice = <BallotEligibilityNotice connected={true} canVote={false} votingP
 const now = Math.floor(Date.now() / 1000);
 const privateProps: VoteCardProps = {
   options: ["Yes", "No", "Abstain"],
+  getVoteWeight: async () => ({
+    roundId: 1n,
+    voter: "0x0000000000000000000000000000000000000001",
+    available: 1000n,
+    counted: 995n,
+    randomize: true,
+    decimals: 1,
+  }),
   onClickVote: async () => ({ success: true, txHash: null }),
   onClickMask: async () => ({ success: true, txHash: null }),
   onChangeSubmitOnChain: () => {},
-  randomWeight: true,
-  onChangeRandomWeight: () => {},
   voteStartDate: now - 60,
   voteEndDate: now + 3600,
   disabled: false,
@@ -78,9 +84,12 @@ describe("Ballot eligibility rendering", () => {
     expect(html).not.toContain("Submit a mask");
   });
 
-  test("an eligible secret voter keeps every ballot choice", () => {
+  test("an eligible secret voter can add a mask independently of the voting choices", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={false} />);
-    for (const option of ["Yes", "No", "Abstain", "Submit a mask"]) expect(html).toContain(`aria-label="${option}"`);
+    for (const option of ["Yes", "No", "Abstain"]) expect(html).toContain(`aria-label="${option}"`);
+    expect(html).not.toContain('value="mask"');
+    expect(html).toContain("Send a mask");
+    expect(html).toContain("Add cover for voters, with or without a vote.");
     expect(html).not.toContain("No voting power for this proposal");
   });
 

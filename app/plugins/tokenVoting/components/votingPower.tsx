@@ -1,13 +1,10 @@
 import { useAccount } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { PUB_ENABLE_LOCKING, PUB_BONDED_VOTES_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
-import { useTokenVotes } from "@/hooks/useTokenVotes";
-import { ADDRESS_ZERO } from "@/utils/evm";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
-import { useOutgoingLockPower } from "@/plugins/velocker/hooks/useOutgoingLockPower";
 
 /**
  * Shows the connected account's voting power and the total, both at the proposal's snapshot.
@@ -33,9 +30,6 @@ export function VotingPower({
   const { address } = useAccount();
 
   const { votingPower: yours, total } = useSnapshotVotingPower(votingPlugin, snapshotTimepoint, showTotal && !compact);
-  const { delegatesTo } = useTokenVotes(address);
-  const outgoingPower = useOutgoingLockPower(address, delegatesTo);
-  const includesBonded = !!PUB_BONDED_VOTES_ADDRESS && PUB_BONDED_VOTES_ADDRESS !== ADDRESS_ZERO;
 
   const decimals = useTokenDecimals();
   const fmt = (v?: bigint) =>
@@ -53,26 +47,10 @@ export function VotingPower({
                   <dt>Your voting power (at snapshot)</dt>
                   <dd>{address ? fmt(yours) : "—"}</dd>
                 </div>
-                {PUB_ENABLE_LOCKING && (
-                  <div>
-                    <dt>Delegated to others (now)</dt>
-                    <dd>{address ? fmt(outgoingPower) : "—"}</dd>
-                  </div>
-                )}
               </dl>
-              <p>
-                Only your snapshot voting power counts for this proposal. The delegated amount shows your current locks
-                assigned to another wallet; it is not additional voting power for you.
-              </p>
-              {includesBonded && (
-                <p>
-                  Delegating locks does not delegate bonded or vesting {PUB_TOKEN_SYMBOL}. Those sources stay with their
-                  owner.
-                </p>
-              )}
+              <p>Only your snapshot voting power counts for this proposal.</p>
             </PowerInfo>
           </span>
-          <span className="ballot-snapshot-note">(at snapshot)</span>
         </span>
         <strong>{address ? fmt(yours) : "—"}</strong>
       </div>

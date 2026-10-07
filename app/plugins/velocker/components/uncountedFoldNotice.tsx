@@ -26,7 +26,7 @@ import { PowerWarning } from "./powerWarning";
  * unlocked wallet FOLD. FOLD that is still vesting and bonded FOLD count without either, unless the
  * owner gave them to a bonded delegate. So an account can vote while part of its FOLD does not
  * count for it, and the fix depends on the part: unlocked FOLD must be locked, a lock must be
- * delegated, and bonded delegation must be stopped on the Voting power page.
+ * delegated to the account itself, and bonded delegation must be stopped on the Voting power page.
  *
  * @param delegatesTo The adapter's delegate for `address`, from `useTokenVotes`.
  */
@@ -94,14 +94,15 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
       )}
       {undelegated > 0n && (
         <span className="block">
-          {fmt(undelegated)} in the voting escrow is not delegated.{" "}
-          <SelfDelegateLink label="Delegate it to yourself" /> to vote with it.
+          {fmt(undelegated)} in the voting escrow is not delegated. <SelfDelegateLink label="Delegate it to yourself" />{" "}
+          to vote with it.
         </span>
       )}
       {delegatedElsewhere && (
         <span className="block">
-          Your locked {PUB_TOKEN_SYMBOL} votes through <AddressText bold={false}>{delegatesTo}</AddressText>.{" "}
-          <SelfDelegateLink label="Delegate it to yourself" /> to vote with it yourself.
+          {compactNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
+          <AddressText bold={false}>{delegatesTo}</AddressText>. <SelfDelegateLink label="Delegate to yourself" /> to
+          vote with it.
         </span>
       )}
       {bondedAway && (

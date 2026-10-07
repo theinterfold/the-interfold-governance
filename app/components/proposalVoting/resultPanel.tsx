@@ -3,6 +3,8 @@ import { ProposalStatus } from "@aragon/ods";
 import { ActionIcon } from "@/components/input/actionIcon";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { BallotPanel, ballotOptionColor } from "./ballot";
+import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
+import styles from "./resultPanel.module.css";
 
 export interface ResultRow {
   option: string;
@@ -48,13 +50,57 @@ export function ResultRows({ rows, winnerIndex }: { rows: ResultRow[]; winnerInd
               style={{ width: `${Math.min(100, Math.max(row.percentage, 0))}%`, background: "var(--tally-color)" }}
             />
           </span>
-          <span className="pct" title={row.amount}>
-            {row.percentage.toFixed(1)}%
+          <span className="pct">
+            <PowerInfo
+              compact={true}
+              label={`${row.option}: ${row.amount}, ${row.percentage.toFixed(1)}% of voting power cast`}
+              trigger={<span>{row.percentage.toFixed(1)}%</span>}
+            >
+              <p>
+                {row.option}: {row.amount}
+              </p>
+              <p>{row.percentage.toFixed(1)}% of the voting power cast.</p>
+            </PowerInfo>
           </span>
         </div>
       ))}
     </div>
   );
+}
+
+/** One hierarchy for pending, failed and tallied results, in both voting methods. */
+export function ResultFrame({
+  state = "Voting closed",
+  title,
+  description,
+  children,
+}: {
+  state?: ReactNode;
+  title: string;
+  description?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <BallotPanel className={styles.panel} title="Result" info={<span className="vp-meta">{state}</span>}>
+      <FluidHeight layoutKey={title}>
+        <div className={`vp-body ${styles.body}`}>
+          <div className={styles.summary} aria-live="polite">
+            <h4 className={styles.outcome}>
+              <span key={title} className="vp-label-change">
+                {title}
+              </span>
+            </h4>
+            {description && <div className={styles.description}>{description}</div>}
+          </div>
+          {children}
+        </div>
+      </FluidHeight>
+    </BallotPanel>
+  );
+}
+
+export function ResultNotice({ state, title, children }: { state: ReactNode; title: string; children: ReactNode }) {
+  return <ResultFrame state={state} title={title} description={children} />;
 }
 
 /** A result is the voting body's outcome, not a claim that the SPP has executed the proposal. */
@@ -65,8 +111,8 @@ export function ResultPanel({
   quorum,
   quorumNotMet = false,
   submitted = false,
+  isEmpty = false,
   action,
-  outcome: outcomeOverride,
   children,
 }: {
   rows: ResultRow[];
@@ -76,74 +122,78 @@ export function ResultPanel({
   /** The status hook's authoritative flag, independent of the supply-derived `quorum` bar. */
   quorumNotMet?: boolean;
   submitted?: boolean;
+  /** Explicit zero raw tally; rounded shares and missing rows cannot establish zero votes. */
+  isEmpty?: boolean;
   action?: ReactNode;
-  /** Replaces the computed outcome line, e.g. the testnet "Quorum not met (X led with N%)" copy. */
-  outcome?: ReactNode;
   children?: ReactNode;
 }) {
-  const noVotes = rows.every((row) => row.percentage === 0);
   const passed = [ProposalStatus.ACCEPTED, ProposalStatus.EXECUTABLE, ProposalStatus.EXECUTED].includes(status!);
-  // Abstain contributes to quorum, not support. An accepted majority vote always approves Yes.
-  const winner = passed && !noVotes ? rows.find((row) => row.index === 0) : undefined;
-  const leader = rows.reduce<ResultRow | undefined>(
-    (best, row) => (row.percentage > (best?.percentage ?? 0) ? row : best),
-    undefined
-  );
-  const outcome = noVotes
-    ? "No votes were cast"
-    : quorumNotMet
-      ? leader
-        ? `Quorum not met (${leader.option} led with ${leader.percentage.toFixed(1)}% of votes cast)`
-        : "Quorum not met"
-      : quorum && !quorum.reached
-        ? "Rejected — quorum not reached"
+  const resolved = rows.length > 0 && (passed || status === ProposalStatus.REJECTED);
+  const noVotes = resolved && status === ProposalStatus.REJECTED && isEmpty;
+  const lowQuorum =
+    resolved && status === ProposalStatus.REJECTED && (quorumNotMet || (quorum != null && !quorum.reached));
+  const largestShare = Math.max(0, ...rows.map((row) => row.percentage));
+  const leaders = rows.filter((row) => row.percentage === largestShare);
+  const leading = resolved && !noVotes && largestShare > 0 && leaders.length === 1 ? leaders[0] : undefined;
+  const yes = rows.find((row) => row.index === 0);
+  const outcome = !resolved
+    ? "Confirming result"
+    : noVotes
+      ? "No votes cast"
+      : lowQuorum || status === ProposalStatus.REJECTED
+        ? "Vote rejected"
+        : "Vote passed";
+  const explanation = !resolved
+    ? "The final voting outcome is not confirmed yet."
+    : noVotes
+      ? "No votes were cast. This proposal did not pass."
+      : lowQuorum
+        ? `Quorum not reached. Participation was below the required minimum.${
+            quorumNotMet && leading
+              ? ` ${leading.option} led with ${leading.percentage.toFixed(1)}% of the voting power cast.`
+              : ""
+          }`
         : status === ProposalStatus.REJECTED
-          ? "Rejected"
-          : winner
-            ? `Yes won with ${winner.percentage.toFixed(1)}%`
-            : "Confirming result…";
+          ? quorum
+            ? "The required support was not reached."
+            : "The vote did not meet the approval requirements."
+          : yes
+            ? `Yes received ${yes.percentage.toFixed(1)}% of the voting power cast.`
+            : undefined;
 
   return (
-    <BallotPanel title="Result" info={<span className="vp-meta">{total}</span>}>
-      <FluidHeight>
-        <div className="vp-body tally-body">
-          <div className="tally-outcome ui-section-title" role="status">
-            <span className={winner ? "tally-outcome-winner" : undefined}>
-              {winner && (
-                <span style={{ color: ballotOptionColor(winner.index) }}>
-                  <ActionIcon name="check" />
-                </span>
-              )}
-              <span>{outcomeOverride ?? outcome}</span>
+    <ResultFrame title={outcome} description={<p>{explanation}</p>}>
+      <div className={styles.tally}>
+        <div className={styles.fact}>
+          <span>Voting power cast</span>
+          <strong>{total}</strong>
+        </div>
+        <ResultRows rows={rows} winnerIndex={leading?.index} />
+        {quorum && (
+          <div className="tally-row tally-quorum">
+            <span className="key">Quorum {resolved && quorum.reached ? "✓" : ""}</span>
+            <span className="bar" aria-hidden="true">
+              <span
+                style={{
+                  width: `${quorum.requiredPct > 0 ? Math.min((quorum.turnoutPct / quorum.requiredPct) * 100, 100) : 100}%`,
+                  background: resolved && quorum.reached ? "var(--accent)" : "var(--muted)",
+                }}
+              />
+            </span>
+            <span className="pct">
+              {quorum.turnoutPct.toFixed(1)}% / {Number(quorum.requiredPct.toFixed(2))}%
             </span>
           </div>
-          <ResultRows rows={rows} winnerIndex={winner?.index} />
-          {quorum && (
-            <div className="tally-row tally-quorum">
-              <span className="key">Quorum {quorum.reached ? "✓" : ""}</span>
-              <span className="bar" aria-hidden="true">
-                <span
-                  style={{
-                    width: `${quorum.requiredPct > 0 ? Math.min((quorum.turnoutPct / quorum.requiredPct) * 100, 100) : 100}%`,
-                    background: quorum.reached ? "var(--accent)" : "var(--muted)",
-                  }}
-                />
-              </span>
-              <span className="pct">
-                {quorum.turnoutPct.toFixed(1)}% / {Number(quorum.requiredPct.toFixed(2))}%
-              </span>
-            </div>
-          )}
-          {submitted ? (
-            <p className="vp-note tally-submitted">
-              <ActionIcon name="check" /> Result submitted
-            </p>
-          ) : (
-            action
-          )}
-          {children}
-        </div>
-      </FluidHeight>
-    </BallotPanel>
+        )}
+      </div>
+      {submitted ? (
+        <p className={styles.submitted}>
+          <ActionIcon name="check" /> Result submitted to the next stage
+        </p>
+      ) : (
+        action
+      )}
+      {children}
+    </ResultFrame>
   );
 }

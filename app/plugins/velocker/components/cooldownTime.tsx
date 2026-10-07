@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { DeadlineInfo } from "@/components/text/deadlineInfo";
 
 export function CooldownTime({ endsAt, observedAt }: { endsAt: number; observedAt: number }) {
   const [now, setNow] = useState(observedAt);
@@ -23,9 +22,8 @@ export function CooldownTime({ endsAt, observedAt }: { endsAt: number; observedA
   const end = new Date(endsAt * 1000);
   return (
     <span className="power-cooldown-time">
-      <DeadlineInfo label="Cooldown ends" endMs={endsAt * 1000}>
-        <time dateTime={end.toISOString()}>{relative}</time>
-      </DeadlineInfo>
+      <span aria-hidden="true">·</span>
+      <time dateTime={end.toISOString()}>{relative}</time>
     </span>
   );
 }

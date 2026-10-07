@@ -1,4 +1,5 @@
-import { TextAreaRichText } from "@aragon/ods";
+import { useProposalBack } from "@/components/proposal/proposalNavigation";
+import { AccessibleRichText } from "@/components/input/accessibleRichText";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { MainSection } from "@/components/layout/main-section";
 import { ActionButton } from "@/components/input/actionButton";
@@ -7,6 +8,7 @@ import { FieldError } from "@/components/input/fieldError";
 import { BendingChevron } from "@/vendor/site-header";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { FluidHeight } from "@/components/motion/FluidHeight";
+import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import { NewActionDialog, type NewActionType } from "@/components/dialogs/NewActionDialog";
 import { ProposalActions } from "@/components/proposalActions/proposalActions";
 import { formatDurationSeconds } from "@/plugins/spp/components/stageDurationNote";
@@ -27,9 +29,9 @@ type Props = ProposalDraft & {
   creationRequirement: CreationRequirement;
   submitProposal: () => void;
   fee?: ReactNode;
-  /** The method's own schedule copy; replaces the default start-and-veto note under the voting period. */
+  /** The method's own schedule copy, shown under the voting period. */
   schedule?: ReactNode;
-  renderEditor: (editor: ReactNode) => ReactNode;
+  eligibilityNotice: ReactNode;
 };
 
 const actionTypes: { type: NewActionType; title: string; description: string }[] = [
@@ -38,6 +40,19 @@ const actionTypes: { type: NewActionType; title: string; description: string }[]
   { type: "calldata", title: "Raw calldata", description: "Add an encoded call" },
   { type: "import-json", title: "Import JSON", description: "Load an existing set of actions" },
 ];
+
+const votingMethods = [
+  {
+    kind: "private",
+    title: "Secret ballot",
+    description: "Individual votes stay private. Results are revealed after voting closes.",
+  },
+  {
+    kind: "public",
+    title: "Transparent fallback",
+    description: "Only for when a secret ballot cannot run. Individual votes and the running tally are public.",
+  },
+] as const;
 
 export function ProposalComposer(props: Props) {
   const {
@@ -61,8 +76,9 @@ export function ProposalComposer(props: Props) {
     submitProposal,
     fee,
     schedule,
-    renderEditor,
+    eligibilityNotice,
   } = props;
+  const back = useProposalBack();
   const id = useId();
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -107,9 +123,9 @@ export function ProposalComposer(props: Props) {
   };
 
   const editor = (
-    <div className="composer-editor">
-      <section className="composer-writing" aria-label="Proposal content">
-        <div className="composer-field composer-title-field">
+    <div className="composer-editor" data-proposal-part="create-extras">
+      <section className="composer-writing" aria-label="Proposal content" data-proposal-part="surface">
+        <div className="composer-field composer-title-field" data-proposal-part="create-title">
           <label htmlFor={`${id}-title`}>Title</label>
           <input
             id={`${id}-title`}
@@ -123,7 +139,7 @@ export function ProposalComposer(props: Props) {
           />
           <FieldError id={`${id}-title-error`} message={fieldErrors.get("title")} />
         </div>
-        <div className="composer-field">
+        <div className="composer-field" data-proposal-part="create-summary">
           <div className="composer-field-heading">
             <label htmlFor={`${id}-summary`}>Summary</label>
             <span className="composer-count" aria-hidden="true">
@@ -143,8 +159,8 @@ export function ProposalComposer(props: Props) {
           />
           <FieldError id={`${id}-summary-error`} message={fieldErrors.get("summary")} />
         </div>
-        <div className="composer-body">
-          <TextAreaRichText
+        <div className="composer-body" data-proposal-part="create-description">
+          <AccessibleRichText
             label="Description"
             value={description}
             onChange={setDescription}
@@ -315,16 +331,30 @@ export function ProposalComposer(props: Props) {
   return (
     <MainSection>
       <div className="proposal-composer" ref={composerRef}>
-        <header className="composer-header">
-          <a href="#/" className="composer-back">
+        <header className="composer-header" data-proposal-part="create-heading">
+          <a
+            href="#/"
+            className="composer-back"
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              if (back?.()) event.preventDefault();
+            }}
+          >
             ← Proposals
           </a>
-          <h1 className="ui-card-title">New proposal</h1>
+          <h1 className="ui-card-title" tabIndex={-1} data-proposal-ready>
+            New proposal
+          </h1>
           <p className="ui-body">Describe the decision and choose how the community will vote.</p>
         </header>
         <div className="composer-layout">
-          {renderEditor(editor)}
-          <aside className="composer-sidebar" aria-label="Voting and submission">
+          <div className="composer-editor-context min-w-0">
+            <Disclosure open={!canSubmit} className="composer-eligibility-notice">
+              <div className="composer-writing">{eligibilityNotice}</div>
+            </Disclosure>
+            {editor}
+          </div>
+          <aside className="composer-sidebar" aria-label="Voting and submission" data-proposal-part="create-sidebar">
             <FluidHeight>
               <div className="composer-sidebar-content">
                 <section className="composer-voting">
@@ -332,80 +362,82 @@ export function ProposalComposer(props: Props) {
                   {onKindChange ? (
                     <div
                       className="vote-choices composer-methods"
+                      data-presentation="framed"
                       role="radiogroup"
                       aria-label="Voting method"
-                      aria-describedby={`${id}-method-description`}
                     >
-                      <label
-                        className={`vote-choice composer-method ${kind === "private" ? "selected" : ""}`}
-                        data-disabled={isCreating}
-                      >
-                        <input
-                          className="sr-only"
-                          type="radio"
-                          aria-label="Secret ballot"
-                          name={`${id}-method`}
-                          checked={kind === "private"}
-                          disabled={isCreating}
-                          onChange={() => onKindChange("private")}
-                        />
-                        <span className="label">
-                          Secret ballot <small>Standard</small>
-                        </span>
-                        <span className="mark" aria-hidden="true">
-                          {kind === "private" && <ActionIcon name="check" />}
-                        </span>
-                      </label>
-                      <label
-                        className={`vote-choice composer-method ${kind === "public" ? "selected" : ""}`}
-                        data-disabled={isCreating}
-                      >
-                        <input
-                          className="sr-only"
-                          type="radio"
-                          aria-label="Transparent fallback"
-                          name={`${id}-method`}
-                          checked={kind === "public"}
-                          disabled={isCreating}
-                          onChange={() => onKindChange("public")}
-                        />
-                        <span className="label">Transparent fallback</span>
-                        <span className="mark" aria-hidden="true">
-                          {kind === "public" && <ActionIcon name="check" />}
-                        </span>
-                      </label>
+                      {votingMethods.map((method) => (
+                        <div className="composer-method-option" key={method.kind}>
+                          <label
+                            className={`vote-choice composer-method ${kind === method.kind ? "selected" : ""}`}
+                            data-disabled={isCreating}
+                          >
+                            <input
+                              className="sr-only"
+                              type="radio"
+                              aria-label={method.title}
+                              name={`${id}-method`}
+                              checked={kind === method.kind}
+                              disabled={isCreating}
+                              onChange={() => onKindChange(method.kind)}
+                            />
+                            <span className="label">
+                              {method.title} {method.kind === "private" && <small>Standard</small>}
+                            </span>
+                            <span className="mark" aria-hidden="true">
+                              {kind === method.kind && <ActionIcon name="check" />}
+                            </span>
+                          </label>
+                          <span className="composer-method-info">
+                            <PowerInfo compact={true} label={`About ${method.title.toLowerCase()}`}>
+                              <p>{method.description}</p>
+                            </PowerInfo>
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <p className="composer-method-name">
-                      {kind === "private" ? "Secret ballot" : "Transparent fallback"}
-                    </p>
+                    <div className="composer-info-label">
+                      <p className="composer-method-name">
+                        {kind === "private" ? "Secret ballot" : "Transparent fallback"}
+                      </p>
+                      <PowerInfo
+                        compact={true}
+                        label={`About ${kind === "private" ? "secret ballot" : "transparent fallback"}`}
+                      >
+                        <p>{votingMethods.find((method) => method.kind === kind)?.description}</p>
+                      </PowerInfo>
+                    </div>
                   )}
-                  <p id={`${id}-method-description`} className="composer-help composer-method-description">
-                    {kind === "private"
-                      ? "Individual votes stay private. Results are revealed after voting closes."
-                      : "Only for when a secret ballot cannot run. Individual votes and the running tally are public."}
-                  </p>
                   <div className="composer-timing">
                     <div className="composer-summary-line">
-                      <h3>Voting period</h3>
+                      <div className="composer-info-label">
+                        <h3>Voting period</h3>
+                        <PowerInfo compact={true} label="About the voting period">
+                          <p>Starts when the proposal is created, followed by the foundation veto window.</p>
+                        </PowerInfo>
+                      </div>
                       <span>{durationSeconds === undefined ? "Loading…" : formatDurationSeconds(durationSeconds)}</span>
                     </div>
-                    {schedule ?? (
-                      <p className="composer-help">
-                        Starts when the proposal is created, followed by the foundation veto window.
-                      </p>
-                    )}
+                    {schedule}
                   </div>
                 </section>
                 {fee}
                 <section className="composer-submit">
                   <h2 className="ui-section-title">Voting power</h2>
                   <ProposalCreationRequirement {...creationRequirement} />
-                  <ActionButton isLoading={isCreating} disabled={!canSubmit || submitDisabled} intent="confirm" onClick={handleSubmit}>
+                  <ActionButton
+                    isLoading={isCreating}
+                    disabled={!canSubmit || submitDisabled}
+                    intent="confirm"
+                    onClick={handleSubmit}
+                  >
                     Submit proposal
                   </ActionButton>
                   {errors.length > 0 && (
-                    <p className="ui-field-error" role="alert">Complete the highlighted fields to continue.</p>
+                    <p className="ui-field-error" role="alert">
+                      Complete the highlighted fields to continue.
+                    </p>
                   )}
                   <p className="composer-help">
                     {actions.length

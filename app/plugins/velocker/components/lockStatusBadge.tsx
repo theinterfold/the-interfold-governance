@@ -1,5 +1,7 @@
 import type { HTMLAttributes } from "react";
 import { StatusBadge } from "@/components/text/statusBadge";
+import { DeadlineInfo } from "@/components/text/deadlineInfo";
+import { CooldownTime } from "./cooldownTime";
 import { Check, Hourglass, LinkBreak, LockSimple } from "@phosphor-icons/react";
 
 export type LockStatus = "active" | "inactive" | "cooldown" | "ready";
@@ -26,9 +28,13 @@ export function LockStatusBadge({
   status,
   children,
   className = "",
+  cooldown,
   ...props
-}: HTMLAttributes<HTMLSpanElement> & { status: LockStatus }) {
-  return (
+}: HTMLAttributes<HTMLSpanElement> & {
+  status: LockStatus;
+  cooldown?: { endsAt: number; observedAt: number };
+}) {
+  const badge = (
     <StatusBadge {...props} className={`lock-status-badge ${colors[status]} ${className}`} data-status={status}>
       {children ?? (
         <>
@@ -36,6 +42,16 @@ export function LockStatusBadge({
           {LOCK_STATUS_LABELS[status]}
         </>
       )}
+      {status === "cooldown" && cooldown && <CooldownTime {...cooldown} />}
     </StatusBadge>
+  );
+  return status === "cooldown" && cooldown ? (
+    <span className="power-cooldown-status">
+      <DeadlineInfo label="Cooldown ends" endMs={cooldown.endsAt * 1000}>
+        {badge}
+      </DeadlineInfo>
+    </span>
+  ) : (
+    badge
   );
 }

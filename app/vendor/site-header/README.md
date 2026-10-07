@@ -70,3 +70,9 @@ homepage's other link pattern: a permanent underline and visible arrow, with a
 still. Governance homepage cards now compose this pattern to make their links
 recognisable before interaction. Both consumers scan the shared source/release
 for its utility classes and load the canonical styles.
+
+`useMobileMenuBehavior` shares full-screen menu scroll locking, focus trapping,
+Escape dismissal, focus restoration and closing at the desktop breakpoint. Each
+site supplies its own menu content and presentation. Header links and wordmarks
+use the canonical focus outline. Marketing opening motion and both hamburger
+controls respect reduced motion; desktop always renders the canonical SVG wordmark.

@@ -1,6 +1,35 @@
+/** A single in-memory review. Never save clear ballot weights with the encrypted proof. */
+export interface BallotWeight {
+  roundId: bigint;
+  voter: string;
+  /** The full voting power of the slot, in ballot units. */
+  available: bigint;
+  /** The weight the ballot counts, in ballot units. */
+  counted: bigint;
+  /** The voter kept the random weight on. */
+  randomize: boolean;
+  /** Token decimals after the round's existing ballot scaling. */
+  decimals: number;
+}
+
+/** Uniform cryptographic sampling without modulo bias or floating-point rounding. */
+function randomBelow(limit: bigint): bigint {
+  if (limit === 1n) return 0n;
+  const bits = (limit - 1n).toString(2).length;
+  const bytes = new Uint8Array(Math.ceil(bits / 8));
+  const mask = (1 << (((bits - 1) % 8) + 1)) - 1;
+  for (;;) {
+    crypto.getRandomValues(bytes);
+    bytes[0] &= mask;
+    const value = bytes.reduce((total, byte) => (total << 8n) | BigInt(byte), 0n);
+    if (value < limit) return value;
+  }
+}
+
 /**
- * The weight a vote counts when the voter keeps the random weight on: a uniformly random whole
- * number of ballot units in `[power - ⌊power / 100⌋, power]`, the top percent of the voting power.
+ * The weight a vote counts: a uniformly random whole number of ballot units in
+ * `[available - ⌊available / 100⌋, available - 1]` when `randomize` is on, else `available`.
+ * A power below 100 units has no smaller whole number in that band, so it counts whole.
  *
  * Every slot's voting power is public, and the tally publishes the total of each option. A ballot
  * that counts exactly its voting power turns the totals into a subset-sum problem: when the powers
@@ -11,42 +40,46 @@
  * The proof still names the full voting power: the census leaf, or public input 4 of an ONCHAIN
  * round. The circuit only requires the weight of the chosen option not to exceed it.
  */
-export const randomBallotWeight = (power: bigint): bigint => {
-  const lowest = power - power / 100n;
-  return lowest + uniformBelow(power - lowest + 1n);
-};
-
-/**
- * `weight` as a percentage of `power`, rounded down to two decimals, for example `"99.47%"`.
- *
- * Rounded down, so a ballot below its full power never shows as 100%.
- */
-export const formatWeightShare = (weight: bigint, power: bigint): string => {
-  if (power === 0n || weight === power) return "100%";
-  const hundredths = (weight * 10_000n) / power;
-  return `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, "0")}%`;
-};
-
-/** A drawn weight that waits for the voter to accept it, in ballot units. */
-export interface WeightConfirmation {
-  /** The weight the ballot counts. */
-  weight: bigint;
-  /** The full voting power of the slot. */
-  power: bigint;
+export function chooseBallotWeight(available: bigint, randomize: boolean): bigint {
+  if (available <= 0n) throw new Error("No voting power is available for this ballot.");
+  const maxReduction = available / 100n;
+  if (!randomize || maxReduction === 0n) return available;
+  return available - 1n - randomBelow(maxReduction);
 }
 
 /**
- * A uniformly random integer in `[0, bound)`.
- *
- * Rejection sampling over a 256-bit draw: a plain modulo favours low values whenever `bound` does
- * not divide the draw range.
+ * The counted weight as a percentage of the voting power, rounded down to two decimals, for
+ * example `"99.47%"`. Rounded down, so a reduced ballot never shows as 100%.
  */
-const uniformBelow = (bound: bigint): bigint => {
-  const range = 2n ** 256n;
-  const limit = range - (range % bound);
-  let draw: bigint;
-  do {
-    draw = crypto.getRandomValues(new Uint8Array(32)).reduce((acc, byte) => (acc << 8n) | BigInt(byte), 0n);
-  } while (draw >= limit);
-  return draw % bound;
-};
+export function ballotWeightPercentage({ available, counted }: Pick<BallotWeight, "available" | "counted">): string {
+  const hundredths = (counted * 10_000n) / available;
+  return `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, "0")}%`;
+}
+
+/** Recheck the reviewed amount against the authoritative balance, without re-randomizing it. */
+export function reviewedVote(
+  weight: BallotWeight | undefined,
+  available: bigint,
+  roundId: bigint,
+  voter: string,
+  option: number,
+  numOptions: number
+): number[] {
+  if (
+    !weight ||
+    weight.roundId !== roundId ||
+    weight.voter.toLowerCase() !== voter.toLowerCase() ||
+    weight.available !== available ||
+    weight.counted <= 0n ||
+    weight.counted > available ||
+    weight.counted > BigInt(Number.MAX_SAFE_INTEGER) ||
+    (weight.randomize
+      ? available >= 100n
+        ? weight.counted >= available || weight.counted * 100n < available * 99n
+        : weight.counted !== available
+      : weight.counted !== available)
+  )
+    throw new Error("Your voting power changed or the review is invalid. Review the ballot again.");
+  if (!Number.isInteger(option) || option < 0 || option >= numOptions) throw new Error("Select a valid vote option.");
+  return Array.from({ length: numOptions }, (_, i) => (i === option ? Number(weight.counted) : 0));
+}

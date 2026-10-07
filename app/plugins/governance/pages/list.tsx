@@ -1,3 +1,4 @@
+import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
 import { SearchField } from "@/components/input/searchField";
 import styles from "./proposalList.module.css";
@@ -58,7 +59,7 @@ export default function Proposals() {
   const needsDelegation = privateCreate.needsDelegation || publicCreate.needsDelegation;
   const bondedAway = !!(privateCreate.bondedDelegate ?? publicCreate.bondedDelegate);
   const ineligibleReason = needsDelegation
-    ? `You hold ${PUB_TOKEN_SYMBOL} but haven't delegated your voting power. Delegate (even to yourself) to submit proposals.`
+    ? `You hold ${PUB_TOKEN_SYMBOL}, but your voting power is not active. Delegate to yourself to submit proposals.`
     : bondedAway
       ? "Your bonded voting power votes through a delegate. To use it yourself, stop the delegation on the Voting power page."
       : minPower !== undefined && decimals !== undefined
@@ -69,6 +70,7 @@ export default function Proposals() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
@@ -76,7 +78,9 @@ export default function Proposals() {
   // Status lives in the per-row hooks (metadata + tally + SPP state), so rows
   // report it back up here and the list filters on what they resolved.
   const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
-  const lastFetchedBlock = useRef<bigint | null>(null);
+  // Each processor advances only after its own read succeeds. A failed public scan
+  // must not cause the next block to skip public proposals while private succeeds.
+  const lastFetchedBlock = useRef<Partial<Record<Kind, bigint>>>({});
 
   const reportStatus = useCallback((key: string, bucket: StatusBucket | undefined) => {
     setStatuses((prev) => (prev[key] === bucket ? prev : { ...prev, [key]: bucket }));
@@ -87,10 +91,7 @@ export default function Proposals() {
   }, []);
 
   const fetchProposals = useCallback(async () => {
-    if (!publicClient || !blockNumber || !PUB_DEPLOYMENT_BLOCK) return;
-
-    const fromBlock = lastFetchedBlock.current ? lastFetchedBlock.current + 1n : BigInt(PUB_DEPLOYMENT_BLOCK);
-    if (lastFetchedBlock.current && fromBlock > blockNumber) return;
+    if (!blockNumber || !PUB_DEPLOYMENT_BLOCK) return;
 
     // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals).
     const sources: { kind: Kind; address: `0x${string}`; event: typeof SppProposalCreatedEvent }[] = [];
@@ -101,8 +102,11 @@ export default function Proposals() {
 
     try {
       setIsLoading(true);
-      const perSource = await Promise.all(
+      const perSource = await Promise.allSettled(
         sources.map(async ({ kind, address, event }) => {
+          const lastBlock = lastFetchedBlock.current[kind];
+          const fromBlock = lastBlock === undefined ? BigInt(PUB_DEPLOYMENT_BLOCK) : lastBlock + 1n;
+          if (fromBlock > blockNumber) return [] as Entry[];
           // One request per SPP instead of a log walk each, and the answer is the whole list
           // rather than a delta — so the incremental `fromBlock` bookkeeping is bypassed.
           const fromServer = await fetchProposalsFromServer({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK });
@@ -112,25 +116,31 @@ export default function Proposals() {
             );
           }
 
-          return publicClient
-            .getLogs({ address, event, fromBlock, toBlock: blockNumber })
-            .then((logs) =>
-              logs
-                .map((log) => {
-                  const id = (log.args as { proposalId?: bigint })?.proposalId;
-                  return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n } as Entry);
-                })
-                .filter((e): e is Entry => e !== null)
-            )
-            .catch((err) => {
-              console.error(`Could not fetch ${kind} proposals`, err);
-              return [] as Entry[];
-            });
+          if (!publicClient) throw new Error("Proposal RPC is unavailable");
+          const logs = await publicClient.getLogs({ address, event, fromBlock, toBlock: blockNumber });
+          return logs
+            .map((log) => {
+              const id = (log.args as { proposalId?: bigint })?.proposalId;
+              return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n } as Entry);
+            })
+            .filter((e): e is Entry => e !== null);
         })
       );
 
-      lastFetchedBlock.current = blockNumber;
-      const fresh = perSource.flat();
+      const fresh: Entry[] = [];
+      let failed = false;
+      perSource.forEach((result, index) => {
+        const kind = sources[index].kind;
+        if (result.status === "rejected") {
+          failed = true;
+          console.error(`Could not fetch ${kind} proposals`, result.reason);
+          return;
+        }
+        const prior = lastFetchedBlock.current[kind];
+        if (prior === undefined || blockNumber > prior) lastFetchedBlock.current[kind] = blockNumber;
+        fresh.push(...result.value);
+      });
+      setError(failed ? "Some proposals could not be loaded." : null);
       if (fresh.length) {
         setEntries((prev) => {
           const seen = new Set(prev.map((e) => `${e.kind}:${e.id}`));
@@ -143,11 +153,11 @@ export default function Proposals() {
     } finally {
       setIsLoading(false);
     }
-  }, [blockNumber]);
+  }, [blockNumber, retryKey]);
 
   useEffect(() => {
     fetchProposals();
-  }, [blockNumber, fetchProposals]);
+  }, [fetchProposals]);
 
   // Stable per-row reporters so the rows' effects don't re-fire on every render.
   const rowHandlers = useMemo(() => {
@@ -178,6 +188,7 @@ export default function Proposals() {
     setStatusFilter("all");
     setSearch("");
   };
+  const retryLoad = () => setRetryKey((key) => key + 1);
   const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
   return (
@@ -229,9 +240,22 @@ export default function Proposals() {
                         ? error
                         : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
                 </MissingContentView>
+                {error && (
+                  <button type="button" className="ui-text-action" onClick={retryLoad}>
+                    Try again
+                  </button>
+                )}
               </div>
             </Then>
             <Else>
+              {error && (
+                <div className={styles.feedback} role="alert">
+                  <p className="ui-body">{error}</p>
+                  <button type="button" className="ui-text-action" onClick={retryLoad}>
+                    Try again
+                  </button>
+                </div>
+              )}
               <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
                 <SearchField
                   className="proposal-search"
@@ -281,7 +305,7 @@ export default function Proposals() {
                   <span>Newest first</span>
                 </div>
               </div>
-              <If not={matchCount}>
+              <Disclosure open={!matchCount}>
                 <div className={styles.feedback}>
                   <MissingContentView>
                     {resolving
@@ -291,15 +315,19 @@ export default function Proposals() {
                         : "No proposals to show."}
                   </MissingContentView>
                 </div>
-              </If>
+              </Disclosure>
               <div className="proposal-list">
                 {entries.map((e) => {
                   const key = entryKey(e);
                   const hidden = !matches(e);
-                  return e.kind === "private" ? (
-                    <PrivateRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
-                  ) : (
-                    <PublicRow key={key} proposalId={e.id} {...rowHandlers[key]} hidden={hidden} />
+                  return (
+                    <Disclosure key={key} open={!hidden} className="proposal-filter-row">
+                      {e.kind === "private" ? (
+                        <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                      ) : (
+                        <PublicRow proposalId={e.id} {...rowHandlers[key]} />
+                      )}
+                    </Disclosure>
                   );
                 })}
               </div>

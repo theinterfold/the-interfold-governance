@@ -32,6 +32,7 @@ export function ProposalReadingHeader({
   creator,
   status,
   statusLabel,
+  statusClass,
   kind,
   timing,
   badges,
@@ -40,8 +41,10 @@ export function ProposalReadingHeader({
   summary: string;
   creator: string;
   status?: string;
-  /** Badge text when it differs from the status, e.g. "Quorum not met"; the badge style still follows `status`. */
+  /** Badge text when it differs from the status, e.g. "Quorum not met". */
   statusLabel?: string;
+  /** Badge style; defaults to the lowercase `status`. When set, `status` is shown as given. */
+  statusClass?: string;
   kind: string;
   timing: ReactNode;
   badges?: ReactNode;
@@ -50,17 +53,29 @@ export function ProposalReadingHeader({
     <header className="proposal-reading-header">
       <div className="proposal-reading-status">
         {status && (
-          <span className={`badge ${status.toLowerCase()}`}>{statusLabel ?? capitalizeFirstLetter(status)}</span>
+          <span className={`badge ${statusClass ?? status.toLowerCase()}`} data-proposal-part="status">
+            {statusLabel ?? (statusClass ? status : capitalizeFirstLetter(status))}
+          </span>
         )}
         {badges}
-        <span className="badge kind">{kind}</span>
-        <span className="proposal-reading-timing">{timing}</span>
+        <span className="badge kind" data-proposal-part="method">
+          {kind}
+        </span>
+        <span className="proposal-reading-timing" data-proposal-part="timing">
+          {timing}
+        </span>
       </div>
-      <h1 tabIndex={-1} data-proposal-ready>
-        {title || "(No proposal title)"}
+      <h1 tabIndex={-1} data-proposal-ready={title.trim() ? true : undefined}>
+        <span className="proposal-motion-title" data-proposal-part="title">
+          {title || "(No proposal title)"}
+        </span>
       </h1>
-      {summary && <p className="proposal-reading-summary">{summary}</p>}
-      <p className="proposal-reading-author">
+      {summary && (
+        <p className="proposal-reading-summary" data-proposal-part="summary">
+          {summary}
+        </p>
+      )}
+      <p className="proposal-reading-author" data-proposal-part="author">
         <span>By</span> <AddressText bold={false}>{creator}</AddressText>
       </p>
     </header>

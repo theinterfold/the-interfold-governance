@@ -106,7 +106,7 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
           aria-live="polite"
           aria-atomic="true"
           style={{
-            backgroundColor: isError ? "#f3d6c8" : isComplete ? "var(--mint-pale)" : "var(--mint)",
+            backgroundColor: isError ? "#f3d6c8" : isComplete ? "var(--surface-selected)" : "var(--surface-muted)",
             color: isError ? "#7a3322" : isComplete ? "var(--accent)" : "var(--ink-soft)",
             fontFamily: "var(--font-sans)",
             letterSpacing: 0,
@@ -184,8 +184,8 @@ const StepNode: React.FC<{
   iconPath: string;
 }> = ({ status, label, iconPath }) => {
   const colors: Record<StepStatus, { bg: string; border: string; icon: string; label: string }> = {
-    complete: { bg: "var(--mint-pale)", border: "var(--accent)", icon: "var(--accent)", label: "var(--accent)" },
-    active: { bg: "var(--mint)", border: "var(--ink)", icon: "var(--ink)", label: "var(--ink-soft)" },
+    complete: { bg: "var(--surface-selected)", border: "var(--accent)", icon: "var(--accent)", label: "var(--accent)" },
+    active: { bg: "var(--surface-muted)", border: "var(--ink)", icon: "var(--ink)", label: "var(--ink-soft)" },
     error: { bg: "#f3d6c8", border: "#a84932", icon: "#a84932", label: "#7a3322" },
     pending: { bg: "transparent", border: "var(--cream-line)", icon: "var(--muted-2)", label: "var(--muted)" },
   };

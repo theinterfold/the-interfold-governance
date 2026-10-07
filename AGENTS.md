@@ -1,14 +1,24 @@
+## Design source of truth
+
+Before UI changes, read [DESIGN.md](DESIGN.md). It defines the current rules and links the shared Interfold source. Shared design tokens are maintained in `Interfold-Website/DESIGN.md`; do not edit generated token CSS.
+
 # Agent guide — the-interfold-governance
 
-## Family animation patterns — persistent user preference
+## Shared animation patterns — persistent user preference
 
-For every new or updated interface, consider the established **Family animation patterns from the start**. This is a required part of implementation and review, not optional polish. Before changing UI, inspect the existing motion components and the corresponding reference/implementation; reuse their behavior, timing, easing, sequencing and transitions rather than inventing a separate animation style. Preserve these patterns when updating existing components. Check relevant entrances/exits, state and step changes, disclosures, dialogs, hover and focus interactions, including reduced-motion behavior and performance. Do not consider a UI change complete until its motion has been checked against these patterns. This does not mean adding animation everywhere or re-enabling intentionally paused artwork. If the relevant Family reference is unavailable or ambiguous, say so rather than guessing.
+For every new or updated interface, consider the established **shared animation patterns from the start**. This is a required part of implementation and review, not optional polish. Before changing UI, inspect the existing motion components and the corresponding reference/implementation; reuse their behavior, timing, easing, sequencing and transitions rather than inventing a separate animation style. Preserve these patterns when updating existing components. Check relevant entrances/exits, state and step changes, disclosures, dialogs, hover and focus interactions, including reduced-motion behavior and performance. Do not consider a UI change complete until its motion has been checked against these patterns. This does not mean adding animation everywhere or re-enabling intentionally paused artwork. If the relevant motion reference is unavailable or ambiguous, say so rather than guessing.
 
 Operational entry point for coding agents. **Read [`docs/architecture.md`](docs/architecture.md)
 first** — it is the authoritative explanation of how staged governance works. This file is the
 short operational layer: commands, invariants, and traps.
 
+Describe motion through its behavior: continuity between source and destination, shared elements, coordinated height, sequencing, easing and focus restoration. Describe animation styles by behavior rather than naming them after a company, including in comments, documentation and commit messages. See [motion patterns](docs/design/motion-patterns.md).
+
 ## UI workflow — user preference
+
+Develop and review UI changes on the running local version so Tiago can follow the work.
+Keep that local version available during iteration. Publish accumulated changes to the
+shared preview after a batch is finished and Tiago asks for it, rather than after each edit.
 
 For every new UI request, **reuse first**. Inspect the existing components, their supported
 variants, design tokens and `docs/design/interface-consistency.md` before proposing or
@@ -337,17 +347,8 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   outside `INDEX_CONTRACTS`, and the escrow's satellites (exit queue, lock NFT, IVotes adapter) are
   read OFF the escrow at runtime — no allowlist could have been configured with them by name. That
   is why the wagmi transport is a `fallback([indexer, /api/rpc])`: whatever the indexer refuses
-  goes to the generic relay. It cost a lock page rendering "a —-day cooldown" and a permanently
-  empty delegate list to find. `/api/rpc` needs `WEB3_RPC_URL` set server-side for the fallback to
-  land anywhere.
-- **A delegate scan starts where the DELEGATION source was deployed, not the token.** With locking
-  on, `DelegateChanged` comes from the escrow's adapter, which on mainnet is ~306k blocks younger
-  than FOLD (25779726 vs 25473449). `useDelegates` passes `PUB_DELEGATION_DEPLOYMENT_BLOCK` as
-  `from_block`, which is both the range `/members/delegates` scans and the coverage its answer is
-  checked against. With the token's block there instead, the first caller after a server restart
-  waits out a third of a million blocks that cannot contain a matching event — long enough to time
-  out, drop to the client-side scan, and fail as "Could not load delegates" until someone else's
-  request finished the scan and warmed the cache.
+  goes to the generic relay. It cost a lock page rendering "a —-day cooldown" to find. `/api/rpc`
+  needs `WEB3_RPC_URL` set server-side for the fallback to land anywhere.
 - **Etherscan V1 endpoints are sunset.** All Etherscan reads go through the V2 multichain
   endpoint (`api.etherscan.io/v2/api` + `chainid`); `hooks/useAbi.ts` rides the chainid in with
   the API key because whatsabi 0.14 has no chainid config.

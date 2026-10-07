@@ -65,5 +65,5 @@ numa nova instalação usar os templates `.env*.example` e a configuração apro
   combinada continua a precisar de validação da equipa antes de produção.
 - Este checkpoint é local. Não foi publicado nem enviado para um repositório remoto.
 
-Referências e decisões adicionais: `docs/design/family-reference.md` e
+Referências e decisões adicionais: `docs/design/motion-patterns.md` e
 `docs/design/token-lock-references/README.md`.

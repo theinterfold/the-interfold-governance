@@ -55,6 +55,12 @@
 .site-header-brand:focus-visible {
   color: var(--site-chrome-hover);
 }
+/* The same focus cue stays legible on the mint and grey product grounds. */
+:is(.site-header-brand, .site-header-symbol, .site-header-link, .site-header-menu-link):focus-visible {
+  outline: 2px solid var(--site-chrome-hover);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 .site-header-wordmark {
   display: block;
   width: 112px;
@@ -108,7 +114,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  padding-inline: 16px;
+  padding-inline: 8px;
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
@@ -131,7 +137,7 @@
   text-underline-offset: .15em;
 }
 .site-header-action {
-  margin-left: 16px;
+  margin-left: 8px;
   align-self: center;
   flex-shrink: 0;
 }
@@ -306,12 +312,10 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
   }
 }
 
-/* The padding lives here rather than in a utility class, so the underline can
-   inset by the same value. Left in Tailwind they drifted apart the moment the
-   links were padded to close the gaps between them, and the rule ran the full
-   32px wider than the word. */
+/* Link and underline padding share one value. The compact navigation stays
+   inside its column without covering the central symbol. */
 .interfold-top-nav-link {
-  --nav-link-pad: 1rem;
+  --nav-link-pad: .5rem;
   padding-inline: var(--nav-link-pad);
   position: relative;
   text-decoration: none;

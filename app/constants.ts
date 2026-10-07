@@ -12,11 +12,12 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 // token directly reports zero weight for an operator who has bonded everything — while that same
 // FOLD still counts in the quorum denominator.
 //
-// Wallet and escrowed FOLD do not delegate here: `delegate()` reverts `DelegationNotSupported`, and
-// the adapter emits no `DelegateChanged`. Its only delegation is bonded delegation, which gives an
-// owner's bonded (and, under the escrow, vesting) FOLD to one delegate: `delegateBonded` asks,
-// `acceptBonded` moves the weight, `dropBonded` returns it. Adapters deployed before bonded
-// delegation lack those functions, so `useBondedDelegation` probes for them and hides the controls.
+// Bonded FOLD (and, under the escrow, vesting FOLD) counts for its owner. An owner that gave it to
+// another address earlier can take it back or withdraw a pending request: both call
+// `delegateBonded(0)`. Wallet and escrowed FOLD do not delegate here: `delegate()` reverts
+// `DelegationNotSupported`, and the adapter emits no `DelegateChanged`. Adapters deployed before
+// bonded delegation lack those functions, so `useBondedDelegation` probes for them and hides the
+// controls.
 //
 // Falls back to the token when unset, which keeps the app working against a deployment that has
 // no adapter — it just cannot see bonded weight.
@@ -78,7 +79,7 @@ export const PUB_WEB3_ENDPOINT =
  * file, but the app also reaches addresses it discovers ON CHAIN — the escrow's exit queue, lock
  * NFT and IVotes adapter are read off the escrow (useVeEscrow), and they are not in any allowlist
  * the server could have been configured with. Those reads failed silently: the lock copy printed
- * "a —-day cooldown" and the delegate list gave up with "Could not load delegates".
+ * "a —-day cooldown" and the lock position list gave up with an error.
  *
  * So keep the indexer first (it is the whole point — no provider account needed) and let the
  * generic relay pick up whatever it will not serve. Unset when the indexer IS the relay, or when
@@ -106,28 +107,6 @@ export const PUB_IPFS_ENDPOINTS = process.env.NEXT_PUBLIC_IPFS_ENDPOINTS ?? "";
 
 // General
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);
-// Block the FOLD token was deployed at — start of the delegate-event scan.
-export const PUB_TOKEN_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK ?? 0);
-// Block the VotingEscrow was deployed at, which is also its satellites' — the lock NFT, exit
-// queue and IVotes adapter ship in the same transaction.
-//
-// A delegate scan has to start where the contract it scans began, not where the TOKEN began. With
-// locking on, `DelegateChanged` comes from the adapter, which on mainnet is ~306k blocks younger
-// than FOLD: scanning from the token's block asks the indexer (or the browser) to walk a third of
-// a million blocks that cannot contain a single matching event, and that walk is what the first
-// caller after a server restart waits for.
-//
-// Falls back to the token's block when unset, which is correct but slow — never wrong, so a
-// deployment that has not filled this in still works.
-export const PUB_VE_LOCKER_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_VE_LOCKER_DEPLOYMENT_BLOCK ?? 0);
-/** Where `DelegateChanged` history starts, for whichever contract actually emits it. */
-export const PUB_DELEGATION_DEPLOYMENT_BLOCK =
-  (PUB_ENABLE_LOCKING && PUB_VE_LOCKER_DEPLOYMENT_BLOCK) || PUB_TOKEN_DEPLOYMENT_BLOCK;
-// Block the BondedVotes adapter was deployed at — where the scan for bonded delegation requests
-// starts. Falls back to the token's block when unset, which is correct but scans history that
-// cannot contain a request.
-export const PUB_BONDED_VOTES_DEPLOYMENT_BLOCK =
-  Number(process.env.NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK ?? 0) || PUB_TOKEN_DEPLOYMENT_BLOCK;
 export const PUB_APP_NAME = "Interfold Governance";
 export const PUB_APP_DESCRIPTION =
   "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";

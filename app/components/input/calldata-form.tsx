@@ -61,7 +61,7 @@ export const CalldataForm: FC<ICalldataFormProps> = ({ onChange, onSubmit }) => 
           label="Contract address"
           placeholder="0x1234..."
           variant={!to || isAddress(to) ? "default" : "critical"}
-          value={to}
+          value={to ?? ""}
           alert={
             !!to && !isAddress(to)
               ? { message: "The address of the contract is not valid", variant: "critical" }

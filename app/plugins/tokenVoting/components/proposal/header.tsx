@@ -5,12 +5,14 @@ import { ProposalReadingHeader } from "@/components/proposal/proposalReadingHead
 import { ProposalCountdown } from "@/components/proposal/proposalCountdown";
 import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import type { ReactNode } from "react";
+import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
 
-const ProposalHeader = ({ proposal }: { proposal: Proposal }) => {
+const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presentation?: ProposalPresentation }) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
   const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
   let timing: ReactNode;
-  if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
+  if (presentation && !presentation.votingOpen) timing = presentation.timing;
+  else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
   else if (proposalStatus === ProposalStatus.REJECTED)
     timing = quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected";
   else if (endDateIsInThePast) timing = "The voting period is over";
@@ -21,8 +23,9 @@ const ProposalHeader = ({ proposal }: { proposal: Proposal }) => {
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
-      status={proposalStatus}
-      statusLabel={bodyStatusLabel(proposalStatus, quorumNotMet)}
+      status={presentation?.label ?? proposalStatus}
+      statusClass={presentation?.className}
+      statusLabel={presentation ? undefined : bodyStatusLabel(proposalStatus, quorumNotMet)}
       kind="Transparent fallback"
       timing={timing}
     />

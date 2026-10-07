@@ -89,20 +89,6 @@ const EXPLANATIONS: Record<string, ErrorExplanation> = {
     title: "This account is not registered",
     detail: "The action requires an account registered with the protocol.",
   },
-
-  // --- bonded delegation -------------------------------------------------------------------
-  "0xb90364ed": {
-    title: "This owner did not ask you to represent it",
-    detail: "The owner withdrew the request or sent it to a different address.",
-  },
-  "0x2ed7026c": {
-    title: "You already represent the maximum number of owners",
-    detail: "Return the voting power of one owner. Then accept this request again.",
-  },
-  "0x9ff3e9dd": {
-    title: "You do not represent this owner",
-    detail: "The owner already took back its voting power.",
-  },
 };
 
 /**
