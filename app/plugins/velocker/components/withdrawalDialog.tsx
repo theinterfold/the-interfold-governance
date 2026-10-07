@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
+import { formatDurationSeconds } from "@/plugins/spp/components/stageDurationNote";
 import { ActionTray } from "./actionTray";
 import { WithdrawalButton, type WithdrawalKind } from "./withdrawalButton";
 
@@ -10,7 +11,8 @@ export type WithdrawalAction = { kind: WithdrawalKind; tokenId: bigint; amount: 
 type Props = {
   action?: WithdrawalAction;
   amount: string;
-  cooldownDays?: number;
+  /** The exit queue's cooldown in seconds, unknown until it is read. */
+  cooldownSeconds?: number;
   pending: boolean;
   error?: string;
   triggerRef: RefObject<HTMLElement>;
@@ -21,7 +23,7 @@ type Props = {
 export function WithdrawalDialog({
   action,
   amount,
-  cooldownDays,
+  cooldownSeconds,
   pending,
   error,
   triggerRef,
@@ -65,9 +67,9 @@ export function WithdrawalDialog({
             <dt>{begins ? "Available to withdraw" : "After confirmation"}</dt>
             <dd>
               {begins
-                ? cooldownDays === undefined
+                ? cooldownSeconds === undefined
                   ? "After the cooldown"
-                  : `After ${cooldownDays} days`
+                  : `After ${formatDurationSeconds(cooldownSeconds)}`
                 : cancels
                   ? "Locked again"
                   : "Sent to your wallet"}

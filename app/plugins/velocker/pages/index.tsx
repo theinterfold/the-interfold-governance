@@ -33,8 +33,6 @@ import { useVotingPowerBreakdown } from "../hooks/useVotingPowerBreakdown";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 
-const DAY = 86_400;
-
 export default function Locker() {
   const { address, isConnected } = useAccount();
   const accountHeading = (
@@ -167,9 +165,6 @@ export default function Locker() {
   const committedByMe = locks.ownedLocks.reduce((acc, lock) => acc + lock.amount, 0n);
   const delegatedTokens = delegatedLockTokens(delegation.delegatesTo, locksKnown ? locks.ownedLocks : undefined);
   const needsActivation = notActivated && locksKnown && committedByMe > 0n;
-  const cooldownDays = escrow.cooldown === undefined ? undefined : Math.round(escrow.cooldown / DAY);
-  // Read off the exit queue, so it can be unknown while the read is in flight (or if it fails).
-  // Never fill the gap with a number: a made-up "30-day" is a promise the contract has not made.
 
   const compact = (value?: bigint) =>
     value === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(value, decimals));
@@ -381,7 +376,7 @@ export default function Locker() {
                 : undefined
             }
             minimum={fmt(escrow.minDeposit)}
-            cooldownDays={cooldownDays}
+            cooldownSeconds={escrow.cooldown}
             account={address}
             currentDelegate={delegation.delegatesTo}
             existingLockedAmount={fmt(locksKnown ? committedByMe : undefined)}
@@ -410,7 +405,7 @@ export default function Locker() {
                 ? exactNumber(formatUnits(withdrawalAction.amount, decimals))
                 : "—"
             }
-            cooldownDays={cooldownDays}
+            cooldownSeconds={escrow.cooldown}
             pending={withdrawalSubmitting || pendingTokenId !== undefined}
             error={withdrawalAttempted ? withdrawError : undefined}
             triggerRef={withdrawalTrigger}

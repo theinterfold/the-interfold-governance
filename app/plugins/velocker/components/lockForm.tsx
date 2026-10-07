@@ -9,6 +9,7 @@ import { PUB_CONSTITUTION_URL, PUB_TOKEN_SYMBOL } from "@/constants";
 import { isAddress, type Address } from "viem";
 import { ADDRESS_ZERO } from "@/utils/evm";
 import { useMemberName } from "@/hooks/useMemberName";
+import { formatDurationSeconds } from "@/plugins/spp/components/stageDurationNote";
 import { ActionTray } from "./actionTray";
 import { PowerAction } from "./powerAction";
 import { PowerWarning } from "./powerWarning";
@@ -29,7 +30,11 @@ type Props = {
    */
   vestingNote?: string;
   minimum: string;
-  cooldownDays?: number;
+  /**
+   * The exit queue's cooldown in seconds. Unknown while the read is in flight or after it fails.
+   * Never fill the gap with a number: a made-up cooldown is a promise the contract has not made.
+   */
+  cooldownSeconds?: number;
   belowMinimum: boolean;
   aboveBalance: boolean;
   canLock: boolean;
@@ -391,7 +396,9 @@ export function LockForm(props: Props) {
             <dl className="power-panel-facts" data-step-key="facts">
               <div data-step-key="cooldown">
                 <dt>Withdrawal cooldown</dt>
-                <dd>{props.cooldownDays === undefined ? "Loading…" : `${props.cooldownDays} days`}</dd>
+                <dd>
+                  {props.cooldownSeconds === undefined ? "Loading…" : formatDurationSeconds(props.cooldownSeconds)}
+                </dd>
               </div>
             </dl>
             <div className="power-lock-footer">
