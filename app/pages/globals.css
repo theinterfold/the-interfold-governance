@@ -429,6 +429,30 @@ label div p.leading-tight {
   color: var(--paper) !important;
 }
 
+/* Testnet faucet strip under the site header, on the page content column. */
+.faucet-strip {
+  width: 100%;
+  border-bottom: 1px solid var(--ui-stroke);
+}
+.faucet-strip-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-tight) var(--ui-space-controls);
+  padding-block: var(--ui-space-tight);
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.faucet-strip-content p { margin: 0; }
+.faucet-strip-network {
+  margin-right: var(--ui-space-tight);
+  color: var(--ink);
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
 /* ============================================================
    Interfold utility vocabulary (used by custom chrome)
    ============================================================ */

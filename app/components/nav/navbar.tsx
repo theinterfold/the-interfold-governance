@@ -2,38 +2,20 @@ import WalletContainer from "@/components/WalletContainer";
 import { plugins } from "@/plugins";
 import Link from "next/link";
 import { useState } from "react";
+import { FaucetStrip } from "./faucetStrip";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
-import { Button, Spinner } from "@aragon/ods";
-import { PUB_ENABLE_FAUCET } from "@/constants";
-import { useFaucet } from "@/hooks/useFaucet";
-import { If } from "@/components/if";
 import { SiteHeaderChrome, HeaderWordmark, InterfoldSymbol } from "@/vendor/site-header";
 import { Cross as Hamburger } from "hamburger-react";
-import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
-
-  const { addAlert } = useAlerts();
 
   const navLinks: INavLink[] = plugins.map((p) => ({
     id: p.id,
     name: p.title,
     path: `/plugins/${p.id}/#/`,
   }));
-
-  const { claim, canClaim, blockedReason, isConfirming } = useFaucet();
-
-  // The faucet tops up per token; blockedReason mirrors its own revert conditions
-  // so a repeat click explains itself instead of burning a reverting transaction.
-  const claimTestTokens = () => {
-    if (!canClaim) {
-      addAlert(blockedReason ?? "Cannot claim from the faucet right now");
-      return;
-    }
-    claim();
-  };
 
   return (
     <>
@@ -61,19 +43,13 @@ export const Navbar: React.FC = () => {
                 <NavLink name={name} path={path} id={id} key={id} />
               ))}
             </ul>
-            <If true={PUB_ENABLE_FAUCET}>
-              <div className="site-header-action">
-                <Button className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
-                  {isConfirming ? <Spinner size="sm" /> : "Faucet"}
-                </Button>
-              </div>
-            </If>
             <div className="site-header-action">
               <WalletContainer />
             </div>
           </>
         }
       />
+      <FaucetStrip />
 
       {/* Keep the menu trigger above the full-screen mobile menu. */}
       <div className="site-header-menu-trigger interfold-mobile-menu-trigger">
