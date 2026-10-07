@@ -93,10 +93,20 @@ describe("awaitSuccessfulReceipt", () => {
   // viem's replacement check finds the transaction in its block, asks for the receipt once more,
   // and rejects with TransactionReceiptNotFoundError when that read still lags. The transaction
   // succeeded, so the flow must continue (a fee-credit approval was reported as failed this way).
+  // In the app, useTransactionManager waits for the same transaction through wagmi, on the same
+  // client and with no timeout. Neither wait may stall the other (the fee-credit deposit was never
+  // sent after its approval was mined, and the button kept spinning).
   test("resolves a mined transaction whose receipt lags behind its block", async () => {
-    const mined = await awaitSuccessfulReceipt(laggingRpcClient(3), HASH, "The fee-token approval");
+    const client = laggingRpcClient(3);
+    const mined = awaitSuccessfulReceipt(client, HASH, "The fee-token approval");
+    const wagmiWait = () => client.waitForTransactionReceipt({ hash: HASH, timeout: 0 });
+    const firstWagmiWait = wagmiWait().catch(() => undefined);
 
-    expect(mined.status).toBe("success");
-    expect(mined.transactionHash).toBe(HASH);
+    // TanStack retries a failed wagmi wait. Only a wait that ends runs the success callback of
+    // useTransactionManager.
+    const wagmiReceipt = (await firstWagmiWait) ?? (await wagmiWait());
+    expect(wagmiReceipt.transactionHash).toBe(HASH);
+    expect((await mined).status).toBe("success");
+    expect((await mined).transactionHash).toBe(HASH);
   });
 });
