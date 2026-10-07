@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { useReadContract } from "wagmi";
 import { parseAbi } from "viem";
 import type { Address } from "viem";
+import { interfoldViewsAbi } from "../artifacts/interfoldViews";
 import { PUB_CHAIN_ID, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 
 /** Lifecycle stages of an E3 computation (mirrors IInterfold.E3Stage). */
@@ -32,12 +34,6 @@ export enum E3FailureReason {
 }
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
-const interfoldAbi = parseAbi([
-  "function getE3Stage(uint256 e3Id) view returns (uint8)",
-  "function getFailureReason(uint256 e3Id) view returns (uint8)",
-  "function checkFailureCondition(uint256 e3Id) view returns (bool canFail, uint8 reason)",
-]);
-
 /** Human-readable description of an E3 failure reason. */
 export function describeE3Failure(reason: E3FailureReason | undefined): string {
   switch (reason) {
@@ -88,10 +84,19 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
   const { data: stageRaw } = useReadContract({
     chainId: PUB_CHAIN_ID,
     address: interfold as Address | undefined,
-    abi: interfoldAbi,
+    abi: interfoldViewsAbi,
     functionName: "getE3Stage",
     args: [e3Id ?? 0n],
-    query: { enabled: active && !!interfold },
+    query: { enabled: active && !!interfold, refetchInterval: 15_000 },
+  });
+
+  const { data: round } = useReadContract({
+    chainId: PUB_CHAIN_ID,
+    address: interfold as Address | undefined,
+    abi: interfoldViewsAbi,
+    functionName: "getE3",
+    args: [e3Id ?? 0n],
+    query: { enabled: active && !!interfold, refetchInterval: 15_000 },
   });
 
   const stage = stageRaw === undefined ? undefined : (Number(stageRaw) as E3Stage);
@@ -100,7 +105,7 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
   const { data: reasonRaw } = useReadContract({
     chainId: PUB_CHAIN_ID,
     address: interfold as Address | undefined,
-    abi: interfoldAbi,
+    abi: interfoldViewsAbi,
     functionName: "getFailureReason",
     args: [e3Id ?? 0n],
     query: { enabled: active && !!interfold && isFailed },
@@ -112,22 +117,29 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
   // has to send once a stage deadline passes, so a round whose DKG timed out days ago still reads
   // as `CommitteeFinalized` until then — alive on-chain, and dead in every way that matters.
   // `checkFailureCondition` is what Interfold would act on, so it is the honest signal to show.
-  const { data: pending } = useReadContract({
+  const { data: pending, refetch: refetchFailureCondition } = useReadContract({
     chainId: PUB_CHAIN_ID,
     address: interfold as Address | undefined,
-    abi: interfoldAbi,
+    abi: interfoldViewsAbi,
     functionName: "checkFailureCondition",
     args: [e3Id ?? 0n],
-    query: { enabled: active && !!interfold && !isFailed },
+    query: { enabled: active && !!interfold && !isFailed && stage !== E3Stage.Complete, refetchInterval: 15_000 },
   });
 
   const [canFail, pendingReasonRaw] = (pending as readonly [boolean, number] | undefined) ?? [];
 
-  /** Terminal either way: the round can never produce a tally. */
-  const isDead = isFailed || canFail === true;
+  useEffect(() => {
+    if (active && interfold && !isFailed && stage !== E3Stage.Complete) void refetchFailureCondition();
+  }, [active, interfold, isFailed, stage, refetchFailureCondition]);
+
+  // A newly published result must win over an older, cached timeout read.
+  const isFailurePending = active && !isFailed && stage !== E3Stage.Complete && canFail === true;
+  const isDead = active && (isFailed || isFailurePending);
 
   return {
     stage,
+    inputStartMs: round ? Number(round.inputWindow[0]) * 1000 : undefined,
+    inputEndMs: round ? Number(round.inputWindow[1]) * 1000 : undefined,
     isFailed,
     failureReason: isFailed
       ? failureReason
@@ -135,7 +147,7 @@ export function useE3Status(e3Id: bigint | undefined, enabled = true) {
         ? undefined
         : (Number(pendingReasonRaw) as E3FailureReason),
     /** The failure condition is met but nobody has sent `markE3Failed` yet. */
-    isFailurePending: !isFailed && canFail === true,
+    isFailurePending,
     isDead,
   };
 }

@@ -9,8 +9,7 @@ import { MainSection } from "@/components/layout/main-section";
 const PluginLoader: FC = () => {
   const { query } = useRouter();
   const pluginId = resolveQueryParam(query.id);
-  const [PageComponent, setPageComponent] = useState<FC | null>(null);
-  const [componentLoading, setComponentLoading] = useState(true);
+  const [loaded, setLoaded] = useState<{ id: string; PageComponent: FC | null }>();
 
   useEffect(() => {
     if (!pluginId) return;
@@ -19,24 +18,26 @@ const PluginLoader: FC = () => {
     if (!plugin) {
       // An unknown section (stale link, or a feature-gated plugin that is disabled in this
       // deployment): without this, the spinner never resolves and the page hangs forever.
-      setComponentLoading(false);
+      setLoaded({ id: pluginId, PageComponent: null });
       return;
     }
-
+    let active = true;
     import(`@/plugins/${plugin.folderName}`)
       .then((mod) => {
-        setComponentLoading(true);
-        setPageComponent(() => mod.default);
+        if (active) setLoaded({ id: pluginId, PageComponent: mod.default });
       })
       .catch((err) => {
         console.error("Failed to load the page component", err);
 
-        setComponentLoading(false);
+        if (active) setLoaded({ id: pluginId, PageComponent: null });
       });
+    return () => {
+      active = false;
+    };
   }, [pluginId]);
 
-  if (!PageComponent) {
-    if (componentLoading) {
+  if (!loaded?.PageComponent || loaded.id !== pluginId) {
+    if (!pluginId || loaded?.id !== pluginId) {
       return (
         <MainSection>
           <div className="flex h-24 w-full items-center justify-center">
@@ -48,6 +49,7 @@ const PluginLoader: FC = () => {
     return <NotFound />;
   }
 
+  const PageComponent = loaded.PageComponent;
   return <PageComponent />;
 };
 

@@ -130,13 +130,23 @@ export default function Locker({
     delegateConnection?.update({ connected: isConnected && !!address, modalOpen: walletModalOpen });
   }, [delegateConnection, isConnected, address, walletModalOpen]);
   useEffect(() => () => delegateConnection?.dispose(), [delegateConnection]);
-  useEffect(() => {
-    if (!isConnected) setDelegateDialogOpen(false);
-  }, [isConnected]);
   const withdrawalTrigger = useRef<HTMLElement | null>(null);
   const [withdrawalAction, setWithdrawalAction] = useState<WithdrawalAction>();
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
   const [withdrawalAttempted, setWithdrawalAttempted] = useState(false);
+  const previousAccount = useRef(address);
+  useEffect(() => {
+    const changedAccount = previousAccount.current && previousAccount.current.toLowerCase() !== address?.toLowerCase();
+    if (!isConnected || !address || changedAccount) {
+      setLockOpen(false);
+      setDelegateDialogOpen(false);
+      setDelegateChoice(undefined);
+      setWithdrawalAction(undefined);
+      setWithdrawalAttempted(false);
+      setAmountInput("");
+    }
+    previousAccount.current = address;
+  }, [address, isConnected]);
   const busy = isLocking || delegation.isConfirming || pendingTokenId !== undefined || withdrawalSubmitting;
   const openWithdrawal = (action: WithdrawalAction, trigger: HTMLElement) => {
     withdrawalTrigger.current = trigger;
@@ -216,7 +226,11 @@ export default function Locker({
   const compact = (value?: bigint) =>
     value === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(value, decimals));
   const delegationLabel = !delegationKnown ? (
-    "Loading…"
+    delegation.readError ? (
+      "Unavailable"
+    ) : (
+      "Loading…"
+    )
   ) : notActivated ? (
     "No delegate"
   ) : (
@@ -342,6 +356,14 @@ export default function Locker({
                 </dl>
               </div>
               <div className="power-delegation-content">
+                {delegation.readError && (
+                  <div className="power-help" role="alert">
+                    <p>Voting delegate could not be loaded.</p>
+                    <button type="button" className="ui-text-action" onClick={() => void delegation.retryRead()}>
+                      Try again
+                    </button>
+                  </div>
+                )}
                 <dl className="power-delegation-identity">
                   <dt>Voting delegate</dt>
                   <dd className="power-current-delegate-name">
@@ -388,7 +410,14 @@ export default function Locker({
               </div>
             </div>
           )}
-          <DelegateDirectory refreshKey={delegateRefreshKey} onSelect={selectDelegate} pending={!!delegateConnection} />
+          {!(isConnected && address) && (
+            <p className="power-help mb-4">Connect your wallet to select a voting delegate.</p>
+          )}
+          <DelegateDirectory
+            refreshKey={delegateRefreshKey}
+            onSelect={selectDelegate}
+            pending={busy || !!delegateConnection}
+          />
         </ScrollFadeIn>
       </section>
       {isConnected && address && (

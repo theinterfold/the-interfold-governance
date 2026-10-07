@@ -1,0 +1,31 @@
+{
+  "stage": "/private/tmp/govern-results-release-e6h6eoxq/source",
+  "validatedSource": "/var/folders/99/38c0pr5s6_l0xsbxc_5cx4wc0000gn/T/interfold-governance-review-s7DYQj/source",
+  "previousSource": "/private/tmp/govern-light-demo-938faq_2/source",
+  "previousDeployment": "dpl_EtMwZPyLdnUgQDhw89CfuGNGVEyo",
+  "previousBuild": "cnohVma8f_Tip-u33t1BD",
+  "alias": "https://interfold-governance-review.vercel.app/",
+  "scope": "tiago-sns-projects",
+  "project": "interfold-governance-review",
+  "homepagePreserved": true,
+  "output": "/private/tmp/govern-results-release-e6h6eoxq/source/out",
+  "buildId": "ty0w_3OTKcc2Cq08Tc9j7",
+  "buildPassed": true,
+  "deploymentId": "dpl_GtZFZA3CDZvqrMRd4346pqWgPqiy",
+  "deploymentURL": "https://interfold-governance-review-gjisgo0iu-tiago-sns-projects.vercel.app",
+  "status": "READY",
+  "publishedAtUTC": "2026-10-02T12:38:45.420747+00:00",
+  "heroRevision": "fusion-clear-f33f88eaa3583b0b",
+  "includes": [
+    "Constitution proposal snapshot and four original demo proposals",
+    "Unified results, E3 network progress, vote participation, single details disclosure",
+    "Latest approved homepage motion"
+  ],
+  "checks": {
+    "build": "passed",
+    "publicProposalListCount": 5,
+    "constitutionInPublicList": true,
+    "originalProposalsRetained": true,
+    "currentPublishedHomepagePreserved": true
+  }
+}

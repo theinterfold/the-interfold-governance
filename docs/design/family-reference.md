@@ -242,3 +242,50 @@ A etiqueta de origem acompanha agora a superfície e troca com o título sem sob
 Os popovers de wallet e locks partilham um único espaço de hover, com atraso breve de entrada e saída animada. Uma origem de modal dentro do preview mantém-se montada até ao regresso. Os estados mantêm a paleta original: verde (ativo), azul-claro (cooldown) e verde-petróleo (disponível); ações de levantamento usam os mesmos botões neutros/primários das restantes ações.
 
 Validação na página local: registo de abertura do seletor com 52 amostras e fecho com 35, ambos sem inversões de largura; inspeção visual pausada a 40/120 ms na troca de passo, com opacidades de cabeçalho e corpo coincidentes; fecho a 160 ms sem o título comprido dentro do botão; Lock FOLD com título visível em todas as 18 amostras de uma abertura normal e sem inversões; abertura/fecho a partir de Start withdrawal no preview com a origem preservada. Instrumentação temporária removida.
+
+### Navegação das propostas — vídeo de 29 de setembro, 15:59
+
+Foram extraídos e inspecionados os 272 frames nativos do vídeo de 6,733 s,
+preservando os timestamps. Na abertura, os frames 88–98 (1,533–1,717 s)
+mostram apenas o título sobre o fundo; o detalhe reaparece a 1,733 s. No
+regresso, o mesmo acontece nos frames 217–228 (4,800–4,983 s), antes de a
+lista reaparecer a 5,000 s. A mudança também sobrepunha dois tamanhos do
+título e deslocava a lista com a alteração do scroll.
+
+A navegação transporta agora a superfície, título, resumo, autor, estado,
+método e prazo. A restante página cruza as duas imagens do viewport sem
+intervalo vazio nem deslocação da lista. Um único texto por facto evita a
+duplicação; o ajuste proporcional conserva a forma das letras. O documento
+e o boletim entram durante a segunda metade dos 400 ms. O destino só é
+marcado como pronto quando o título carregou, para não capturar o cabeçalho
+provisório antes do resumo. Elementos sem correspondência conservam a sua
+saída, incluindo o regresso de uma ligação aberta diretamente.
+
+A versão corrigida foi inspecionada em posições intermédias de abertura e
+regresso, com as animações pausadas. Foram também percorridos a proposta pública, uma lista filtrada
+com detalhes expandidos, navegação por teclado e o formato de 390 px.
+O foco regressou ao título de origem e os nomes temporários desapareceram
+no fim. Os controlos de pausa foram removidos do código final.
+
+### Regresso à lista e estabilidade — 29 de setembro
+
+O regresso tem agora uma sequência própria de 360 ms, com a curva de fecho
+do `MorphDialog`. O documento e o boletim recolhem primeiro; a informação
+partilhada conserva a aparência de origem até aos 240 ms, quando adota a
+tipografia da lista sem sobrepor duas cópias. Os controlos da linha regressam
+nos últimos 120 ms.
+
+As medições são agrupadas antes de atribuir os nomes da transição. As imagens
+capturadas mantêm dimensões fixas e viajam por transformações; o texto deixa
+de mudar de escala em função da proporção da sua coluna. Os cantos acompanham
+a superfície. Em filas empilhadas, o prazo sai antes de atravessar o texto e
+regressa junto dos controlos. O resumo comprido é recolhido até à altura da
+linha, para não passar por cima do autor.
+
+Foram inspecionadas posições intermédias em desktop e a 390 px, incluindo a
+proposta pública numa lista filtrada. A inspeção móvel detetou a colisão entre
+resumo, autor e prazo; a correção foi verificada no mesmo ponto do percurso.
+Num regresso normal, a preparação demorou cerca de 33 ms e o maior intervalo
+entre callbacks durante o movimento foi cerca de 34 ms. A primeira abertura
+teve cerca de 119 ms de preparação. Estas medições locais não garantem FPS
+constante. O inspetor temporário foi removido.

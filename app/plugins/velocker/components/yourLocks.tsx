@@ -8,7 +8,6 @@ import type { useVeLocks } from "../hooks/useVeLocks";
 import type { WithdrawalAction } from "./withdrawalDialog";
 import { WithdrawalButton } from "./withdrawalButton";
 import { LockStatusBadge } from "./lockStatusBadge";
-import { CooldownTime } from "./cooldownTime";
 import styles from "./accountPanels.module.css";
 
 type Props = {
@@ -133,11 +132,13 @@ export function YourLocks({
                   <div className="power-position-delegate">No voting power</div>
                 </div>
                 <div className="power-position-status" role="cell">
-                  {!ticket.canExit && (
-                    <CooldownTime endsAt={ticket.exitDate} observedAt={Math.floor(Date.now() / 1000)} />
-                  )}
                   <LockStatusBadge
                     status={ticket.canExit ? "ready" : "cooldown"}
+                    cooldown={
+                      ticket.canExit
+                        ? undefined
+                        : { endsAt: ticket.exitDate, observedAt: Math.floor(Date.now() / 1000) }
+                    }
                     data-motion-item={`lock-${ticket.tokenId}`}
                     data-motion-group={ticket.canExit ? "ready" : "cooldown"}
                   />

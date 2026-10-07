@@ -1,5 +1,6 @@
 import { ListTokenAmount, RowIdentifier } from "@/components/text/listValue";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FluidHeight } from "@/components/motion/FluidHeight";
 import { formatUnits, type Address } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useAccount } from "wagmi";
@@ -54,15 +55,24 @@ export function DelegateList({
   const { address, isConnected } = useAccount();
   // Selection callbacks handle connection and review; direct transactions require a wallet.
   const canSelect = !!onSelect || (isConnected && !!address);
+  const needsConnection = !!onSelect && (!isConnected || !address);
   const { delegates, totalSupply, isLoading, error, refetch: refetchDelegates } = useDelegates();
   const firstSeen = useDelegateFirstSeen(order === "newest", refreshKey);
   const { delegatesTo, votingPower, refetch: refetchMyVotes } = useTokenVotes(address);
   const directory = includeConnectedWallet(delegates, address, votingPower);
   const memberNames = useDelegateNames(directory, lookup?.searchNames ?? false);
+  const lastPowerOrder = useRef<Exclude<DelegateOrder, "newest">>("power-desc");
+  const historyUnavailable = order === "newest" && (!firstSeen.data?.size || firstSeen.isError);
+  const historyPending = historyUnavailable && (firstSeen.isPending || firstSeen.isFetching);
+  const appliedOrder = historyUnavailable ? lastPowerOrder.current : order;
+  const retainedOrderLabel = appliedOrder === "power-asc" ? "lowest voting power" : "highest voting power";
+  useEffect(() => {
+    if (order !== "newest") lastPowerOrder.current = order;
+  }, [order]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, order, address, excludeAddress]);
+  }, [search, appliedOrder, address, excludeAddress]);
 
   // BOTH have to be refreshed after delegating, and only the first one used to be. `delegatesTo`
   // drives the "Delegated" label on the button, while every voting-power figure in the table comes
@@ -89,25 +99,22 @@ export function DelegateList({
     }
   }, [refreshKey, refetchDelegates, refetchMyVotes]);
 
-  if (isLoading || (order === "newest" && firstSeen.isPending)) {
+  if (isLoading) {
     return (
       <div className="py-6">
-        <PleaseWaitSpinner fullMessage={order === "newest" ? "Loading delegation history…" : "Loading delegates…"} />
+        <PleaseWaitSpinner fullMessage="Loading delegates…" />
       </div>
     );
   }
   if (error) return <p className="text-sm text-critical-600">{error}</p>;
-  if (order === "newest" && (firstSeen.isError || !firstSeen.data?.size))
-    return (
-      <div className="delegate-sort-feedback" role="status">
-        <p>Delegation history is unavailable. Choose a voting power sort or try again.</p>
-        <button type="button" onClick={() => void firstSeen.refetch()}>
-          Try again
-        </button>
-      </div>
-    );
   if (!directory.length && !search.trim()) {
-    return <p className="text-sm text-neutral-500">No delegates yet — be the first by delegating to yourself above.</p>;
+    return (
+      <p className="text-sm text-neutral-500">
+        {isConnected
+          ? "No delegates yet — choose your own wallet as delegate to start."
+          : "No delegates yet. Connect your wallet to choose a delegate."}
+      </p>
+    );
   }
 
   const pct = (v: bigint) => {
@@ -115,7 +122,7 @@ export function DelegateList({
     const percentage = (Number(v) / Number(totalSupply)) * 100;
     return percentage > 0 && percentage < 0.01 ? "<0.01%" : `${percentage.toFixed(2)}%`;
   };
-  const visibleDelegates = orderDelegates(directory, order, firstSeen.data).filter(
+  const visibleDelegates = orderDelegates(directory, appliedOrder, firstSeen.data).filter(
     (d) =>
       d.address.toLowerCase() !== excludeAddress?.toLowerCase() &&
       matchesDelegateSearch(
@@ -132,127 +139,158 @@ export function DelegateList({
     customAddress.toLowerCase() !== excludeAddress?.toLowerCase() &&
     !directory.some((entry) => entry.address.toLowerCase() === customAddress.toLowerCase());
   const searching = memberNames.searching || (lookup?.resolving ?? false) || (lookup?.settling ?? false);
-  if (!visibleDelegates.length && !showCustomAddress && !searching && !memberNames.failed && !lookup?.message)
+  if (
+    !visibleDelegates.length &&
+    !showCustomAddress &&
+    !searching &&
+    !memberNames.failed &&
+    !lookup?.message &&
+    !historyUnavailable
+  )
     return <p className="power-help py-6">{search.trim() ? "No matching delegates." : "No other delegates yet."}</p>;
 
   return (
-    <div
-      data-numbered={layout === "table" || undefined}
-      className={
-        layout === "table" ? "power-delegate-list" : layout === "picker" ? "delegate-picker-list" : "flex flex-col"
-      }
+    <FluidHeight
+      className="delegate-list-surface"
+      data-layout={layout}
+      layoutKey={`${appliedOrder}:${historyUnavailable}:${historyPending}`}
     >
-      {showCustomAddress && (
-        <div className={layout === "picker" ? "delegate-picker-row" : "power-delegate-row"}>
-          <div className="power-delegate-identity">
-            <AddressText label={lookup?.name} withAddress={!!lookup?.name}>
-              {customAddress}
-            </AddressText>
+      <div
+        data-numbered={layout === "table" || undefined}
+        className={
+          layout === "table" ? "power-delegate-list" : layout === "picker" ? "delegate-picker-list" : "flex flex-col"
+        }
+      >
+        {historyUnavailable && (
+          <div className="delegate-sort-feedback" role="status">
+            <p>
+              {historyPending ? "Loading delegation history…" : "Delegation history is unavailable."}
+              {` Showing ${retainedOrderLabel} until newest delegates can be sorted.`}
+            </p>
+            {!historyPending && (
+              <button type="button" onClick={() => void firstSeen.refetch()}>
+                Try again
+              </button>
+            )}
           </div>
-          <div className={layout === "table" ? "power-delegate-data" : "delegate-picker-data"}>
-            <PowerAction
-              size="compact"
-              className="delegate-picker-action delegate-search-action"
-              affordance="next"
-              disabled={!canSelect || pending || isConfirming}
-              onClick={() => onSelect?.(customAddress)}
-            >
-              Select
-            </PowerAction>
-          </div>
-        </div>
-      )}
-      {visibleDelegates.slice(0, visibleCount).map((d, i) => {
-        const alreadyDelegated =
-          isConnected && !!address && !!delegatesTo && delegatesTo.toLowerCase() === d.address.toLowerCase();
-        const alreadySelected = selectedAddress?.toLowerCase() === d.address.toLowerCase();
-        return (
-          <WalletListRow
-            key={d.address}
-            layout={layout}
-            currentDelegate={alreadyDelegated}
-            identity={
-              <>
-                {layout !== "picker" && (
-                  <span className="delegate-row-number">
-                    <RowIdentifier>{i + 1}</RowIdentifier>
-                  </span>
-                )}
-                <div className="delegate-identity-content">
-                  {layout === "picker" && alreadyDelegated && (
-                    <span className="delegate-current-label">Current delegate</span>
-                  )}
-                  <div className="flex min-w-0 items-center">
-                    <EnsMember address={d.address} />
-                  </div>
-                </div>
-              </>
-            }
-          >
-            <div className="power-delegate-votes ui-number">
-              <div className="text-sm font-semibold text-neutral-800">
-                <ListTokenAmount
-                  value={decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}
-                  symbol={PUB_TOKEN_SYMBOL}
-                />
-              </div>
-              <div className="text-xs text-neutral-500">{pct(d.votingPower)}</div>
+        )}
+        {!visibleDelegates.length && !showCustomAddress && !searching && !memberNames.failed && !lookup?.message && (
+          <p className="power-help py-6">{search.trim() ? "No matching delegates." : "No other delegates yet."}</p>
+        )}
+        {showCustomAddress && (
+          <div className={layout === "picker" ? "delegate-picker-row" : "power-delegate-row"}>
+            <div className="power-delegate-identity">
+              <AddressText label={lookup?.name} withAddress={!!lookup?.name}>
+                {customAddress}
+              </AddressText>
             </div>
-            {alreadyDelegated && (!allowCurrentSelection || alreadySelected) ? (
-              <DelegateStatus />
-            ) : (
+            <div className={layout === "table" ? "power-delegate-data" : "delegate-picker-data"}>
               <PowerAction
                 size="compact"
-                className={layout === "picker" ? "delegate-picker-action" : undefined}
-                affordance={alreadySelected ? "check" : "next"}
-                aria-haspopup={onSelect && layout === "table" ? "dialog" : undefined}
-                isLoading={isConfirming}
-                disabled={
-                  !canSelect ||
-                  pending ||
-                  isConfirming ||
-                  alreadySelected ||
-                  (alreadyDelegated && !allowCurrentSelection)
-                }
-                onClick={() => (onSelect ? onSelect(d.address) : delegate(d.address))}
+                className="delegate-picker-action delegate-search-action"
+                affordance="next"
+                disabled={!canSelect || pending || isConfirming}
+                onClick={() => onSelect?.(customAddress)}
               >
-                {alreadySelected
-                  ? "Selected"
-                  : onSelect
-                    ? layout === "picker"
-                      ? "Select"
-                      : "Select delegate"
-                    : "Delegate"}
+                {needsConnection ? "Connect to select" : "Select"}
+              </PowerAction>
+            </div>
+          </div>
+        )}
+        {visibleDelegates.slice(0, visibleCount).map((d, i) => {
+          const alreadyDelegated =
+            isConnected && !!address && !!delegatesTo && delegatesTo.toLowerCase() === d.address.toLowerCase();
+          const alreadySelected = selectedAddress?.toLowerCase() === d.address.toLowerCase();
+          return (
+            <WalletListRow
+              key={d.address}
+              layout={layout}
+              currentDelegate={alreadyDelegated}
+              identity={
+                <>
+                  {layout !== "picker" && (
+                    <span className="delegate-row-number">
+                      <RowIdentifier>{i + 1}</RowIdentifier>
+                    </span>
+                  )}
+                  <div className="delegate-identity-content">
+                    {layout === "picker" && alreadyDelegated && (
+                      <span className="delegate-current-label">Current delegate</span>
+                    )}
+                    <div className="flex min-w-0 items-center">
+                      <EnsMember address={d.address} />
+                    </div>
+                  </div>
+                </>
+              }
+            >
+              <div className="power-delegate-votes ui-number">
+                <div className="text-sm font-semibold text-neutral-800">
+                  <ListTokenAmount
+                    value={decimals === undefined ? "—" : compactNumber(formatUnits(d.votingPower, decimals))}
+                    symbol={PUB_TOKEN_SYMBOL}
+                  />
+                </div>
+                <div className="text-xs text-neutral-500">{pct(d.votingPower)}</div>
+              </div>
+              {alreadyDelegated && (!allowCurrentSelection || alreadySelected) ? (
+                <DelegateStatus />
+              ) : (
+                <PowerAction
+                  size="compact"
+                  className={layout === "picker" ? "delegate-picker-action" : undefined}
+                  affordance={alreadySelected ? "check" : "next"}
+                  aria-haspopup={onSelect && layout === "table" ? "dialog" : undefined}
+                  isLoading={isConfirming}
+                  disabled={
+                    !canSelect ||
+                    pending ||
+                    isConfirming ||
+                    alreadySelected ||
+                    (alreadyDelegated && !allowCurrentSelection)
+                  }
+                  onClick={() => (onSelect ? onSelect(d.address) : delegate(d.address))}
+                >
+                  {alreadySelected
+                    ? "Selected"
+                    : needsConnection
+                      ? "Connect to select"
+                      : onSelect
+                        ? layout === "picker"
+                          ? "Select"
+                          : "Select delegate"
+                        : "Delegate"}
+                </PowerAction>
+              )}
+            </WalletListRow>
+          );
+        })}
+        {searching && (
+          <p className="power-help py-3" role="status">
+            Searching delegates…
+          </p>
+        )}
+        {memberNames.failed && (
+          <div className="delegate-sort-feedback" role="status">
+            <p>Some ENS names couldn’t be searched. You can still search by wallet address.</p>
+            <button type="button" onClick={() => void memberNames.retry()}>
+              Try again
+            </button>
+          </div>
+        )}
+        {visibleDelegates.length > PAGE_SIZE && (
+          <div className="delegate-list-pagination">
+            <p role="status" aria-live="polite">
+              {Math.min(visibleCount, visibleDelegates.length)} of {visibleDelegates.length} delegates
+            </p>
+            {visibleCount < visibleDelegates.length && (
+              <PowerAction type="button" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
+                Load more
               </PowerAction>
             )}
-          </WalletListRow>
-        );
-      })}
-      {searching && (
-        <p className="power-help py-3" role="status">
-          Searching delegates…
-        </p>
-      )}
-      {memberNames.failed && (
-        <div className="delegate-sort-feedback" role="status">
-          <p>Some ENS names couldn’t be searched. You can still search by wallet address.</p>
-          <button type="button" onClick={() => void memberNames.retry()}>
-            Try again
-          </button>
-        </div>
-      )}
-      {visibleDelegates.length > PAGE_SIZE && (
-        <div className="delegate-list-pagination">
-          <p role="status" aria-live="polite">
-            {Math.min(visibleCount, visibleDelegates.length)} of {visibleDelegates.length} delegates
-          </p>
-          {visibleCount < visibleDelegates.length && (
-            <PowerAction type="button" onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
-              Load more
-            </PowerAction>
-          )}
-        </div>
-      )}
-    </div>
+          </div>
+        )}
+      </div>
+    </FluidHeight>
   );
 }

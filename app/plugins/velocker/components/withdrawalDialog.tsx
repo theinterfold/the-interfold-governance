@@ -1,5 +1,6 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { FluidHeight } from "@/components/motion/FluidHeight";
+import { MotionPanel } from "@/components/motion/MotionPanel";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ActionTray } from "./actionTray";
 import { WithdrawalButton, type WithdrawalKind } from "./withdrawalButton";
@@ -28,6 +29,10 @@ export function WithdrawalDialog({
   onConfirm,
 }: Props) {
   const [keepLocked, setKeepLocked] = useState(false);
+  const taskFocus = useRef<HTMLSpanElement>(null);
+  const keepFocus = useRef<HTMLSpanElement>(null);
+  const keepTrigger = useRef<HTMLDivElement>(null);
+  const returning = useRef(false);
   useEffect(() => setKeepLocked(false), [action]);
   const kind = keepLocked ? "cancel" : (action?.kind ?? "withdraw");
   const starting = kind === "start";
@@ -37,6 +42,79 @@ export function WithdrawalDialog({
     : cancelling
       ? `Keep ${PUB_TOKEN_SYMBOL} locked`
       : `Withdraw ${PUB_TOKEN_SYMBOL}`;
+  useEffect(() => {
+    if (!action) return;
+    const target = keepLocked
+      ? keepFocus.current
+      : returning.current
+        ? keepTrigger.current?.querySelector("button")
+        : taskFocus.current;
+    target?.focus({ preventScroll: true });
+    returning.current = false;
+  }, [action, keepLocked]);
+  const task = (taskKind: WithdrawalKind, focusRef: RefObject<HTMLSpanElement>) => {
+    const begins = taskKind === "start";
+    const cancels = taskKind === "cancel";
+    return (
+      <div className="power-tray-body">
+        <span ref={focusRef} tabIndex={-1} className="sr-only">
+          {begins ? "Start withdrawal" : cancels ? "Keep FOLD locked" : "Withdraw FOLD"}
+        </span>
+        <dl className="power-panel-facts">
+          <div>
+            <dt>{begins ? "Available to withdraw" : "After confirmation"}</dt>
+            <dd>
+              {begins
+                ? cooldownDays === undefined
+                  ? "After the cooldown"
+                  : `After ${cooldownDays} days`
+                : cancels
+                  ? "Locked again"
+                  : "Sent to your wallet"}
+            </dd>
+          </div>
+          {begins && (
+            <div>
+              <dt>Voting power</dt>
+              <dd>Stops immediately</dd>
+            </div>
+          )}
+        </dl>
+        <p className="power-tray-note">
+          {begins
+            ? `Your ${PUB_TOKEN_SYMBOL} stays in the contract during the cooldown. Return here when it ends to withdraw.`
+            : cancels
+              ? `Your ${PUB_TOKEN_SYMBOL} stays locked. You may need to delegate again to reactivate its voting power.`
+              : `The cooldown has ended. This returns the ${PUB_TOKEN_SYMBOL} to your wallet.`}
+        </p>
+        {error && (
+          <p className="power-field-error" role="alert">
+            {error}
+          </p>
+        )}
+        <WithdrawalButton
+          kind={taskKind}
+          intent="confirm"
+          className="power-tray-confirm"
+          isLoading={pending}
+          onClick={() => onConfirm(taskKind)}
+        >
+          {begins
+            ? "Confirm withdrawal request"
+            : cancels
+              ? `Keep ${PUB_TOKEN_SYMBOL} locked`
+              : `Confirm ${PUB_TOKEN_SYMBOL} withdrawal`}
+        </WithdrawalButton>
+        {taskKind === "withdraw" && (
+          <div ref={keepTrigger}>
+            <WithdrawalButton kind="cancel" disabled={pending} onClick={() => setKeepLocked(true)}>
+              Keep {PUB_TOKEN_SYMBOL} locked instead
+            </WithdrawalButton>
+          </div>
+        )}
+      </div>
+    );
+  };
   return (
     <ActionTray
       open={!!action}
@@ -44,10 +122,17 @@ export function WithdrawalDialog({
       pending={pending}
       triggerRef={triggerRef}
       onClose={onClose}
-      onBack={keepLocked ? () => setKeepLocked(false) : undefined}
+      onBack={
+        keepLocked
+          ? () => {
+              returning.current = true;
+              setKeepLocked(false);
+            }
+          : undefined
+      }
       backLabel="Back to withdrawal"
     >
-      <FluidHeight>
+      <FluidHeight layoutKey={kind}>
         <div className="power-tray-body">
           <div>
             <p className="power-label">Lock #{action?.tokenId.toString()}</p>
@@ -56,56 +141,14 @@ export function WithdrawalDialog({
               <span>{PUB_TOKEN_SYMBOL}</span>
             </p>
           </div>
-          <dl className="power-panel-facts">
-            <div>
-              <dt>{starting ? "Available to withdraw" : "After confirmation"}</dt>
-              <dd>
-                {starting
-                  ? cooldownDays === undefined
-                    ? "After the cooldown"
-                    : `After ${cooldownDays} days`
-                  : cancelling
-                    ? "Locked again"
-                    : "Sent to your wallet"}
-              </dd>
-            </div>
-            {starting && (
-              <div>
-                <dt>Voting power</dt>
-                <dd>Stops immediately</dd>
-              </div>
-            )}
-          </dl>
-          <p className="power-tray-note">
-            {starting
-              ? `Your ${PUB_TOKEN_SYMBOL} stays in the contract during the cooldown. Return here when it ends to withdraw.`
-              : cancelling
-                ? `Your ${PUB_TOKEN_SYMBOL} stays locked. You may need to delegate again to reactivate its voting power.`
-                : `The cooldown has ended. This returns the ${PUB_TOKEN_SYMBOL} to your wallet.`}
-          </p>
-          {error && (
-            <p className="power-field-error" role="alert">
-              {error}
-            </p>
-          )}
-          <WithdrawalButton
-            kind={kind}
-            intent="confirm"
-            className="power-tray-confirm"
-            isLoading={pending}
-            onClick={() => onConfirm(kind)}
-          >
-            {starting
-              ? "Confirm withdrawal request"
-              : cancelling
-                ? `Keep ${PUB_TOKEN_SYMBOL} locked`
-                : `Confirm ${PUB_TOKEN_SYMBOL} withdrawal`}
-          </WithdrawalButton>
-          {action?.kind === "withdraw" && !keepLocked && (
-            <WithdrawalButton kind="cancel" disabled={pending} onClick={() => setKeepLocked(true)}>
-              Keep {PUB_TOKEN_SYMBOL} locked instead
-            </WithdrawalButton>
-          )}
+          <div className="motion-tab-panels">
+            <MotionPanel active={!keepLocked} direction="left">
+              {task(action?.kind ?? "withdraw", taskFocus)}
+            </MotionPanel>
+            <MotionPanel active={keepLocked} direction="right">
+              {task("cancel", keepFocus)}
+            </MotionPanel>
+          </div>
         </div>
       </FluidHeight>
     </ActionTray>

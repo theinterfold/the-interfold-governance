@@ -7,24 +7,33 @@ export function BallotDisclosure({
   title,
   children,
   defaultOpen = false,
+  onOpenChange,
+  className = "",
 }: {
-  title: ReactNode;
+  title: ReactNode | ((chevron: ReactNode) => ReactNode);
+  className?: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
+  // Multi-line summaries can place the same Family chevron beside their current state.
+  const chevron = <BendingChevron open={open} />;
   return (
-    <div className="proposal-voting-details">
+    <div className={`proposal-voting-details ${className}`}>
       <button
         className="proposal-disclosure-trigger"
         type="button"
         aria-expanded={open}
         aria-controls={id}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open);
+          onOpenChange?.(!open);
+        }}
       >
-        <span>{title}</span>
-        <BendingChevron open={open} />
+        <span>{typeof title === "function" ? title(chevron) : title}</span>
+        {typeof title !== "function" && chevron}
       </button>
       <Disclosure id={id} open={open}>
         {children}

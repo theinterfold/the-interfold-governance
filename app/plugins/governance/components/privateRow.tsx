@@ -1,17 +1,16 @@
 import { useEffect } from "react";
-import { ProposalStatus } from "@aragon/ods";
 import { useProposal } from "@/plugins/crispVoting/hooks/useProposal";
 import { useProposalStatus } from "@/plugins/crispVoting/hooks/useProposalStatus";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
 import { getSppStatusOverride } from "@/plugins/spp/utils/status";
 import { statusBucketOf } from "../utils/statusBucket";
-import { ProposalRow, capitalize, rowTimingLabel } from "./proposalRow";
+import { ProposalRow } from "./proposalRow";
+import { ballotOptionColor } from "@/components/proposalVoting/ballot";
+import { proposalPresentation } from "../utils/proposalPresentation";
+import { useProposalBoundaryClock } from "../utils/useProposalBoundaryClock";
 
 import type { StatusBucket } from "../utils/statusBucket";
 import ProposalDetail from "@/plugins/crispVoting/pages/proposal";
-
-// Interfold earth-tone palette (matches the CRISP vote card option colors)
-const OPTION_COLORS = ["#2f8a4f", "#a84932", "#7a7d77", "#355a8a", "#8a6a40", "#5a4a8a", "#2f7a6a", "#9a7a30"];
 
 interface PrivateRowProps {
   proposalId: bigint;
@@ -26,13 +25,37 @@ export function PrivateRow({ proposalId, onStatus, onSearchText, hidden }: Priva
   const spp = useSppProposal("private", proposalId);
   const href = `#/proposals/private/${proposalId}`;
 
+  useEffect(() => {
+    if (spp.subProposalFailed) onStatus?.("rejected");
+    else if (spp.missing || spp.error) onStatus?.(undefined);
+  }, [spp.subProposalFailed, spp.missing, spp.error, onStatus]);
+  useEffect(() => {
+    if (spp.subProposalId === undefined) onSearchText?.(proposalId.toString());
+  }, [spp.subProposalId, proposalId, onSearchText]);
+
   if (spp.subProposalFailed) {
     return (
       <ProposalRow
         href={href}
         kindLabel="Secret ballot"
-        loading
-        loadingMessage="Sub-proposal creation failed"
+        title={`Proposal #${proposalId}`}
+        statusLabel="Creation failed"
+        failureMessage="The secret-ballot sub-proposal could not be created. Open the proposal for its process details."
+        hidden={hidden}
+      />
+    );
+  }
+  if (spp.missing || spp.error) {
+    return (
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        title={`Proposal #${proposalId}`}
+        statusLabel={spp.missing ? "Not found" : "Unavailable"}
+        failureMessage={
+          spp.missing ? "This proposal could not be found on-chain." : "Proposal details could not be loaded."
+        }
+        onRetry={spp.missing ? undefined : () => void spp.retry()}
         hidden={hidden}
       />
     );
@@ -79,18 +102,35 @@ function PrivateRowBody({
   onSearchText?: (text: string) => void;
   hidden?: boolean;
 }) {
-  const { proposal, totalVotingPower, e3Failed, status } = useProposal(subProposalId, { metadataUri, creator });
-  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed);
+  const { proposal, totalVotingPower, e3Failed, networkProgress, status } = useProposal(subProposalId, {
+    metadataUri,
+    creator,
+  });
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
   const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
+  const nowMs = useProposalBoundaryClock(
+    proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
+    proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
+  );
+  const proposalStatus = useProposalStatus(proposal!, totalVotingPower, e3Failed, nowMs);
   // A dead round would otherwise sit here as "Pending" — never active, never tallied — which
   // reads as "waiting to start" for something that can never run. The SPP override still wins:
   // a canceled or expired process is the more specific fact about the proposal.
-  const resolvedLabel = loading
-    ? undefined
-    : (sppOverride?.label ?? (e3Failed ? "Round failed" : capitalize(proposalStatus)));
-  const bucket = statusBucketOf(resolvedLabel);
+  const presentation =
+    proposal || sppOverride
+      ? proposalPresentation({
+          sppOverride,
+          bodyStatus: proposalStatus,
+          startMs: Number(proposal?.parameters.startDate ?? 0n) * 1000,
+          endMs: Number(proposal?.parameters.endDate ?? 0n) * 1000,
+          isTallied: proposal?.isTallied ?? false,
+          networkResultPublished: networkProgress.published,
+          roundFailed: e3Failed,
+          nowMs,
+        })
+      : undefined;
+  const bucket = statusBucketOf(presentation?.label);
 
   useEffect(() => {
     onStatus?.(bucket);
@@ -103,6 +143,23 @@ function PrivateRowBody({
     if (searchText !== undefined) onSearchText?.(searchText);
   }, [searchText, onSearchText]);
 
+  if (loading && sppOverride && presentation) {
+    return (
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        title={proposal?.title}
+        summary={proposal?.summary}
+        creator={proposal?.creator ?? creator}
+        statusLabel={presentation.label}
+        statusClass={presentation.className}
+        rightLabel={presentation.timing}
+        details={<ProposalDetail index={proposalId} embedded={true} />}
+        hidden={hidden}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
@@ -112,17 +169,14 @@ function PrivateRowBody({
   const tally = Array.from(proposal.tally ?? []);
   const options = proposal.options ?? ["Yes", "No"];
   const totalVotes = tally.reduce((sum, count) => sum + (count ?? 0n), 0n);
-  const isActive = !sppOverride && proposalStatus === ProposalStatus.ACTIVE;
   const endDate = Number(proposal.parameters.endDate) * 1000;
-  const statusLabel = resolvedLabel ?? "";
-  const statusClass = sppOverride?.className ?? (e3Failed ? "failed" : (proposalStatus ?? "").toString().toLowerCase());
-  const rightLabel = rowTimingLabel({ isActive, endMs: endDate, statusLabel });
+  const view = presentation!;
 
   const bars =
-    proposal.isTallied && totalVotes > 0n
+    view.showTally && totalVotes > 0n
       ? options.map((label, i) => ({
           width: Number(((tally[i] ?? 0n) * 10000n) / totalVotes) / 100,
-          color: OPTION_COLORS[i % OPTION_COLORS.length],
+          color: ballotOptionColor(i),
           label,
         }))
       : [];
@@ -134,23 +188,22 @@ function PrivateRowBody({
       title={proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
-      statusLabel={statusLabel}
-      statusClass={statusClass}
-      votingOpen={
-        isActive && !e3Failed && endDate > Date.now() && Number(proposal.parameters.startDate) * 1000 <= Date.now()
-      }
-      rightLabel={rightLabel}
+      statusLabel={view.label}
+      statusClass={view.className}
+      votingOpen={view.votingOpen}
+      rightLabel={view.timing}
       votingEndMs={endDate}
       bars={bars}
-      resultLabel={proposal.isTallied ? "Final vote share" : "Secret ballot"}
+      resultLabel={view.showTally ? "Final vote share" : "Secret ballot"}
       resultMessage={
-        e3Failed
-          ? "This voting round could not complete."
-          : !proposal.isTallied
-            ? "Results stay private until the tally is published."
-            : totalVotes === 0n
-              ? "No votes recorded."
-              : undefined
+        (view.label === "Awaiting tally" && networkProgress.phase !== "Status unavailable"
+          ? `Voting closed. ${networkProgress.phase}: ${networkProgress.description}`
+          : view.resultMessage) ??
+        (!view.showTally
+          ? "Results stay private until the tally is published."
+          : totalVotes === 0n
+            ? "No votes recorded."
+            : undefined)
       }
       details={<ProposalDetail index={proposalId} embedded={true} />}
       hidden={hidden}

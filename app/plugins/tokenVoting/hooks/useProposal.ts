@@ -6,6 +6,7 @@ import { PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constan
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
 import { publicClient } from "../utils/client";
+import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
 
 import type { RawAction, ProposalMetadata } from "@/utils/types";
 import type { Proposal, ProposalParameters, Tally } from "../utils/types";
@@ -48,6 +49,7 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
     data: proposalResult,
     error: proposalError,
     fetchStatus: proposalFetchStatus,
+    dataUpdatedAt: proposalReadAtMs,
     refetch: proposalRefetch,
   } = useReadContract({
     address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
@@ -57,6 +59,22 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
   });
 
   const proposalData = decodeProposalResultData(proposalResult as unknown as unknown[]);
+  const endMs = proposalData ? Number(proposalData.parameters.endDate) * 1000 : undefined;
+  const nowMs = useProposalBoundaryClock(undefined, endMs);
+  const needsFinalRead =
+    endMs !== undefined &&
+    nowMs >= endMs &&
+    !proposalData?.executed &&
+    (proposalReadAtMs < endMs || !!proposalData?.active);
+
+  // A cached tally from before the deadline cannot establish the final outcome.
+  // Refetch at the boundary, then while chain time still reports the vote open.
+  useEffect(() => {
+    if (!needsFinalRead) return;
+    void proposalRefetch();
+    const interval = window.setInterval(() => void proposalRefetch(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [needsFinalRead, proposalRefetch]);
 
   useEffect(() => {
     if (autoRefresh) proposalRefetch();
@@ -123,6 +141,7 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
       proposalError,
+      proposalReadAtMs,
       metadataReady: !metadataError && !metadataLoading && !!metadata,
       metadataLoading,
       metadataError: metadataError !== undefined,

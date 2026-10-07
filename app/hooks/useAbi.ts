@@ -7,6 +7,8 @@ import { ADDRESS_ZERO, isAddress, isContract } from "@/utils/evm";
 import { PUB_CHAIN } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
 import { getImplementation } from "@/utils/proxies";
+import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import { previewContractAbi } from "@/dev/contractActionFixtures";
 
 export const useAbi = (contractAddress: Address) => {
   const { addAlert } = useAlerts();
@@ -15,6 +17,7 @@ export const useAbi = (contractAddress: Address) => {
   const { data: implementationAddress, isLoading: isLoadingImpl } = useQuery<Address | null>({
     queryKey: ["proxy-check", contractAddress, publicClient?.chain.id],
     queryFn: () => {
+      if (DESIGN_PREVIEW) return null;
       if (!contractAddress || !publicClient) return null;
       else if (!isAddress(contractAddress) || !publicClient) {
         return null;
@@ -43,6 +46,7 @@ export const useAbi = (contractAddress: Address) => {
   } = useQuery<AbiFunction[], Error>({
     queryKey: ["abi", resolvedAddress || "", publicClient?.chain.id],
     queryFn: async () => {
+      if (DESIGN_PREVIEW) return previewContractAbi(resolvedAddress);
       if (!resolvedAddress || !isAddress(resolvedAddress) || !publicClient) {
         return [];
       } else if (!(await isContract(resolvedAddress, publicClient))) {

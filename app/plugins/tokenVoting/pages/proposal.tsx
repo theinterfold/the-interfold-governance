@@ -1,3 +1,8 @@
+import { useEffect } from "react";
+import { useWalletModal } from "@/hooks/useWalletModal";
+import { ClosedVoteStatus } from "@/components/proposalVoting/closedVoteStatus";
+import { publicVoteStatus } from "@/components/proposalVoting/voteStatus";
+import { PUB_CHAIN } from "@/constants";
 import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout";
 import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
 import { shortProposalId } from "@/utils/proposalId";
@@ -27,8 +32,11 @@ import { VotingDetails } from "@/components/proposalVoting/votingDetails";
 import { decodeTxError } from "@/utils/tx-errors";
 import { useProposalVoteList } from "../hooks/useProposalVoteList";
 import { useSppProposal } from "@/plugins/spp/hooks/useSppProposal";
+import { getSppStatusOverride } from "@/plugins/spp/utils/status";
+import { proposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
+import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
 import { VetoStageCard } from "@/plugins/spp/components/vetoStageCard";
-import { MissingContentView } from "@/components/MissingContentView";
+import { UnavailableProposalDetail } from "@/components/proposal/unavailableProposalDetail";
 import { PublicVoteResultCard } from "../components/voteResultCard";
 import { PublicVotes } from "@/components/proposalVoting/publicVotes";
 
@@ -47,11 +55,35 @@ export default function ProposalDetail({
 }) {
   const spp = useSppProposal("public", sppProposalId);
 
+  if (spp.missing) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Not found"
+        message="This public proposal does not exist on-chain."
+        embedded={embedded}
+      />
+    );
+  }
   if (spp.subProposalFailed) {
     return (
-      <MissingContentView>
-        The voting sub-proposal could not be created on the TokenVoting plugin for this proposal.
-      </MissingContentView>
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Creation failed"
+        message="The voting sub-proposal could not be created on the TokenVoting plugin."
+        embedded={embedded}
+      />
+    );
+  }
+  if (spp.error) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not load this public proposal. Check your connection and try again."
+        embedded={embedded}
+        onRetry={() => void spp.retry()}
+      />
     );
   }
   if (spp.subProposalId === undefined) {
@@ -79,14 +111,20 @@ function ProposalDetailBody({
   embedded: boolean;
 }) {
   const { address } = useAccount();
+  const { open: openWallet } = useWalletModal();
   const voteTransaction = useProposalVoting(proposalIdx);
   const { voteProposal } = voteTransaction;
-  const { data: previousVote } = useReadContract({
+  const {
+    data: previousVote,
+    isError: voteReadFailed,
+    refetch: refetchVote,
+  } = useReadContract({
+    chainId: PUB_CHAIN.id,
     address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,
     abi: TokenVotingAbi,
     functionName: "getVoteOption",
     args: [proposalIdx, address!],
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 15000 },
   });
   const submittedOption =
     previousVote === VOTE_YES_VALUE
@@ -120,7 +158,20 @@ function ProposalDetailBody({
   // "—" until the on-chain read lands, rather than formatting against an assumed 18.
   const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "—" : formatUnits(v, tokenDecimals));
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
-  const proposalStatus = useProposalStatus(proposal!);
+  const nowMs = useProposalBoundaryClock(
+    proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
+    proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
+  );
+  const proposalStatus = useProposalStatus(proposal!, nowMs, proposalFetchStatus.proposalReadAtMs);
+  const presentation = proposal
+    ? proposalPresentation({
+        sppOverride: getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage),
+        bodyStatus: proposalStatus,
+        startMs: Number(proposal.parameters.startDate) * 1000,
+        endMs: Number(proposal.parameters.endDate) * 1000,
+        nowMs,
+      })
+    : undefined;
 
   const startDate = dayjs(Number(proposal?.parameters.startDate) * 1000).toString();
   const endDate = dayjs(Number(proposal?.parameters.endDate) * 1000).toString();
@@ -137,8 +188,12 @@ function ProposalDetailBody({
     }
   };
 
+  const votingOpen = presentation?.votingOpen === true;
+  useEffect(() => {
+    if (address && (voteTransaction.isConfirmed || !votingOpen)) void refetchVote();
+  }, [address, votingOpen, voteTransaction.isConfirmed, refetchVote]);
   let cta: IBreakdownMajorityVotingResult["cta"];
-  if (proposalStatus === ProposalStatus.ACTIVE) {
+  if (votingOpen) {
     cta = {
       disabled: !canVote,
       isLoading: voteTransaction.status === "pending" || voteTransaction.isConfirming,
@@ -153,7 +208,11 @@ function ProposalDetailBody({
       type: ProposalStages.TOKEN_VOTING,
       variant: "majorityVoting",
       title: "Token voting",
-      status: proposalStatus!,
+      status: votingOpen
+        ? ProposalStatus.ACTIVE
+        : nowMs < Number(proposal?.parameters.startDate ?? 0n) * 1000
+          ? ProposalStatus.PENDING
+          : proposalStatus!,
       disabled: false,
       proposalId: proposalIdx.toString(),
       providerId: "1",
@@ -190,10 +249,14 @@ function ProposalDetailBody({
         options: "Vote",
       },
       votes: votes.map(
-        ({ voter, voteOption: opt }) =>
+        ({ voter, voteOption: opt, votingPower }) =>
           ({
             address: voter,
             variant: opt === ABSTAIN_VALUE ? "abstain" : opt === VOTE_YES_VALUE ? "yes" : "no",
+            votingPower:
+              votingPower === undefined || tokenDecimals === undefined
+                ? undefined
+                : formatUnits(votingPower, tokenDecimals),
           }) as IVote
       ),
     },
@@ -208,14 +271,16 @@ function ProposalDetailBody({
   }
 
   const showResults =
-    proposal.executed || (!proposal.active && Number(proposal.parameters.endDate) * 1000 <= Date.now());
+    !votingOpen &&
+    (nowMs >= Number(proposal.parameters.startDate) * 1000 ||
+      !!getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage));
 
   return (
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
-      <div className={embedded ? "w-full" : "mx-auto w-full max-w-screen-xl px-4 py-6 md:px-16 md:pb-20 md:pt-10"}>
+      <div className={embedded ? "w-full" : "proposal-page"}>
         <ProposalDetailLayout
           breadcrumb={!embedded && <ProposalBreadcrumb identifier={shortProposalId(proposalIdx)} />}
-          header={!embedded && <ProposalHeader proposal={proposal} />}
+          header={!embedded && <ProposalHeader proposal={proposal} presentation={presentation} />}
           description={proposal.description || "No description was provided"}
           resources={proposal.resources}
           actions={[...(spp.proposal?.actions ?? [])]}
@@ -227,7 +292,6 @@ function ProposalDetailBody({
                   proposalId={proposalIdx}
                   status={proposalStatus}
                   vetoStage={spp.vetoStage}
-                  submittedOption={submittedOption}
                 />
               ) : (
                 <ProposalVoting
@@ -242,9 +306,11 @@ function ProposalDetailBody({
                     />
                   }
                   submittedOption={submittedOption}
-                  canVote={canVote === true}
+                  canVote={canVote === true && votingOpen}
                   eligibilityNotice={eligibilityNotice}
-                  canChangeVote={proposal.parameters.votingMode === VotingMode.VoteReplacement && !!canVote}
+                  canChangeVote={
+                    votingOpen && proposal.parameters.votingMode === VotingMode.VoteReplacement && !!canVote
+                  }
                   confirmed={voteTransaction.status === "success" && voteTransaction.isConfirmed}
                   error={
                     voteTransaction.error
@@ -256,12 +322,12 @@ function ProposalDetailBody({
               )}
             </>
           }
-          votingPower={
+          personalVote={
             showResults ? (
-              <VotingPower
-                votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
-                snapshotTimepoint={proposal.parameters.snapshotTimepoint}
-                compact={true}
+              <ClosedVoteStatus
+                status={publicVoteStatus(!!address, previousVote, voteReadFailed)}
+                choice={submittedOption === undefined ? undefined : ["Yes", "No", "Abstain"][submittedOption]}
+                onConnect={() => void openWallet()}
               />
             ) : undefined
           }

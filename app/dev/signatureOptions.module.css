@@ -1,0 +1,237 @@
+.page {
+  max-width: 1200px;
+  margin: auto;
+  padding: 48px 24px 100px;
+  color: var(--ink);
+}
+.header {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.header h1 {
+  font: 600 32px/1.2 var(--font-sans);
+}
+.header p,
+.card p {
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.header a {
+  text-decoration: underline;
+  font: var(--ui-label-font);
+}
+.controls {
+  margin-bottom: 24px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+}
+.card h2 {
+  font: 600 18px/1.4 var(--font-sans);
+}
+.card p {
+  flex: 1;
+}
+.card > button {
+  width: 100%;
+}
+.body {
+  padding-bottom: 20px;
+}
+.review {
+  display: grid;
+  gap: 16px;
+}
+.choice {
+  display: grid;
+  gap: 12px;
+  padding: 20px 24px;
+  background: var(--surface-muted);
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+}
+.choice > span {
+  color: var(--muted);
+  font: 400 12px/1.4 var(--font-sans);
+}
+.choice strong {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 30px/1.2 var(--font-sans);
+}
+.choice i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--if-brand-green);
+}
+.fact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font: 400 14px/1.5 var(--font-sans);
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.fact > span {
+  color: var(--muted);
+}
+.fact strong {
+  font-weight: 600;
+}
+.amount {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 4px 8px;
+  color: var(--paper);
+  background: var(--if-brand-green);
+  border-radius: var(--ui-radius);
+}
+.submissions {
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.entry {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px var(--ui-space-controls);
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--interfold-ui-duration) var(--interfold-ui-ease);
+  text-align: left;
+  font: 400 14px/1.4 var(--font-sans);
+}
+.entry small {
+  color: var(--muted);
+  font: 500 11px/1.4 var(--font-mono);
+}
+.entry > svg:last-child {
+  margin-left: auto;
+}
+.entry:has(.entryView) > svg:last-child { margin-left: 0; }
+.entry:hover,
+.entry:focus-visible {
+  background: var(--surface-hover);
+}
+@media (prefers-reduced-motion: reduce) {
+  .entry { transition: none; }
+}
+.entry:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.summary {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+  font: 400 13px/1.4 var(--font-sans);
+}
+.summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.summary dt {
+  color: var(--muted);
+}
+.summary dd {
+  margin: 0;
+  font-weight: 500;
+}
+@media (max-width: 767px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .page {
+    padding: 24px 16px 72px;
+  }
+}
+.stepGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ui-space-section); }
+@media (max-width: 767px) { .stepGrid { grid-template-columns: 1fr; } }
+
+.stepGrid .card p { flex: none; }
+.stepGrid .card > button { margin-top: auto; }
+
+.entryStudy { margin-bottom: var(--ui-space-section); }
+.entryStudy > h2 { font: 600 20px/1.4 var(--font-sans); margin-bottom: var(--ui-space-controls); }
+.entryStudy h3 { font: 600 14px/1.4 var(--font-sans); }
+.entryCopy { display: grid; gap: 4px; }
+.entryCaption { color: var(--muted); font: 400 12px/1.4 var(--font-sans); }
+.entryView { margin-left: auto; font: 500 12px/1.4 var(--font-sans); }
+.entryStudy .card { padding: var(--ui-space-controls); }
+.entryStudy .entry { flex-wrap: nowrap; }
+.entryStudy .entryCopy { min-width: 0; }
+.entryStudy .entry > svg { flex-shrink: 0; }
+
+.entry[data-presentation="inspector"] {
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  padding-top: var(--ui-space-controls);
+  padding-bottom: var(--ui-space-controls);
+}
+.inspectorTitle { font: 500 12px/1.5 var(--font-mono); }
+.inspectorMeta { color: var(--muted); font: 400 10px/1.5 var(--font-mono); }
+.entry[data-presentation="inspector"] .entryCopy { min-width: 0; }
+
+.entry[data-presentation^="tech-"] {
+  border-top: 1px solid var(--rule);
+  border-radius: 0;
+  padding-block: var(--ui-space-controls);
+}
+.entry[data-presentation^="tech-"] > svg:last-child { margin-left: 0; }
+.techCaps { text-transform: uppercase; letter-spacing: .07em; font: 500 10px/1.5 var(--font-mono); }
+.techSecondary { color: var(--muted); font: 400 11px/1.5 var(--font-sans); }
+.techProtocol { justify-self: start; padding: 2px 6px; border: 1px solid var(--rule); border-radius: var(--ui-radius); font: 500 11px/1.5 var(--font-mono); }
+.techLabel { font: 500 12px/1.5 var(--font-sans); }
+.techFields { display: flex; gap: var(--ui-space-controls); font: 400 10px/1.5 var(--font-mono); }
+.techFields > span { display: grid; gap: 2px; }
+.techFieldLabel { color: var(--muted); font: 400 10px/1.5 var(--font-sans); }
+
+.entry[data-presentation^="closed-"] {
+  padding: var(--ui-space-controls);
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+}
+.entry[data-presentation^="closed-"] > svg:last-child { margin-left: 0; }
+.entry[data-presentation^="closed-"] .entryCopy { min-width: 0; }
+.entry[data-presentation="closed-fill"] { background: var(--surface-muted); border-color: transparent; }
+.entry[data-presentation="closed-dash"] { border-style: dashed; }
+.entry[data-presentation^="closed-"]:hover,
+.entry[data-presentation^="closed-"]:focus-visible { background: var(--surface-hover); }
+
+.entry[data-presentation="closed-dash"] {
+  container: signature-entry / inline-size;
+  gap: var(--ui-space-tight);
+}
+.entry[data-presentation="closed-dash"] .entryCopy {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-related);
+  white-space: nowrap;
+}
+@container signature-entry (max-width: 340px) {
+  .entryNetwork { display: none; }
+}

@@ -1,0 +1,135 @@
+.page {
+  max-width: 1400px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(24px, 4vw, 56px) clamp(20px, 3vw, 40px) 80px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.header {
+  max-width: 760px;
+  margin-bottom: 40px;
+}
+
+.eyebrow,
+.scenarioTag {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+
+.header h1 {
+  margin: 0 0 12px;
+  font: 600 clamp(28px, 3vw, 38px)/1.2 var(--font-sans);
+}
+
+.header > p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  font: 400 15px/1.6 var(--font-sans);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-top: 20px;
+  font: 500 14px/1.5 var(--font-sans);
+}
+
+.toolbar a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.narrowToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.narrowToggle input {
+  accent-color: var(--accent);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px 28px;
+  align-items: start;
+}
+
+.grid[data-narrow="true"] {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 350px;
+}
+
+.scenario {
+  min-width: 0;
+}
+
+.scenarioIntro {
+  min-height: 108px;
+  padding: 0 4px 14px;
+}
+
+.scenarioIntro h2 {
+  margin: 0 0 6px;
+  font: 600 18px/1.35 var(--font-sans);
+}
+
+.scenarioIntro > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font: 400 13px/1.55 var(--font-sans);
+}
+
+.ballot {
+  width: 100%;
+}
+
+.disclosureBody {
+  padding: 0 0 20px;
+  color: var(--muted);
+  font: 400 13px/1.6 var(--font-sans);
+}
+
+.disclosureBody p {
+  margin: 0 0 12px;
+}
+
+.disclosureBody dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.disclosureBody dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.disclosureBody dt,
+.disclosureBody dd {
+  margin: 0;
+}
+
+.disclosureBody dd {
+  color: var(--ink);
+  text-align: right;
+}
+
+@media (max-width: 899px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scenarioIntro {
+    min-height: 0;
+  }
+}

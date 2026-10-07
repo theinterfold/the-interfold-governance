@@ -60,7 +60,8 @@ export function DelegateDirectory({
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
-                  className="delegate-sort-menu"
+                  className="delegate-sort-menu ui-choice-menu"
+                  data-menu-kind="sort"
                   align="end"
                   sideOffset={8}
                   collisionPadding={16}

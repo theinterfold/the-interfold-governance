@@ -44,6 +44,7 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const proposal = proposalData as SppProposal | undefined;
   // lastStageTransition == 0 means the proposal does not exist.
   const exists = !!proposal && proposal.lastStageTransition !== 0n;
+  const missing = !!proposal && !exists;
 
   const { data: stateData, refetch: refetchState } = useReadContract({
     chainId: PUB_CHAIN.id,
@@ -55,11 +56,21 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   });
   const state = stateData === undefined ? undefined : (Number(stateData) as SppProposalState);
 
-  const { stages, votingStage, vetoStage } = useSppStages(kind, exists ? proposal.stageConfigIndex : undefined);
+  const {
+    stages,
+    votingStage,
+    vetoStage,
+    error: stagesError,
+    refetch: refetchStages,
+  } = useSppStages(kind, exists ? proposal.stageConfigIndex : undefined);
 
   // Stage-0 sub-proposal id on the voting body
   const stage0Body = votingStage?.bodies?.[0]?.addr as Address | undefined;
-  const { data: bodyProposalIdData } = useReadContract({
+  const {
+    data: bodyProposalIdData,
+    error: bodyProposalError,
+    refetch: refetchBodyProposal,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address,
     abi: StagedProposalProcessorAbi,
@@ -69,6 +80,14 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   });
   const subProposalId = bodyProposalIdData as bigint | undefined;
   const subProposalFailed = subProposalId !== undefined && subProposalId === SPP_PROPOSAL_WITHOUT_ID;
+  const readError = proposalError ?? (exists ? (stagesError ?? bodyProposalError) : null);
+  const retry = async () => {
+    await refetchProposal();
+    if (exists) {
+      await refetchStages();
+      if (stage0Body) await refetchBodyProposal();
+    }
+  };
 
   // Stage-1 (veto) tally
   const { data: vetoTallyData, refetch: refetchTally } = useReadContract({
@@ -137,10 +156,12 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     stage0Body,
     subProposalId: subProposalFailed ? undefined : subProposalId,
     subProposalFailed,
+    missing,
     vetoTally,
     metadataUri,
     creator,
     isLoading: proposalLoading,
-    error: proposalError,
+    error: readError,
+    retry,
   };
 }

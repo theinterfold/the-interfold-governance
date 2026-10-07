@@ -1,0 +1,227 @@
+.review {
+  width: min(var(--page-content-width), calc(100% - 2 * var(--page-content-gutter)));
+  margin: var(--ui-space-controls) auto;
+  border: 1px solid var(--ui-stroke);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--ui-body-font);
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-controls);
+  padding: var(--ui-space-related);
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.label strong {
+  font-weight: 600;
+}
+.label span,
+.hint {
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.links,
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-related);
+  align-items: center;
+}
+.links {
+  gap: var(--ui-space-controls);
+}
+.links a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.links a:hover {
+  color: var(--site-header-ink);
+}
+.links a:focus-visible,
+.index button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.notesLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: var(--ui-space-section);
+  padding: var(--ui-space-controls);
+  border-top: 1px solid var(--ui-stroke);
+}
+
+.index {
+  max-height: 360px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+}
+
+.index button {
+  display: flex;
+  gap: var(--ui-space-related);
+  width: 100%;
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  text-align: left;
+  font: var(--ui-body-font);
+  background: transparent;
+  color: var(--ink);
+  transition:
+    background-color 150ms var(--interfold-ui-ease),
+    border-color 150ms var(--interfold-ui-ease);
+}
+
+.index button:hover {
+  background: var(--surface-hover);
+}
+.index button[aria-current] {
+  border-color: var(--ink);
+  background: var(--surface-selected);
+}
+.index button span,
+.detail h2 span {
+  font: var(--ui-label-font);
+  font-variant-numeric: tabular-nums;
+}
+.detail {
+  min-width: 0;
+}
+.detail h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-related);
+  margin: 0 0 var(--ui-space-controls);
+  font: var(--ui-section-font);
+}
+.detail > a {
+  display: block;
+  width: fit-content;
+  margin-top: var(--ui-space-related);
+}
+.hint {
+  margin-top: var(--ui-space-controls);
+}
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-controls);
+  margin: 0;
+}
+.note dt {
+  color: var(--muted);
+  font: var(--ui-label-font);
+  margin-bottom: var(--ui-space-tight);
+}
+.note dd {
+  margin: 0;
+  font: var(--ui-body-font);
+  overflow-wrap: anywhere;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  color: var(--ink);
+}
+
+.leaders {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.leaders line {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+.mark {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--ui-status-font);
+  font-variant-numeric: tabular-nums;
+}
+.mark[data-selected="true"] {
+  color: var(--paper);
+  background: var(--ink);
+}
+.dialogNote {
+  position: absolute;
+  width: 300px;
+  max-height: calc(100vh - 120px);
+  overflow: hidden;
+  padding: var(--ui-space-controls);
+  border: 1px solid var(--ui-stroke);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+.dialogLabel {
+  margin: 0 0 var(--ui-space-related);
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.dialogNote h2 {
+  margin: 0 0 var(--ui-space-controls);
+  font: var(--ui-section-font);
+}
+
+@media (max-width: 767px) {
+  .bar {
+    gap: var(--ui-space-related);
+  }
+  .links {
+    margin-left: auto;
+  }
+  .controls {
+    width: 100%;
+  }
+  .controls > button {
+    flex: 1 1 auto;
+  }
+  .notesLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-controls);
+  }
+  .index {
+    max-height: 176px;
+  }
+  .index button {
+    min-height: 44px;
+  }
+  .dialogNote {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .index button {
+    transition: none;
+  }
+}

@@ -1,0 +1,85 @@
+.amount {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+  box-sizing: content-box;
+  max-width: 100%;
+  isolation: isolate;
+  overflow: hidden;
+  vertical-align: middle;
+  padding: 5px 10px;
+  border-radius: var(--ui-radius);
+  transition:
+    background-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    color var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.amount[data-highlighted="true"] {
+  background: var(--if-brand-green);
+  color: var(--paper);
+}
+.amount[data-plain="true"] {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+.characters {
+  display: inline-flex;
+  flex: none;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}
+.character {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  flex: none;
+}
+.character[data-digit="true"] {
+  width: 1ch;
+  height: 1lh;
+}
+.digitLayer {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+.glow {
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    transparent 10%,
+    var(--mint-pale) 45%,
+    var(--mint-pale) 50%,
+    var(--mint-pale) 55%,
+    transparent 90%
+  );
+  background-size: 250% 100%;
+  animation: amount-glow 650ms var(--interfold-ui-ease) both;
+}
+@keyframes amount-glow {
+  0% {
+    background-position: 100% 0;
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.65;
+  }
+  100% {
+    background-position: 0 0;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .amount {
+    transition: none;
+  }
+  .glow {
+    display: none;
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useAccount } from "wagmi";
 import { ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
 import { useToken } from "../../hooks/useToken";
@@ -10,7 +11,13 @@ import { CreditsMode } from "../../utils/types";
 import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
 import { nextStageName } from "@/plugins/spp/utils/status";
 import { ActionButton } from "@/components/input/actionButton";
-import { ResultPanel, formatResultAmount, resultPercentages } from "@/components/proposalVoting/resultPanel";
+import { useWalletModal } from "@/hooks/useWalletModal";
+import {
+  ResultNotice,
+  ResultPanel,
+  formatResultAmount,
+  resultPercentages,
+} from "@/components/proposalVoting/resultPanel";
 
 interface IResult {
   option: string;
@@ -40,6 +47,10 @@ interface VoteResultCardProps {
   e3FailureReason?: E3FailureReason;
   /** The round meets the failure condition but nobody has sent `markE3Failed` yet. */
   e3FailurePending?: boolean;
+  voteStartMs?: number;
+  voteEndMs?: number;
+  foundationStageStarted?: boolean;
+  networkResultPublished?: boolean;
 }
 
 export const VoteResultCard = ({
@@ -55,7 +66,15 @@ export const VoteResultCard = ({
   e3Failed,
   e3FailureReason,
   e3FailurePending,
+  voteStartMs,
+  voteEndMs,
+  foundationStageStarted,
+  networkResultPublished,
 }: VoteResultCardProps) => {
+  const { address, isConnected, isConnecting, isReconnecting } = useAccount();
+  const { open: openWallet, isOpen: walletOpen } = useWalletModal();
+  const connected = isConnected && !!address;
+  const connecting = isConnecting || isReconnecting;
   const { executeProposal, canExecute, isConfirming: isConfirmingExecution } = useProposalExecute(proposalId);
   const { decimals, symbol } = useToken();
   const pastSupply = usePastSupply(snapshotBlock);
@@ -80,66 +99,57 @@ export const VoteResultCard = ({
   // exactly the case where the reader most needs to be told why.
   if (e3Failed) {
     return (
-      <div className="vote-panel">
-        <div className="vp-head">
-          <h3>Result</h3>
-          <span className="vp-meta" style={{ color: "var(--critical, #a84932)" }}>
-            Round failed
-          </span>
-        </div>
-        <div className="vp-body items-center text-center">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ color: "var(--critical, #a84932)" }}>
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3" />
-            <path d="M12 7v6M12 16.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <p className="vp-note text-center" style={{ fontWeight: 600 }}>
-            The encrypted vote round failed
+      <ResultNotice state="Voting closed" title="Round failed">
+        <p className="vp-note">{describeE3Failure(e3FailureReason)} This proposal could not be tallied or executed.</p>
+        {/* Recording the failure on-chain also makes the fee refund available. */}
+        {e3FailurePending && (
+          <p className="vp-note">
+            The failure has not been recorded on-chain yet. Anyone can finalise it, which also unlocks the fee refund.
           </p>
-          <p className="vp-note text-center">
-            {describeE3Failure(e3FailureReason)} This proposal could not be tallied or executed.
-          </p>
-          {/* Interfold does not fail a round by itself — `markE3Failed` is a permissionless call
-              someone has to send once the deadline passes. Until then the round still reads as
-              live on-chain, and the refund cannot be claimed. */}
-          {e3FailurePending && (
-            <p className="vp-note text-center">
-              The failure has not been recorded on-chain yet. Anyone can finalise it, which also unlocks the fee refund.
-            </p>
-          )}
-        </div>
-      </div>
+        )}
+      </ResultNotice>
     );
   }
 
   if (!isTallied) {
+    const notStarted = voteStartMs !== undefined && Date.now() < voteStartMs;
+    const votingOpen = !notStarted && voteEndMs !== undefined && Date.now() < voteEndMs;
     return (
-      <div className="vote-panel">
-        <div className="vp-head">
-          <h3>Result</h3>
-          <span className="vp-meta">Tallying</span>
-        </div>
-        <div className="vp-body items-center text-center">
-          <svg
-            className="animate-spin"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            style={{ color: "var(--accent)" }}
-          >
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" opacity="0.2" />
-            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-          </svg>
-          <p className="vp-note text-center">
-            Results are being tallied by the Interfold network. This may take a few minutes.
-          </p>
-        </div>
-      </div>
+      <ResultNotice
+        state={notStarted ? "Not started" : votingOpen ? "Voting open" : "Voting closed"}
+        title={
+          networkResultPublished
+            ? "Result published"
+            : notStarted
+              ? "Voting has not started"
+              : votingOpen
+                ? "Voting is open"
+                : foundationStageStarted
+                  ? "Loading voting results"
+                  : "Awaiting tally"
+        }
+      >
+        <p className="vp-note">
+          {networkResultPublished
+            ? "The network has published the result. The voting totals are not available here yet."
+            : notStarted
+              ? "The result is not available yet."
+              : votingOpen
+                ? "The result will be available after the tally is published."
+                : foundationStageStarted
+                  ? "The Foundation stage has started. The voting tally is not available here yet."
+                  : "The result has not been published. The Foundation stage has not started."}
+        </p>
+      </ResultNotice>
     );
   }
 
   if (!results || results.length === 0) {
-    return null;
+    return (
+      <ResultNotice state="Voting closed" title="Loading voting results">
+        <p className="vp-note">The voting totals are not available here yet.</p>
+      </ResultNotice>
+    );
   }
 
   return (
@@ -152,18 +162,26 @@ export const VoteResultCard = ({
       }))}
       total={`${amount(totalVotes)} ${unitLabel}`}
       status={proposalStatus}
+      isEmpty={totalVotes === 0n}
       quorum={quorum}
       submitted={proposalStatus === ProposalStatus.EXECUTED}
       action={
         canExecute && !isSignalling ? (
           <ActionButton
-            className="mt-4 w-full"
+            className="proposal-result-action mt-4 w-full"
             intent="vote"
-            disabled={isConfirmingExecution}
-            isLoading={isConfirmingExecution}
-            onClick={executeProposal}
+            disabled={isConfirmingExecution || connecting || walletOpen}
+            isLoading={isConfirmingExecution || connecting}
+            onClick={() => {
+              if (connected) executeProposal();
+              else void openWallet();
+            }}
           >
-            Submit result & advance to {nextStageName(vetoStage)} stage
+            {connecting
+              ? "Connecting wallet…"
+              : connected
+                ? `Submit result & advance to ${nextStageName(vetoStage)} stage`
+                : "Connect to submit result"}
           </ActionButton>
         ) : undefined
       }

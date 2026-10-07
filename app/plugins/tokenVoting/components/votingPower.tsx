@@ -63,7 +63,6 @@ export function VotingPower({
               )}
             </PowerInfo>
           </span>
-          <span className="ballot-snapshot-note">(at snapshot)</span>
         </span>
         <strong>{address ? fmt(yours) : "—"}</strong>
       </div>

@@ -1,3 +1,7 @@
+## Design source of truth
+
+Before UI changes, read [DESIGN.md](DESIGN.md). It defines the current rules and links the shared Interfold source. Shared design tokens are maintained in `Interfold-Website/DESIGN.md`; do not edit generated token CSS.
+
 # Agent guide — the-interfold-governance
 
 ## Family animation patterns — persistent user preference
@@ -9,6 +13,10 @@ first** — it is the authoritative explanation of how staged governance works. 
 short operational layer: commands, invariants, and traps.
 
 ## UI workflow — user preference
+
+Develop and review UI changes on the running local version so Tiago can follow the work.
+Keep that local version available during iteration. Publish accumulated changes to the
+shared preview after a batch is finished and Tiago asks for it, rather than after each edit.
 
 For every new UI request, **reuse first**. Inspect the existing components, their supported
 variants, design tokens and `docs/design/interface-consistency.md` before proposing or

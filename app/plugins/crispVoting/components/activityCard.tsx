@@ -1,16 +1,12 @@
-import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
+import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
 import { useQuery } from "@tanstack/react-query";
-import { parseAbi, parseAbiItem, type Address } from "viem";
+import { parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchRoundInputs } from "@/utils/crispIndexer";
 import { publicClient } from "../utils/client";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 
-// Minimal slice of IInterfold.getE3 — only the fields before and including e3Program matter here.
-const interfoldAbi = parseAbi([
-  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bool proofAggregationEnabled; }",
-  "function getE3(uint256 e3Id) view returns (E3 memory e3)",
-]);
+import { interfoldViewsAbi } from "../artifacts/interfoldViews";
 
 // CRISPProgram's event (verified on-chain): NOT the 4-field IInterfold variant.
 const inputPublishedEvent = parseAbiItem("event InputPublished(uint256 indexed e3Id, bytes data, uint256 index)");
@@ -40,7 +36,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
 
       const e3 = await publicClient.readContract({
         address: interfold,
-        abi: interfoldAbi,
+        abi: interfoldViewsAbi,
         functionName: "getE3",
         args: [e3Id],
       });
@@ -84,7 +80,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const explorerUrl = PUB_CHAIN.blockExplorers?.default?.url;
 
   return (
-    <BallotDisclosure
+    <BallotActivity
       title={
         <>
           Encrypted ballot activity <span className="proposal-detail-count">{entries?.length ?? 0}</span>
@@ -125,6 +121,6 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
           ))}
         </div>
       </div>
-    </BallotDisclosure>
+    </BallotActivity>
   );
 }

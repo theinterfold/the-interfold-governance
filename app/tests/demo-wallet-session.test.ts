@@ -185,4 +185,30 @@ describe.skipIf(!DESIGN_PREVIEW)("Demo wallet connection controls", () => {
     selectDemoAccount(DEMO_WALLET);
     expect(getAccount(config).address).toBe(DEMO_WALLET);
   });
+
+  test("choosing an account while disconnected does not bypass wallet connection", async () => {
+    const saved = new Map<string, string>();
+    const target = new EventTarget();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        location: { hostname: "localhost" },
+        addEventListener: target.addEventListener.bind(target),
+        dispatchEvent: target.dispatchEvent.bind(target),
+        sessionStorage: {
+          getItem: (key: string) => saved.get(key) ?? null,
+          setItem: (key: string, value: string) => saved.set(key, value),
+        },
+      },
+    });
+    const config = makeConfig();
+    await connect(config, { connector: config.connectors[0] });
+    await disconnect(config);
+    selectDemoAccount(DEMO_SENDING_WALLET);
+    expect(getAccount(config).status).toBe("disconnected");
+    expect(getAccount(config).address).toBeUndefined();
+    expect(isDemoWalletDisconnected()).toBe(true);
+    await connect(config, { connector: config.connectors[0] });
+    expect(getAccount(config).address?.toLowerCase()).toBe(DEMO_SENDING_WALLET.toLowerCase());
+  });
 });

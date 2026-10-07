@@ -19,13 +19,20 @@ export function useVeDelegation(address: Address | undefined, adapter: Address |
   const [error, setError] = useState<string>();
   const submitting = useRef(false);
   useEffect(() => setError(undefined), [address]);
-  const { data, refetch } = useReadContracts({
+  const {
+    data,
+    error: queryError,
+    refetch,
+  } = useReadContracts({
     contracts: [
       { chainId: PUB_CHAIN.id, address: adapter, abi: escrowAdapterAbi, functionName: "delegates", args: [address!] },
       { chainId: PUB_CHAIN.id, address: adapter, abi: escrowAdapterAbi, functionName: "getVotes", args: [address!] },
     ],
     query: { enabled: !!address && !!adapter },
   });
+  const readError =
+    queryError ??
+    (data?.some((result) => result.status === "failure") ? new Error("Delegation data could not be read") : null);
 
   const { writeContractAsync } = useTransactionManager({
     onSuccessMessage: "Voting delegate updated",
@@ -69,6 +76,8 @@ export function useVeDelegation(address: Address | undefined, adapter: Address |
     delegateToSelf: () => address && delegate(address),
     isConfirming: pending,
     error,
+    readError,
+    retryRead: refetch,
     refetch,
   };
 }

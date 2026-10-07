@@ -22,15 +22,15 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
       onKindChange={onKindChange}
       canSubmit={isConnected && canCreate && !isLoading}
       creationRequirement={{ minimum: minProposerVotingPower, votingPower: votes, loading: isLoading }}
-      renderEditor={(editor) => (
+      eligibilityNotice={
         <TokenCreationEligibility
           selfAddress={selfAddress}
           canCreate={isLoading ? undefined : canCreate}
           isConnected={isConnected}
         >
-          {editor}
+          {null}
         </TokenCreationEligibility>
-      )}
+      }
     />
   );
 }

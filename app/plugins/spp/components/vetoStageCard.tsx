@@ -4,6 +4,8 @@ import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { parseAbiItem } from "viem";
 import { If } from "@/components/if";
+import { ActionButton } from "@/components/input/actionButton";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { SppProposalState, sppAddressFor } from "../utils/types";
@@ -46,6 +48,7 @@ interface VetoStageCardProps {
   vetoTally: { approvals: bigint; vetoes: bigint } | undefined;
   /** The stage-0 vote failed definitively — the veto stage will never start. */
   stage0Failed?: boolean;
+  awaitingTally?: boolean;
 }
 
 type VetoStatus = "pending" | "notNeeded" | "active" | "vetoed" | "executable" | "executed" | "expired" | "canceled";
@@ -63,8 +66,12 @@ export const VetoStageCard = ({
   vetoStage,
   vetoTally,
   stage0Failed,
+  awaitingTally,
 }: VetoStageCardProps) => {
-  const { address } = useAccount();
+  const { address, isConnected, isConnecting, isReconnecting } = useAccount();
+  const { open: openWallet, isOpen: walletOpen } = useWalletModal();
+  const connected = isConnected && !!address;
+  const connecting = isConnecting || isReconnecting;
   const { vetoProposal, approveProposal, isConfirming: isVetoConfirming } = useSppVeto(kind, proposalId);
   const { advanceProposal, canAdvance, isConfirming: isAdvanceConfirming } = useSppAdvance(kind, proposalId, true);
   const executionTx = useExecutionTx(kind, proposalId, !!proposal?.executed);
@@ -98,7 +105,7 @@ export const VetoStageCard = ({
   else status = "active";
 
   const isVetoBody =
-    !!address && !!vetoStage?.bodies?.[0]?.addr && address.toLowerCase() === vetoStage.bodies[0].addr.toLowerCase();
+    connected && !!vetoStage?.bodies?.[0]?.addr && address!.toLowerCase() === vetoStage.bodies[0].addr.toLowerCase();
   const showVetoButton = status === "active" && isVetoBody && !approvalMode;
   const showApproveButton = status === "active" && isVetoBody && approvalMode && !isApproved;
   const showExecuteButton = status === "executable";
@@ -138,9 +145,11 @@ export const VetoStageCard = ({
 
         <p className="vp-note">
           <If true={status === "pending"}>
-            {approvalMode
-              ? "Once the voting stage passes, the proposal is held here until the foundation approves it."
-              : "Once the voting stage passes, the proposal is held here for the foundation veto window before it can be executed."}
+            {awaitingTally
+              ? "The vote has closed, but its result has not been published. This stage can start only after the vote passes."
+              : approvalMode
+                ? "Once the voting stage passes, the proposal is held here until the foundation approves it."
+                : "Once the voting stage passes, the proposal is held here for the foundation veto window before it can be executed."}
           </If>
           <If true={status === "notNeeded"}>
             The proposal did not pass the voting stage, so this stage will not take place.
@@ -157,7 +166,8 @@ export const VetoStageCard = ({
               : "The veto window has lapsed with no veto — the proposal can now be executed by anyone."}
           </If>
           <If true={status === "executed"}>
-            The proposal passed the veto window and has been executed on the DAO.
+            {approvalMode ? "The foundation approved the proposal" : "The proposal passed the veto window"} and it has
+            been executed on the DAO.
             {executionTx && PUB_CHAIN.blockExplorers?.default?.url && (
               <>
                 {" "}
@@ -203,16 +213,18 @@ export const VetoStageCard = ({
           </Button>
         </If>
         <If true={showExecuteButton}>
-          <Button
-            className="w-full"
-            size="lg"
-            variant="primary"
-            disabled={!canAdvance}
-            isLoading={isAdvanceConfirming}
-            onClick={() => advanceProposal()}
+          <ActionButton
+            className="proposal-execute-action w-full"
+            intent="confirm"
+            disabled={!canAdvance || isAdvanceConfirming || connecting || walletOpen}
+            isLoading={isAdvanceConfirming || connecting}
+            onClick={() => {
+              if (connected) advanceProposal();
+              else void openWallet();
+            }}
           >
-            Execute proposal
-          </Button>
+            {connecting ? "Connecting wallet…" : connected ? "Execute proposal" : "Connect to execute proposal"}
+          </ActionButton>
         </If>
       </div>
     </div>

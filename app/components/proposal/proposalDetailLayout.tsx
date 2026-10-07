@@ -1,5 +1,5 @@
+import { ProposalVotingContext } from "../proposalVoting/proposalVotingContext";
 import { BallotDisclosure } from "../proposalVoting/ballotDisclosure";
-import { BendingChevron } from "@/vendor/site-header";
 import type { ReactNode } from "react";
 import type { IProposalResource, RawAction } from "@/utils/types";
 import { BodySection } from "./proposalBodySection";
@@ -14,7 +14,8 @@ export function ProposalDetailLayout({
   resources,
   actions,
   voting,
-  votingPower,
+  personalVote,
+  networkProgress,
   methodDetails,
   participation,
   stage,
@@ -26,7 +27,8 @@ export function ProposalDetailLayout({
   resources?: IProposalResource[];
   actions: RawAction[];
   voting: ReactNode;
-  votingPower?: ReactNode;
+  personalVote?: ReactNode;
+  networkProgress?: ReactNode;
   methodDetails?: ReactNode;
   participation: ReactNode;
   stage: ReactNode;
@@ -37,46 +39,49 @@ export function ProposalDetailLayout({
       {breadcrumb}
       <div className="proposal-detail-main">
         <div className="proposal-detail-reading-column">
-          <article className="proposal-detail-reading">
+          <article className="proposal-detail-reading" data-proposal-part="surface">
             {header}
-            <div className="proposal-reading-content">
+            <div className="proposal-reading-content" data-proposal-part="document">
               <BodySection body={description} />
             </div>
           </article>
           {actions.length > 0 ? (
-            <details className="proposal-action-disclosure">
-              <summary>
+            <BallotDisclosure
+              className="proposal-action-disclosure"
+              title={
                 <span>
                   Actions <span className="proposal-detail-count">{actions.length}</span>
                 </span>
-                <BendingChevron />
-              </summary>
-              <p className="proposal-actions-caption">On-chain operations included in this proposal.</p>
-              <ProposalActions actions={actions} compact={true} />
-            </details>
+              }
+            >
+              <div className="proposal-action-disclosure-body">
+                <p className="proposal-actions-caption">On-chain operations included in this proposal.</p>
+                <ProposalActions actions={actions} compact={true} />
+              </div>
+            </BallotDisclosure>
           ) : (
             <section className="proposal-action-disclosure proposal-actions-empty" aria-label="Actions">
               <h3>
                 Actions <span className="proposal-detail-count">0</span>
               </h3>
-              <p className="proposal-actions-caption">Signaling proposal. No on-chain actions.</p>
             </section>
           )}
           {!!resources?.length && <CardResources resources={resources} title="Resources" />}
         </div>
-        <div className="proposal-detail-ballot">
+        <div className="proposal-detail-ballot" data-proposal-part="ballot">
           {voting}
-          <div className="proposal-ballot-context">
-            {votingPower}
-            <BallotDisclosure title="Voting details">
+          <ProposalVotingContext
+            networkProgress={networkProgress}
+            personalVote={personalVote}
+            details={
               <div className="proposal-ballot-facts">
                 {methodDetails}
                 {participation}
                 {stage}
               </div>
-            </BallotDisclosure>
-            {activity}
-          </div>
+            }
+            activity={activity}
+          />
         </div>
       </div>
     </div>

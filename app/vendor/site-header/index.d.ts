@@ -31,6 +31,7 @@ export interface BendingChevronProps {
   style?: CSSProperties;
 }
 export declare function BendingChevron(props: BendingChevronProps): React.JSX.Element;
+export declare function useMobileMenuBehavior(open: boolean, onOpenChange?: (open: boolean) => void): React.RefObject<HTMLDivElement>;
 
 export interface SiteHeaderChromeProps extends HTMLAttributes<HTMLElement> {
   variant?: "desktop" | "mobile" | "responsive";

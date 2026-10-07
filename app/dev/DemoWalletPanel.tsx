@@ -3,11 +3,17 @@ import { DEMO_WALLET } from "./previewMode";
 import { formatHexString } from "@/utils/evm";
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { ActionTray } from "@/plugins/velocker/components/actionTray";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { BendingChevron } from "@/vendor/site-header";
+import {
+  subscribeDemoWalletConnection,
+  getDemoWalletConnectionOpen,
+  getServerDemoWalletConnectionOpen,
+  completeDemoWalletConnection,
+} from "./demoWalletConnection";
 import {
   getDemoRequest,
   getServerDemoRequest,
@@ -17,7 +23,12 @@ import {
   subscribeDemoRequest,
 } from "./simulation";
 
-export function openDemoWalletPanel() {
+export function setDemoWalletReturnFocus(target: HTMLElement | null, onCloseComplete?: () => void) {
+  window.dispatchEvent(new CustomEvent("interfold-demo-wallet-focus", { detail: { target, onCloseComplete } }));
+}
+
+export function openDemoWalletPanel(returnFocus?: unknown, onCloseComplete?: () => void) {
+  setDemoWalletReturnFocus(returnFocus instanceof HTMLElement ? returnFocus : null, onCloseComplete);
   window.dispatchEvent(new Event("interfold-demo-wallet-open"));
 }
 
@@ -29,8 +40,24 @@ export function DemoWalletPanel() {
   const [showFailures, setShowFailures] = useState(false);
   const failuresId = useId();
   const trigger = useRef<HTMLElement | null>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const closeComplete = useRef<(() => void) | undefined>();
   const query = useQueryClient();
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
+  const {
+    connectAsync,
+    connectors,
+    isPending: isConnecting,
+    error: connectionError,
+    reset: resetConnect,
+  } = useConnect();
+  const connectionOpen = useSyncExternalStore(
+    subscribeDemoWalletConnection,
+    getDemoWalletConnectionOpen,
+    getServerDemoWalletConnectionOpen
+  );
+  const connected = isConnected && !!address;
+  const connector = connectors.find((item) => item.id === "interfold-design-preview");
   const { disconnect, isPending: isDisconnecting, error: disconnectError, reset: resetDisconnect } = useDisconnect();
   useEffect(
     () =>
@@ -40,14 +67,33 @@ export function DemoWalletPanel() {
     [query]
   );
   useEffect(() => {
+    const focus = (event: Event) => {
+      trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const detail = event instanceof CustomEvent ? event.detail : undefined;
+      returnFocus.current = detail?.target instanceof HTMLElement ? detail.target : null;
+      closeComplete.current = typeof detail?.onCloseComplete === "function" ? detail.onCloseComplete : undefined;
+    };
     const open = () => {
       setResetError("");
       resetDisconnect();
       setSettings(true);
     };
+    const connect = () => {
+      trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      returnFocus.current = null;
+      closeComplete.current = undefined;
+      resetConnect();
+      open();
+    };
     window.addEventListener("interfold-demo-wallet-open", open);
-    return () => window.removeEventListener("interfold-demo-wallet-open", open);
-  }, [resetDisconnect]);
+    window.addEventListener("interfold-demo-wallet-connect", connect);
+    window.addEventListener("interfold-demo-wallet-focus", focus);
+    return () => {
+      window.removeEventListener("interfold-demo-wallet-open", open);
+      window.removeEventListener("interfold-demo-wallet-connect", connect);
+      window.removeEventListener("interfold-demo-wallet-focus", focus);
+    };
+  }, [resetDisconnect, resetConnect]);
   const close = () => {
     if (request) resolveDemoRequest(request.id, "reject");
     setSettings(false);
@@ -56,9 +102,18 @@ export function DemoWalletPanel() {
   return (
     <ActionTray
       open={!!request || settings}
-      title="Wallet"
-      pending={isDisconnecting}
+      title={!request && !connected ? "Connect wallet" : "Wallet"}
+      pending={isDisconnecting || isConnecting}
       triggerRef={trigger}
+      returnFocusRef={returnFocus}
+      onCloseComplete={() => {
+        if (connectionOpen) completeDemoWalletConnection(connected);
+        if (connected && !trigger.current?.isConnected && !closeComplete.current) {
+          document.querySelector<HTMLElement>("[data-wallet-connect-focus]")?.focus({ preventScroll: true });
+        }
+        closeComplete.current?.();
+        closeComplete.current = undefined;
+      }}
       onClose={close}
       className="demo-wallet-panel"
       overlayClassName="demo-wallet-overlay"
@@ -97,7 +152,9 @@ export function DemoWalletPanel() {
       ) : (
         <>
           <p className="demo-wallet-request-detail">
-            Choose which wallet to use. The sending wallet can send a signed vote, but has no voting power.
+            {connected
+              ? "Choose which wallet to use. The sending wallet can send a signed vote, but has no voting power."
+              : "Connect a wallet to continue. The voting wallet can vote and delegate; the sending wallet has no voting power."}
           </p>
           <div className="vp-cta mb-6" role="group" aria-label="Demo wallets">
             {[
@@ -112,48 +169,69 @@ export function DemoWalletPanel() {
                   intent={selected ? "confirm" : "open"}
                   affordance={selected ? "check" : undefined}
                   aria-pressed={selected}
-                  disabled={isDisconnecting}
-                  onClick={() => {
-                    selectDemoAccount(wallet.address);
-                    setSettings(false);
+                  disabled={isDisconnecting || isConnecting || (!connected && !connector)}
+                  isLoading={isConnecting && selected}
+                  onClick={async () => {
+                    try {
+                      selectDemoAccount(wallet.address);
+                      if (!connected && connector) await connectAsync({ connector });
+                      setSettings(false);
+                    } catch {
+                      // Keep the connector open for a deliberate retry.
+                    }
                   }}
                 >
-                  {wallet.label} · {formatHexString(wallet.address)}
+                  {connected ? wallet.label : `Connect ${wallet.label.toLowerCase()}`} ·{" "}
+                  {formatHexString(wallet.address)}
                 </PowerAction>
               );
             })}
           </div>
-          <PowerAction
-            onClick={() => {
-              try {
-                resetDemoState();
-                window.location.reload();
-              } catch (error) {
-                setResetError((error as Error).message);
-              }
-            }}
-          >
-            Reset demo data
-          </PowerAction>
-          {resetError && (
+          {connectionError && (
             <p role="alert" className="power-feedback">
-              {resetError}
+              Could not connect. Please try again.
             </p>
           )}
-          <PowerAction
-            affordance="remove"
-            disabled={isDisconnecting}
-            isLoading={isDisconnecting}
-            onClick={() => {
-              disconnect(undefined, { onSuccess: () => setSettings(false) });
-            }}
-          >
-            Disconnect demo wallet
-          </PowerAction>
-          {disconnectError && (
-            <p role="alert" className="power-feedback">
-              Could not disconnect. Please try again.
-            </p>
+          {!connected && (
+            <PowerAction onClick={close} disabled={isConnecting}>
+              Cancel
+            </PowerAction>
+          )}
+          {connected && (
+            <>
+              <PowerAction
+                onClick={() => {
+                  try {
+                    resetDemoState();
+                    window.location.reload();
+                  } catch (error) {
+                    setResetError((error as Error).message);
+                  }
+                }}
+              >
+                Reset demo data
+              </PowerAction>
+              {resetError && (
+                <p role="alert" className="power-feedback">
+                  {resetError}
+                </p>
+              )}
+              <PowerAction
+                affordance="remove"
+                disabled={isDisconnecting}
+                isLoading={isDisconnecting}
+                onClick={() => {
+                  disconnect(undefined, { onSuccess: () => setSettings(false) });
+                }}
+              >
+                Disconnect demo wallet
+              </PowerAction>
+              {disconnectError && (
+                <p role="alert" className="power-feedback">
+                  Could not disconnect. Please try again.
+                </p>
+              )}
+            </>
           )}
         </>
       )}

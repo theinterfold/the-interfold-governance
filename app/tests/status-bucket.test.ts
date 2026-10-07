@@ -56,6 +56,9 @@ describe("statusBucketOf", () => {
   test("maps the body-level ProposalStatus labels", () => {
     expect(statusBucketOf("Pending")).toBe("pending");
     expect(statusBucketOf("Active")).toBe("active");
+    expect(statusBucketOf("Awaiting tally")).toBe("awaiting");
+    expect(statusBucketOf("Confirming result")).toBe("confirming");
+    expect(statusBucketOf("Vote passed")).toBe("votePassed");
     expect(statusBucketOf("Rejected")).toBe("rejected");
   });
 
@@ -77,7 +80,17 @@ describe("statusBucketOf", () => {
 
   test("every declared bucket is reachable from some label", () => {
     const reachable = new Set(
-      ["Pending", "Active", "Foundation Approval", "Accepted", "Executed", "Rejected"].map((l) => statusBucketOf(l))
+      [
+        "Pending",
+        "Active",
+        "Awaiting tally",
+        "Confirming result",
+        "Vote passed",
+        "Foundation Approval",
+        "Accepted",
+        "Executed",
+        "Rejected",
+      ].map((l) => statusBucketOf(l))
     );
     for (const b of STATUS_BUCKETS) expect(reachable.has(b.value)).toBe(true);
   });

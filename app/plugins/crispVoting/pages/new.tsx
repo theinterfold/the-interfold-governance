@@ -28,11 +28,11 @@ export default function Create({ draft, onKindChange }: ProposalCreateProps) {
         loading: canCreateState.isLoading,
       }}
       fee={<FeeCreditCard disabled={proposal.isCreating} durationSeconds={proposal.durationSeconds} />}
-      renderEditor={(editor) => (
+      eligibilityNotice={
         <CrispCreationEligibility selfAddress={selfAddress} state={canCreateState} isConnected={isConnected}>
-          {editor}
+          {null}
         </CrispCreationEligibility>
-      )}
+      }
     />
   );
 }

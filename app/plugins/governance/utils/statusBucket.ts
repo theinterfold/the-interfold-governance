@@ -4,15 +4,27 @@
  *
  * Rows label themselves from two sources: the SPP-level override
  * (`getSppStatusOverride` — Executed / Canceled / Vetoed / Executable / Expired /
- * Veto period / Foundation Approval) and, while stage 0 is undecided, the body-level `ProposalStatus`
- * (Pending / Active / Executed / Executable / Accepted / Rejected). Both funnel
- * through here so private and public rows bucket identically.
+ * Veto period / Foundation Approval) and the stage-0 presentation resolver
+ * (Pending / Active / Awaiting tally / Confirming result / Vote passed / Rejected).
+ * Both funnel through here so private and public rows bucket identically.
  */
-export type StatusBucket = "pending" | "active" | "foundation" | "accepted" | "executed" | "rejected";
+export type StatusBucket =
+  | "pending"
+  | "active"
+  | "awaiting"
+  | "confirming"
+  | "votePassed"
+  | "foundation"
+  | "accepted"
+  | "executed"
+  | "rejected";
 
 export const STATUS_BUCKETS: { label: string; value: StatusBucket }[] = [
   { label: "Pending", value: "pending" },
   { label: "Active", value: "active" },
+  { label: "Awaiting tally", value: "awaiting" },
+  { label: "Confirming result", value: "confirming" },
+  { label: "Vote passed", value: "votePassed" },
   { label: "Foundation Approval", value: "foundation" },
   { label: "Accepted", value: "accepted" },
   { label: "Executed", value: "executed" },
@@ -30,10 +42,17 @@ export function statusBucketOf(label?: string): StatusBucket | undefined {
       return "pending";
     case "active":
       return "active";
+    case "awaiting tally":
+      return "awaiting";
+    case "confirming result":
+      return "confirming";
+    case "vote passed":
+      return "votePassed";
     // Stage 1 in flight, under either stage-1 mode: the foundation window.
     case "veto period":
     case "approval period":
     case "foundation approval":
+    case "awaiting foundation approval":
       return "foundation";
     // Passed the vote but not yet executed on the DAO.
     case "accepted":

@@ -1,3 +1,4 @@
+import { sameAddress } from "./simulation";
 import { DEMO_SENDING_WALLET } from "./demoWalletSession";
 import { DEMO_ADAPTER, DEMO_LOCK_NFT, demoState, demoLockVotes, demoTransactionRead } from "./simulation";
 import { lockNftAbi } from "@/plugins/velocker/artifacts/lockNft";
@@ -36,6 +37,7 @@ import { exitQueueAbi } from "@/plugins/velocker/artifacts/exitQueue";
 import { DEMO_MESSAGE, DEMO_WALLET, previewAddress, requireLocalPreview } from "./previewMode";
 import delegateSnapshot from "./snapshots/delegates-mainnet.json";
 import eligibleVoterExamples from "./snapshots/eligible-voters-demo.json";
+import constitutionProposal from "./snapshots/constitution-proposal.json";
 import type { CrispSDK } from "@crisp-e3/sdk";
 import type { RawAction } from "@/utils/types";
 
@@ -50,6 +52,15 @@ const checkpoints = previewAddress(0xd105);
 const otherWallet = previewAddress(0xde02);
 const thirdWallet = previewAddress(0xde03);
 const zeroHash = `0x${"00".repeat(32)}` as Hex;
+const liveProposalId = BigInt(constitutionProposal.proposal.sppId);
+const liveBodyProposalId = BigInt(constitutionProposal.proposal.bodyProposalId);
+const liveE3Id = BigInt(constitutionProposal.proposal.e3Id);
+const liveSnapshotTimepoint = BigInt(constitutionProposal.voting.snapshotTimepoint);
+const liveStart = BigInt(constitutionProposal.voting.startDate);
+const liveEnd = BigInt(constitutionProposal.voting.endDate);
+const liveTotalVotingPower = BigInt(constitutionProposal.voting.totalVotingPower);
+const liveMetadataUri = "demo://snapshot/constitution";
+const liveInputRecords = constitutionProposal.activity.inputs;
 
 /** Executable content belongs to the parent SPP; body actions remain separate. */
 export function demoProposalActions(id: bigint, privateVote: boolean): RawAction[] {
@@ -80,15 +91,20 @@ const extraAbi = parseAbi([
   "function getE3Stage(uint256) view returns (uint8)",
   "function getFailureReason(uint256) view returns (uint8)",
   "function checkFailureCondition(uint256) view returns (bool,uint8)",
-  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bytes32 ciphertextCommitment; }",
+  "struct E3 { uint256 seed; uint8 committeeSize; uint256 requestBlock; uint256[2] inputWindow; bytes32 encryptionSchemeId; address e3Program; uint8 paramSet; bytes customParams; address decryptionVerifier; address pkVerifier; bytes32 committeePublicKey; bytes32 ciphertextOutput; bytes plaintextOutput; address requester; bool proofAggregationEnabled; }",
   "function getE3(uint256) view returns (E3)",
   "function getRoundData(uint256) view returns (uint256,bytes32,uint256,uint8,uint256,uint40)",
   "function censusModeOf(uint256) view returns (uint8)",
+  "function votingPowerOf(uint256,address) view returns (uint256)",
 ]);
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const dates = (id: bigint) =>
-  id === 2n ? { start: now - 10n * day, end: now - 5n * day } : { start: now - day, end: now + 4n * day };
+  id === liveBodyProposalId
+    ? { start: liveStart, end: liveEnd }
+    : id === 2n
+      ? { start: now - 10n * day, end: now - 5n * day }
+      : { start: now - day, end: now + 4n * day };
 const capturedDelegatePowers = new Map(
   delegateSnapshot.data.delegates.map((entry) => [entry.address.toLowerCase(), BigInt(entry.voting_power)])
 );
@@ -104,7 +120,15 @@ const power = (address: unknown) =>
         exampleVoterPowers.get(String(address).toLowerCase()) ??
         25000n * unit);
 
-function stages(isPrivate: boolean) {
+function stages(isPrivate: boolean, liveApproval = false) {
+  if (liveApproval)
+    return constitutionProposal.stages.map((stage) => ({
+      ...stage,
+      bodies: stage.bodies.map((body) => ({ ...body })),
+      maxAdvance: BigInt(stage.maxAdvance),
+      minAdvance: BigInt(stage.minAdvance),
+      voteDuration: BigInt(stage.voteDuration),
+    }));
   return [
     {
       bodies: [
@@ -161,7 +185,9 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
       return same(address, adapter) ? demoLockVotes(args[0]) : power(args[0]);
     case "totalSupply":
     case "getPastTotalSupply":
-      return 1000000n * unit;
+      return args[0] === liveSnapshotTimepoint && same(address, PUB_TOKEN_ADDRESS)
+        ? liveTotalVotingPower
+        : 1000000n * unit;
     case "delegates":
       return demoState().delegate;
     case "getVotingToken":
@@ -209,11 +235,11 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "getApproved":
       return localLock?.approved ?? zeroAddress;
     case "getCurrentConfigIndex":
-      return 1n;
+      return same(address, PUB_SPP_PRIVATE_ADDRESS) ? 2n : 1n;
     case "getStages":
-      return stages(same(address, PUB_SPP_PRIVATE_ADDRESS));
+      return stages(same(address, PUB_SPP_PRIVATE_ADDRESS), same(address, PUB_SPP_PRIVATE_ADDRESS) && id === 1n);
     case "getBodyProposalId":
-      return id;
+      return same(address, PUB_SPP_PRIVATE_ADDRESS) && id === liveProposalId ? liveBodyProposalId : id;
     case "getProposalTally":
       return [0n, 0n];
     case "state":
@@ -225,7 +251,7 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "interfold":
       return interfold;
     case "canVote":
-      return !finished;
+      return id !== liveBodyProposalId && !finished;
     case "canExecute":
     case "canProposalAdvance":
     case "isMember":
@@ -234,18 +260,38 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
     case "isSupportThresholdReached":
       return true;
     case "hasVoted":
-      return demoState().votes[`public:${id}`] !== undefined;
+      return sameAddress(args[1], DEMO_WALLET) && demoState().votes[`public:${id}`] !== undefined;
     case "getVoteOption":
-      return demoState().votes[`public:${id}`] ?? 0;
+      return sameAddress(args[1], DEMO_WALLET) ? demoState().votes[`public:${id}`] ?? 0 : 0;
     case "getTally":
-      return { counts: finished ? [720000n, 180000n, 100000n] : [0n, 0n, 0n] };
+      return id === liveBodyProposalId
+        ? { counts: [] }
+        : { counts: finished ? [720000n, 180000n, 100000n] : [0n, 0n, 0n] };
     case "getE3Stage":
-      return finished ? 5 : 3;
+      return id === liveE3Id ? constitutionProposal.e3.chainStage : finished ? 5 : 3;
     case "getFailureReason":
       return 0;
     case "checkFailureCondition":
       return [false, 0];
     case "getE3":
+      if (id === liveE3Id)
+        return {
+          seed: 0n,
+          committeeSize: 0,
+          requestBlock: 0n,
+          inputWindow: constitutionProposal.e3.inputWindow.map(BigInt),
+          encryptionSchemeId: zeroHash,
+          e3Program: PUB_CRISP_PROGRAM_ADDRESS,
+          paramSet: constitutionProposal.e3.paramSet,
+          customParams: "0x",
+          decryptionVerifier: zeroAddress,
+          pkVerifier: zeroAddress,
+          committeePublicKey: constitutionProposal.e3.committeePublicKey as Hex,
+          ciphertextOutput: constitutionProposal.e3.ciphertextOutput as Hex,
+          plaintextOutput: constitutionProposal.e3.plaintextOutput as Hex,
+          requester: constitutionProposal.e3.requester as Address,
+          proofAggregationEnabled: false,
+        };
       return {
         seed: 0n,
         committeeSize: 3,
@@ -261,20 +307,35 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
         ciphertextOutput: zeroHash,
         plaintextOutput: "0x",
         requester: DEMO_WALLET,
-        ciphertextCommitment: zeroHash,
+        proofAggregationEnabled: false,
       };
     case "getRoundData":
       return [1n, zeroHash, 3n, 1, 0n, 12];
     case "censusModeOf":
       return 2;
+    case "votingPowerOf":
+      return power(args[1]) / 10n ** 17n;
     case "getProposal": {
       const targetConfig = { target: zeroAddress, operation: 0 };
       if (same(address, PUB_SPP_PRIVATE_ADDRESS) || same(address, PUB_SPP_PUBLIC_ADDRESS)) {
+        if (same(address, PUB_SPP_PRIVATE_ADDRESS) && id === liveProposalId) {
+          return {
+            allowFailureMap: 0n,
+            lastStageTransition: BigInt(constitutionProposal.proposal.lastStageTransition),
+            currentStage: constitutionProposal.proposal.currentStage,
+            stageConfigIndex: constitutionProposal.proposal.stageConfigIndex,
+            executed: false,
+            canceled: false,
+            creator: constitutionProposal.proposal.creator as Address,
+            actions: [],
+            targetConfig: { target: constitutionProposal.contracts.dao as Address, operation: 0 },
+          };
+        }
         return {
           allowFailureMap: 0n,
           lastStageTransition: start,
           currentStage: finished ? 1 : 0,
-          stageConfigIndex: 1,
+          stageConfigIndex: same(address, PUB_SPP_PRIVATE_ADDRESS) ? 2 : 1,
           executed: finished,
           canceled: false,
           creator: DEMO_WALLET,
@@ -282,6 +343,25 @@ function valueFor(name: string, address: Address, args: readonly unknown[] = [])
           targetConfig,
         };
       }
+      if (same(address, PUB_CRISP_VOTING_PLUGIN_ADDRESS) && id === liveBodyProposalId)
+        return {
+          executed: false,
+          parameters: {
+            numOptions: BigInt(constitutionProposal.voting.numOptions),
+            startDate: liveStart,
+            endDate: liveEnd,
+            snapshotBlock: liveSnapshotTimepoint,
+            minVotingPower: BigInt(constitutionProposal.voting.minVotingPower),
+            minParticipation: BigInt(constitutionProposal.voting.minParticipation),
+            supportThreshold: BigInt(constitutionProposal.voting.supportThreshold),
+            creditMode: constitutionProposal.voting.creditMode,
+          },
+          tally: { counts: [] },
+          actions: [],
+          allowFailureMap: 0n,
+          targetConfig: { target: "0x56ce4D8006292Abf418291FaE813C1E3769240A4", operation: 1 },
+          e3Id: liveE3Id,
+        };
       if (same(address, PUB_CRISP_VOTING_PLUGIN_ADDRESS))
         return {
           executed: finished,
@@ -404,6 +484,14 @@ export const demoTransport = () =>
 
 export function demoMetadata(uri: string) {
   if (demoState().metadata[uri]) return demoState().metadata[uri];
+  if (uri === liveMetadataUri)
+    return {
+      title: constitutionProposal.proposal.title,
+      summary: constitutionProposal.proposal.summary,
+      description: constitutionProposal.proposal.description,
+      resources: constitutionProposal.proposal.resources,
+      options: constitutionProposal.proposal.options,
+    };
   const privateVote = uri.includes("private");
   const finished = uri.endsWith("/2");
   return {
@@ -427,7 +515,7 @@ export function demoMetadata(uri: string) {
 
 export function demoIndexer(endpoint: string, input: unknown) {
   requireLocalPreview();
-  const body = input as { plugin?: string; proposal_id?: string };
+  const body = input as { plugin?: string; proposal_id?: string; round_id?: string; from_block?: number };
   if (endpoint === "proposals") {
     const kind =
       same(body.plugin ?? "", PUB_SPP_PRIVATE_ADDRESS) || same(body.plugin ?? "", PUB_CRISP_VOTING_PLUGIN_ADDRESS)
@@ -438,6 +526,7 @@ export function demoIndexer(endpoint: string, input: unknown) {
       proposals: [
         1n,
         2n,
+        ...(kind === "private" ? [liveProposalId] : []),
         ...demoState()
           .proposals.filter((proposal) =>
             same(proposal.plugin, kind === "private" ? PUB_SPP_PRIVATE_ADDRESS : PUB_SPP_PUBLIC_ADDRESS)
@@ -447,13 +536,26 @@ export function demoIndexer(endpoint: string, input: unknown) {
         .filter((id) => !body.proposal_id || String(id) === body.proposal_id)
         .map((id) => ({
           proposal_id: String(id),
-          creator: DEMO_WALLET,
-          start_date: Number(demoState().proposals.find((proposal) => proposal.id === id)?.start ?? dates(id).start),
-          end_date: Number(demoState().proposals.find((proposal) => proposal.id === id)?.end ?? dates(id).end),
-          metadata: toHex(demoState().proposals.find((proposal) => proposal.id === id)?.uri ?? `demo://${kind}/${id}`),
-          block: id > 2n ? 26000000 + Number(id) : 25999000 - Number(id),
+          creator: id === liveProposalId ? (constitutionProposal.proposal.creator as Address) : DEMO_WALLET,
+          start_date: Number(
+            id === liveProposalId
+              ? liveStart
+              : (demoState().proposals.find((proposal) => proposal.id === id)?.start ?? dates(id).start)
+          ),
+          end_date: Number(
+            id === liveProposalId
+              ? liveEnd
+              : (demoState().proposals.find((proposal) => proposal.id === id)?.end ?? dates(id).end)
+          ),
+          metadata: toHex(
+            id === liveProposalId
+              ? liveMetadataUri
+              : (demoState().proposals.find((proposal) => proposal.id === id)?.uri ?? `demo://${kind}/${id}`)
+          ),
+          // The public SPP creation block was not verified; zero avoids inventing chronology.
+          block: id === liveProposalId ? 0 : id > 2n ? 26000000 + Number(id) : 25999000 - Number(id),
           transaction_hash: null,
-          executed: id === 2n,
+          executed: id !== liveProposalId && id === 2n,
           refund_claimed: false,
         })),
     };
@@ -495,13 +597,41 @@ export function demoIndexer(endpoint: string, input: unknown) {
       ...delegateSnapshot.data,
       delegates: delegateSnapshot.data.delegates.map((entry) => ({ ...entry })),
     };
-  if (endpoint === "rounds/inputs") return { scanned_from: 0, inputs: [] };
+  if (endpoint === "rounds/inputs") {
+    if (body.round_id === String(liveE3Id))
+      return {
+        scanned_from: body.from_block ?? constitutionProposal.activity.scannedFrom,
+        inputs: liveInputRecords,
+      };
+    return { scanned_from: body.from_block ?? 0, inputs: [] };
+  }
   throw new Error(`No design fixture for ${endpoint}`);
 }
 
 export function demoSdk(): CrispSDK {
   const methods: Record<string, (...args: any[]) => Promise<unknown>> = {
     async getRoundStateLite(id: bigint) {
+      if (id === liveE3Id)
+        return {
+          id: String(id),
+          chain_id: String(PUB_CHAIN_ID),
+          interfold_address: "0x28cF63B459e6218C69EA97ea7D90541cf648c715",
+          status: "Active",
+          vote_count: "37",
+          start_time: String(liveStart),
+          duration: String(liveEnd - liveStart),
+          expiration: String(constitutionProposal.e3.inputWindow[1]),
+          committee_public_key: Array.from(
+            constitutionProposal.e3.committeePublicKey.slice(2).match(/.{2}/g) ?? [],
+            (byte) => Number.parseInt(byte, 16)
+          ),
+          emojis: ["🌿", "🌑"],
+          token_address: PUB_TOKEN_ADDRESS,
+          balance_threshold: constitutionProposal.voting.minVotingPower,
+          num_options: String(constitutionProposal.voting.numOptions),
+          credit_mode: constitutionProposal.voting.creditMode,
+          credits: null,
+        };
       return {
         id: String(id),
         chain_id: String(PUB_CHAIN_ID),
@@ -520,7 +650,8 @@ export function demoSdk(): CrispSDK {
         credits: null,
       };
     },
-    async getEligibleAddresses() {
+    async getEligibleAddresses(id: bigint) {
+      if (id === liveE3Id) throw new Error("Eligible-voter verification is not included in this demo snapshot.");
       return [DEMO_WALLET, otherWallet, thirdWallet, ...eligibleVoterExamples.voters.map((entry) => entry.address)].map(
         (address) => ({
           address,
@@ -532,6 +663,12 @@ export function demoSdk(): CrispSDK {
       return [];
     },
     async getRoundTokenDetails(id: bigint) {
+      if (id === liveE3Id)
+        return {
+          tokenAddress: PUB_VOTING_POWER_SOURCE,
+          snapshotBlock: liveSnapshotTimepoint,
+          threshold: BigInt(constitutionProposal.voting.minVotingPower),
+        };
       return { tokenAddress: PUB_TOKEN_ADDRESS, snapshotBlock: dates(id).start - 1n, threshold: unit };
     },
     async getOnChainRoundData() {

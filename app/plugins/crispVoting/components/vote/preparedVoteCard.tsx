@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { BallotPanel } from "@/components/proposalVoting/ballot";
 import { BallotWalletSummary } from "@/components/proposalVoting/ballotWalletSummary";
@@ -29,6 +29,7 @@ export function PreparedVoteCard({
   const { open } = useWalletModal();
   const [walletError, setWalletError] = useState("");
   const [switching, setSwitching] = useState(false);
+  const sendAction = useRef<HTMLButtonElement>(null);
   const blocked = preparedSenderError(ballot, address, chainId);
   const needsWalletSwitch =
     !ballot.transactionHash &&
@@ -44,7 +45,14 @@ export function PreparedVoteCard({
     setSwitching(true);
     try {
       if (address && chainId !== PUB_CHAIN.id) await switchChainAsync({ chainId: PUB_CHAIN.id });
-      else if (DESIGN_PREVIEW && address) openDemoWalletPanel();
+      else if (DESIGN_PREVIEW && address)
+        openDemoWalletPanel(sendAction.current, () => {
+          const target = sendAction.current;
+          // The wallet shortcut can disappear when the sender changes. Restore focus
+          // only if the dialog left it on the document, not after another user action.
+          if (target?.isConnected && !target.disabled && document.activeElement === document.body)
+            target.focus({ preventScroll: true });
+        });
       else await open();
     } catch {
       setWalletError("Could not open your wallet. Open it directly and select the account you want to use.");
@@ -104,6 +112,7 @@ export function PreparedVoteCard({
         )}
         <div className="vp-cta">
           <PowerAction
+            ref={sendAction}
             intent="vote"
             disabled={busy || switching || !!blocked}
             isLoading={busy}

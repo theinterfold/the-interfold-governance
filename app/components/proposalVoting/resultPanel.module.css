@@ -1,0 +1,67 @@
+.panel[data-vote-mode] :global(.vp-head) {
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--ui-space-tight);
+}
+.panel[data-vote-mode] :global(.vp-head h3),
+.panel[data-vote-mode] :global(.vp-head .vp-meta) {
+  color: var(--muted);
+  font: var(--ui-label-font);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.panel[data-vote-mode] .body {
+  gap: var(--ui-space-section);
+}
+.summary {
+  display: grid;
+  gap: var(--ui-space-related);
+}
+.outcome {
+  margin: 0;
+  color: var(--ink);
+  font: 600 28px/1.18 var(--font-sans);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.description {
+  display: grid;
+  gap: var(--ui-space-related);
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.description p {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+.tally {
+  min-width: 0;
+}
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-tight);
+  padding-bottom: var(--ui-space-related);
+  font: var(--ui-label-font);
+  color: var(--muted);
+}
+.fact strong {
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.submitted {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-tight);
+  margin: 0;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.submitted svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}

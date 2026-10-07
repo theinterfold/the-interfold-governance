@@ -10,6 +10,8 @@ import { ProposalVoting } from "../components/proposalVoting/proposalVoting";
 import { VoteCard, type VoteCardProps } from "../plugins/crispVoting/components/vote/voteCard";
 import type { ITransformedStage } from "../utils/types";
 import { SubmittedVoteCard } from "../plugins/crispVoting/components/vote/submittedVoteCard";
+import { MaskExploration } from "../dev/maskExploration";
+import { DESIGN_PREVIEW } from "../dev/previewMode";
 
 const config = createConfig({
   chains: [mainnet],
@@ -35,6 +37,14 @@ const now = Math.floor(Date.now() / 1000);
 const privateProps: VoteCardProps = {
   options: ["Yes", "No", "Abstain"],
   getMaskRecipients: async () => [],
+  getVoteWeight: async () => ({
+    roundId: 1n,
+    voter: "0x0000000000000000000000000000000000000001",
+    available: 1000n,
+    counted: 995n,
+    randomize: true,
+    decimals: 1,
+  }),
   onPrepareVote: async () => ({ success: true, txHash: null }),
   getRandomMaskTarget: async () => "0x0000000000000000000000000000000000000001",
   onClickVote: async () => ({ success: true, txHash: null }),
@@ -54,6 +64,20 @@ const privateProps: VoteCardProps = {
 const stage = { status: "active", variant: "majorityVoting", votes: [] } as unknown as ITransformedStage;
 
 describe("Ballot eligibility rendering", () => {
+  test.skipIf(!DESIGN_PREVIEW)(
+    "the integrated disconnected ballot exposes connection instead of fixture voting power or mask controls",
+    () => {
+      const html = renderToStaticMarkup(
+        <MaskExploration variant="paths" changingVote={false} inSite={true} canVote={false} />
+      );
+      expect(html).toContain("Connect wallet");
+      expect(html).not.toContain('role="radiogroup"');
+      expect(html).not.toContain("49,750");
+      expect(html).not.toContain("50,000");
+      expect(html).not.toContain("Review mask");
+      expect(html).not.toContain("sending wallet has no voting power");
+    }
+  );
   test("a secret ballot without snapshot eligibility hides vote choices but preserves standalone masking", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={true} canMask={true} />);
     expect(html).toContain("No voting power for this proposal");
@@ -78,9 +102,12 @@ describe("Ballot eligibility rendering", () => {
     expect(html).not.toContain("Submit a mask");
   });
 
-  test("an eligible secret voter keeps every ballot choice", () => {
+  test("an eligible secret voter can add a mask independently of the voting choices", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={false} />);
-    for (const option of ["Yes", "No", "Abstain", "Submit a mask"]) expect(html).toContain(`aria-label="${option}"`);
+    for (const option of ["Yes", "No", "Abstain"]) expect(html).toContain(`aria-label="${option}"`);
+    expect(html).not.toContain('value="mask"');
+    expect(html).toContain("Send a mask");
+    expect(html).toContain("Add cover for voters, with or without a vote.");
     expect(html).not.toContain("No voting power for this proposal");
   });
 

@@ -8,7 +8,6 @@ import {
   FoldBalanceSummary,
   FoldHoldingsSummary,
 } from "@/plugins/velocker/components/foldBalanceSummary";
-import { CooldownTime } from "@/plugins/velocker/components/cooldownTime";
 import { VotingPowerInfo } from "@/plugins/velocker/components/votingPowerInfo";
 import type { AllocationKind, FoldAllocation } from "@/plugins/velocker/utils/foldAllocation";
 import { PowerDisclosure } from "@/plugins/velocker/components/powerDisclosure";
@@ -165,8 +164,12 @@ export function PreviewRows({ locks, showIcons = false }: { locks: PreviewLock[]
             {amount(lock.amount)} <span>FOLD</span>
           </span>
           <span className={styles.rowState}>
-            {lock.cooldown && <CooldownTime {...lock.cooldown} />}
-            <LockStatusBadge status={lock.status} data-motion-item={key(lock)} data-motion-group={lock.status}>
+            <LockStatusBadge
+              status={lock.status}
+              cooldown={lock.cooldown}
+              data-motion-item={key(lock)}
+              data-motion-group={lock.status}
+            >
               {showIcons && <StateIcon status={lock.status} inheritColor={true} />}
               {stateLabels[lock.status]}
             </LockStatusBadge>

@@ -80,6 +80,7 @@ var GHOST_FORM_BUTTON = "#82f5ad";
 var GHOST_FORM_BUTTON_TEXT = "#121718";
 var GHOST_FORM_TEXT = "#3a5e3c";
 var GHOST_FRAME_STYLE_ID = "interfold-ghost-signup-color-style";
+var retainedEmbed;
 var GHOST_FRAME_COLOR_STYLES = `
   html,
   body {
@@ -109,11 +110,19 @@ var GHOST_FRAME_COLOR_STYLES = `
 function GhostSignupForm({ className = "" }) {
   const embedRef = useRef(null);
   useEffect(() => {
-    const embed = embedRef.current;
-    if (!embed) {
+    const mount = embedRef.current;
+    if (!mount) {
       return;
     }
+    const embed = retainedEmbed ?? document.createElement("div");
+    retainedEmbed = embed;
+    mount.appendChild(embed);
+    let active = true;
+    let listeningFrame = null;
+    const animationFrames = new Set;
     const styleGhostFrame = () => {
+      if (!active)
+        return;
       const iframe = embed.querySelector("iframe");
       if (!iframe) {
         return;
@@ -123,8 +132,9 @@ function GhostSignupForm({ className = "" }) {
       iframe.style.display = "block";
       iframe.style.minHeight = "58px";
       iframe.style.width = "100%";
-      if (iframe.dataset.interfoldSignupListener !== "true") {
-        iframe.dataset.interfoldSignupListener = "true";
+      if (listeningFrame !== iframe) {
+        listeningFrame?.removeEventListener("load", styleGhostFrame);
+        listeningFrame = iframe;
         iframe.addEventListener("load", styleGhostFrame);
       }
       try {
@@ -142,36 +152,44 @@ function GhostSignupForm({ className = "" }) {
     };
     const observer = new MutationObserver(styleGhostFrame);
     observer.observe(embed, { childList: true, subtree: true });
-    embed.innerHTML = "";
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = GHOST_SIGNUP_SCRIPT;
-    script.dataset.backgroundColor = GHOST_FORM_BACKGROUND;
-    script.dataset.buttonColor = GHOST_FORM_BUTTON;
-    script.dataset.buttonText = "Subscribe";
-    script.dataset.buttonTextColor = GHOST_FORM_BUTTON_TEXT;
-    script.dataset.placeholder = "Your email address";
-    script.dataset.site = GHOST_SITE;
-    script.dataset.textColor = GHOST_FORM_TEXT;
-    script.dataset.locale = "en";
-    embed.appendChild(script);
-    const restyleOnVisibility = () => {
-      window.requestAnimationFrame(styleGhostFrame);
-    };
-    const restyleOnFocus = () => {
-      window.requestAnimationFrame(styleGhostFrame);
+    if (!embed.querySelector("script")) {
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = GHOST_SIGNUP_SCRIPT;
+      script.dataset.backgroundColor = GHOST_FORM_BACKGROUND;
+      script.dataset.buttonColor = GHOST_FORM_BUTTON;
+      script.dataset.buttonText = "Subscribe";
+      script.dataset.buttonTextColor = GHOST_FORM_BUTTON_TEXT;
+      script.dataset.placeholder = "Your email address";
+      script.dataset.site = GHOST_SITE;
+      script.dataset.textColor = GHOST_FORM_TEXT;
+      script.dataset.locale = "en";
+      embed.appendChild(script);
+    }
+    const scheduleRestyle = () => {
+      if (!active)
+        return;
+      const frame = window.requestAnimationFrame(() => {
+        animationFrames.delete(frame);
+        styleGhostFrame();
+      });
+      animationFrames.add(frame);
     };
     const retryDelays = [0, 120, 400, 1000, 2000];
     const retryTimers = retryDelays.map((delay) => window.setTimeout(styleGhostFrame, delay));
-    document.addEventListener("visibilitychange", restyleOnVisibility);
-    window.addEventListener("focus", restyleOnFocus);
-    window.requestAnimationFrame(styleGhostFrame);
+    document.addEventListener("visibilitychange", scheduleRestyle);
+    window.addEventListener("focus", scheduleRestyle);
+    scheduleRestyle();
     return () => {
+      active = false;
       retryTimers.forEach((timer) => window.clearTimeout(timer));
-      document.removeEventListener("visibilitychange", restyleOnVisibility);
-      window.removeEventListener("focus", restyleOnFocus);
+      animationFrames.forEach((frame) => window.cancelAnimationFrame(frame));
+      document.removeEventListener("visibilitychange", scheduleRestyle);
+      window.removeEventListener("focus", scheduleRestyle);
+      listeningFrame?.removeEventListener("load", styleGhostFrame);
       observer.disconnect();
-      embed.innerHTML = "";
+      if (embed.parentElement === mount)
+        embed.remove();
     };
   }, []);
   return /* @__PURE__ */ jsxs2("div", {
@@ -319,6 +337,76 @@ function BendingChevron({
     ]
   });
 }
+// packages/site-header/src/mobileMenu.ts
+import { useEffect as useEffect2, useRef as useRef2 } from "react";
+function useMobileMenuBehavior(open, onOpenChange) {
+  const dialogRef = useRef2(null);
+  useEffect2(() => {
+    if (!open)
+      return;
+    const previousFocus = document.activeElement;
+    const scrollY = window.scrollY;
+    const previous = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow
+    };
+    const controls = () => [
+      ...Array.from(dialogRef.current?.querySelectorAll('a[href], button:not([disabled]), [tabindex="0"]') ?? []),
+      document.querySelector(".interfold-mobile-menu-trigger [role='button']")
+    ].filter((item) => !!item && item.tabIndex >= 0 && item.getAttribute("aria-hidden") !== "true");
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onOpenChange?.(false);
+      }
+      if (event.key !== "Tab")
+        return;
+      const items = controls();
+      const current = items.indexOf(document.activeElement);
+      event.preventDefault();
+      const next = current < 0 ? event.shiftKey ? items.length - 1 : 0 : (current + (event.shiftKey ? -1 : 1) + items.length) % items.length;
+      items[next]?.focus({ preventScroll: true });
+    };
+    const onFocus = (event) => {
+      const target = event.target;
+      if (!dialogRef.current?.contains(target) && !target.closest(".interfold-mobile-menu-trigger")) {
+        controls()[0]?.focus({ preventScroll: true });
+      }
+    };
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("focusin", onFocus);
+    controls()[0]?.focus({ preventScroll: true });
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const onDesktop = () => {
+      if (desktop.matches)
+        onOpenChange?.(false);
+    };
+    desktop.addEventListener("change", onDesktop);
+    onDesktop();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("focusin", onFocus);
+      desktop.removeEventListener("change", onDesktop);
+      document.body.style.position = previous.position;
+      document.body.style.top = previous.top;
+      document.body.style.width = previous.width;
+      document.body.style.overflow = previous.overflow;
+      document.documentElement.style.overflow = previous.htmlOverflow;
+      window.scrollTo(0, scrollY);
+      if (previousFocus?.isConnected)
+        previousFocus.focus({ preventScroll: true });
+    };
+  }, [open, onOpenChange]);
+  return dialogRef;
+}
 
 // packages/site-header/src/index.tsx
 import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
@@ -365,5 +453,6 @@ export {
   INTERFOLD_SYMBOL_ASPECT_RATIO,
   InterfoldSymbol,
   SiteFooter,
-  SiteHeaderChrome
+  SiteHeaderChrome,
+  useMobileMenuBehavior
 };

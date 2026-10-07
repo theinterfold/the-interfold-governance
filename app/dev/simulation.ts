@@ -28,6 +28,7 @@ import { TokenVotingAbi } from "@/plugins/tokenVoting/artifacts/TokenVoting.sol"
 import { CrispVotingAbi } from "@/plugins/crispVoting/artifacts/CrispVoting";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
 import { DEMO_WALLET, DEMO_MESSAGE, previewAddress, requireLocalPreview } from "./previewMode";
+import { isDemoWalletDisconnected } from "./demoWalletSession";
 
 export const DEMO_ADAPTER = previewAddress(0xd101);
 export const DEMO_LOCK_NFT = previewAddress(0xd103);
@@ -46,6 +47,7 @@ type DemoState = {
   locks: DemoLock[];
   allowances: Record<string, bigint>;
   votes: Record<string, number>;
+  privateVoters: Record<string, string[]>;
   metadata: Record<string, unknown>;
   proposals: DemoProposal[];
 };
@@ -58,6 +60,7 @@ function initialState(): DemoState {
     delegate: DEMO_WALLET,
     allowances: {},
     votes: {},
+    privateVoters: {},
     metadata: {},
     proposals: [],
     locks: [
@@ -79,6 +82,7 @@ export function restoreDemoState(snapshot: string): DemoState {
   restored.locks = restored.locks.map((lock) =>
     sameAddress(lock.owner, previousWallet) ? { ...lock, owner: DEMO_WALLET } : lock
   );
+  restored.privateVoters ??= {};
   return restored;
 }
 export function demoState() {
@@ -439,38 +443,71 @@ export async function signDemoMessage(method: string, params: unknown) {
   // Deliberately not a valid cryptographic signature. No key is generated or accessed.
   return `0x${"00".repeat(65)}` as Hex;
 }
-export async function simulateDemoBallot(id: bigint, option: bigint, mask: boolean, target?: string) {
+/** Private participation is attributed to the signer, never the wallet sending a mask or ballot. */
+export function demoPrivateVoteStatus(id: bigint, voter: string): "confirmed" | "not-voted" | "unknown" {
+  const s = demoState();
+  const voters = s.privateVoters[String(id)];
+  if (voters?.some((account) => sameAddress(account, voter))) return "confirmed";
+  // Older preview snapshots did not record a voter, so cannot establish participation per wallet.
+  if (voters?.includes("unattributed") || (!voters && s.votes[`private:${id}`] !== undefined)) return "unknown";
+  return "not-voted";
+}
+
+function recordDemoPrivateVote(id: bigint, option: bigint, voter: string) {
+  const s = demoState();
+  const voters = s.privateVoters[String(id)] ?? (s.votes[`private:${id}`] === undefined ? [] : ["unattributed"]);
+  s.privateVoters[String(id)] = [...new Set([...voters, voter.toLowerCase()])];
+  s.votes[`private:${id}`] = Number(option);
+}
+
+function requireConnectedDemoWallet() {
+  if (isDemoWalletDisconnected()) throw new Error("Connect your wallet before continuing.");
+}
+
+export async function simulateDemoBallot(
+  id: bigint,
+  option: bigint,
+  mask: boolean,
+  target?: string,
+  voter = DEMO_WALLET as string
+) {
   requireLocalPreview();
+  requireConnectedDemoWallet();
   const outcome = await requestOutcome({
     title: mask ? "Submit masking vote" : "Sign secret ballot",
     detail: `Proposal #${id} · ${mask ? `Mask · ${target ?? "Random eligible voter"}` : (["Yes", "No", "Abstain"][Number(option)] ?? "Vote")}`,
     kind: "ballot",
   });
   await new Promise((resolve) => setTimeout(resolve, 900));
+  requireConnectedDemoWallet();
   if (outcome === "revert") throw new Error("The simulated ballot could not be submitted. Try again.");
-  if (!mask) demoState().votes[`private:${id}`] = Number(option);
+  if (!mask) recordDemoPrivateVote(id, option, voter);
   persist();
 }
 
 export async function prepareDemoBallot(id: bigint, option: bigint) {
   requireLocalPreview();
+  requireConnectedDemoWallet();
   const outcome = await requestOutcome({
     title: "Sign secret ballot",
     detail: `Proposal #${id} · ${["Yes", "No", "Abstain"][Number(option)] ?? "Vote"} · send later with another wallet`,
     kind: "signature",
   });
+  requireConnectedDemoWallet();
   if (outcome === "revert") throw new Error("The simulated signature failed. Try again.");
 }
 
 export async function sendPreparedDemoBallot(id: bigint, option: bigint, voter: Address, sender: Address) {
   requireLocalPreview();
+  requireConnectedDemoWallet();
   if (sameAddress(voter, sender)) throw new Error("Switch to a different wallet to send this vote.");
   const outcome = await requestOutcome({
     title: "Send signed ballot",
     detail: `Sending from ${sender}. The vote counts for ${voter}.`,
     kind: "transaction",
   });
+  requireConnectedDemoWallet();
   if (outcome === "revert") throw new Error("The simulated transaction reverted. Your signed ballot is saved.");
-  demoState().votes[`private:${id}`] = Number(option);
+  recordDemoPrivateVote(id, option, voter);
   persist();
 }

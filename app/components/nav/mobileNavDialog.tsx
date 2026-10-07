@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useMobileMenuBehavior } from "@/vendor/site-header";
 import Link from "next/link";
 import { type IDialogRootProps } from "@aragon/ods";
 import { type INavLink } from "./navLink";
@@ -22,61 +22,7 @@ interface IMobileNavDialogProps extends IDialogRootProps {
 export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
   const { navLinks, open, onOpenChange } = props;
   const { query } = useRouter();
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Freeze the page at its existing scroll position, including on mobile Safari.
-  useEffect(() => {
-    if (!open) return;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const scrollY = window.scrollY;
-    const previous = {
-      position: document.body.style.position,
-      top: document.body.style.top,
-      width: document.body.style.width,
-      overflow: document.body.style.overflow,
-      htmlOverflow: document.documentElement.style.overflow,
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onOpenChange?.(false);
-      if (e.key !== "Tab") return;
-      const controls = [
-        ...Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])") ?? []),
-        document.querySelector<HTMLElement>(".interfold-mobile-menu-trigger [role='button']"),
-      ].filter((item): item is HTMLElement => !!item);
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first?.focus();
-      }
-    };
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    dialogRef.current?.querySelector<HTMLElement>("a[href]")?.focus({ preventScroll: true });
-    const desktop = window.matchMedia("(min-width: 1280px)");
-    const onDesktop = () => {
-      if (desktop.matches) onOpenChange?.(false);
-    };
-    desktop.addEventListener("change", onDesktop);
-    return () => {
-      document.body.style.position = previous.position;
-      document.body.style.top = previous.top;
-      document.body.style.width = previous.width;
-      document.body.style.overflow = previous.overflow;
-      document.documentElement.style.overflow = previous.htmlOverflow;
-      window.removeEventListener("keydown", onKey);
-      desktop.removeEventListener("change", onDesktop);
-      window.scrollTo(0, scrollY);
-      previousFocus?.focus({ preventScroll: true });
-    };
-  }, [open, onOpenChange]);
+  const dialogRef = useMobileMenuBehavior(!!open, onOpenChange);
 
   if (!open) return null;
 

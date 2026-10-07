@@ -46,7 +46,11 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   const quoteEndDate =
     chosenDurationSeconds !== undefined ? BigInt(Math.floor(Date.now() / 1000)) + BigInt(chosenDurationSeconds) : 0n;
 
-  const { data: quoteData } = useReadContract({
+  const {
+    data: quoteData,
+    error: quoteError,
+    refetch: refetchQuote,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
@@ -55,7 +59,11 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     query: { enabled: chosenDurationSeconds !== undefined },
   });
 
-  const { data: creditData, refetch: refetchCredit } = useReadContract({
+  const {
+    data: creditData,
+    error: creditError,
+    refetch: refetchCredit,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
@@ -64,7 +72,11 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     query: { enabled: !!address },
   });
 
-  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+  const {
+    data: balanceData,
+    error: balanceError,
+    refetch: refetchBalance,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
     abi: erc20Abi,
@@ -73,14 +85,22 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     query: { enabled: !!address },
   });
 
-  const { data: decimalsData } = useReadContract({
+  const {
+    data: decimalsData,
+    error: decimalsError,
+    refetch: refetchDecimals,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
     abi: iVotesAbi,
     functionName: "decimals",
   });
 
-  const { data: symbolData } = useReadContract({
+  const {
+    data: symbolData,
+    error: symbolError,
+    refetch: refetchSymbol,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
     abi: erc20Abi,
@@ -93,7 +113,18 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   // deployment), so formatting before the read lands would print a wrong figure.
   const decimals = decimalsData === undefined ? undefined : Number(decimalsData);
 
-  const shortfall = quote !== undefined && credit !== undefined && credit < quote ? quote - credit : 0n;
+  const readError = quoteError ?? creditError ?? balanceError ?? decimalsError ?? symbolError;
+  const shortfall =
+    readError || quote === undefined || credit === undefined ? undefined : credit < quote ? quote - credit : 0n;
+  const retryReads = async () => {
+    await Promise.all([
+      chosenDurationSeconds === undefined ? Promise.resolve() : refetchQuote(),
+      address ? refetchCredit() : Promise.resolve(),
+      address ? refetchBalance() : Promise.resolve(),
+      refetchDecimals(),
+      refetchSymbol(),
+    ]);
+  };
 
   const { writeContractAsync: approveWrite } = useTransactionManager({
     onSuccessMessage: "Fee token approved",
@@ -128,6 +159,15 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
    * as credit. No unlimited approvals.
    */
   const deposit = async (amount: bigint): Promise<boolean> => {
+    if (
+      readError ||
+      !address ||
+      quote === undefined ||
+      credit === undefined ||
+      balanceData === undefined ||
+      decimals === undefined
+    )
+      return false;
     if (amount <= 0n) return true;
 
     setError(undefined);
@@ -167,10 +207,12 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   };
 
   /** Deposits the current shortfall (plus buffer) to cover one proposal. */
-  const depositShortfall = () => deposit(applyFeeBuffer(shortfall));
+  const depositShortfall = () =>
+    readError || shortfall === undefined ? Promise.resolve(false) : deposit(applyFeeBuffer(shortfall));
 
   /** Withdraws unused credit back to the wallet. */
   const withdraw = async (amount?: bigint) => {
+    if (readError || !address || credit === undefined) return;
     const value = amount ?? credit ?? 0n;
     if (value <= 0n) return;
 
@@ -198,10 +240,12 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     value === undefined || decimals === undefined ? "—" : formatUnits(value, decimals);
 
   return {
-    quote,
-    credit,
-    balance: balanceData as bigint | undefined,
+    quote: readError ? undefined : quote,
+    credit: readError ? undefined : credit,
+    balance: readError ? undefined : (balanceData as bigint | undefined),
     shortfall,
+    readError,
+    retryReads,
     decimals,
     symbol: symbolData as string | undefined,
     /** Why the last deposit or withdrawal failed, if it did. */

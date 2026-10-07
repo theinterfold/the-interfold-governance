@@ -1,16 +1,23 @@
 import { useWeb3Modal, useWeb3ModalState } from "@web3modal/wagmi/react";
-import { useConnect } from "wagmi";
+import { useSyncExternalStore } from "react";
 import { DESIGN_PREVIEW } from "@/dev/previewMode";
+import {
+  subscribeDemoWalletConnection,
+  getDemoWalletConnectionOpen,
+  getServerDemoWalletConnectionOpen,
+  requestDemoWalletConnection,
+} from "@/dev/demoWalletConnection";
 
 function useDemoModal() {
-  const { connectAsync, connectors, isPending } = useConnect();
+  const isOpen = useSyncExternalStore(
+    subscribeDemoWalletConnection,
+    getDemoWalletConnectionOpen,
+    getServerDemoWalletConnectionOpen
+  );
   return {
-    isOpen: isPending,
-    open: async () => {
-      const connector = connectors.find((item) => item.id === "interfold-design-preview");
-      if (!connector) throw new Error("Demo wallet is unavailable.");
-      await connectAsync({ connector });
-    },
+    isOpen,
+    // Dismissing the connector is an ordinary UI outcome for generic connect buttons.
+    open: () => requestDemoWalletConnection().catch(() => {}),
   };
 }
 

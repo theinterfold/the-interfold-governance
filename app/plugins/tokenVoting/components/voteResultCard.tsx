@@ -1,9 +1,10 @@
 import { formatUnits, parseAbi } from "viem";
-import { useReadContract } from "wagmi";
+import { useAccount, useReadContract } from "wagmi";
 import { type ProposalStatus } from "@aragon/ods";
 import { ActionButton } from "@/components/input/actionButton";
 import { ResultPanel, formatResultAmount, resultPercentages } from "@/components/proposalVoting/resultPanel";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 import { nextStageName } from "@/plugins/spp/utils/status";
 import { useProposalExecute } from "../hooks/useProposalExecute";
@@ -26,15 +27,17 @@ export function PublicVoteResultCard({
   proposalId,
   status,
   vetoStage,
-  submittedOption,
 }: {
   proposal: Proposal;
   proposalId: bigint;
   status?: ProposalStatus;
   vetoStage?: { vetoThreshold?: number | bigint };
-  submittedOption?: number;
 }) {
   const decimals = useTokenDecimals();
+  const { address, isConnected, isConnecting, isReconnecting } = useAccount();
+  const { open: openWallet, isOpen: walletOpen } = useWalletModal();
+  const connected = isConnected && !!address;
+  const connecting = isConnecting || isReconnecting;
   const { data: supply } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_TOKEN_ADDRESS,
@@ -60,25 +63,29 @@ export function PublicVoteResultCard({
       }))}
       total={`${amount(total)} ${PUB_TOKEN_SYMBOL}`}
       status={status}
+      isEmpty={total === 0n}
       quorum={publicResultQuorum(total, proposal.parameters.minVotingPower, supply)}
       submitted={proposal.executed}
       action={
         canExecute ? (
           <ActionButton
-            className="mt-4 w-full"
+            className="proposal-result-action mt-4 w-full"
             intent="vote"
-            disabled={isConfirming}
-            isLoading={isConfirming}
-            onClick={executeProposal}
+            disabled={isConfirming || connecting || walletOpen}
+            isLoading={isConfirming || connecting}
+            onClick={() => {
+              if (connected) executeProposal();
+              else void openWallet();
+            }}
           >
-            Submit result & advance to {nextStageName(vetoStage)} stage
+            {connecting
+              ? "Connecting wallet…"
+              : connected
+                ? `Submit result & advance to ${nextStageName(vetoStage)} stage`
+                : "Connect to submit result"}
           </ActionButton>
         ) : undefined
       }
-    >
-      {submittedOption !== undefined && (
-        <p className="vp-note tally-submitted">Your vote: {options[submittedOption]}</p>
-      )}
-    </ResultPanel>
+    />
   );
 }

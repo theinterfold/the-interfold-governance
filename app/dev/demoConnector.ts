@@ -15,7 +15,7 @@ export function demoConnector() {
     async setup() {
       if (typeof window !== "undefined")
         window.addEventListener("interfold-demo-account-changed", () => {
-          config.emitter.emit("change", { accounts: [getDemoAccount()] });
+          if (!isDemoWalletDisconnected()) config.emitter.emit("change", { accounts: [getDemoAccount()] });
         });
     },
     async connect() {

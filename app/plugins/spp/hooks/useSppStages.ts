@@ -27,6 +27,7 @@ export function useSppStages(kind: SppKind, configIndex?: number) {
     data: stagesData,
     isLoading,
     error,
+    refetch,
   } = useReadContract({
     chainId: PUB_CHAIN.id,
     address,
@@ -46,5 +47,6 @@ export function useSppStages(kind: SppKind, configIndex?: number) {
     vetoStage: stages?.[1],
     isLoading,
     error,
+    refetch,
   };
 }

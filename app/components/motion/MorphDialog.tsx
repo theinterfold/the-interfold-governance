@@ -13,7 +13,11 @@ import {
 } from "react";
 
 const useClientLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
-type Props = ComponentProps<typeof DialogRoot> & { open: boolean; triggerRef: RefObject<HTMLElement> };
+type Props = ComponentProps<typeof DialogRoot> & {
+  open: boolean;
+  triggerRef: RefObject<HTMLElement>;
+  onCloseComplete?: () => void;
+};
 
 /** Radix owns focus and dismissal; one animation owns the entire button-to-dialog lifecycle. */
 export function MorphDialog({
@@ -24,14 +28,20 @@ export function MorphDialog({
   overlayClassName = "",
   modal = true,
   onOpenChange,
+  onCloseComplete,
   useFocusTrap: _useFocusTrap,
   ...props
 }: Props) {
   const [present, setPresent] = useState(open);
   const overlayId = `morph-overlay-${useId().replace(/:/g, "")}`;
   const lastContent = useRef(children);
+  const closeComplete = useRef(onCloseComplete);
+  closeComplete.current = onCloseComplete;
   if (open) lastContent.current = children;
-  const onExited = useCallback(() => setPresent(false), []);
+  const onExited = useCallback(() => {
+    setPresent(false);
+    closeComplete.current?.();
+  }, []);
   useClientLayoutEffect(() => {
     if (open) setPresent(true);
   }, [open]);

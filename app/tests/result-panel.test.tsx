@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProposalStatus } from "@aragon/ods";
-import { ResultPanel, resultPercentages, type ResultRow } from "../components/proposalVoting/resultPanel";
+import { ResultNotice, ResultPanel, resultPercentages, type ResultRow } from "../components/proposalVoting/resultPanel";
 import { BallotDisclosure } from "../components/proposalVoting/ballotDisclosure";
 import { publicResultQuorum } from "../plugins/tokenVoting/components/voteResultCard";
 import { computeQuorum } from "../plugins/crispVoting/utils/quorum";
@@ -31,33 +31,108 @@ describe("Shared public and secret results", () => {
     expect(render({ quorum: publicQuorum })).toBe(render({ quorum: secretQuorum }));
   });
 
-  test("a rejected proposal never describes its leading option as the winner", () => {
+  test("a rejected proposal can highlight a leading share without describing it as an approving winner", () => {
     const html = render({ status: ProposalStatus.REJECTED });
-    expect(html).toContain("Rejected");
+    expect(html).toContain("Vote rejected");
     expect(html).not.toContain("won with");
-    expect(html).not.toContain('data-leading="true"');
+    expect(html).toContain('data-leading="true"');
     const lowTurnout = render({ status: ProposalStatus.REJECTED, quorum: { ...quorum, reached: false } });
-    expect(lowTurnout).toContain("Rejected — quorum not reached");
+    expect(lowTurnout).toContain("Vote rejected");
+    expect(lowTurnout).toContain("Quorum not reached. Participation was below the required minimum.");
+    expect(lowTurnout).not.toContain("won with");
+  });
+
+  test("a rejected vote with unavailable quorum does not invent a support failure", () => {
+    const html = render({ status: ProposalStatus.REJECTED, quorum: null });
+    expect(html).toContain("The vote did not meet the approval requirements.");
+    expect(html).not.toContain("The required support was not reached.");
   });
 
   test("abstentions can be the largest share without being the approving option", () => {
     const html = render({ rows: rows.map((row, index) => ({ ...row, percentage: [20, 10, 70][index] })) });
-    expect(html).toContain("Yes won with 20.0%");
+    expect(html).toContain("Yes received 20.0% of the voting power cast.");
     expect(html).not.toContain("Abstain won");
+    expect(html.match(/data-leading="true"[^>]*>[\s\S]*?<span class="truncate">([^<]+)/)?.[1]).toBe("Abstain");
   });
 
-  test("unresolved status and empty votes do not invent an outcome", () => {
-    expect(render({ status: undefined, quorum: null })).toContain("Confirming result");
+  test("a rejected vote highlights a unique No lead, while ties and empty shares have no leader", () => {
+    const rejected = render({
+      status: ProposalStatus.REJECTED,
+      rows: rows.map((row, index) => ({ ...row, percentage: [18, 72, 10][index] })),
+    });
+    expect(rejected).toContain("Vote rejected");
+    expect(rejected.match(/data-leading="true"[^>]*>[\s\S]*?<span class="truncate">([^<]+)/)?.[1]).toBe("No");
+    expect(rejected).not.toContain("won with");
+    for (const shares of [
+      [45, 45, 10],
+      [0, 0, 0],
+    ]) {
+      expect(render({ rows: rows.map((row, index) => ({ ...row, percentage: shares[index] })) })).not.toContain(
+        'data-leading="true"'
+      );
+    }
+  });
+
+  test("empty rows cannot establish that no votes were cast", () => {
+    const html = render({ rows: [], status: ProposalStatus.REJECTED, isEmpty: true });
+    expect(html).toContain("Confirming result");
+    expect(html).not.toContain("No votes cast");
+    expect(html).not.toContain("Vote rejected");
+  });
+
+  test("pending zero tallies with low quorum remain unresolved", () => {
+    for (const status of [undefined, ProposalStatus.PENDING]) {
+      const html = render({
+        status,
+        isEmpty: true,
+        quorum: { ...quorum, reached: false },
+      });
+      expect(html).toContain("Confirming result");
+      expect(html).not.toContain("No votes cast");
+      expect(html).not.toContain("Vote rejected");
+    }
+  });
+
+  test("a resolved rejection with an explicit zero raw tally says no votes were cast", () => {
+    const html = render({ status: ProposalStatus.REJECTED, isEmpty: true });
+    expect(html).toContain("No votes cast");
+    expect(html).toContain("No votes were cast. This proposal did not pass.");
+    expect(html).not.toContain("Vote rejected");
+  });
+
+  test("rounded zero shares are not treated as an empty raw tally", () => {
+    const html = render({ status: ProposalStatus.ACCEPTED, rows: rows.map((row) => ({ ...row, percentage: 0 })) });
+    expect(html).toContain("Vote passed");
+    expect(html).toContain("Yes received 0.0% of the voting power cast.");
+    expect(html).not.toContain("No votes cast");
+  });
+
+  test("unresolved status and a zero raw tally do not invent an outcome", () => {
+    expect(render({ status: undefined, quorum: null, isEmpty: true })).toContain("Confirming result");
     expect(resultPercentages([0n, 0n, 0n])).toEqual([0, 0, 0]);
-    const html = render({ rows: rows.map((row) => ({ ...row, percentage: 0 })) });
-    expect(html).toContain("No votes were cast");
+    const html = render({ rows: [], status: undefined, isEmpty: true });
+    expect(html).not.toContain("No votes cast");
     expect(html).not.toContain("won with");
+  });
+
+  test("public and private result notices use the same result frame", () => {
+    const notice = renderToStaticMarkup(
+      <ResultNotice state="Voting closed" title="Confirming result">
+        <p>Totals are not available yet.</p>
+      </ResultNotice>
+    );
+    const panel = render({ status: undefined, quorum: null });
+    expect(notice).toContain('class="vp-label-change"');
+    expect(notice).toContain('class="vp-body');
+    expect(panel).toContain('class="vp-label-change"');
+    expect(panel).toContain('class="vp-body');
+    expect(notice).toContain("Result");
   });
 
   test("a submitted result is information and cannot repeat its transaction", () => {
     const html = render({ submitted: true, action: <button>Submit result</button> });
     expect(html).toContain("Result submitted");
-    expect(html).not.toContain("<button");
+    expect(html).not.toContain(">Submit result</button>");
     expect(render({ submitted: false, action: <button>Submit result</button> })).toContain("<button");
   });
 

@@ -2,6 +2,7 @@ import WalletContainer from "@/components/WalletContainer";
 import { plugins } from "@/plugins";
 import Link from "next/link";
 import { useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
 import { Button, Spinner } from "@aragon/ods";
@@ -14,6 +15,7 @@ import { useAlerts } from "@/context/Alerts";
 
 export const Navbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   const { addAlert } = useAlerts();
 
@@ -44,7 +46,7 @@ export const Navbar: React.FC = () => {
           <Link
             href="/"
             aria-label="The Interfold Governance home"
-            className="site-header-brand outline-none focus-visible:ring focus-visible:ring-primary focus-visible:ring-offset"
+            className="site-header-brand"
           >
             <HeaderWordmark governance={true} />
           </Link>
@@ -83,7 +85,7 @@ export const Navbar: React.FC = () => {
           direction="right"
           size={28}
           distance="sm"
-          duration={0.35}
+          duration={reducedMotion ? 0 : 0.35}
           color="var(--site-header-ink)"
           rounded={true}
           label={showMenu ? "Close menu" : "Open menu"}

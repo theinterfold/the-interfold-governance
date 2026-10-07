@@ -58,7 +58,7 @@ function HoverArrowContent({
   isExternal = false,
   isHovered,
   textClassName,
-  arrowClassName = "absolute left-full ml-1 font-['ABC_Gramercy:Regular',sans-serif] text-[14px] leading-none text-[#3a5e3c] transition-colors group-hover:text-[#82f5ad]",
+  arrowClassName = "absolute left-full ml-1 font-['ABC_Gramercy:Regular',sans-serif] text-[14px] leading-none text-[#3a5e3c] transition-colors group-hover:text-[#82f5ad] group-focus-visible:text-[#82f5ad]",
   animateInView = false
 }) {
   const reducedMotion = useReducedMotion();
@@ -82,8 +82,8 @@ function HoverArrowContent({
         className: arrowClassName,
         "aria-hidden": "true",
         style: { position: "absolute", left: "100%", marginLeft: 4, whiteSpace: "nowrap" },
-        initial: { opacity: 0, x: -10 },
-        animate: { opacity: isHovered ? 1 : 0, x: isHovered ? 0 : -10 },
+        initial: { opacity: 0, x: reducedMotion ? 0 : -10 },
+        animate: { opacity: isHovered ? 1 : 0, x: isHovered || reducedMotion ? 0 : -10 },
         transition: { duration: reducedMotion ? 0 : 0.18, ease: [0.4, 0, 0.2, 1] },
         children: isExternal ? "↗" : "→"
       })

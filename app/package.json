@@ -11,7 +11,9 @@
     "format:fix": "prettier -w . --list-different",
     "deploy-dao": "bun ./scripts/deploy.ts",
     "prepare": "husky",
-    "test": "bun test"
+    "test": "bun test",
+    "design:sync": "node scripts/sync-design.cjs",
+    "design:check": "node scripts/sync-design.cjs --check"
   },
   "lint-staged": {
     "*.{js, jsx,ts,tsx}": [

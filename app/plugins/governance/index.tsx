@@ -37,12 +37,12 @@ function proposalRoute(hash: string) {
     // over from another deployment) — explain, rather than render a detail page over nothing.
     if (!isAddress(PUB_CRISP_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
     const id = hash.replace("#/proposals/private/", "");
-    return /^\d+$/.test(id) ? <CrispProposalDetail index={BigInt(id)} /> : <NotFound />;
+    return /^\d+$/.test(id) ? <CrispProposalDetail key={id} index={BigInt(id)} /> : <NotFound />;
   }
   if (hash.startsWith("#/proposals/public/")) {
     if (!isAddress(PUB_TOKEN_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
     const id = hash.replace("#/proposals/public/", "");
-    return /^\d+$/.test(id) ? <TokenProposalDetail index={BigInt(id)} /> : <NotFound />;
+    return /^\d+$/.test(id) ? <TokenProposalDetail key={id} index={BigInt(id)} /> : <NotFound />;
   }
 
   return <NotFound />;

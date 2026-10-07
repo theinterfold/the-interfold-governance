@@ -42,12 +42,10 @@ export default function CreateProposal() {
           <FeeCreditCard disabled={proposal.isCreating} durationSeconds={durationSeconds} />
         ) : undefined
       }
-      renderEditor={(editor) =>
-        canSubmit ? (
-          editor
-        ) : kind === "private" ? (
+      eligibilityNotice={
+        kind === "private" ? (
           <CrispCreationEligibility selfAddress={address} isConnected={isConnected} state={privateEligibility}>
-            {editor}
+            {null}
           </CrispCreationEligibility>
         ) : (
           <TokenCreationEligibility
@@ -55,7 +53,7 @@ export default function CreateProposal() {
             isConnected={isConnected}
             canCreate={publicEligibility.isLoading ? undefined : publicEligibility.canCreate}
           >
-            {editor}
+            {null}
           </TokenCreationEligibility>
         )
       }

@@ -8,10 +8,13 @@ type Props = {
   title: string;
   pending: boolean;
   triggerRef: RefObject<HTMLElement>;
+  returnFocusRef?: RefObject<HTMLElement>;
   initialFocusRef?: RefObject<HTMLElement>;
   onClose: () => void;
+  onCloseComplete?: () => void;
   onBack?: () => void;
   backLabel?: string;
+  size?: "standard" | "wide";
   className?: string;
   overlayClassName?: string;
   children: ReactNode;
@@ -22,10 +25,13 @@ export function ActionTray({
   title,
   pending,
   triggerRef,
+  returnFocusRef,
   initialFocusRef,
   onClose,
+  onCloseComplete,
   onBack,
   backLabel = "Back",
+  size = "standard",
   className = "",
   overlayClassName,
   children,
@@ -34,10 +40,11 @@ export function ActionTray({
     <MorphDialog
       triggerRef={triggerRef}
       open={open}
+      onCloseComplete={onCloseComplete}
       onOpenChange={(value) => {
         if (!value && !pending) onClose();
       }}
-      containerClassName={`interfold-dialog power-tray ${className}`}
+      containerClassName={`interfold-dialog power-tray ${size === "wide" ? "power-tray-wide" : ""} ${className}`}
       overlayClassName={overlayClassName}
       onEscapeKeyDown={(event) => {
         if (pending) event.preventDefault();
@@ -52,9 +59,11 @@ export function ActionTray({
         }
       }}
       onCloseAutoFocus={(event) => {
-        if (triggerRef.current) {
+        const destination = returnFocusRef?.current;
+        const target = destination?.isConnected && !destination.matches(":disabled") ? destination : triggerRef.current;
+        if (target) {
           event.preventDefault();
-          triggerRef.current.focus({ preventScroll: true });
+          target.focus({ preventScroll: true });
         }
       }}
     >

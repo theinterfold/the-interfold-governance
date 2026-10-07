@@ -1,0 +1,1011 @@
+.study {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 40px 32px 100px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.intro h1 {
+  margin: 10px 0 12px;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+.intro p {
+  max-width: 680px;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.intro a {
+  flex-shrink: 0;
+  margin-top: 8px;
+  font: var(--ui-label-font);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
+}
+.studyTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.controlGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.controlGroup + .controlGroup {
+  margin-left: auto;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px 24px;
+  margin-top: 32px;
+  align-items: start;
+}
+.card {
+  min-width: 0;
+}
+.cardHead {
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 20px;
+}
+.cardTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.number {
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.card h2 {
+  font: 600 18px/1.4 var(--font-sans);
+  margin: 0;
+}
+.cardHead p {
+  color: var(--muted);
+  font: 400 13px/1.6 var(--font-sans);
+  margin: 0;
+}
+.cardHead > button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.privacyTools {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background:
+    linear-gradient(110deg, var(--ink) 15%, color-mix(in srgb, var(--ink) 88%, var(--mint-pale)) 48%, var(--ink) 80%)
+      padding-box,
+    linear-gradient(110deg, var(--muted), var(--mint-pale) 35%, var(--muted) 65%, var(--mint-pale)) border-box;
+  background-size:
+    240% 100%,
+    240% 100%;
+}
+.privacyToolsHead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--paper);
+  text-align: left;
+  cursor: pointer;
+}
+.privacyToolsPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.privacyToolsPill strong {
+  font: 600 15px/1.3 var(--font-sans);
+  color: var(--paper);
+}
+@media (forced-colors: active) {
+  .privacyToolsPill strong {
+    background: none;
+    color: ButtonText;
+  }
+}
+.privacyToolsHead:focus-visible {
+  outline: 2px solid var(--mint-pale);
+  outline-offset: -4px;
+  border-radius: var(--ui-radius);
+}
+.privacyToolsSummary {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 5px;
+  min-width: 0;
+  color: var(--mint-pale);
+  font: var(--ui-label-font);
+}
+.privacyToolsSummary > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--paper) 25%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--paper) 8%, transparent);
+}
+.privacyToolsSummary svg {
+  width: 16px;
+  height: 16px;
+}
+.privacyToolsLight {
+  position: relative;
+  container-type: inline-size;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+}
+.privacyToolsDivider {
+  height: 1px;
+  margin-bottom: 14px;
+  background: var(--rule);
+}
+.privacyToolsOutline {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2;
+}
+.privacyToolsOutline rect {
+  x: .5px;
+  y: .5px;
+  width: calc(100% - 1px);
+  height: calc(100% - 1px);
+  rx: var(--ui-radius);
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1px;
+  stroke-dasharray: 12px 12px;
+}
+.privacyToolsLightHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-height: 52px;
+}
+.privacyToolsLight[data-open="true"] .privacyToolsLightHead {
+  border-bottom: 1px solid var(--rule);
+}
+.privacyToolsLightToggle {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 8px 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.privacyToolsLightToggle:hover {
+  background: var(--surface-hover);
+}
+.privacyToolsLightToggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -3px;
+}
+.privacyToolsLightTitle {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+.privacyToolsLightTitle strong {
+  color: var(--ink);
+  font: 600 14px/1.4 var(--font-sans);
+}
+.privacyToolsIconGroup {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-items: center;
+  justify-self: end;
+  gap: 4px;
+  z-index: 1;
+  margin-right: 52px;
+}
+.privacyToolsLight[data-open="true"] .privacyToolsIconGroup {
+  display: none;
+}
+.privacyToolsLight[data-symbol-moving="true"] .privacyToolsIconGroup {
+  opacity: 0;
+  pointer-events: none;
+}
+.privacyToolsLight[data-symbol-moving="true"] :global(.ballot-optional-symbol) {
+  opacity: 0;
+}
+.privacyToolsIconButton {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ui-radius);
+  color: var(--muted);
+  cursor: pointer;
+}
+.privacyToolsIconButton {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  transition:
+    background-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    border-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    box-shadow var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.privacyToolsIconButton > svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.privacyToolsIconButton:hover {
+  border-color: var(--ink);
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--ink);
+}
+.privacyToolsIconButton[data-active="true"] {
+  border-color: var(--ink);
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--if-brand-green);
+}
+.privacyToolsIconButton[data-active="true"]:hover {
+  background: var(--surface-selected);
+}
+.privacyToolsLight :global(.ballot-optional-symbol [data-privacy-detail-icon]) {
+  display: inline-flex;
+  align-items: center;
+}
+.privacyToolsExpand {
+  display: grid;
+  grid-column: 2;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ink);
+}
+.privacyToolsIconButton:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.privacyToolsLight .privacyToolsGrid {
+  gap: 0;
+  padding: 4px 12px 12px;
+}
+.privacyToolsLight .privacyToolsGrid :global(.ballot-optional-card[data-layout="compact"] strong) {
+  font-weight: 500;
+}
+.privacyToolsLight .privacyToolsGrid :global(.ballot-optional-group:last-child) {
+  border-bottom: 0;
+}
+.privacyToolsLight .privacyToolsNote {
+  color: var(--muted);
+}
+.privacyToolsTooltip {
+  width: min(250px, calc(100vw - 32px));
+}
+.privacyToolsTooltip strong {
+  display: block;
+  font: 600 14px/1.4 var(--font-sans);
+}
+.privacyToolsTooltip > p {
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  font: 400 13px/1.5 var(--font-sans);
+}
+@container (max-width: 315px) {
+  .privacyToolsLightTitle strong {
+    font-size: 14px;
+  }
+  .privacyToolsLight[data-open="false"] .privacyToolsLightToggle {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    padding-left: 12px;
+  }
+  .privacyToolsIconGroup {
+    gap: 2px;
+    margin-right: 44px;
+  }
+  .privacyToolsIconButton,
+  .privacyToolsExpand {
+    width: 32px;
+    height: 32px;
+  }
+  .privacyToolsIconButton > svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+@container (max-width: 285px) {
+  .privacyToolsLightTitle strong {
+    font-size: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .privacyToolsIconButton {
+    transition: none;
+  }
+}
+.submissionSummary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font: 400 13px/1.5 var(--font-sans);
+}
+.reviewPrivacyInfo {
+  display: inline-flex;
+  grid-column: 1;
+}
+.reviewPrivacyInfo :global(.power-preview-trigger) {
+  border-radius: var(--ui-radius);
+}
+.reviewPrivacyBubble {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+}
+.reviewPrivacyBubble[data-active="true"] {
+  color: var(--if-brand-green);
+}
+.reviewPrivacyBubble[data-active="false"] {
+  color: color-mix(in srgb, var(--muted) 45%, var(--paper));
+}
+.reviewPrivacyBubble svg {
+  width: 18px;
+  height: 18px;
+}
+.reviewPrivacyTooltip {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.reviewDetails {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.reviewDetailRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-space-related);
+  min-width: 0;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule);
+  font: 400 14px/1.5 var(--font-sans);
+}
+.reviewDetailRow:first-child {
+  padding-top: 0;
+}
+.reviewDetailContent {
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-controls);
+  min-width: 0;
+}
+.reviewDetailContent > .powerInfoTrigger {
+  display: flex;
+  align-items: center;
+}
+.reviewDetailContent > strong.powerInfoTrigger {
+  justify-content: flex-end;
+}
+.reviewDetailContent > span {
+  color: var(--muted);
+}
+.reviewDetailRow strong {
+  min-width: 0;
+  font: 600 16px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+}
+.submissionSummaryCompact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font: 400 13px/1.5 var(--font-sans);
+}
+@media (max-width: 560px) {
+  .reviewDetailContent {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .reviewDetailRow strong {
+    text-align: left;
+  }
+  .reviewDetailContent > strong.powerInfoTrigger {
+    justify-content: flex-start;
+  }
+}
+.submissionSequence {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.submissionSequence svg {
+  width: 18px;
+  height: 18px;
+}
+.submissionSequence svg:nth-of-type(2) {
+  width: 12px;
+  height: 12px;
+}
+.privacyToolsChevron {
+  grid-column: 3;
+  grid-row: 1;
+  flex: none;
+  color: color-mix(in srgb, var(--paper) 75%, var(--ink));
+  transition: transform var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.privacyToolsHead[aria-expanded="true"] .privacyToolsChevron {
+  transform: rotate(180deg);
+}
+.privacyToolsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.privacyToolsNote {
+  margin: 0 12px 12px;
+  color: color-mix(in srgb, var(--paper) 75%, var(--ink));
+  font: 400 12px/1.5 var(--font-sans);
+}
+.single {
+  min-width: 0;
+}
+.split {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+.focus {
+  display: grid;
+  grid-template-columns: minmax(230px, 310px) minmax(0, 540px);
+  gap: 48px;
+  justify-content: center;
+  align-items: start;
+  margin-top: 36px;
+}
+.focus[data-wide="true"] {
+  grid-template-columns: minmax(210px, 270px) minmax(0, 940px);
+  gap: 28px;
+}
+.focus[data-wide="true"] .split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.notes h2 {
+  font: 600 24px/1.25 var(--font-sans);
+}
+.notes p {
+  margin: 0;
+  color: var(--muted);
+  font: 400 14px/1.6 var(--font-sans);
+}
+.studySiteLink {
+  align-self: flex-start;
+  color: var(--ink);
+  font: 600 14px/1.4 var(--font-sans);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.notes strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font: var(--ui-label-font);
+}
+.navigation {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.shortlist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+.shortlist span {
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.status {
+  color: var(--muted);
+  font: var(--ui-label-font);
+  margin-top: 16px;
+}
+@media (max-width: 1200px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .focus[data-wide="true"] .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .study {
+    padding: 24px 16px 64px;
+  }
+  .intro {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .intro h1 {
+    letter-spacing: -0.5px;
+  }
+  .controlGroup + .controlGroup {
+    margin-inline: 10px;
+  }
+  .grid,
+  .focus,
+  .focus[data-wide="true"] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .cardHead {
+    min-height: 0;
+  }
+}
+@media (max-width: 520px) {
+  .privacyToolsGrid {
+    padding-inline: 10px;
+  }
+  .privacyToolsNote {
+    margin-inline: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .privacyToolsChevron {
+    transition: none;
+  }
+}
+
+.privacyTools {
+  animation: privacy-reflection 8s linear infinite alternate;
+}
+@keyframes privacy-reflection {
+  from {
+    background-position:
+      100% 0,
+      100% 0;
+  }
+  to {
+    background-position:
+      0 0,
+      0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .privacyTools,
+  .privacyToolsPill strong {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .privacyToolsHead {
+    padding: 10px;
+    gap: 8px;
+  }
+  .privacyToolsPill {
+    gap: 6px;
+  }
+  .privacyToolsPill strong {
+    font-size: 14px;
+  }
+  .privacyToolsSummary {
+    gap: 4px;
+  }
+  .privacyToolsSummary > span {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+  }
+  .privacyToolsSummary svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Privacy has an inverse surface; regular ballot choices retain their neutral treatment. */
+.privacyTools :global(.ballot-optional-group),
+.privacyTools :global(.ballot-optional-card) {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: color-mix(in srgb, var(--paper) 22%, var(--ink));
+}
+.privacyTools :global(.ballot-optional-card):hover,
+.privacyTools :global(.ballot-optional-card[data-checked="true"]),
+.privacyTools :global(.ballot-optional-group[data-checked="true"]) {
+  background: color-mix(in srgb, var(--ink) 94%, var(--mint-pale));
+  border-color: color-mix(in srgb, var(--mint-pale) 65%, var(--ink));
+}
+.privacyTools :global(.ballot-optional-description),
+.privacyTools :global(.ballot-optional-info button),
+.privacyTools :global(.ballot-optional-details .vp-note) {
+  color: color-mix(in srgb, var(--paper) 75%, var(--ink));
+}
+.privacyTools :global(.ballot-optional-card:has(input:focus-visible)) {
+  outline-color: var(--mint-pale);
+}
+.privacyTools :global(.ballot-optional-check) {
+  border-color: color-mix(in srgb, var(--paper) 50%, var(--ink));
+}
+.privacyTools :global(.ballot-optional-card[data-checked="true"] .ballot-optional-check) {
+  background: var(--paper);
+  border-color: var(--paper);
+  color: var(--ink);
+}
+.ballotBody {
+  position: relative;
+  isolation: isolate;
+}
+.submissionSteps {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.submissionSteps ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.submissionSteps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: 500 12px/1.4 var(--font-sans);
+}
+.submissionStepNumber {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--ui-radius);
+  font-variant-numeric: tabular-nums;
+}
+.submissionStepNumber svg {
+  width: 14px;
+  height: 14px;
+}
+.submissionSteps li[data-state="current"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+.submissionSteps li[data-state="current"] .submissionStepNumber {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+.submissionSteps li[data-state="complete"] .submissionStepNumber {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.preparedVoteCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 20px 24px;
+  border: 1px solid var(--ink);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+}
+.preparedVoteLabel {
+  color: var(--muted);
+  font: 500 12px/1.4 var(--font-sans);
+}
+.preparedVoteChoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  font: 600 28px/1.2 var(--font-sans);
+}
+.preparedVoteChoice > span {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.preparedVotePower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font: 400 13px/1.5 var(--font-sans);
+}
+.preparedVotePower > span:first-child,
+.preparedVotePower > span:last-child {
+  color: var(--muted);
+}
+.preparedVotePower strong {
+  color: var(--ink);
+  font: 600 16px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.preparedWallets {
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.preparedSupport {
+  margin: 0;
+  color: var(--muted);
+  font: 400 13px/1.5 var(--font-sans);
+}
+.completedVoteNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font: 400 13px/1.5 var(--font-sans);
+}
+.completedVoteNote svg {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--if-brand-green);
+}
+.maskStepDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+@media (max-width: 520px) {
+  .preparedVoteCard {
+    padding: 18px;
+  }
+  .preparedVotePower {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .preparedVotePower > span:first-child {
+    grid-column: 1 / -1;
+  }
+}
+.voteDecision {
+  border-top: 2px solid var(--ink);
+  padding-top: 16px;
+}
+.voteDecision h4 {
+  margin: 0 16px 4px;
+  color: var(--ink);
+  font: 600 18px/1.4 var(--font-sans);
+}
+.ballotBody :global(.ballot-voting-power) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.ballotBody :global(.ballot-voting-power > span) {
+  min-width: 0;
+  white-space: normal;
+}
+.powerInfoTrigger :global(.power-preview-trigger) {
+  align-items: center;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: none;
+}
+.powerInfoTrigger :global(.power-preview-trigger:hover:not(:disabled)),
+.powerInfoTrigger :global(.power-preview-trigger:focus-visible),
+.powerInfoTrigger :global(.power-preview-trigger[data-state="delayed-open"]),
+.powerInfoTrigger :global(.power-preview-trigger[data-state="instant-open"]) {
+  filter: none;
+  box-shadow: none;
+  text-decoration: none;
+}
+.powerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.powerLabel svg {
+  flex: none;
+}
+.powerPercent {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+.reviewPowerValues {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+.reviewPowerPercent {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.reviewPowerPercent[data-active="false"] {
+  color: var(--muted);
+  font-weight: 400;
+}
+.powerCalculationPopover:global(.power-info-popover) {
+  width: min(360px, calc(100vw - 32px));
+}
+.powerCalculation {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.powerCalculation > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: var(--ui-space-controls);
+}
+.powerCalculation.powerCalculation > div + div {
+  margin-top: 0;
+}
+.powerCalculation > div > dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 400;
+}
+.powerCalculation dd {
+  margin: 0;
+  white-space: nowrap;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.powerCalculationFormula {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.powerCalculationFormula > span {
+  white-space: nowrap;
+}
+/* The emitter follows the tools box, including its expanding height. */
+.privacyTools::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  inset: -16px -24px -64px;
+  border-radius: 40%;
+  background:
+    radial-gradient(ellipse at 28% 70%, var(--ink), transparent 68%),
+    radial-gradient(ellipse at 78% 55%, var(--ink), transparent 65%);
+  filter: blur(18px);
+  opacity: 0;
+  transform: scale(0.85);
+  transition:
+    opacity 700ms var(--interfold-ui-ease),
+    transform 900ms var(--interfold-ui-ease);
+}
+.privacyTools[data-open="true"]::before {
+  opacity: 0.75;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .privacyTools::before {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .privacyTools::before {
+    display: none;
+  }
+}
+.privacyTools :global(.ui-choice-field > span) {
+  color: var(--mint-pale);
+}
+.privacyTools :global(.ui-choice-trigger) {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: color-mix(in srgb, var(--paper) 35%, var(--ink));
+}
+.privacyTools :global(.ui-choice-trigger:focus-visible) {
+  outline-color: var(--mint-pale);
+}
+/* Keep the action above the decorative mist and preserve its gap as the tools collapse. */
+.pathMaskExplanation,
+.privacyToolsDisclosure {
+  transition:
+    grid-template-rows var(--interfold-ui-duration) var(--interfold-ui-ease),
+    opacity 180ms ease,
+    visibility 0s linear var(--interfold-ui-duration),
+    margin-top var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.pathMaskExplanation[data-open="false"],
+.privacyToolsDisclosure[data-open="false"] {
+  margin-top: -14px;
+}
+.privacyToolsDisclosure + button {
+  position: relative;
+  z-index: 1;
+}

@@ -1,0 +1,53 @@
+/* Generated from Interfold-Website/DESIGN.md. Do not edit.
+   Source SHA256: f9f82a6df0d6353f77c46c50dcc47c3a920204e5e97141b33b1b7d8926aef036 */
+:root {
+  --if-ink: #121718;
+  --if-paper: #ffffff;
+  --if-muted: #596364;
+  --if-muted-secondary: #737d7e;
+  --if-brand-mint: #d9fce8;
+  --if-brand-mint-pale: #eafdf1;
+  --if-brand-mint-line: #a9e3bf;
+  --if-brand-mint-shade: #c1f0d4;
+  --if-brand-green: #3a5e3c;
+  --if-surface-muted: #f4f5f4;
+  --if-surface-selected: #f0f1f1;
+  --if-surface-hover: #e8eaea;
+  --if-action-hover: #303638;
+  --if-negative: #a84932;
+  --if-abstain: #7a7d77;
+  --if-radius: 6px;
+  --if-space-tight: 8px;
+  --if-space-related: 12px;
+  --if-space-controls: 16px;
+  --if-space-section: 24px;
+  --if-action-height: 46px;
+  --if-action-compact-height: 40px;
+  --if-stroke-mix: 16%;
+  --if-stroke-hover-mix: 32%;
+  --if-page-ground-mix: 6%;
+  --if-page-ground-shade-mix: 10%;
+  --if-font-sans: "Inter", system-ui, sans-serif;
+  --if-font-serif: "ABC Gramercy", Georgia, serif;
+  --if-font-mono: "Office Code Pro", ui-monospace, "SF Mono", Menlo, monospace;
+  --if-action-padding: 12px 20px;
+  --if-ui-duration: 320ms;
+  --if-page-duration: 720ms;
+  --if-ui-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --if-page-ease: cubic-bezier(0.55, 0, 0.1, 1);
+  --if-ink-rgb: 18 23 24;
+  --if-paper-rgb: 255 255 255;
+  --if-muted-rgb: 89 99 100;
+  --if-muted-secondary-rgb: 115 125 126;
+  --if-brand-mint-rgb: 217 252 232;
+  --if-brand-mint-pale-rgb: 234 253 241;
+  --if-brand-mint-line-rgb: 169 227 191;
+  --if-brand-mint-shade-rgb: 193 240 212;
+  --if-brand-green-rgb: 58 94 60;
+  --if-surface-muted-rgb: 244 245 244;
+  --if-surface-selected-rgb: 240 241 241;
+  --if-surface-hover-rgb: 232 234 234;
+  --if-action-hover-rgb: 48 54 56;
+  --if-negative-rgb: 168 73 50;
+  --if-abstain-rgb: 122 125 119;
+}

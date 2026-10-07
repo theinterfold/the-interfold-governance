@@ -17,8 +17,17 @@ const nextConfig = {
       };
     }
 
+    // Opt-in memory cache keeps constrained local review environments usable.
+    if (process.env.GOVERNANCE_MEMORY_CACHE === "1") config.cache = { type: "memory" };
+
     return config;
   },
 };
 
-module.exports = nextConfig;
+// The main Interfold Markdown owns the palette; validate it before loading the app.
+const { syncDesign, watchDesign } = require("./scripts/sync-design.cjs");
+module.exports = (phase) => {
+  syncDesign();
+  if (phase === "phase-development-server") watchDesign();
+  return nextConfig;
+};

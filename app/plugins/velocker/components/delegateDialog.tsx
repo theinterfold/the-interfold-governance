@@ -69,7 +69,7 @@ export function DelegateDialog({
       onBack={reviewing ? () => onSelect(undefined) : undefined}
       backLabel="Back to delegates"
     >
-      <FluidHeight>
+      <FluidHeight layoutKey={reviewing ? "review" : "choose"}>
         <div className="motion-tab-panels">
           <MotionPanel active={!reviewing} direction="left">
             <DelegateChooser

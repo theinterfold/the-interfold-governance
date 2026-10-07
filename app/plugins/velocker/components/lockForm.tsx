@@ -45,37 +45,57 @@ type Props = {
   onConfirm: (owner: Address) => Promise<boolean>;
 };
 
+type LockDraft = {
+  amount: string;
+  delegate?: Address;
+  ownerMode: "self" | "other";
+  ownerInput: string;
+  ownerTouched: boolean;
+  lockConfirmed: boolean;
+};
+// Drafts belong to a wallet and survive closing the tray or switching accounts in this session.
+const lockDrafts = new Map<string, LockDraft>();
+
 export function LockForm(props: Props) {
+  const walletKey = props.account.toLowerCase();
+  const savedDraft = useRef(lockDrafts.get(walletKey));
   const [submitting, setSubmitting] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [amountAttempted, setAmountAttempted] = useState(false);
   const [completed, setCompleted] = useState("");
-  const [lockConfirmed, setLockConfirmed] = useState(false);
+  const [lockConfirmed, setLockConfirmed] = useState(savedDraft.current?.lockConfirmed ?? false);
   const [phase, setPhase] = useState<LockFlowPhase>("locking");
-  const [chosenDelegate, setChosenDelegate] = useState<Address>();
+  const [chosenDelegate, setChosenDelegate] = useState<Address | undefined>(savedDraft.current?.delegate);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [ownerMode, setOwnerMode] = useState<"self" | "other">("self");
+  const [ownerMode, setOwnerMode] = useState<"self" | "other">(savedDraft.current?.ownerMode ?? "self");
   const layoutKey = `${ownerMode}-${pickerOpen}`;
   const stepMotion = useStepTransition(layoutKey, props.open && !pickerOpen);
-  const [ownerInput, setOwnerInput] = useState("");
-  const [ownerTouched, setOwnerTouched] = useState(false);
+  const [ownerInput, setOwnerInput] = useState(savedDraft.current?.ownerInput ?? "");
+  const [ownerTouched, setOwnerTouched] = useState(savedDraft.current?.ownerTouched ?? false);
   const delegateEditRef = useRef<HTMLButtonElement>(null);
   const returningFromPicker = useRef(false);
   const processing = useRef(false);
   const mounted = useRef(true);
-  const wasOpen = useRef(false);
+  const draftReady = useRef(false);
   useEffect(() => {
-    if (props.open && !wasOpen.current && !lockConfirmed) {
-      setChosenDelegate(undefined);
-      setPickerOpen(false);
-      setAttempted(false);
-      setAmountAttempted(false);
-      setOwnerMode("self");
-      setOwnerInput("");
-      setOwnerTouched(false);
+    props.onValueChange(savedDraft.current?.amount ?? "");
+    // The parent keys this form by wallet, so its next mount restores only that wallet's draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!draftReady.current) {
+      draftReady.current = true;
+      return;
     }
-    wasOpen.current = props.open;
-  }, [props.open, lockConfirmed]);
+    lockDrafts.set(walletKey, {
+      amount: props.value,
+      delegate: chosenDelegate,
+      ownerMode,
+      ownerInput,
+      ownerTouched,
+      lockConfirmed,
+    });
+  }, [walletKey, props.value, chosenDelegate, ownerMode, ownerInput, ownerTouched, lockConfirmed]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -159,6 +179,9 @@ export function LockForm(props: Props) {
     setAttempted(false);
     setAmountAttempted(false);
     setChosenDelegate(undefined);
+    setOwnerMode("self");
+    setOwnerInput("");
+    setOwnerTouched(false);
     props.onValueChange("");
     setCompleted("Your lock is created. You can finish delegation from your account summary.");
   };
@@ -194,6 +217,10 @@ export function LockForm(props: Props) {
         setLockConfirmed(false);
         setAttempted(false);
         setAmountAttempted(false);
+        setChosenDelegate(undefined);
+        setOwnerMode("self");
+        setOwnerInput("");
+        setOwnerTouched(false);
         props.onValueChange("");
       }
     } finally {
