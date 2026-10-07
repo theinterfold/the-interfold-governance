@@ -114,8 +114,13 @@
 .locksCard :global(.power-position-row:last-child) {
   border-radius: 0 0 var(--ui-radius-inner) var(--ui-radius-inner);
 }
+/* The card has no block padding, so the empty text takes the size of one lock row. */
 .empty {
-  padding-top: 16px;
+  display: flex;
+  align-items: center;
+  min-height: 76px;
+  margin: 0;
+  padding-block: 12px;
   color: var(--muted);
   font: var(--ui-body-font);
 }
