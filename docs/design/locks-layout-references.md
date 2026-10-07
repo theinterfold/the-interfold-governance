@@ -7,7 +7,7 @@ These references inform the visual organization, not Interfold's token mechanics
 | --- | --- | --- |
 | [Convex — Lock CVX](https://www.convexfinance.com/lock-cvx) | Available balance and Max sit beside the amount input and lock action. Current CVX locks have a separately titled area; voting weight and delegation are another group. | Keep Wallet balance with Lock FOLD; give existing locks their own full-width disclosure. |
 | [Stake DAO — SDT](https://app.stakedao.org/sdt) | Position metrics, including Your vlSDT, sit above a dedicated action area. Stake, Request Unstake and Redeem share that area; available SDT and Max accompany the input. | Give the voting-power total priority and associate the available balance with creating a lock, rather than the existing-lock summary. |
-| [Family Values — fluidity](https://benji.org/family-values) | The designer explains preserving shared elements across views and moving them continuously. | Apply continuity to grouped and individual lock states: counts split into row badges, with travel coordinated with the panel's height. This specific split/merge is Tiago's requested adaptation. |
+| [Continuity of shared elements](motion-patterns.md) | Preserve shared elements across views and move them continuously. | Apply continuity to grouped and individual lock states: counts split into row badges, with travel coordinated with the panel's height. This specific split/merge is Tiago's requested adaptation. |
 
 The Aave public staking page was also inspected. Its disconnected view shows an
 asset catalogue rather than personal balances, so it was not used as evidence

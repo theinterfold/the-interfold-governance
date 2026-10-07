@@ -18,7 +18,7 @@
   "includes": [
     "Current approved homepage entrance and 60000-point motion",
     "Constitution proposal snapshot and four original demo proposals",
-    "Design consistency and Family motion refinements",
+    "Design consistency and coordinated motion refinements",
     "Explicit wallet connection, disconnected ballot and delegation states",
     "Result/execute wallet gates, fee credit state and persistent proposal editor",
     "Opt-in numbered review annotations",
@@ -28,7 +28,7 @@
     "Coordinated eligible-voter loading, error and result panels",
     "Consistent proposal title, author, grid and ballot colors",
     "Contract action validity, accessible editor and keyboard focus",
-    "Family surfaces across contract selection and public/private voting",
+    "Shared animated surfaces across contract selection and public/private voting",
     "Explicit recoverable proposal, delegation and fee-credit read errors",
     "Voting-power label, percentage and FOLD amount without underlines",
     "White Privacy tools group with a dashed outline",
@@ -44,7 +44,7 @@
     "Review voting power shows percentage before the rightmost FOLD amount; calculation help uses aligned columns and keeps amounts with their units",
     "Voting-power percent bubble remains present in all vote reviews, muted when randomization is off, with explanatory help; summary and detail labels align, and unhighlighted amounts align with other values",
     "Review icons have no surrounding border, background or shadow; active green and faded inactive states remain, as do the 36px alignment area and help; Privacy tools controls retain their frames",
-    "Create proposal and return use the existing Family surface transition, with uniformly fitted fields, sequential headings and restored keyboard focus"
+    "Create proposal and return use the existing source-to-destination surface transition, with uniformly fitted fields, sequential headings and restored keyboard focus"
   ],
   "checks": {
     "build": "passed",

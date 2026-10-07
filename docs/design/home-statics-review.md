@@ -113,7 +113,7 @@ Generated source files are retained under
 The current comparison is the thread's `home-statics-comparison.html`; its revised
 set contains exactly the three assets above.
 
-## Family refinement — subsequent review
+## Visual consistency — subsequent review
 
 The user found the three images inconsistent as a family. Keep the earlier
 selections for comparison; the following are new proposals, not replacements

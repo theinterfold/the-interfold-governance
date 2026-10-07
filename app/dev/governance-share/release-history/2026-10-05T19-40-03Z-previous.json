@@ -18,7 +18,7 @@
   "includes": [
     "Current approved homepage entrance and 60000-point motion",
     "Constitution proposal snapshot and four original demo proposals",
-    "Design consistency and Family motion refinements",
+    "Design consistency and coordinated motion refinements",
     "Explicit wallet connection, disconnected ballot and delegation states",
     "Result/execute wallet gates, fee credit state and persistent proposal editor",
     "Opt-in numbered review annotations",
@@ -28,7 +28,7 @@
     "Coordinated eligible-voter loading, error and result panels",
     "Consistent proposal title, author, grid and ballot colors",
     "Contract action validity, accessible editor and keyboard focus",
-    "Family surfaces across contract selection and public/private voting",
+    "Shared animated surfaces across contract selection and public/private voting",
     "Explicit recoverable proposal, delegation and fee-credit read errors",
     "Functional private ballot available in shared review via ?ballot=option",
     "Voting-power label, percentage and FOLD amount without underlines",

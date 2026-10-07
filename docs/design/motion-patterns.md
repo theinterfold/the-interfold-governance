@@ -1,6 +1,6 @@
-# Family → Interfold governance
+# Padrões de movimento e interação — Interfold Governance
 
-Estudo de 22 de setembro de 2026. Referências: demonstrações públicas da Family, documentação de utilização e o artigo do Benji. A app nativa não foi testada com uma wallet ligada.
+Decisões de interação e registos de validação desde 22 de setembro de 2026. As secções datadas documentam a evolução da implementação; as regras atuais estão em DESIGN.md e no guia de consistência.
 
 ## O que corrigimos já
 
@@ -10,13 +10,13 @@ Agora o total, o breakdown e o campo de quantidade usam espaçamento normal e al
 
 A documentação da [Inter](https://rsms.me/inter/#features) distingue os algarismos tabulares, destinados ao alinhamento de colunas, das formas normais. Não é necessário comprimir manualmente todos os números para obter uma aparência cuidada.
 
-## O que observámos na Family
+## Princípios de interação
 
-No [exemplo de swap](https://family.co/videos/swap.mp4), a quantidade ocupa o centro da tarefa; o ativo, saldo disponível, equivalente e ação seguinte têm papéis visuais distintos. O botão “Use Max” está associado ao saldo disponível. As listas apresentadas no [site da Family](https://family.co/) colocam nome e quantidade secundária à esquerda, e valor à direita.
+A quantidade ocupa o centro da tarefa; ativo, saldo disponível, equivalente e ação seguinte têm papéis visuais distintos. “Use Max” fica junto do saldo disponível. Nas listas, identidade e contexto secundário ficam à esquerda, com os valores alinhados à direita.
 
-Os exemplos SVG do site identificam a fonte como “LFE Sans”, enquanto o texto do site usa também Inter. Isto não permite afirmar qual é o ficheiro tipográfico usado pela app nativa. Os valores de tracking de uma fonte não devem ser transplantados diretamente para outra.
+Os valores de tracking devem ser ajustados à fonte usada na interface, sem copiar métricas de outra tipografia.
 
-Em [Family Values](https://benji.org/family-values), Benji descreve painéis temporários que apresentam uma tarefa de cada vez, preservam o contexto e mudam de dimensão ao avançar. Elementos partilhados continuam visíveis entre etapas. A recomendação para Interfold é aplicar estas relações entre ações e conteúdo.
+Cada painel temporário apresenta uma tarefa de cada vez, preserva o contexto e muda de dimensão ao avançar. Elementos partilhados continuam visíveis entre etapas. Uma única superfície controla a altura; o conteúdo sai e entra em sequência, sem saltos nem sobreposição. A abertura parte do controlo de origem e o fecho devolve-lhe o foco. Reutilizar os tempos e curvas dos componentes existentes e respeitar a preferência por movimento reduzido.
 
 ## Adaptação proposta para a nossa página
 
@@ -43,11 +43,9 @@ Na delegação, o montante de FOLD ativo e o endereço escolhido têm o mesmo ta
 - Usar “Continuar” para avançar e uma ação específica para confirmar.
 - Testar rato, teclado, toque e preferência por movimento reduzido.
 
-Mais referências: [ver tokens](https://family.co/support/view-your-tokens), [fluxo de envio](https://family.co/support/send-tokens), [revisão de uma troca](https://family.co/support/swap-tokens) e [gestão de wallets](https://family.co/support/mission-control).
-
 ### Aviso de propriedade — 23 de setembro
 
-Ao criar um lock para outra wallet, a consequência aparece junto do endereço: fundo âmbar suave, ícone de aviso, título com peso 600 e explicação curta. Mantém-se visível na revisão. A [documentação de transações da Family](https://family.co/support/transactions) fundamenta mostrar consequências antes da confirmação; o tratamento visual âmbar é uma adaptação para esta interface, não uma reprodução verificada de um aviso da app nativa. Não se acrescentou um modal ou confirmação extra. O aviso e a validação partilham uma única animação de altura para o resto do formulário acompanhar a mudança.
+Ao criar um lock para outra wallet, a consequência aparece junto do endereço: fundo âmbar suave, ícone de aviso, título com peso 600 e explicação curta. Mantém-se visível na revisão. As consequências são apresentadas antes da confirmação, com o tratamento visual âmbar definido para esta interface. Não se acrescentou um modal ou confirmação extra. O aviso e a validação partilham uma única animação de altura para o resto do formulário acompanhar a mudança.
 
 
 ### Diretório e distância ao footer — 23 de setembro
@@ -66,11 +64,9 @@ padding habitual de 40 px da secção final.
 ### Hierarquia do resumo — 23 de setembro
 
 A grelha anterior atribuía o mesmo tamanho e peso ao total e às suas três origens.
-Foi revista a partir das demonstrações de [Family Values](https://benji.org/family-values)
-e das capturas guardadas de Convex e Stake DAO. Da Family interessa a prioridade
-clara da tarefa e o contexto secundário; de Convex, a separação visual entre resumo
-e gestão. Estes exemplos orientam a organização, não determinam os nossos valores
-tipográficos nem a mecânica de governance.
+A revisão dá prioridade clara à tarefa, coloca o contexto num nível secundário
+e separa visualmente o resumo das ações de gestão. A tipografia e a mecânica
+de governance seguem as regras do produto.
 
 O total passa a 56–80 px em desktop (peso 600) e o breakdown a 22 px, disposto
 em três linhas com rótulos e valores alinhados. Em mobile, o total usa 48–64 px

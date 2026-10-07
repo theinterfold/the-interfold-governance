@@ -4,13 +4,15 @@ Before UI changes, read [DESIGN.md](DESIGN.md). It defines the current rules and
 
 # Agent guide — the-interfold-governance
 
-## Family animation patterns — persistent user preference
+## Shared animation patterns — persistent user preference
 
-For every new or updated interface, consider the established **Family animation patterns from the start**. This is a required part of implementation and review, not optional polish. Before changing UI, inspect the existing motion components and the corresponding reference/implementation; reuse their behavior, timing, easing, sequencing and transitions rather than inventing a separate animation style. Preserve these patterns when updating existing components. Check relevant entrances/exits, state and step changes, disclosures, dialogs, hover and focus interactions, including reduced-motion behavior and performance. Do not consider a UI change complete until its motion has been checked against these patterns. This does not mean adding animation everywhere or re-enabling intentionally paused artwork. If the relevant Family reference is unavailable or ambiguous, say so rather than guessing.
+For every new or updated interface, consider the established **shared animation patterns from the start**. This is a required part of implementation and review, not optional polish. Before changing UI, inspect the existing motion components and the corresponding reference/implementation; reuse their behavior, timing, easing, sequencing and transitions rather than inventing a separate animation style. Preserve these patterns when updating existing components. Check relevant entrances/exits, state and step changes, disclosures, dialogs, hover and focus interactions, including reduced-motion behavior and performance. Do not consider a UI change complete until its motion has been checked against these patterns. This does not mean adding animation everywhere or re-enabling intentionally paused artwork. If the relevant motion reference is unavailable or ambiguous, say so rather than guessing.
 
 Operational entry point for coding agents. **Read [`docs/architecture.md`](docs/architecture.md)
 first** — it is the authoritative explanation of how staged governance works. This file is the
 short operational layer: commands, invariants, and traps.
+
+Describe motion through its behavior: continuity between source and destination, shared elements, coordinated height, sequencing, easing and focus restoration. Describe animation styles by behavior rather than naming them after a company, including in comments, documentation and commit messages. See [motion patterns](docs/design/motion-patterns.md).
 
 ## UI workflow — user preference
 

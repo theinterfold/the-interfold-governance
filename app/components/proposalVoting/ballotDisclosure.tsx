@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { BendingChevron } from "@/vendor/site-header";
 
-/** Compose the existing Family disclosure motion for ballot details and activity. */
+/** Compose the existing shared disclosure motion for ballot details and activity. */
 export function BallotDisclosure({
   title,
   children,
@@ -18,7 +18,7 @@ export function BallotDisclosure({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = useId();
-  // Multi-line summaries can place the same Family chevron beside their current state.
+  // Multi-line summaries can place the same shared chevron beside their current state.
   const chevron = <BendingChevron open={open} />;
   return (
     <div className={`proposal-voting-details ${className}`}>

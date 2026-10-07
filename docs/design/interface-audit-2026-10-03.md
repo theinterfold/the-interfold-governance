@@ -1,6 +1,6 @@
 # Interface audit — 3 October 2026
 
-Implemented review of the Governance demo, established Family motion patterns and shared Interfold chrome. User authorization covers fixing audit findings. Governance and the future dashboard retain their grey product identity with less Gramercy in explanatory copy. No deployment was requested or performed.
+Implemented review of the Governance demo, established motion patterns and shared Interfold chrome. User authorization covers fixing audit findings. Governance and the future dashboard retain their grey product identity with less Gramercy in explanatory copy. No deployment was requested or performed.
 
 ## Baseline and review
 
@@ -58,4 +58,4 @@ The review deck, manifest and unmodified browser captures are in [Review-2026-10
 - A publicação do site principal e da demo fica por fazer quando solicitada.
 - Movimento reduzido revisto no código; não houve emulação da preferência no browser. Capturas estáticas mostram estados, e os slides incluem percursos para rever as transições.
 
-The motion reference remains [Family Values](https://benji.org/family-values): continuity of context, progressive disclosure and coordinated transitions. Existing timing/easing and motion primitives were reused. No measured frame-rate improvement is claimed.
+The motion principles are continuity of context, progressive disclosure and coordinated transitions. Existing timing/easing and motion primitives were reused. No measured frame-rate improvement is claimed.

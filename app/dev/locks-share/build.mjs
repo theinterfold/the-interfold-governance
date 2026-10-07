@@ -58,7 +58,7 @@ const result = await build({
   ],
 });
 await writeFile("/private/tmp/interfold-lock-review-metafile.json", JSON.stringify(result.metafile));
-// This container is defined in global family.css, outside the CSS-module bundle.
+// This container is defined in global interface.css, outside the CSS-module bundle.
 // Preserve its shared name; esbuild otherwise scopes the query without its definition.
 const reviewCssPath = path.join(output, "review.css");
 const reviewCss = await readFile(reviewCssPath, "utf8");
@@ -66,13 +66,13 @@ await writeFile(reviewCssPath, reviewCss.replace(/@container lockBarReview_power
 const globals = await readFile(path.join(app, "pages/globals.css"), "utf8");
 const odsPath = require.resolve("@aragon/ods/index.css");
 const ods = await postcss([postcssImport]).process(await readFile(odsPath, "utf8"), { from: odsPath });
-const familySource = ods.css.replace(/@tailwind (base|components|utilities);/g, "") + "\n" + globals;
+const interfaceSource = ods.css.replace(/@tailwind (base|components|utilities);/g, "") + "\n" + globals;
 const styles = await postcss([tailwind({ config: path.join(app, "tailwind.config.ts") }), autoprefixer]).process(
-  familySource,
+  interfaceSource,
   { from: path.join(app, "pages/globals.css") }
 );
 const header = await readFile(path.join(app, "vendor/site-header/styles.css"), "utf8");
-await writeFile(path.join(output, "family.css"), `${styles.css}\n${header}`);
+await writeFile(path.join(output, "interface.css"), `${styles.css}\n${header}`);
 for (const name of ["Manrope-Regular.ttf", "Manrope-SemiBold.ttf"])
   await copyFile(path.join(path.dirname(odsPath), "src/theme/fonts", name), path.join(output, "fonts", name));
 const javascriptPath = path.join(output, "review.js");
@@ -92,7 +92,7 @@ for (const name of [
   await copyFile(path.join(app, "public/fonts", name), path.join(output, "fonts", name));
 await writeFile(
   path.join(output, "index.html"),
-  `<!doctype html><html lang="pt"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Voting power · A/B review · Interfold</title><meta name="description" content="Compare two lock-management designs with an interactive Lock FOLD demo."><link rel="stylesheet" href="/family.css"><link rel="stylesheet" href="/review.css"></head><body><div id="root"></div><script type="module" src="/review.js"></script></body></html>`
+  `<!doctype html><html lang="pt"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Voting power · A/B review · Interfold</title><meta name="description" content="Compare two lock-management designs with an interactive Lock FOLD demo."><link rel="stylesheet" href="/interface.css"><link rel="stylesheet" href="/review.css"></head><body><div id="root"></div><script type="module" src="/review.js"></script></body></html>`
 );
 await writeFile(
   path.join(output, "vercel.json"),

@@ -37,7 +37,7 @@ A fonte canónica é [packages/site-header/src](packages/site-header/src). Ver [
 
 ## Movimento e interação
 
-Aplicar os padrões Family já implementados: origem → modal, continuidade do contexto, uma animação dona da altura, conteúdo relacionado a expandir junto do controlo, foco restaurado ao fechar. Reutilizar os componentes de motion existentes e os tempos/easing abaixo. Hover, teclado e toque devem funcionar; respeitar `prefers-reduced-motion`. Não adicionar animação contínua a arte pausada. Ver [estudo e implementação Family](../Governance/docs/design/family-reference.md).
+Aplicar os padrões de movimento já implementados: origem → modal, continuidade do contexto, uma animação dona da altura, conteúdo relacionado a expandir junto do controlo, foco restaurado ao fechar. Reutilizar os componentes de motion existentes e os tempos/easing abaixo. Hover, teclado e toque devem funcionar; respeitar `prefers-reduced-motion`. Não adicionar animação contínua a arte pausada. Ver [padrões de movimento e implementação](../Governance/docs/design/motion-patterns.md).
 
 ## Valores editáveis
 

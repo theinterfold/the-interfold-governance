@@ -4228,7 +4228,7 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   .power-delegate-list[data-numbered="true"] .power-delegate-votes { padding-left: 72px; }
 }
 
-/* Proposal navigation shares Family's continuous geometry and sequential content timing. */
+/* Proposal navigation preserves continuous geometry and sequential content timing. */
 .proposal-route-shell { width: 100%; min-width: 0; }
 .proposal-route-shell > [hidden] { display: none !important; }
 .proposal-motion-title {
