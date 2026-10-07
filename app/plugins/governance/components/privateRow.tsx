@@ -90,7 +90,10 @@ function PrivateRowBody({
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!, totalVotingPower, e3Failed);
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
-  const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
+  // Only a proposal with no data yet is loading. A background refetch keeps the row as it is: the
+  // loading row unmounts the open details, and the details read this proposal again when they
+  // mount, which starts the next refetch.
+  const loading = !proposal || (!proposal.title && !status.metadataError);
   // A dead round would otherwise sit here as "Pending" — never active, never tallied — which
   // reads as "waiting to start" for something that can never run. The SPP override still wins:
   // a canceled or expired process is the more specific fact about the proposal.

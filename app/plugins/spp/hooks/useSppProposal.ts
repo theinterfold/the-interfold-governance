@@ -26,7 +26,6 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const address = sppAddressFor(kind);
   const [metadataUri, setMetadataUri] = useState<string>();
   const [creator, setCreator] = useState<string>();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const {
     data: proposalData,
@@ -54,6 +53,9 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     query: { enabled: exists },
   });
   const state = stateData === undefined ? undefined : (Number(stateData) as SppProposalState);
+  // An executed, canceled or expired proposal cannot change again, so it stops following the chain.
+  const settled = exists && (proposal.executed || proposal.canceled || state === SppProposalState.Expired);
+  const { data: blockNumber } = useBlockNumber({ watch: exists && !settled });
 
   const { stages, votingStage, vetoStage } = useSppStages(kind, exists ? proposal.stageConfigIndex : undefined);
 
@@ -70,14 +72,15 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const subProposalId = bodyProposalIdData as bigint | undefined;
   const subProposalFailed = subProposalId !== undefined && subProposalId === SPP_PROPOSAL_WITHOUT_ID;
 
-  // Stage-1 (veto) tally
+  // Stage-1 (veto) tally. `refetch` ignores `enabled`, so the refresh below checks the same gate.
+  const vetoStageReached = exists && proposal.currentStage >= 1;
   const { data: vetoTallyData, refetch: refetchTally } = useReadContract({
     chainId: PUB_CHAIN.id,
     address,
     abi: StagedProposalProcessorAbi,
     functionName: "getProposalTally",
     args: [proposalId, 1],
-    query: { enabled: exists && (proposal?.currentStage ?? 0) >= 1 },
+    query: { enabled: vetoStageReached },
   });
   const vetoTally = vetoTallyData
     ? {
@@ -86,13 +89,14 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
       }
     : undefined;
 
-  // Keep the stage/state fresh (stage transitions and vetoes happen without user action)
+  // Keep an open proposal's stage and state fresh: stage transitions and vetoes happen without
+  // user action.
   useEffect(() => {
-    if (!exists) return;
+    if (!exists || settled) return;
     refetchProposal();
     refetchState();
-    refetchTally();
-  }, [blockNumber, exists]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (vetoStageReached) refetchTally();
+  }, [blockNumber, exists, settled, vetoStageReached]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Metadata URI + creator come from the SPP's ProposalCreated event
   useEffect(() => {

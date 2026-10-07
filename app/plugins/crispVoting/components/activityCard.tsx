@@ -1,5 +1,5 @@
 import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchRoundInputs } from "@/utils/crispIndexer";
@@ -45,6 +45,28 @@ interface ActivityEntry {
   published: boolean;
 }
 
+/** What the activity scan reads from the round. Interfold fixes all of it when the round is requested. */
+type RoundScope = { program: Address; inputStart: bigint; inputEnd: bigint };
+
+const roundScopeKey = (e3Id: bigint) => ["crisp-activity-scope", e3Id.toString()] as const;
+
+async function readRoundScope(e3Id: bigint): Promise<RoundScope> {
+  const interfold = (await publicClient.readContract({
+    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    abi: CrispVotingAbi,
+    functionName: "interfold",
+  })) as Address;
+
+  const e3 = await publicClient.readContract({
+    address: interfold,
+    abi: interfoldAbi,
+    functionName: "getE3",
+    args: [e3Id],
+  });
+
+  return { program: e3.e3Program, inputStart: e3.inputWindow[0], inputEnd: e3.inputWindow[1] };
+}
+
 /**
  * Encrypted ballot activity for a CRISP round: every encrypted input recorded on-chain for this
  * e3Id, with its data-availability state. Inputs are indistinguishable (vote, override or mask) —
@@ -52,6 +74,7 @@ interface ActivityEntry {
  * CrispVoting.interfold() -> getE3(e3Id).e3Program.
  */
 export function ActivityCard({ e3Id }: { e3Id: bigint }) {
+  const queryClient = useQueryClient();
   const {
     data: entries,
     isLoading,
@@ -59,17 +82,11 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   } = useQuery<ActivityEntry[]>({
     queryKey: ["crisp-activity", e3Id.toString()],
     queryFn: async () => {
-      const interfold = (await publicClient.readContract({
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-        abi: CrispVotingAbi,
-        functionName: "interfold",
-      })) as Address;
-
-      const e3 = await publicClient.readContract({
-        address: interfold,
-        abi: interfoldAbi,
-        functionName: "getE3",
-        args: [e3Id],
+      // Read once and kept, so a refresh reads only the two logs below.
+      const { program, inputStart } = await queryClient.fetchQuery({
+        queryKey: roundScopeKey(e3Id),
+        queryFn: () => readRoundScope(e3Id),
+        staleTime: Infinity,
       });
 
       // A ballot cannot be committed before the round's input window opens, so scan from there
@@ -77,10 +94,15 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
       // server's log index is cold, `/chain/rpc` rescans the requested range upstream, and the wide
       // scan outlasted the client's 10 s timeout on every retry: minutes of "Loading…" ending in
       // "No encrypted inputs" for a round that had them. `getBlockAtTimestamp` resolves the block
-      // at or BEFORE the timestamp, so nothing inside the window is skipped.
-      const fromBlock = await crispSdk
-        .getBlockAtTimestamp(e3.inputWindow[0])
-        .then((r) => BigInt(r.blockNumber))
+      // at or BEFORE the timestamp, so nothing inside the window is skipped. The server charges the
+      // search as 32 reads against the caller's rate limit, so the answer is kept. A failed search
+      // is not kept, and the next refresh tries it again.
+      const fromBlock = await queryClient
+        .fetchQuery({
+          queryKey: ["crisp-block-at-timestamp", inputStart.toString()],
+          queryFn: () => crispSdk.getBlockAtTimestamp(inputStart).then((r) => BigInt(r.blockNumber)),
+          staleTime: Infinity,
+        })
         .catch(() => BigInt(PUB_DEPLOYMENT_BLOCK));
 
       // Committed is the source of truth for "a ballot exists". Read it from the chain rather
@@ -88,14 +110,14 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
       // round whose ballots are still awaiting data availability.
       const [committedLogs, publishedLogs] = await Promise.all([
         publicClient.getLogs({
-          address: e3.e3Program,
+          address: program,
           event: inputCommittedEvent,
           args: { e3Id },
           fromBlock,
           toBlock: "latest",
         }),
         publicClient.getLogs({
-          address: e3.e3Program,
+          address: program,
           event: inputPublishedEvent,
           args: { e3Id },
           fromBlock,
@@ -120,7 +142,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         : await fetchRoundInputs({
             roundId: e3Id,
             fromBlock: Number(fromBlock),
-            program: e3.e3Program,
+            program,
           }).catch(() => null);
       const serverPublishedCount = serverInputs?.length ?? 0;
 
@@ -139,7 +161,13 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         }))
         .reverse();
     },
-    refetchInterval: 15_000,
+    // Commitments close before the input window ends. After it ends, the list is final once every
+    // committed ballot is published.
+    refetchInterval: (query) => {
+      const scope = queryClient.getQueryData<RoundScope>(roundScopeKey(e3Id));
+      const closed = scope !== undefined && Date.now() / 1000 > Number(scope.inputEnd);
+      return closed && query.state.data?.every((entry) => entry.published) ? false : 15_000;
+    },
   });
 
   const explorerUrl = PUB_CHAIN.blockExplorers?.default?.url;

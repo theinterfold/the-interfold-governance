@@ -44,7 +44,6 @@ export type ProposalSourceOverride = {
 export function useProposal(proposalId: bigint, override?: ProposalSourceOverride) {
   const [creationEvent, setCreationEvent] = useState<ProposalCreatedLogResponse["args"]>();
   const [metadataUri, setMetadataUri] = useState<string>();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   // On-chain proposal data
   const {
@@ -91,11 +90,16 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     return Array.isArray(result.counts) ? result.counts : [];
   }, [tallyResult]);
 
+  // A tallied round or a dead round cannot change again, so it stops following the chain. A dead
+  // round can be one the CRISP server never recorded, which answers 404 to every poll.
+  const roundSettled = (isTallied && isCommitteeReady) || e3Failed;
+  const { data: blockNumber } = useBlockNumber({ watch: proposalRaw?.e3Id !== undefined && !roundSettled });
+
   const eligibleVotersFetched = useRef(false);
 
   useEffect(() => {
     if (proposalRaw?.e3Id === undefined) return;
-    if (isTallied && isCommitteeReady) return;
+    if (roundSettled) return;
 
     const roundId = BigInt(proposalRaw.e3Id.toString());
 
@@ -119,7 +123,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
         }
       })
       .catch(() => {});
-  }, [proposalRaw?.e3Id, blockNumber, isTallied, isCommitteeReady]);
+  }, [proposalRaw?.e3Id, blockNumber, roundSettled]);
 
   // Fetch creation event (only once when proposal data is available)
   const snapshotBlock = proposalRaw?.parameters?.snapshotBlock;

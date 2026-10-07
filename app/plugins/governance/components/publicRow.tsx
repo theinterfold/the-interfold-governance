@@ -96,7 +96,10 @@ function PublicRowBody({
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal!);
   const sppOverride = getSppStatusOverride(spp.proposal, spp.state, spp.vetoTally, spp.vetoStage);
 
-  const loading = !proposal || status.proposalLoading || (!proposal?.title && !status.metadataError);
+  // Only a proposal with no data yet is loading. A background refetch keeps the row as it is: the
+  // loading row unmounts the open details, and the details read this proposal again when they
+  // mount, which starts the next refetch.
+  const loading = !proposal || (!proposal.title && !status.metadataError);
   const resolvedLabel = loading ? undefined : (sppOverride?.label ?? bodyStatusLabel(proposalStatus, quorumNotMet));
   const bucket = statusBucketOf(resolvedLabel);
 
