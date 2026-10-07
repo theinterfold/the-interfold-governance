@@ -172,7 +172,7 @@ else
 fi
 # Deployment-derived values this script cannot resolve. Named explicitly, because every address
 # that broke after the last redeploy broke by being silently stale, not by erroring.
-for manual in NEXT_PUBLIC_BRIDGE_ADDRESS; do
+for manual in NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK NEXT_PUBLIC_BRIDGE_ADDRESS; do
   echo "  note: ${manual} is not synced — update it by hand if the deployment changed"
 done
 echo

@@ -95,7 +95,7 @@ export default function Delegation() {
               </Button>
             </span>
           </Card>
-          <BondedDelegationCards bonded={bonded} headingPlacement="inside" />
+          <BondedDelegationCards address={address} bonded={bonded} headingPlacement="inside" />
         </div>
       )}
     </MainSection>

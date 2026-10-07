@@ -80,7 +80,9 @@ bun dev                # http://localhost:3000
 The app shows proposals from both SPP processes in one list (tagged **Private** / **Public**), a
 create form with a privacy toggle (the private form has a fee-credit widget and a per-proposal
 voting-duration picker), staged detail pages (stage-0 voting + a stage-1 veto panel), and a
-**Voting power** page (delegate to yourself to activate wallet, locked or bonded FOLD).
+**Voting power** page. There, a holder delegates wallet or locked FOLD to itself, and an owner can
+give the voting power of its bonded and vesting FOLD to one address. That address must accept, and
+it can represent at most three owners.
 
 ## Contracts (`contracts/`)
 
@@ -263,8 +265,9 @@ the Sepolia template. It sets `NEXT_PUBLIC_CHAIN_NAME=sepolia` and turns on the 
    - `WEB3_RPC_URL`: a Sepolia endpoint that allows historical `eth_getLogs`.
    - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`, `NEXT_PUBLIC_IPFS_ENDPOINTS`, `PINATA_JWT` and
      `ETHERSCAN_API_KEY`. These values do not depend on the network.
-3. Check each address that `sync-env` did not print. These keep their template values, which must
-   match the current Interfold Sepolia deployment.
+3. Check each address and block number that `sync-env` did not print, for example
+   `NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK`. These keep their template values, which must match
+   the current Interfold Sepolia deployment.
 4. In the testnet project, add each value in **Settings → Environment Variables**. Select the
    Production and Preview environments.
 5. If the WalletConnect project has a domain allowlist, add the testnet domain to it.

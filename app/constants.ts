@@ -12,16 +12,20 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 // token directly reports zero weight for an operator who has bonded everything — while that same
 // FOLD still counts in the quorum denominator.
 //
-// Bonded FOLD (and, under the escrow, vesting FOLD) counts for its owner. An owner that gave it to
-// another address earlier can take it back or withdraw a pending request: both call
-// `delegateBonded(0)`. Wallet and escrowed FOLD do not delegate here: `delegate()` reverts
-// `DelegationNotSupported`, and the adapter emits no `DelegateChanged`. Adapters deployed before
-// bonded delegation lack those functions, so `useBondedDelegation` probes for them and hides the
-// controls.
+// Wallet and escrowed FOLD do not delegate here: `delegate()` reverts `DelegationNotSupported`, and
+// the adapter emits no `DelegateChanged`. Its only delegation is bonded delegation, which gives an
+// owner's bonded (and, under the escrow, vesting) FOLD to one delegate: `delegateBonded` asks,
+// `acceptBonded` moves the weight, `dropBonded` returns it. A delegate represents at most
+// `MAX_BONDED_OWNERS` owners. Adapters deployed before bonded delegation lack those functions, so
+// `useBondedDelegation` probes for them and hides the controls.
 //
 // Falls back to the token when unset, which keeps the app working against a deployment that has
 // no adapter — it just cannot see bonded weight.
 export const PUB_BONDED_VOTES_ADDRESS = (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "") as Address;
+// Block the BondedVotes adapter was deployed at — where the scan for bonded delegation requests
+// starts. A delegate finds the requests sent to it only in those logs. Unset scans from block 0,
+// which is correct but slow.
+export const PUB_BONDED_VOTES_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK ?? 0);
 /// The address to read balances and voting power from.
 export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_ADDRESS) as Address;
 // VotingEscrow ("velocker"): lock FOLD to gain voting power. Only the escrow address is

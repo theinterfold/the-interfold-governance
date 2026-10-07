@@ -358,7 +358,9 @@ export default function Locker() {
           </ScrollFadeIn>
         </section>
       )}
-      {isConnected && address && <BondedDelegationCards bonded={bonded} blockClassName="power-block" />}
+      {isConnected && address && (
+        <BondedDelegationCards address={address} bonded={bonded} blockClassName="power-block power-delegation-block" />
+      )}
       {isConnected && address && (
         <>
           <LockForm

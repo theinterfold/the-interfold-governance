@@ -1,3 +1,5 @@
+import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
+
 /**
  * The voting power that a bonded delegation moves, as `BondedVotes` counts it now: the bonded FOLD,
  * plus the vesting FOLD that the bond does not cover, capped at the wallet balance.
@@ -65,4 +67,31 @@ export function splitVotingPower({
     vesting = total > counted ? total - counted : 0n;
   }
   return { lockedAndDelegated: lockVotes, bonded, vesting, represented };
+}
+
+/**
+ * Reads the delegate address that an owner typed: the address to ask, or why it cannot be asked.
+ * Neither is set while the field is empty.
+ *
+ * Every comparison runs after `isAddress`: `isAddressEqual` throws on a malformed operand, and this
+ * runs during render, so an unguarded call would unmount the page as soon as someone types "0x".
+ *
+ * @param owner The connected account.
+ * @param delegate The address that represents `owner` now, if any.
+ * @param pending The address that `owner` already asked, if any.
+ */
+export function bondedDelegateTarget(
+  typed: string,
+  owner: Address,
+  delegate?: Address,
+  pending?: Address
+): { target?: Address; problem?: string } {
+  const input = typed.trim();
+  if (input === "") return {};
+  if (!isAddress(input)) return { problem: "That is not a valid address." };
+  if (isAddressEqual(input, zeroAddress)) return { problem: "The zero address cannot represent you." };
+  if (isAddressEqual(input, owner)) return { problem: "That is your own address. Enter a different address." };
+  if (delegate && isAddressEqual(input, delegate)) return { problem: "This address already represents you." };
+  if (pending && isAddressEqual(input, pending)) return { problem: "You already sent a request to this address." };
+  return { target: input };
 }

@@ -2060,7 +2060,8 @@ label div p.leading-tight {
 .power-page[data-section-presentation="outside"] {
   --power-section-gap: calc(2 * var(--ui-space-section) + var(--ui-space-controls));
 }
-.power-page[data-section-presentation="outside"] > .power-overview {
+.power-page[data-section-presentation="outside"] > .power-overview,
+.power-page[data-section-presentation="outside"] > .power-delegation-block:not(:last-of-type) {
   padding-bottom: var(--power-section-gap);
 }
 @media (max-width: 767px) {
@@ -2631,6 +2632,11 @@ label div p.leading-tight {
   min-width: 0;
 }
 .power-delegate-data > button { justify-self: end; width: var(--action-column-width); max-width: 100%; }
+/* Wallet rows under a delegation summary. A rule separates each list from the content above it. */
+.power-delegation-summary + .power-delegate-list,
+.power-delegate-list + .power-delegate-list { margin-top: 24px; border-top: 1px solid var(--rule); }
+.power-delegate-head { padding: 12px 16px 0; }
+.power-delegate-votes { display: grid; gap: 2px; min-width: 0; }
 .power-page button:focus-visible,
 .power-page a:focus-visible {
   outline: 2px solid var(--ink);
@@ -2729,6 +2735,8 @@ label div p.leading-tight {
     grid-column: 2;
     grid-row: 1 / span 2;
   }
+  /* Under the name, past the 24px avatar and its 12px gap. */
+  .power-delegate-votes { grid-column: 1; padding-left: 36px; }
 }
 @container power-card (max-width: 420px) {
   .power-delegate-row { grid-template-columns: minmax(0, 1fr); }
@@ -2980,8 +2988,11 @@ button.power-action-vote:hover:not(:disabled):not([aria-disabled="true"]) {
 .power-disclosure-content { padding-top: 24px; }
 .power-card .power-disclosure > .motion-disclosure { margin-inline: calc(-1 * var(--power-card-inset)); }
 .power-card .power-disclosure-content { padding-inline: var(--power-card-inset); }
-.power-card .power-position-list { margin-inline: calc(-1 * var(--power-card-inset)); }
-.power-card :is(.power-position-head, .power-position-row, .power-delegate-row) { padding-inline: var(--power-card-inset); }
+.power-card :is(.power-position-list, .power-delegate-list) { margin-inline: calc(-1 * var(--power-card-inset)); }
+.power-card :is(.power-position-head, .power-position-row, .power-delegate-head, .power-delegate-row) { padding-inline: var(--power-card-inset); }
+/* A list at the end of a card reaches its bottom edge, as the lock rows do. */
+.power-card > .power-delegate-list:last-child { margin-bottom: calc(-1 * var(--power-card-block-inset)); }
+.power-card > .power-delegate-list:last-child > .power-delegate-row:last-child { border-radius: 0 0 var(--ui-radius-inner) var(--ui-radius-inner); }
 .power-card .power-position-head.sr-only { padding: 0; }
 .power-delegated-total { display: grid; gap: 8px; margin-top: 24px; }
 .power-delegation-overview > .power-delegated-total:first-child { margin-top: 0; }

@@ -23,7 +23,7 @@ Preservar as funções tipográficas comuns: cabeçalho de painel 20/600, secç�
 
 Proposals e Voting power partilham componentes de ações, menus, informação, identidades, filtros, tabelas e estados. Cabeçalhos de secção ficam fora dos painéis conforme a versão aprovada. Manter a hierarquia de Voting power, Delegation e Your locks, os intervalos e o footer definidos no guia de consistência. Homepage mantém as ilustrações vetoriais de pontos e as pausas; não transformar a revisão de cores numa alteração da arte.
 
-Voting power oferece só auto-delegação (FOLD na wallet, bloqueado e bonded): sem diretório de delegados, seletor de delegado nem pedido de delegação bonded a outro endereço.
+Voting power oferece só auto-delegação para FOLD na wallet e FOLD bloqueado: sem diretório de delegados nem seletor de delegado. FOLD bonded e em vesting conta para o titular, que pode pedir a um endereço que vote com ele; o poder de voto só se move quando o endereço aceita. Um delegado representa no máximo três titulares. Vê-os em linhas de wallet por baixo do resumo, com as partes bonded e vesting de cada um, e aceita pedidos na mesma lista.
 
 Títulos de propostas conservam o mesmo papel Inter 24/500 e tracking normal na lista e na página completa. A abertura não altera o peso do título. As duas vistas usam a grelha exterior comum de 1052 px e os mesmos insets de leitura; as cores Yes/No/Abstain vêm da função partilhada do ballot.
 
