@@ -184,6 +184,7 @@ function PrivateRowBody({
   const tally = Array.from(proposal.tally ?? []);
   const options = proposal.options ?? ["Yes", "No"];
   const totalVotes = tally.reduce((sum, count) => sum + (count ?? 0n), 0n);
+  const startDate = Number(proposal.parameters.startDate) * 1000;
   const endDate = Number(proposal.parameters.endDate) * 1000;
   const view = presentation!;
 
@@ -208,6 +209,8 @@ function PrivateRowBody({
       votingOpen={view.votingOpen}
       rightLabel={view.timing}
       votingEndMs={endDate}
+      votingPending={view.votingPending}
+      votingStartMs={startDate}
       bars={bars}
       resultLabel={view.showTally ? "Final vote share" : "Secret ballot"}
       resultMessage={

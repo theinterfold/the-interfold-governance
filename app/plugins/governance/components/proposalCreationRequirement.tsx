@@ -14,7 +14,7 @@ export function ProposalCreationRequirement({ minimum, votingPower, loading }: C
   const decimals = useTokenDecimals();
   const format = (value?: bigint) =>
     value === undefined || decimals === undefined
-      ? "—"
+      ? "-"
       : `${compactNumber(formatUnits(value, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (

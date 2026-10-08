@@ -62,7 +62,7 @@ export const useProposalVariantStatus = (proposal: Proposal, nowMs = Date.now(),
   if (status === ProposalStatus.EXECUTED) return { variant: "primary", label: "Executed" };
   if (status === ProposalStatus.REJECTED) {
     const { lowTurnout } = computeOutcome(proposal);
-    return { variant: "critical", label: lowTurnout ? "Rejected — low turnout" : "Rejected" };
+    return { variant: "critical", label: lowTurnout ? "Rejected (low turnout)" : "Rejected" };
   }
   if (status === ProposalStatus.EXECUTABLE || status === ProposalStatus.ACCEPTED) {
     return { variant: "success", label: "Executable" };

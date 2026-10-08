@@ -6,7 +6,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { AddressText } from "@/components/text/address";
 import { useInert } from "@/components/motion/useInert";
-import { ProposalCountdown, formatEndsIn } from "@/components/proposal/proposalCountdown";
+import { ProposalCountdown, formatCountdown } from "@/components/proposal/proposalCountdown";
 
 export type RowBar = { width: number; color: string; label: string };
 
@@ -26,6 +26,9 @@ export interface ProposalRowProps {
   /** An open voting window, independent of this wallet's eligibility. */
   votingOpen?: boolean;
   votingEndMs?: number;
+  /** Voting has not started yet. The row counts down to `votingStartMs`. */
+  votingPending?: boolean;
+  votingStartMs?: number;
   rightLabel?: string;
   bars?: RowBar[];
   resultLabel?: string;
@@ -162,7 +165,13 @@ export function ProposalRow(props: ProposalRowProps) {
           {props.rightLabel && (
             <span className="time" data-proposal-part="timing">
               {votingOpen && props.votingEndMs ? (
-                <ProposalCountdown endMs={props.votingEndMs} onEnd={() => setExpiredDeadline(props.votingEndMs)} />
+                <ProposalCountdown
+                  boundary="end"
+                  atMs={props.votingEndMs}
+                  onEnd={() => setExpiredDeadline(props.votingEndMs)}
+                />
+              ) : props.votingPending && props.votingStartMs ? (
+                <ProposalCountdown boundary="start" atMs={props.votingStartMs} />
               ) : expiredDeadline === props.votingEndMs &&
                 expiredDeadline !== undefined &&
                 props.statusLabel === "Active" ? (
@@ -263,7 +272,7 @@ export function rowTimingLabel(opts: {
   nowMs?: number;
 }): string {
   const now = opts.nowMs ?? Date.now();
-  if (opts.isActive && opts.endMs > now) return formatEndsIn(opts.endMs, now);
+  if (opts.isActive && opts.endMs > now) return formatCountdown("end", opts.endMs, now);
   if (opts.statusLabel === "Foundation Approval") return "Awaiting Foundation approval";
   if (opts.statusLabel === "Veto period") return "Veto period";
   // Voting closed but no verdict rendered yet (tally pending / stage not advanced).

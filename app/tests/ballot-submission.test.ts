@@ -98,4 +98,21 @@ describe("Vote and optional mask", () => {
     });
     expect(results).toEqual([success, { success: true, txHash: "0xmask" }]);
   });
+  test("mask first sends the mask before the vote, and a failed mask never sends the vote", async () => {
+    const events: string[] = [];
+    const send = (mask: BallotSubmissionResult) =>
+      submitBallotSequence({
+        first: "mask",
+        vote: async () => success,
+        mask: async () => mask,
+        isCurrent: () => true,
+        onStart: (kind) => events.push(kind),
+        onResult: (kind, result) => events.push(`${kind}:${result.success}`),
+      });
+    await send({ success: true, txHash: "0xmask" });
+    expect(events).toEqual(["mask", "mask:true", "vote", "vote:true"]);
+    events.length = 0;
+    await send(failure);
+    expect(events).toEqual(["mask", "mask:false"]);
+  });
 });

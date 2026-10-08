@@ -26,8 +26,8 @@ describe("Exact token amount display", () => {
   });
 
   test("does not present unavailable or invalid amounts as zero", () => {
-    expect(exactNumber("")).toBe("—");
-    expect(exactNumber("—")).toBe("—");
-    expect(exactNumber("NaN")).toBe("—");
+    expect(exactNumber("")).toBe("-");
+    expect(exactNumber("-")).toBe("-");
+    expect(exactNumber("NaN")).toBe("-");
   });
 });

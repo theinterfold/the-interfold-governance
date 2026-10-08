@@ -47,7 +47,7 @@ export function LockStatusBadge({
   );
   return status === "cooldown" && cooldown ? (
     <span className="power-cooldown-status">
-      <DeadlineInfo label="Cooldown ends" endMs={cooldown.endsAt * 1000}>
+      <DeadlineInfo label="Cooldown ends" atMs={cooldown.endsAt * 1000}>
         {badge}
       </DeadlineInfo>
     </span>

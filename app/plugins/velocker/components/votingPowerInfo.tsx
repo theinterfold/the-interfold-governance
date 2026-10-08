@@ -11,7 +11,7 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
   const decimals = useTokenDecimals();
   const amount = (value?: bigint) =>
     !breakdown.available || value === undefined || decimals === undefined
-      ? "—"
+      ? "-"
       : exactNumber(formatUnits(value, decimals));
   return (
     <PowerInfo label="Voting power breakdown" compact={true} contentClassName={styles.breakdown}>
@@ -60,16 +60,15 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
           <div className={styles.total}>
             <dt>Your voting power</dt>
             <dd>
-              {decimals === undefined ? "—" : exactNumber(formatUnits(totalVotes, decimals))} {PUB_TOKEN_SYMBOL}
+              {decimals === undefined ? "-" : exactNumber(formatUnits(totalVotes, decimals))} {PUB_TOKEN_SYMBOL}
             </dd>
           </div>
         )}
       </dl>
       <p>
         Active locks delegated to you + bonded + vesting FOLD
-        {breakdown.represented ? " + the bonded voting power of owners you represent" : ""}
-        . Locks in cooldown or delegated to another wallet are excluded, and so are bonded and vesting FOLD that a
-        bonded delegate represents.
+        {breakdown.represented ? " + the bonded voting power of owners you represent" : ""}. Locks in cooldown or
+        delegated to another wallet are excluded, and so are bonded and vesting FOLD that a bonded delegate represents.
       </p>
       <p>Proposals use the voting power recorded at their snapshot.</p>
     </PowerInfo>

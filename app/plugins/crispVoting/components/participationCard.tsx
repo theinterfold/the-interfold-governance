@@ -74,7 +74,9 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
           </div>
         </>
       ) : (
-        <p className="text-sm text-neutral-500">Votes are encrypted — turnout is revealed when the tally lands.</p>
+        <p className="text-sm text-neutral-500">
+          Votes are encrypted. The turnout is visible after the tally is published.
+        </p>
       )}
 
       <div className="ui-fact-row text-sm">

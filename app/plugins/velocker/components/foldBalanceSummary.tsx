@@ -191,7 +191,7 @@ export function FoldBalanceMetric({
         {info}
       </dt>
       <dd title={amount === undefined ? undefined : `${exactNumber(amount)} ${PUB_TOKEN_SYMBOL}`}>
-        {amount === undefined ? "—" : compactNumber(amount)} <span>{PUB_TOKEN_SYMBOL}</span>
+        {amount === undefined ? "-" : compactNumber(amount)} <span>{PUB_TOKEN_SYMBOL}</span>
       </dd>
     </dl>
   );

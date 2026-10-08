@@ -57,7 +57,7 @@ export function PublicVoteResultCard({
   const percentages = resultPercentages(values);
   const options = ["Yes", "No", "Abstain"];
   const amount = (value: bigint) =>
-    decimals === undefined ? "—" : formatResultAmount(Number(formatUnits(value, decimals)));
+    decimals === undefined ? "-" : formatResultAmount(Number(formatUnits(value, decimals)));
   // Executing the sub-proposal reports the approval to the SPP and advances to the veto stage.
   const canSubmitResult = status === ProposalStatus.ACCEPTED || status === ProposalStatus.EXECUTABLE;
 

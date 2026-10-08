@@ -117,7 +117,7 @@ export const VetoStageCard = ({
     vetoed: "Vetoed",
     executable: "Executable",
     executed: "Executed",
-    expired: approvalMode && !isApproved ? "Expired — not approved" : "Expired",
+    expired: approvalMode && !isApproved ? "Expired (not approved)" : "Expired",
     canceled: "Canceled",
   };
 
@@ -162,8 +162,8 @@ export const VetoStageCard = ({
           <If true={status === "vetoed"}>The foundation vetoed this proposal. It can never be executed.</If>
           <If true={status === "executable"}>
             {approvalMode
-              ? "The foundation approved the proposal — it can now be executed by anyone."
-              : "The veto window has lapsed with no veto — the proposal can now be executed by anyone."}
+              ? "The foundation approved the proposal. Anyone can now execute it."
+              : "The veto window ended with no veto. Anyone can now execute the proposal."}
           </If>
           <If true={status === "executed"}>
             {approvalMode ? "The foundation approved the proposal" : "The proposal passed the veto window"} and it has

@@ -103,7 +103,7 @@ export default function ProposalCard(props: ProposalInputs) {
           {isActive && endDate > Date.now() && !isCommitteeReady ? (
             "Forming committee"
           ) : isActive && endDate > Date.now() ? (
-            <ProposalCountdown endMs={endDate} />
+            <ProposalCountdown boundary="end" atMs={endDate} />
           ) : (
             statusLabel
           )}

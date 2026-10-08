@@ -33,7 +33,7 @@ export function VotingPower({
 
   const decimals = useTokenDecimals();
   const fmt = (v?: bigint) =>
-    decimals === undefined || v === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+    decimals === undefined || v === undefined ? "-" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   if (compact) {
     return (
@@ -45,14 +45,14 @@ export function VotingPower({
               <dl className="power-info-values">
                 <div>
                   <dt>Your voting power (at snapshot)</dt>
-                  <dd>{address ? fmt(yours) : "—"}</dd>
+                  <dd>{address ? fmt(yours) : "-"}</dd>
                 </div>
               </dl>
               <p>Only your snapshot voting power counts for this proposal.</p>
             </PowerInfo>
           </span>
         </span>
-        <strong>{address ? fmt(yours) : "—"}</strong>
+        <strong>{address ? fmt(yours) : "-"}</strong>
       </div>
     );
   }
@@ -62,7 +62,7 @@ export function VotingPower({
       <p className="text-sm font-semibold text-neutral-800">Voting power</p>
       <div className="ui-fact-row text-sm">
         <span className="text-neutral-500">Yours{address ? " (at snapshot)" : ""}</span>
-        <span className="font-semibold text-neutral-800">{address ? fmt(yours) : "—"}</span>
+        <span className="font-semibold text-neutral-800">{address ? fmt(yours) : "-"}</span>
       </div>
       {showTotal && (
         <div className="ui-fact-row text-sm">

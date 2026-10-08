@@ -57,7 +57,7 @@ export function BondedDelegationCards({
   if (!showOwner && !showDelegate) return null;
 
   const compact = (v?: bigint) =>
-    v === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(v, decimals));
+    v === undefined || decimals === undefined ? "-" : compactNumber(formatUnits(v, decimals));
   const busy = bonded.pendingAction !== undefined;
   const ownerFailure =
     bonded.failure && ["request", "cancel", "stop"].includes(bonded.failure.action)
@@ -114,8 +114,8 @@ export function BondedDelegationCards({
                         delegation of your {bonded.countsVesting ? "locks" : `wallet ${PUB_TOKEN_SYMBOL}`}.
                       </p>
                       <p>
-                        The address must accept your request before the voting power moves. Your {PUB_TOKEN_SYMBOL}{" "}
-                        does not move, and a change counts only for proposals created after it.
+                        The address must accept your request before the voting power moves. Your {PUB_TOKEN_SYMBOL} does
+                        not move, and a change counts only for proposals created after it.
                       </p>
                     </PowerInfo>
                   </dt>
@@ -214,12 +214,7 @@ export function BondedDelegationCards({
       {showDelegate && (
         <div className="power-delegation-block">
           {outside && delegateHeading}
-          <ScrollFadeIn
-            as="section"
-            amount="some"
-            className="power-card"
-            aria-labelledby="bonded-represented-heading"
-          >
+          <ScrollFadeIn as="section" amount="some" className="power-card" aria-labelledby="bonded-represented-heading">
             {!outside && delegateHeading}
             <div className="power-delegation-summary">
               <div className="power-delegation-overview">

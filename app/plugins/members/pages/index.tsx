@@ -25,7 +25,7 @@ export default function Delegation() {
   const notDelegated = !delegatesTo || delegatesTo === ADDRESS_ZERO;
   const decimals = useTokenDecimals();
   const fmt = (v?: bigint) =>
-    decimals === undefined ? "—" : `${compactNumber(formatUnits(v ?? 0n, decimals))} ${PUB_TOKEN_SYMBOL}`;
+    decimals === undefined ? "-" : `${compactNumber(formatUnits(v ?? 0n, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
     <MainSection narrow={true}>
@@ -65,9 +65,9 @@ export default function Delegation() {
                   // wallet balance without it. Bonded FOLD, and vesting FOLD under the velocker, do not
                   // follow this delegation. They count for their owner.
                   PUB_ENABLE_LOCKING ? (
-                    "Nobody — locks not activated"
+                    "Nobody (locks not activated)"
                   ) : (
-                    "Nobody — balance not activated"
+                    "Nobody (balance not activated)"
                   )
                 ) : (
                   <AddressText bold={false}>{delegatesTo}</AddressText>

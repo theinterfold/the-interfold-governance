@@ -13,7 +13,7 @@ import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { ADDRESS_ZERO, equalAddresses } from "@/utils/evm";
-import { compactNumber } from "@/utils/numbers";
+import { exactNumber } from "@/utils/numbers";
 import { foldLockAbi } from "../artifacts/foldLock";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
 import { PowerWarning } from "./powerWarning";
@@ -79,7 +79,7 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
   const bondedAway = !!bondedDelegate && !equalAddresses(bondedDelegate, ADDRESS_ZERO);
   if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere && !bondedAway) return null;
 
-  const fmt = (v: bigint) => `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const fmt = (v: bigint) => `${exactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
   const link = "underline underline-offset-2";
   return (
     <PowerWarning title={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}>
@@ -100,7 +100,7 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
       )}
       {delegatedElsewhere && (
         <span className="block">
-          {compactNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
+          {exactNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
           <AddressText bold={false}>{delegatesTo}</AddressText>. <SelfDelegateLink label="Delegate to yourself" /> to
           vote with it.
         </span>

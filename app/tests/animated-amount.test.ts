@@ -33,6 +33,6 @@ describe("Amount place-value continuity", () => {
         .map(({ value: character }) => character)
         .join("")
     ).toBe(value);
-    expect(amountCharacters("—")).toEqual([{ key: "label", value: "—" }]);
+    expect(amountCharacters("-")).toEqual([{ key: "label", value: "-" }]);
   });
 });

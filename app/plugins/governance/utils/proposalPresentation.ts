@@ -8,6 +8,8 @@ export type ProposalPresentation = {
   timing: string;
   resultMessage?: string;
   votingOpen: boolean;
+  /** Voting has not started yet. Readers then want the start time. */
+  votingPending: boolean;
   showTally: boolean;
 };
 
@@ -43,6 +45,7 @@ export function proposalPresentation({
     timing,
     resultMessage,
     votingOpen: false,
+    votingPending: false,
     showTally,
   });
 
@@ -53,14 +56,29 @@ export function proposalPresentation({
   }
   if (roundFailed)
     return result("Round failed", "failed", "Round failed", "This voting round could not complete.", false);
-  if (nowMs < startMs) return result("Pending", "pending", "Voting has not started", undefined, false);
+  if (nowMs < startMs) {
+    return { ...result("Pending", "pending", "Voting has not started", undefined, false), votingPending: true };
+  }
   // A body executed early has definitively completed stage 0.
   if (bodyStatus === ProposalStatus.EXECUTED) return result("Vote passed", "accepted", "Awaiting Foundation stage");
   if (nowMs < endMs) {
-    return { label: "Active", className: "active", timing: "Voting is open", votingOpen: true, showTally: isTallied };
+    return {
+      label: "Active",
+      className: "active",
+      timing: "Voting is open",
+      votingOpen: true,
+      votingPending: false,
+      showTally: isTallied,
+    };
   }
   if (!isTallied && networkResultPublished) {
-    return result("Confirming result", "pending", "Voting ended", "The result is published. Loading voting totals.", false);
+    return result(
+      "Confirming result",
+      "pending",
+      "Voting ended",
+      "The result is published. Loading voting totals.",
+      false
+    );
   }
   if (!isTallied) {
     return result(

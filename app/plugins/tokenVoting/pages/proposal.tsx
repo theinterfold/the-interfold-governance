@@ -163,7 +163,7 @@ function ProposalDetailBody({
   const { symbol: tokenSymbol } = useToken();
   const tokenDecimals = useTokenDecimals();
   // "—" until the on-chain read lands, rather than formatting against an assumed 18.
-  const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "—" : formatUnits(v, tokenDecimals));
+  const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "-" : formatUnits(v, tokenDecimals));
   const { balance, delegatesTo } = useTokenVotes(address);
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const nowMs = useProposalBoundaryClock(

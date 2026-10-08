@@ -102,8 +102,8 @@ export const CrispCreationEligibility = ({
       <ElseIf true={state.needsDelegation}>
         {/* Holds tokens but hasn't delegated — self-delegation activates voting power */}
         <MissingContentView callToAction="Delegate to myself" isLoading={isDelegating} onClick={() => delegateToSelf()}>
-          You hold voting tokens, but they aren&apos;t delegated yet — so your voting power reads as zero on-chain and
-          you can&apos;t create a proposal. Delegate to yourself once to activate it. This is a one-time transaction.
+          You hold voting tokens, but they are not delegated yet. Your on-chain voting power is zero, so you cannot
+          create a proposal. Delegate to yourself once to activate it. This is a one-time transaction.
         </MissingContentView>
       </ElseIf>
       <ElseIf true={state.hasNoTokens}>

@@ -60,7 +60,7 @@ const EXPLANATIONS: Record<string, ErrorExplanation> = {
   },
   "0x7bc2dc6a": {
     title: "This round is already marked as failed",
-    detail: "Someone has already recorded the failure — continue with the remaining settlement steps.",
+    detail: "Someone has already recorded the failure. Continue with the remaining settlement steps.",
   },
   "0x9352e23c": {
     title: "The round cannot be marked as failed yet",

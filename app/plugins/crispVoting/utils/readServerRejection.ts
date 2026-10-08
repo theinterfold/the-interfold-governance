@@ -16,7 +16,7 @@
 const STATUS_FALLBACKS: Record<number, string> = {
   400: "The server rejected this vote as invalid.",
   409: "This vote conflicts with one already recorded for this round.",
-  429: "Too many requests — wait a moment and try again.",
+  429: "Too many requests. Wait a moment and try again.",
   503: "The voting service is temporarily unavailable. Try again shortly.",
   504: "The voting service timed out. Your vote was not recorded; try again.",
 };

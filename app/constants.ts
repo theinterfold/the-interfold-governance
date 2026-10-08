@@ -113,7 +113,7 @@ export const PUB_IPFS_ENDPOINTS = process.env.NEXT_PUBLIC_IPFS_ENDPOINTS ?? "";
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);
 export const PUB_APP_NAME = "Interfold Governance";
 export const PUB_APP_DESCRIPTION =
-  "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
+  "Governance for the Interfold: public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
 export const PUB_TOKEN_SYMBOL = "FOLD";
 
 export const PUB_PROJECT_LOGO = "/theinterfold-logo.png";

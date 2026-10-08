@@ -41,7 +41,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const progressPct = required > 0n ? Math.min((Number(totalVotes) / Number(required)) * 100, 100) : 100;
 
   const fmt = (v: bigint) =>
-    decimals === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+    decimals === undefined ? "-" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
     <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">

@@ -9,14 +9,18 @@ import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPr
 
 const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presentation?: ProposalPresentation }) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
-  const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
+  const startMs = Number(proposal.parameters.startDate) * 1000;
+  const endMs = Number(proposal.parameters.endDate) * 1000;
+  const endDateIsInThePast = endMs < Date.now();
   let timing: ReactNode;
-  if (presentation && !presentation.votingOpen) timing = presentation.timing;
+  // Before the start, the reader wants to know when they can vote.
+  if (presentation?.votingPending) timing = <ProposalCountdown boundary="start" atMs={startMs} />;
+  else if (presentation && !presentation.votingOpen) timing = presentation.timing;
   else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
   else if (proposalStatus === ProposalStatus.REJECTED)
     timing = quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected";
   else if (endDateIsInThePast) timing = "The voting period is over";
-  else timing = <ProposalCountdown endMs={Number(proposal.parameters.endDate) * 1000} />;
+  else timing = <ProposalCountdown boundary="end" atMs={endMs} />;
 
   return (
     <ProposalReadingHeader

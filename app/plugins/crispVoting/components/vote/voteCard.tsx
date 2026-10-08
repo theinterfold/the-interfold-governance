@@ -30,7 +30,12 @@ import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import { equalAddresses } from "@/utils/evm";
 import { crispSdk } from "../../utils/crispSdk";
 import { getRandomVoterToMask } from "../../utils/voters";
-import { submitBallotSequence, type BallotKind, type BallotSubmissionResult } from "../../utils/ballotSubmission";
+import {
+  randomFirstBallot,
+  submitBallotSequence,
+  type BallotKind,
+  type BallotSubmissionResult,
+} from "../../utils/ballotSubmission";
 
 export interface VoteCardProps {
   creditMode?: CreditsMode;
@@ -126,6 +131,7 @@ export const VoteCard = ({
   const [weightAttempt, setWeightAttempt] = useState(0);
   const [reviewMode, setReviewMode] = useState<BallotKind>("vote");
   const [includeMask, setIncludeMask] = useState(false);
+  const [sendFirst, setSendFirst] = useState<BallotKind>("vote");
   const [sendWithAnotherWallet, setSendWithAnotherWallet] = useState(false);
   const otherWalletId = useId();
   const maskOptionId = useId();
@@ -133,7 +139,8 @@ export const VoteCard = ({
   const [targetInput, setTargetInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string>();
-  const [combinedAttempt, setCombinedAttempt] = useState(false);
+  // The first submission of a vote + mask attempt. Null when the attempt sends one ballot.
+  const [combinedFirst, setCombinedFirst] = useState<BallotKind | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const mounted = useRef(true);
   const submittingRef = useRef(false);
@@ -207,6 +214,7 @@ export const VoteCard = ({
     setSendWithAnotherWallet(false);
     setTargetMode("random");
     setTargetInput("");
+    setSendFirst(randomFirstBallot());
     setReviewOpen(true);
   };
 
@@ -230,7 +238,7 @@ export const VoteCard = ({
     setEditingMode(reviewMode);
     setReviewOpen(false);
     setAttemptError(undefined);
-    setCombinedAttempt(!isReviewMasking && includeMask);
+    setCombinedFirst(!isReviewMasking && includeMask ? sendFirst : null);
     if (wantsMask) setReceipts((previous) => ({ ...previous, mask: undefined }));
     setShowFeedback(true);
     const option = selectedOption;
@@ -246,6 +254,7 @@ export const VoteCard = ({
       await submitBallotSequence({
         vote: isReviewMasking ? undefined : () => onClickVote(option!, reviewWeight!),
         mask: wantsMask ? () => onClickMask(target) : undefined,
+        first: sendFirst,
         isCurrent: () => mounted.current,
         onStart: (kind) => {
           setSubmittedMode(kind);
@@ -260,7 +269,8 @@ export const VoteCard = ({
             [kind]: { txHash: result.txHash, option: kind === "vote" ? option : null },
           }));
           if (kind === "mask") setIncludeMask(false);
-          setEditingMode(null);
+          // A mask sent before the vote does not end the edit of that vote.
+          if (kind === reviewMode) setEditingMode(null);
         },
       });
     } finally {
@@ -285,6 +295,7 @@ export const VoteCard = ({
   const isDisabled = disabled || busy || votingClosed;
   const notStarted = voteStartDate > Math.round(Date.now() / 1000);
   const started = voteStartDate < Math.round(Date.now() / 1000);
+  const sendOrderText = sendFirst === "mask" ? "Mask first, then vote." : "Vote first, then mask.";
 
   return (
     <BallotPanel
@@ -480,18 +491,21 @@ export const VoteCard = ({
         )}
 
         <div className="vp-submission-results" aria-live="polite">
-          {(isMasking || combinedAttempt) && receipts.mask && (
+          {(isMasking || combinedFirst !== null) && receipts.mask && (
             <BallotSuccess title="Mask submitted successfully" txHash={receipts.mask.txHash} />
           )}
           {attemptError && showFeedback && (
             <p className="vp-submission-error" role="alert">
-              {submittedMode === "mask" ? "Mask not submitted." : "Vote not submitted."}
-              {submittedMode === "mask" && combinedAttempt && receipts.vote
-                ? " Your vote was submitted successfully."
-                : ""}
+              {submittedMode !== "mask"
+                ? "Vote not submitted."
+                : combinedFirst === "vote"
+                  ? "Mask not submitted. Your vote was submitted successfully."
+                  : combinedFirst === "mask"
+                    ? "Mask not submitted. Your vote was not sent."
+                    : "Mask not submitted."}
             </p>
           )}
-          {attemptError && showFeedback && submittedMode === "mask" && combinedAttempt && (
+          {attemptError && showFeedback && submittedMode === "mask" && combinedFirst === "vote" && (
             <button
               type="button"
               className="vp-retry-mask"
@@ -770,6 +784,21 @@ export const VoteCard = ({
                     </MotionPanel>
                   </div>
                   <p>Adds cover for voters without changing any votes.</p>
+                  {!isReviewMasking && (
+                    <>
+                      <ChoiceMenu
+                        label="Send order"
+                        value={sendFirst}
+                        onChange={setSendFirst}
+                        disabled={busy}
+                        options={[
+                          { value: "vote", label: "Vote first" },
+                          { value: "mask", label: "Mask first" },
+                        ]}
+                      />
+                      <p>Selected at random for each ballot. A fixed order can show which submission is your vote.</p>
+                    </>
+                  )}
                 </div>
               </div>
             </FluidHeight>
@@ -795,10 +824,10 @@ export const VoteCard = ({
               ? "Nothing is sent yet. After signing, switch wallets and confirm the transaction."
               : submitOnChain
                 ? !isReviewMasking && includeMask
-                  ? "Vote first, then mask. Confirm each gas fee in ETH in your wallet."
+                  ? `${sendOrderText} Confirm each gas fee in ETH in your wallet.`
                   : "Confirm in your wallet, where you can review the gas fee in ETH."
                 : !isReviewMasking && includeMask
-                  ? "Vote first, then mask. Both are sent through the relayer. If it cannot send one, your wallet is asked to."
+                  ? `${sendOrderText} Both are sent through the relayer. If it cannot send one, your wallet is asked to.`
                   : "Your encrypted ballot is sent through the relayer. If it cannot send it, your wallet is asked to."}
           </p>
         </div>
@@ -812,7 +841,9 @@ export const VoteCard = ({
             : sendWithAnotherWallet
               ? "Sign and save ballot"
               : includeMask
-                ? "Vote and mask"
+                ? sendFirst === "mask"
+                  ? "Mask and vote"
+                  : "Vote and mask"
                 : receipts.vote
                   ? "Update vote"
                   : "Submit encrypted ballot"}

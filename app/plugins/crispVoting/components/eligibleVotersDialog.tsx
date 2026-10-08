@@ -86,14 +86,14 @@ export const EligibleVotersDialog = ({
   }, [shownData, filter]);
 
   const fmt = (v?: bigint) => {
-    if (v === undefined || decimals === undefined) return "—";
+    if (v === undefined || decimals === undefined) return "-";
     // Served balances are already scaled by 10^(decimals-1), so one more decimal
     // place restores whole tokens.
     return formatUnits(v, 1);
   };
 
   const pct = (v: bigint) => {
-    if (!shownData?.servedTotal) return "—";
+    if (!shownData?.servedTotal) return "-";
     return `${((Number(v) / Number(shownData.servedTotal)) * 100).toFixed(2)}%`;
   };
 
@@ -109,7 +109,7 @@ export const EligibleVotersDialog = ({
       <FluidHeight layoutKey={phase}>
         <div className="flex flex-col gap-y-4">
           <p className="text-sm text-neutral-500">
-            Voting power is snapshotted when the proposal is created. Ballots stay encrypted — this shows{" "}
+            Voting power is snapshotted when the proposal is created. Ballots stay encrypted. This list shows{" "}
             <em>who could vote and with how much weight</em>, never how anyone voted. Every entry is re-read from the
             token on-chain and compared with what the CRISP server served.
           </p>

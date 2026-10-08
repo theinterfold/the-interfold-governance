@@ -113,7 +113,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   const depositNeeded = shortfall === undefined ? 0n : shortfall + (shortfall * FEE_BUFFER_PERCENT) / 100n;
 
   const format = (value?: bigint) =>
-    value === undefined || decimals === undefined ? "—" : formatUnits(value, decimals);
+    value === undefined || decimals === undefined ? "-" : formatUnits(value, decimals);
   const unit = symbol ?? "fee token";
   const insufficientBalanceMessage = (needed: bigint, held: bigint) =>
     `Insufficient ${unit} balance: the deposit needs ${format(needed)} ${unit}, but your wallet holds ${format(held)} ${unit}.`;

@@ -128,7 +128,7 @@ export default function Locker() {
     }
   };
   const fmt = (v?: bigint) =>
-    v === undefined || decimals === undefined ? "—" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+    v === undefined || decimals === undefined ? "-" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   const amount = (() => {
     if (decimals === undefined || !amountInput) return undefined;
@@ -167,7 +167,7 @@ export default function Locker() {
   const needsActivation = notActivated && locksKnown && committedByMe > 0n;
 
   const compact = (value?: bigint) =>
-    value === undefined || decimals === undefined ? "—" : compactNumber(formatUnits(value, decimals));
+    value === undefined || decimals === undefined ? "-" : compactNumber(formatUnits(value, decimals));
   const delegationLabel = !delegationKnown ? (
     delegation.readError ? (
       "Unavailable"
@@ -405,7 +405,7 @@ export default function Locker() {
             amount={
               withdrawalAction && decimals !== undefined
                 ? exactNumber(formatUnits(withdrawalAction.amount, decimals))
-                : "—"
+                : "-"
             }
             cooldownSeconds={escrow.cooldown}
             pending={withdrawalSubmitting || pendingTokenId !== undefined}

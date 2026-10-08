@@ -66,6 +66,11 @@ describe("proposal presentation", () => {
     expect(proposalPresentation({ ...base, nowMs: 50, isTallied: false }).label).toBe("Pending");
     expect(proposalPresentation({ ...base, nowMs: 150, isTallied: false }).votingOpen).toBe(true);
   });
+
+  test("only a live proposal before its start counts down to the start", () => {
+    expect(proposalPresentation({ ...base, nowMs: 50, isTallied: false }).votingPending).toBe(true);
+    expect(proposalPresentation({ ...base, nowMs: 50, roundFailed: true }).votingPending).toBe(false);
+  });
 });
 
 describe("vote status at time boundaries", () => {

@@ -180,7 +180,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
     >
       <div className="proposal-activity-body">
         <p className="text-xs text-neutral-500">
-          Each entry is an encrypted input recorded on-chain for this round — votes, overrides and masks are
+          Each entry is an encrypted input recorded on-chain for this round. Votes, overrides and masks are
           indistinguishable. A ballot counts as soon as it is committed; publishing it to data availability follows
           separately and can take a few hours.
         </p>
@@ -191,7 +191,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
         {committed > 0 && (
           <p className="text-xs text-neutral-500">
             {published} of {committed} published to data availability
-            {published < committed ? " — the rest are awaiting publication." : "."}
+            {published < committed ? ". The rest are awaiting publication." : "."}
           </p>
         )}
 

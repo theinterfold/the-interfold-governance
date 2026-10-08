@@ -12,6 +12,7 @@ import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status
 import { nextStageName } from "@/plugins/spp/utils/status";
 import { ActionButton } from "@/components/input/actionButton";
 import { useWalletModal } from "@/hooks/useWalletModal";
+import { utcTimestamp } from "@/components/text/deadlineInfo";
 import {
   ResultNotice,
   ResultPanel,
@@ -91,7 +92,7 @@ export const VoteResultCard = ({
   const percentages = resultPercentages(values);
   const totalVotes = values.reduce((sum, value) => sum + value, 0n);
   const amount = (value: bigint) =>
-    tokenDecimals === undefined ? "—" : formatResultAmount(tallyCountToTokens(value, creditMode, tokenDecimals));
+    tokenDecimals === undefined ? "-" : formatResultAmount(tallyCountToTokens(value, creditMode, tokenDecimals));
   // CRISP tally units are scaled; preserve its own contract-aligned quorum calculation.
   const quorum =
     tokenDecimals === undefined || minParticipation == null
@@ -115,7 +116,8 @@ export const VoteResultCard = ({
   }
 
   if (!isTallied) {
-    const notStarted = voteStartMs !== undefined && Date.now() < voteStartMs;
+    const start = voteStartMs !== undefined && Date.now() < voteStartMs ? utcTimestamp(voteStartMs) : undefined;
+    const notStarted = start !== undefined;
     const votingOpen = !notStarted && voteEndMs !== undefined && Date.now() < voteEndMs;
     return (
       <ResultNotice
@@ -135,8 +137,8 @@ export const VoteResultCard = ({
         <p className="vp-note">
           {networkResultPublished
             ? "The network has published the result. The voting totals are not available here yet."
-            : notStarted
-              ? "The result is not available yet."
+            : start
+              ? `Voting starts ${start.date}, ${start.clock}.`
               : votingOpen
                 ? "The result will be available after the tally is published."
                 : foundationStageStarted

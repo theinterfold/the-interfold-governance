@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { ProposalCountdown } from "@/components/proposal/proposalCountdown";
 import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
-import { unixTimestampToDate } from "../../utils/formatProposalDate";
 
 interface ProposalHeaderProps {
   proposal: Proposal;
@@ -30,26 +29,28 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
   const statusLabel = bodyStatusLabel(proposalStatus, quorumNotMet);
 
   const isEmergency = proposal.parameters.startDate === 0n;
-  const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
-  const hasNotStarted = !isEmergency && Number(proposal.parameters.startDate) * 1000 > Date.now();
+  const startMs = Number(proposal.parameters.startDate) * 1000;
+  const endMs = Number(proposal.parameters.endDate) * 1000;
+  const endDateIsInThePast = endMs < Date.now();
+  const hasNotStarted = !isEmergency && startMs > Date.now();
 
+  // Before the start, a countdown to the end answers the wrong question: the reader wants to know
+  // when they can vote, and an end time alone implies voting is already open.
+  const startCountdown = <ProposalCountdown boundary="start" atMs={startMs} />;
   let timing: ReactNode;
-  if (presentation && !presentation.votingOpen) timing = presentation.timing;
+  if (presentation?.votingPending) timing = startCountdown;
+  else if (presentation && !presentation.votingOpen) timing = presentation.timing;
   else if (e3Failed) timing = "Round failed";
   else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "Accepted";
   else if (proposalStatus === ProposalStatus.REJECTED) timing = statusLabel;
   else if (endDateIsInThePast) timing = "Voting closed";
-  // Before the start, a countdown to the end answers the wrong question: the reader wants to know
-  // when they can vote, and an end time alone implies voting is already open.
-  else if (hasNotStarted) {
-    timing = `Voting starts ${unixTimestampToDate(proposal.parameters.startDate)} · ends ${unixTimestampToDate(proposal.parameters.endDate)}`;
-  }
+  else if (hasNotStarted) timing = startCountdown;
   // "Forming committee" only once voting has actually opened. Before the start the protocol
   // deliberately sizes the gap to cover sortition and DKG, so a committee still forming is on
   // schedule, not late. After the start, an unpublished key IS the blocker and this is the honest
   // label.
   else if (!isCommitteeReady) timing = "Forming committee";
-  else timing = <ProposalCountdown endMs={Number(proposal.parameters.endDate) * 1000} />;
+  else timing = <ProposalCountdown boundary="end" atMs={endMs} />;
 
   return (
     <ProposalReadingHeader

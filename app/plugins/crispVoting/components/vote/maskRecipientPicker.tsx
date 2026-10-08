@@ -68,7 +68,7 @@ export function MaskRecipientPicker({
                           <ListTokenAmount
                             value={
                               decimals === undefined
-                                ? "—"
+                                ? "-"
                                 : compactNumber(tallyCountToTokens(voter.balance, creditMode, decimals))
                             }
                             symbol={creditMode === CreditsMode.CONSTANT ? "credits" : PUB_TOKEN_SYMBOL}

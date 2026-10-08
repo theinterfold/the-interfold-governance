@@ -183,6 +183,7 @@ function PublicRowBody({
 
   const { yes, no, abstain } = proposal.tally;
   const total = yes + no + abstain;
+  const startDate = Number(proposal.parameters.startDate) * 1000;
   const endDate = Number(proposal.parameters.endDate) * 1000;
   const view = presentation!;
 
@@ -207,6 +208,8 @@ function PublicRowBody({
       votingOpen={view.votingOpen}
       rightLabel={view.timing}
       votingEndMs={endDate}
+      votingPending={view.votingPending}
+      votingStartMs={startDate}
       bars={bars}
       resultLabel={view.votingOpen ? "Live vote share" : endDate <= Date.now() ? "Final vote share" : "Voting results"}
       resultMessage={total === 0n ? "No votes recorded." : undefined}

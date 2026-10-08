@@ -38,7 +38,7 @@ export function PublicVotes({ votes }: { votes: (IVote & { votingPower?: string 
                     <EnsMember address={vote.address} />
                     <div className="pl-9">
                       <ListTokenAmount
-                        value={vote.votingPower === undefined ? "—" : compactNumber(vote.votingPower)}
+                        value={vote.votingPower === undefined ? "-" : compactNumber(vote.votingPower)}
                         symbol={PUB_TOKEN_SYMBOL}
                       />
                     </div>

@@ -235,7 +235,7 @@ export function useEligibleVoters(
               id: "balances",
               label: "Balances match the token at the snapshot",
               status: "warn",
-              detail: `${rows.length - unread}/${rows.length} checked — ${unread} could not be read`,
+              detail: `${rows.length - unread}/${rows.length} checked, ${unread} could not be read`,
             }
           : mismatchCount === 0
             ? {
@@ -323,7 +323,7 @@ export function useEligibleVoters(
             detail:
               onChainRound.merkleRoot !== 0n
                 ? `0x${onChainRound.merkleRoot.toString(16)}`
-                : "root is zero — nothing binds this set on-chain",
+                : "root is zero, so nothing binds this set on-chain",
           });
         }
 
