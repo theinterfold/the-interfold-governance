@@ -252,6 +252,20 @@ contract CrispVotingViewsTest is Test {
         assertEq(crispProgram.votingPowerDivisorOf(plugin.getProposal(proposalId).e3Id), 2_000 / 100 + 1);
     }
 
+    /// @notice At a token clock of 0, CRISP's `_previousTimepoint` snapshots timepoint 0, because
+    ///         `clock() - 1` would underflow. The floor reads the supply at the same timepoint.
+    ///         Only a fee quote gets this far: `createProposal` also stores `clock() - 1` as the
+    ///         proposal snapshot and reverts on the underflow.
+    function test_quoteReadsTheSupplyAtTimepointZeroWhenTheClockIsZero() public {
+        MockVotesToken clocked = new MockVotesToken(SUPPLY);
+        clocked.setClock(0);
+        plugin = _deploy(address(clocked), MIN_PARTICIPATION);
+        interfold.setFee(3 ether);
+
+        vm.expectCall(address(clocked), abi.encodeCall(MockVotesToken.getPastTotalSupply, (uint256(0))));
+        assertEq(plugin.quoteProposalFee(0, 0), 3 ether, "the quote does not underflow at clock 0");
+    }
+
     /// @notice A request asserts the coordinator's crypto config id for the parameter set it
     ///         requests, for both sets the protocol supports.
     /// @dev `request` compares `expectedCryptoConfigId` with
@@ -874,11 +888,6 @@ contract CrispVotingViewsTest is Test {
             block.timestamp - 1,
             "snapshot must be clock()-1, i.e. a timestamp"
         );
-    }
-
-    function test_snapshotFallsBackToBlockNumberWithoutAClock() public view {
-        // The default mock has no clock(); the plugin must not revert.
-        assertEq(plugin.minDuration(), MIN_DURATION, "sanity");
     }
 
     function test_snapshotUsesBlockNumberWhenTheTokenHasNoClock() public {
