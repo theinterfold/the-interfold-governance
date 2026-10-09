@@ -48,7 +48,7 @@ jobs:
         run: forge build
 
       - name: Test
-        run: forge test -vvv
+        run: make test
 
       - name: Test deployment commands
         run: node --test test/SafePrepareCommand.test.mjs
@@ -59,7 +59,7 @@ jobs:
         env:
           MIN_COVERAGE: 100
         run: |
-          forge coverage --report summary | tee /tmp/coverage.txt
+          forge coverage --threads 1 --report summary | tee /tmp/coverage.txt
           python3 - <<'EOF'
           import os, re, sys
 

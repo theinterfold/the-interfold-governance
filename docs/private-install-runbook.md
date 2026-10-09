@@ -25,10 +25,10 @@ of the committed `.env.mainnet.install` (Step 1). The Safe files go to `contract
 | Foundation Safe (Admin driver)                      | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593`                                                                                                                                                                                                                                            |
 | Admin plugin                                        | `0xF21e25455988887EE797050080141eba67B33920`. It is armed: it holds `EXECUTE_PERMISSION` on the DAO (INV-29 deferred)                                                                                                                                                                   |
 | CRISP PluginRepo (`interfold-crisp.plugin.dao.eth`) | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1`. Release 1 has builds 1 and 2. The Safe is the maintainer                                                                                                                                                                                  |
-| CRISP build 3 (not published)                       | Setup `0xCc83E1936BA14F8F81Da21c1Df606033249ef29e`, implementation `0xE9173750958F9f1545bfcBf0b88fE71acE908518`. `safe-actions/12-publish-crisp-build.json` publishes it, see [publish-crisp-build.md](./publish-crisp-build.md)                                                        |
+| Next CRISP build (not published)                    | Generate and check the publication batch from the frozen compiler artifacts. Use its CREATE2 addresses, not predictions from another build. See [publish-crisp-build.md](./publish-crisp-build.md)                                                                                      |
 | Installed private process (this runbook retires it) | Body `0x197be4E09614285Abb4b74b672377c404FD44d54` (build 2, program `0x53FC…1BA3`, parameter set 1). SPP `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`, which holds `EXECUTE_PERMISSION` on the DAO. Installed at block 26006243. 3 proposals, none executed. 35.4272 USDS of fee credit |
 | Interfold coordinator                               | `0x28cF63B459e6218C69EA97ea7D90541cf648c715`. `feeToken()` is **USDS** (`0xdC03…384F`). `requestsPaused()` is `true`. `activeCryptoConfigId()` is `0xd9c8…fb4e`, the configuration before v0.19. `paramSetRegistry(2)` is empty                                                         |
-| CRISP E3 program                                    | `0x53FC…1BA3` is registered. It is a RISC Zero program, and the v0.19 cutover retires it. The new OpenVM program does not exist yet                                                                                                                                                     |
+| CRISP E3 program                                    | `0x53FC…1BA3` is registered. The OpenVM replacement `0x1EA4dBdec0F2F1E9235915847fc59EF4045EEe28` is deployed with deferred wiring. The v0.19 batch binds and registers it, and retires the RISC Zero program                                                                            |
 | Process metadata (pinned)                           | `ipfs://QmSEYaoXRLu2ut2aBkCB527cLQV5ow1JUij4HxkRYXBd2Y`, "Interfold Protocol Proposal", key `IPP`                                                                                                                                                                                       |
 | Prepare files                                       | None. Step 1 generates `safe-actions/22-prepare-crisp.json` and `23-prepare-spp-private.json`                                                                                                                                                                                           |
 
@@ -82,6 +82,7 @@ It uses parameter set 2, the OpenVM compute provider and the new CRISP program.
 Three repositories take part. Do the steps in this order. For the protocol steps, the source of
 truth is the "v0.19 cutover on mainnet" section of `agent/flow-trace/07_UPGRADES.md` in the
 Interfold repository.
+Complete stable v0.19.0 CI and software publication before the Safe executes the protocol cutover.
 
 | #   | Where                        | Step                                                                                                                          |
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -138,6 +139,7 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    | Variable                              | Value                                                                 |
    | ------------------------------------- | --------------------------------------------------------------------- |
    | `CRISP_PROGRAM_ADDRESS`               | The new OpenVM CRISP program                                          |
+   | `FOLD_TOKEN_ADDRESS`                  | `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`                          |
    | `CRISP_BUILD`                         | `3`                                                                   |
    | `PARAM_SET`                           | `2`                                                                   |
    | `COMMITTEE_SIZE`                      | `2`                                                                   |
@@ -176,14 +178,13 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    ```
 
    Expect these values, in this order:
-
    - DAO and token `0x0000…0000`. The setup fills them in at install.
    - Interfold `0x28cF63B459e6218C69EA97ea7D90541cf648c715`.
    - Committee size `2` and parameter set `2`.
    - The new CRISP program.
    - The OpenVM compute provider parameters.
    - Voting settings `(0, 71000000000000000000, 2, 51, 432000)`.
-   - BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`, then `false` (no `EXECUTE` for the
+   - BondedVotes `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`, then `false` (no `EXECUTE` for the
      body).
 
 6. Make sure that the SPP prepare file contains the IPP metadata URI. Expect `1`:
@@ -317,9 +318,10 @@ Also make sure of these items:
 - The receipt has four `Revoked` events from the DAO. They remove ROOT from the PSP and `EXECUTE`
   from the old SPP. They also remove the two `CREATE_PROPOSAL` grants of the old pair. The DAO
   emits `Revoked` only for a permission that was granted.
-- New body: `implementation()` is `0xE9173750958F9f1545bfcBf0b88fE71acE908518`. `getVotingToken()`
-  is BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`. `supportThreshold()` is 51, and
+- New body: `implementation()` matches the checked publication receipt. `getVotingToken()`
+  is BondedVotes `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`. `supportThreshold()` is 51, and
   `minParticipation()` is 2.
+- New body: `minVoterVotingPower()` is `71000000000000000000` (71 FOLD).
 - New body: `getE3Settings()` is `(2, 2, <OpenVM parameters>)`, and `getTargetConfig()` is
   (`0x56ce…40A4`, DelegateCall).
 - New SPP: stage 0 has `minAdvance` 0 (INV-9). Stage 1 has `vetoThreshold` 0, which is approval

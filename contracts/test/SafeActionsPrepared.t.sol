@@ -111,7 +111,7 @@ contract SafeActionsPreparedTest is Test {
         vm.chainId(1);
         PreparedCrispFloor plugin = new PreparedCrispFloor();
         _seed("CRISP_ALIAS_FLOOR");
-        // Distinct from the other fixtures: process-wide env changes cannot classify TA/TB/TC as CRISP.
+        // Keep the canonical repo distinct from the non-CRISP prepared fixtures.
         vm.setEnv("CRISP_PLUGIN_REPO", vm.toString(address(0xC1157)));
         vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_REPO", vm.toString(address(0xC1157)));
         vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_ADDRESS", vm.toString(address(plugin)));

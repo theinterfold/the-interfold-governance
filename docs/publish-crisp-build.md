@@ -67,14 +67,14 @@ calls `createVersion` on the repo.
 
 ## Addresses
 
-| What                                       | Address                                      |
-| ------------------------------------------ | -------------------------------------------- |
-| CRISP plugin repo                          | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
-| Foundation Safe (signer)                   | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
-| CREATE2 deployer                           | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
-| New `CrispVoting` implementation (build 3) | `0xE9173750958F9f1545bfcBf0b88fE71acE908518` |
-| New `CrispVotingSetup` (build 3)           | `0xCc83E1936BA14F8F81Da21c1Df606033249ef29e` |
-| Current `CrispVotingSetup` (build 2)       | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
+| What                                 | Address                                      |
+| ------------------------------------ | -------------------------------------------- |
+| CRISP plugin repo                    | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
+| Foundation Safe (signer)             | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
+| CREATE2 deployer                     | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
+| New `CrispVoting` implementation     | Read the checked generator output            |
+| New `CrispVotingSetup`               | Read the checked generator output            |
+| Current `CrispVotingSetup` (build 2) | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
 
 The repo address is not in a receipt. It was resolved from ENS:
 
@@ -122,18 +122,19 @@ cd contracts
 ENV_FILE=.env.mainnet make safe-publish-crisp-build   # -> safe-actions/12-publish-crisp-build.json
 ```
 
-The generator is deterministic. The same salt and initcode give the same two addresses, so you can
-run it again safely. Only `createdAt` changes.
+The generator is deterministic for the same compiler input, salt, initcode and metadata URIs.
+Keep the generated addresses with the checked batch. Another build can produce different addresses.
+Do not sign a previously committed file without comparing it with the qualified release artifacts.
 
 ## What is in the batch
 
 Three calls, executed in order, atomically:
 
-| #   | To               | Call                                                                    |
-| --- | ---------------- | ----------------------------------------------------------------------- |
-| 0   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVoting`                              |
-| 1   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVotingSetup(impl)`                   |
-| 2   | CRISP repo       | `createVersion(1, setup, buildMetadata, releaseMetadata)`               |
+| #   | To               | Call                                                      |
+| --- | ---------------- | --------------------------------------------------------- |
+| 0   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVoting`                |
+| 1   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVotingSetup(impl)`     |
+| 2   | CRISP repo       | `createVersion(1, setup, buildMetadata, releaseMetadata)` |
 
 A Safe cannot send a raw contract creation. Each Transaction Builder entry is a call to an address,
 so the two deploys go through the canonical CREATE2 deployer.
@@ -150,8 +151,9 @@ check both before you sign.
 1. **Both target addresses are empty.** If one of them already holds code, the batch reverts:
 
    ```bash
-   cast codesize 0xE9173750958F9f1545bfcBf0b88fE71acE908518 --rpc-url "$RPC_URL"   # expect 0
-   cast codesize 0xCc83E1936BA14F8F81Da21c1Df606033249ef29e --rpc-url "$RPC_URL"   # expect 0
+   # Set these addresses from the checked generator output first.
+   cast codesize "$CRISP_IMPLEMENTATION_ADDRESS" --rpc-url "$RPC_URL"   # expect 0
+   cast codesize "$CRISP_SETUP_ADDRESS" --rpc-url "$RPC_URL"            # expect 0
    ```
 
 2. **tx2 points at the setup from tx1.** The setup address must be in the `createVersion` calldata.
@@ -181,9 +183,10 @@ check both before you sign.
      | grep -c 9ae5be6a352cd245259ba1cc07b57c755ecd466f62ff9b95d3ec77f05b8c24b0   # expect 1
    ```
 
-On 2026-10-09, the Safe executed this batch on a mainnet fork at block 26156057. All three calls
+On 2026-10-09, the Safe executed an earlier compiled batch on a mainnet fork at block 26156057. All three calls
 succeeded, and `buildCount(1)` changed from 2 to 3. The same rehearsal then installed build 3 with
 [`private-install-runbook.md`](./private-install-runbook.md#rehearsal-record).
+That record does not qualify a different creation payload or the 71 FOLD installation policy.
 
 ---
 

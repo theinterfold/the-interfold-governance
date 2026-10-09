@@ -26,8 +26,9 @@ setup: ## Fetch Solidity deps (git submodules under lib/ + npm packages)
 build: ## Compile
 	forge build
 
+# Deployment tests share process-wide env keys with the publisher. Run them serially.
 test: ## Run tests
-	forge test -vvv
+	forge test --threads 1 -vvv
 
 safe-set-crisp-voter-minimum: ## Generate a DAO-authorized voter-minimum update (no broadcast)
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
