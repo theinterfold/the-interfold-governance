@@ -60,7 +60,7 @@ It uses parameter set 2, the OpenVM compute provider and the new CRISP program.
 
 - The voter minimum is **71 FOLD**, encoded as `71000000000000000000` in 18-decimal voting units.
   Governance controls this setting. Proposal creators cannot override it. Each proposal keeps its
-  creation-time minimum, which is also passed to its E3.
+  creation-time minimum. The E3 uses the larger of that minimum and the round's voting-power divisor.
 - Quorum is **2%** of the total FOLD supply at the snapshot (`MINIMUM_PARTICIPATION=2`, RATIO_BASE
   100).
 - Support: yes must be **more than 51%** of yes+no (`SUPPORT_THRESHOLD=51`). Abstain counts toward
@@ -94,6 +94,13 @@ Complete stable v0.19.0 CI and software publication before the Safe executes the
 | 6   | Operators and Interfold repo | Ciphernodes restart on the release. Run `upgrade:v19:refresh`, then `upgrade:v19:resume -- --ciphernodes-restarted`           |
 | 7   | Foundation Safe              | Execute the unpause batch that `upgrade:v19:resume` writes                                                                    |
 | 8   | This repository              | Simulate one full private proposal and disarm later ([Step 7](#step-7-before-the-announcement))                               |
+
+For operation 3, use only the qualified publication file with SHA-256
+`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`.
+It deploys implementation `0x8153c6dce903b3A4a886399D310668FB8c97cEC6` and setup
+`0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`. Confirm `buildCount(1) == 2` before signing.
+Reject older copies with different addresses or placeholder metadata. Publication can run before
+operation 2; it does not change the installed plugins or the protocol.
 
 Requests stay paused from operation 2 until operation 7. During this interval, nobody can create a
 private proposal. The protocol flow trace requires operation 5 before operation 7: "update the
@@ -369,10 +376,18 @@ tally.
 - `NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS`: the new program, the same value as `CRISP_PROGRAM_ADDRESS`.
 - `NEXT_PUBLIC_CRISP_SERVER_URL`: the CRISP server that tracks the new program.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS`: USDS, `0xdC035D45d973E3EC169d2276DDab16f1e407384F`.
+- `NEXT_PUBLIC_BONDED_VOTES_ADDRESS`: the new private-process adapter,
+  `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`.
+- `NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK`: `26155854`.
 - `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: the old body,
   `0x197be4E09614285Abb4b74b672377c404FD44d54`.
 - `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS`: the old SPP,
   `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`.
+
+The global delegation and voting-power screens follow the configured adapter. The public body
+still uses `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`; delegation to the new adapter does not
+migrate that body. Proposal voting-power reads use each body's own token. Verify both processes
+before changing the live app. This runbook does not implement a body-specific delegation screen.
 
 The two `RETIRED` values keep the 3 old proposals in the proposal list and on their pages. Copy
 each address exactly as it shows here. The app ignores an address with an incorrect checksum and

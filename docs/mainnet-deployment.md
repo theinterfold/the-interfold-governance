@@ -34,14 +34,14 @@ risk. See [the Admin bootstrap](#the-admin-bootstrap-armed-between-the-phases).
 
 ## Decisions to make before you start
 
-| Decision                       | Options                                | Note                                                                                                                       |
-| ------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Foundation address             | Safe / other multisig                  | **Never an EOA.** In `approval` mode a lost key freezes governance permanently — every future proposal expires unapproved. |
-| Stage-1 mode                   | `approval` (opt-in) / `veto` (opt-out) | Template defaults to `approval`. Changeable later by proposal, no redeploy.                                                |
-| `TV_MIN_PROPOSER_VOTING_POWER` | `0` / non-zero                         | `0` = anyone can open a proposal. Left at `0` in the template and flagged; decide deliberately for mainnet.                |
+| Decision                       | Options                                | Note                                                                                                                                                                                      |
+| ------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation address             | Safe / other multisig                  | **Never an EOA.** In `approval` mode a lost key freezes governance permanently — every future proposal expires unapproved.                                                                |
+| Stage-1 mode                   | `approval` (opt-in) / `veto` (opt-out) | Template defaults to `approval`. Changeable later by proposal, no redeploy.                                                                                                               |
+| `TV_MIN_PROPOSER_VOTING_POWER` | `0` / non-zero                         | `0` = anyone can open a proposal. Left at `0` in the template and flagged; decide deliberately for mainnet.                                                                               |
 | `TV_VOTING_MODE`               | `0` Standard / `2` VoteReplacement     | Template defaults to `2` (voters may change their vote while open). **Install-time parameter** — changing it later needs `updateVotingSettings` by proposal. Neither mode early-executes. |
-| Who holds the bootstrap        | deployer EOA / foundation multisig     | Rotatable at any point via `make grant-admin` + `make revoke-admin`. See [handing it over](#handing-the-bootstrap-to-the-multisig-phase-2b). |
-| FOLD distribution at go-live   | —                                      | Quorum is `TV_MIN_PARTICIPATION` of **total supply**, not of circulating or delegated supply. If supply is minted but undistributed, quorum may be unreachable in practice. |
+| Who holds the bootstrap        | deployer EOA / foundation multisig     | Rotatable at any point via `make grant-admin` + `make revoke-admin`. See [handing it over](#handing-the-bootstrap-to-the-multisig-phase-2b).                                              |
+| FOLD distribution at go-live   | —                                      | Quorum is `TV_MIN_PARTICIPATION` of **total supply**, not of circulating or delegated supply. If supply is minted but undistributed, quorum may be unreachable in practice.               |
 
 ### The Admin bootstrap, armed between the phases
 
@@ -70,10 +70,10 @@ must go through a governance proposal instead (`make print-private-actions` emit
 
 Two different permissions are in play, and conflating them is the main way this goes wrong:
 
-| Permission                                 | `_where`        | Means                                    | Removed by         |
-| ------------------------------------------ | --------------- | ---------------------------------------- | ------------------ |
-| `EXECUTE_PERMISSION`                       | the DAO         | the bootstrap **is armed**                | `make disarm-admin` |
-| `EXECUTE_PROPOSAL_PERMISSION`              | the Admin plugin | **who may drive** the armed bootstrap    | `make revoke-admin` |
+| Permission                    | `_where`         | Means                                 | Removed by          |
+| ----------------------------- | ---------------- | ------------------------------------- | ------------------- |
+| `EXECUTE_PERMISSION`          | the DAO          | the bootstrap **is armed**            | `make disarm-admin` |
+| `EXECUTE_PROPOSAL_PERMISSION` | the Admin plugin | **who may drive** the armed bootstrap | `make revoke-admin` |
 
 Rotating the second one hands the bootstrap from the deployer EOA to the foundation multisig
 without touching the DAO's own permissions. That lets the EOA run the scripted, retry-prone steps
@@ -240,15 +240,15 @@ create. TokenVoting and the public SPP go in afterwards, through the `PluginSetu
 
 This is the path the mainnet Interfold DAO took. Its state at the start:
 
-| What                | Address                                      |
-| ------------------- | -------------------------------------------- |
-| DAO (OSx 1.4.0)     | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
-| Admin plugin        | `0xF21e25455988887EE797050080141eba67B33920` |
-| Foundation Safe (stage-1 body) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (3-of-5) |
-| Admin-bootstrap driver         | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` — rotation from `0x5429D8C7…fC018` started; its revoke is outstanding (INV-31) |
-| FOLD (raw)          | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904` |
-| Voting token        | `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E` — **BondedVotes**, the IVotes adapter counting bonded + vesting-locked + escrow-locked FOLD; its `getPastTotalSupply` mirrors the FULL raw supply |
-| Executor (INV-5)    | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, verified byte-identical to the Sepolia one; **no deploy needed** |
+| What                           | Address                                                                                                                                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DAO (OSx 1.4.0)                | `0x652a31c669f9AB37f6040f279139a75D04F2679e`                                                                                                                                                   |
+| Admin plugin                   | `0xF21e25455988887EE797050080141eba67B33920`                                                                                                                                                   |
+| Foundation Safe (stage-1 body) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (3-of-5)                                                                                                                                          |
+| Admin-bootstrap driver         | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` — rotation from `0x5429D8C7…fC018` started; its revoke is outstanding (INV-31)                                                                    |
+| FOLD (raw)                     | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904`                                                                                                                                                   |
+| Voting token                   | `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E` — **BondedVotes**, the IVotes adapter counting bonded + vesting-locked + escrow-locked FOLD; its `getPastTotalSupply` mirrors the FULL raw supply |
+| Executor (INV-5)               | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, verified byte-identical to the Sepolia one; **no deploy needed**                                            |
 
 > **Operators: the executable, self-contained instructions live in
 > [`public-install-runbook.md`](public-install-runbook.md)** — clone, verify, sign. The sections
@@ -308,7 +308,7 @@ make safe-install-public ENV_FILE=.env.mainnet
 ```
 
 Both simulations run their own `prepareInstallation` on the fork rather than reading the recorded
-values, so they verify the *shape* — that the encodings decode, nothing reverts, and the end state
+values, so they verify the _shape_ — that the encodings decode, nothing reverts, and the end state
 holds — not the exact bytes the Safe will sign. The recorded values are checked on chain instead:
 `applyInstallation` re-derives the setup id from them and reverts on any mismatch. Before signing
 step 5, diff the plugin addresses in the emitted file against the ones in the two prepare receipts.
@@ -319,15 +319,15 @@ prints a note; verify each condition address is a helper that same prepare deplo
 
 ### Settings this DAO installed with
 
-| Setting                                        | Value              | Meaning                                                    |
-| ---------------------------------------------- | ------------------ | ---------------------------------------------------------- |
-| `TV_VOTING_MODE`                               | `2`                | VoteReplacement — votes changeable, no early execution     |
-| `TV_SUPPORT_THRESHOLD`                         | `510000`           | `yes/(yes+no) > 51%`, abstain excluded                     |
-| `TV_MIN_PARTICIPATION`                         | `20000`            | `yes+no+abstain ≥ 2%` of the 1.2B total FOLD supply = 24M FOLD-worth of votes |
-| `TV_MIN_DURATION` / `SPP_PUBLIC_VOTE_DURATION` | `432000`           | 5 days, enforced at both the SPP and the body              |
-| `SPP_ADVANCE_WINDOW`                           | `604800`           | +7 days to advance a passed stage 0                        |
-| `SPP_STAGE1_MODE`                              | `approval`         | the foundation must explicitly approve; silence = expiry   |
-| `SPP_VETO_DURATION` + `SPP_EXECUTE_WINDOW`     | `172800`+`259200`  | summed into a **5-day** stage-1 approve-and-execute deadline |
+| Setting                                        | Value             | Meaning                                                                       |
+| ---------------------------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `TV_VOTING_MODE`                               | `2`               | VoteReplacement — votes changeable, no early execution                        |
+| `TV_SUPPORT_THRESHOLD`                         | `510000`          | `yes/(yes+no) > 51%`, abstain excluded                                        |
+| `TV_MIN_PARTICIPATION`                         | `20000`           | `yes+no+abstain ≥ 2%` of the 1.2B total FOLD supply = 24M FOLD-worth of votes |
+| `TV_MIN_DURATION` / `SPP_PUBLIC_VOTE_DURATION` | `432000`          | 5 days, enforced at both the SPP and the body                                 |
+| `SPP_ADVANCE_WINDOW`                           | `604800`          | +7 days to advance a passed stage 0                                           |
+| `SPP_STAGE1_MODE`                              | `approval`        | the foundation must explicitly approve; silence = expiry                      |
+| `SPP_VETO_DURATION` + `SPP_EXECUTE_WINDOW`     | `172800`+`259200` | summed into a **5-day** stage-1 approve-and-execute deadline                  |
 
 Read back off the installed plugin by `make simulate-public-install`, so the numbers above are
 confirmed against chain state rather than against the env file they came from.
@@ -344,15 +344,15 @@ flipping `SPP_STAGE1_MODE=veto` later does not produce a zero veto window (INV-1
 
 Measured on a mainnet fork with `make simulate-approval-window`:
 
-| Question                                             | Answer                                                |
-| ---------------------------------------------------- | ----------------------------------------------------- |
-| Who may execute once the foundation approves?        | **Anyone.** Any address, not just the foundation.      |
-| How long does the approval stay live?                | Until `stage entry + maxAdvance` (5 days), then it lapses and the proposal expires. |
-| Can the foundation take an approval back?            | **Yes**, by re-reporting, for as long as it is unexecuted. |
+| Question                                      | Answer                                                                              |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Who may execute once the foundation approves? | **Anyone.** Any address, not just the foundation.                                   |
+| How long does the approval stay live?         | Until `stage entry + maxAdvance` (5 days), then it lapses and the proposal expires. |
+| Can the foundation take an approval back?     | **Yes**, by re-reporting, for as long as it is unexecuted.                          |
 
 Execution is not literally unpermissioned — `advanceProposal` on the last stage checks
 `EXECUTE_PROPOSAL_PERMISSION` on the SPP — but the SPP's setup grants that to `ANY_ADDR`, so in
-practice it is open to the world. That is the intended design: the foundation's job is to *decide*,
+practice it is open to the world. That is the intended design: the foundation's job is to _decide_,
 not to be the one that presses the button, so a passed and approved proposal cannot be strangled by
 the foundation simply never executing it.
 
@@ -437,6 +437,29 @@ all history are untouched.
       `votingPowerDivisorOf(e3Id)` from the CRISP program, so there is no scaling factor to keep
       in step by hand ([INV-16](../AGENTS.md#cross-boundary-sync-contract--server--app)).
 - [ ] Fee token confirmed; decimals read on-chain, never assumed ([INV-20](../AGENTS.md#cross-boundary-sync-contract--server--app)).
+
+### Voter minimum
+
+The mainnet deployment policy requires at least 71 FOLD (`71000000000000000000`). This is a
+participation rule, not a cryptographic threshold. Governance can change the plugin setting;
+proposal creators cannot choose it. Each proposal keeps its creation-time settings.
+
+To update an installed private body, set `CRISP_VOTING_PLUGIN_ADDRESS` to the body used by the
+current private SPP. Set `MINIMUM_VOTER_VOTING_POWER` to the required value, then generate the file:
+
+```bash
+cd contracts
+make safe-set-crisp-voter-minimum ENV_FILE=.env.mainnet
+```
+
+Review `safe-actions/25-set-crisp-voter-minimum.json`. The foundation Safe can execute its
+Admin-wrapped call only while the Admin plugin is armed. After disarming, submit the decoded
+`updateVotingSettings` action through staged DAO governance instead.
+
+The generator copies the other four voting settings when it creates the file. The update replaces
+all five settings on execution. Recheck them before signing and execution; regenerate if any
+setting changed. Do not execute an old file and undo a more recent quorum or duration change.
+After execution, read `minVoterVotingPower()` and the four other settings from the target body.
 
 ### How the install works
 
@@ -556,19 +579,19 @@ Only once this passes is the deployment complete. Announce the DAO address, and 
 
 ## Failure modes
 
-| Symptom                                        | Cause                                                                                                                                                                                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploy reverts on `DaoUnauthorized`            | Wrong factory version. Mainnet accepts both v1.3.0 and v1.4.0; the template pins v1.4.0.                                                                                                                                  |
-| Public sub-proposal creation reverts           | `SPP_PUBLIC_VOTE_DURATION` below TokenVoting's 1h `minDuration` ([INV-15](../AGENTS.md#stage-configuration-wiresppstagesfor)).                                                                                            |
-| Parent proposal created, sub-proposal missing  | Gas estimation. The SPP wraps sub-proposal creation in try/catch, so an under-estimated limit silently swallows `SubProposalNotCreated` and leaves a dead parent. Both create hooks pass explicit gas limits — keep them. |
-| Proposal passes stage 0 but never advances     | Approval mode with no foundation approval — silence _is_ the rejection. Check the multisig can actually reach threshold.                                                                                                  |
-| Proposal reads `Expired` instead of `Vetoed`   | Expected at the chain level; the UI maps it. See `getSppStatusOverride`.                                                                                                                                                  |
-| `install-private-process` reverts on the apply | The `PREPARED_*` values do not match the preparation. Re-run `prepare-private-process` and copy all six again; `applyInstallation` validates them by hash.                                                                |
-| `PluginAlreadyInstalled`                       | The install already applied — check whether an earlier attempt partially succeeded before retrying.                                                                                                                       |
-| `SetupApplicationUnauthorized`                 | The batch is not executing as the DAO, or the Admin bootstrap was already disarmed. Use `make print-private-actions` and go through a proposal.                                                                           |
-| Admin still holds EXECUTE after `disarm-admin` | The tx reverted. Re-check before announcing — this is INV-29.                                                                                                                                                             |
-| Successor's no-op proposal reverts after `grant-admin` | The plain `grant` does not satisfy the plugin's auth check (e.g. the install used a condition). Do **not** run `revoke-admin` — the EOA is still the working holder.                                              |
-| Nobody can drive the bootstrap after `revoke-admin` | The grant and the revoke were run without the no-op proof in between. Recoverable only by a governance proposal re-granting the permission — which in approval mode the foundation must itself approve.               |
+| Symptom                                                | Cause                                                                                                                                                                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy reverts on `DaoUnauthorized`                    | Wrong factory version. Mainnet accepts both v1.3.0 and v1.4.0; the template pins v1.4.0.                                                                                                                                  |
+| Public sub-proposal creation reverts                   | `SPP_PUBLIC_VOTE_DURATION` below TokenVoting's 1h `minDuration` ([INV-15](../AGENTS.md#stage-configuration-wiresppstagesfor)).                                                                                            |
+| Parent proposal created, sub-proposal missing          | Gas estimation. The SPP wraps sub-proposal creation in try/catch, so an under-estimated limit silently swallows `SubProposalNotCreated` and leaves a dead parent. Both create hooks pass explicit gas limits — keep them. |
+| Proposal passes stage 0 but never advances             | Approval mode with no foundation approval — silence _is_ the rejection. Check the multisig can actually reach threshold.                                                                                                  |
+| Proposal reads `Expired` instead of `Vetoed`           | Expected at the chain level; the UI maps it. See `getSppStatusOverride`.                                                                                                                                                  |
+| `install-private-process` reverts on the apply         | The `PREPARED_*` values do not match the preparation. Re-run `prepare-private-process` and copy all six again; `applyInstallation` validates them by hash.                                                                |
+| `PluginAlreadyInstalled`                               | The install already applied — check whether an earlier attempt partially succeeded before retrying.                                                                                                                       |
+| `SetupApplicationUnauthorized`                         | The batch is not executing as the DAO, or the Admin bootstrap was already disarmed. Use `make print-private-actions` and go through a proposal.                                                                           |
+| Admin still holds EXECUTE after `disarm-admin`         | The tx reverted. Re-check before announcing — this is INV-29.                                                                                                                                                             |
+| Successor's no-op proposal reverts after `grant-admin` | The plain `grant` does not satisfy the plugin's auth check (e.g. the install used a condition). Do **not** run `revoke-admin` — the EOA is still the working holder.                                                      |
+| Nobody can drive the bootstrap after `revoke-admin`    | The grant and the revoke were run without the no-op proof in between. Recoverable only by a governance proposal re-granting the permission — which in approval mode the foundation must itself approve.                   |
 
 ## Rollback
 

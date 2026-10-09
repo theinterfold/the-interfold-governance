@@ -6,6 +6,13 @@ assume knowledge of the work that produced the batch.
 
 The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
+The qualified v0.19 publication file has SHA-256
+`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`.
+It deploys implementation `0x8153c6dce903b3A4a886399D310668FB8c97cEC6` and setup
+`0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`, with empty build and release metadata.
+Confirm `buildCount(1) == 2` before signing. Reject older copies with different addresses or
+placeholder metadata. A newly generated file needs its own qualification if its checksum differs.
+
 ---
 
 ## What this does and what it does not do
@@ -117,6 +124,10 @@ It is recorded as `CRISP_PLUGIN_REPO` in `contracts/.env.mainnet`.
 
 ## Generate
 
+For the qualified v0.19 batch, use the file with the checksum above. Do not regenerate it with
+an ordinary build from another directory. The command below is for a future publication or a
+new qualification. A changed payload needs a new bytecode check and Safe rehearsal before signing.
+
 ```bash
 cd contracts
 ENV_FILE=.env.mainnet make safe-publish-crisp-build   # -> safe-actions/12-publish-crisp-build.json
@@ -182,6 +193,24 @@ check both before you sign.
    jq -r '.transactions[0].data' safe-actions/12-publish-crisp-build.json \
      | grep -c 9ae5be6a352cd245259ba1cc07b57c755ecd466f62ff9b95d3ec77f05b8c24b0   # expect 1
    ```
+
+6. **The final Safe transaction matches the checked calls.** Recheck its owners, threshold and
+   nonce before signing. Check the selected MultiSend contract, delegatecall operation, three
+   zero-value inner calls, and transaction hash. A Transaction Builder file does not pin these
+   outer transaction fields. The qualification used Safe 1.4.1 and MultiSendCallOnly 1.3.0.
+   A different MultiSend contract requires a new check of the outer transaction.
+
+   ```bash
+   SAFE=0x8B43b2852fc5031D01DDfCDF702973D93A2FF593
+   cast call "$SAFE" 'getOwners()(address[])' --rpc-url "$RPC_URL"
+   cast call "$SAFE" 'getThreshold()(uint256)' --rpc-url "$RPC_URL"
+   cast call "$SAFE" 'nonce()(uint256)' --rpc-url "$RPC_URL"
+   ```
+
+The qualified publication file passed a mainnet-fork test through Safe 1.4.1 at block 26155854.
+Independent standard-JSON compilation matched both contracts' creation code, runtime code and metadata.
+The check verified all 95 source hashes: 11 project sources and 84 dependency sources.
+This qualifies publication only, not installation of the private pair or the Interfold switch.
 
 On 2026-10-09, the Safe executed an earlier compiled batch on a mainnet fork at block 26156057. All three calls
 succeeded, and `buildCount(1)` changed from 2 to 3. The same rehearsal then installed build 3 with

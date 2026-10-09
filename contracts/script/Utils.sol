@@ -31,6 +31,9 @@ library Utils {
     /// @notice Mainnet FOLD voting power uses 18 decimals.
     uint256 internal constant MAINNET_MINIMUM_VOTER_VOTING_POWER = 71 ether;
 
+    /// @notice The existing Foundation-maintained CRISP repository on Ethereum mainnet.
+    address internal constant MAINNET_CRISP_REPO = 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1;
+
     error MainnetVoterMinimumTooLow(uint256 minimum, uint256 required);
 
     /// @notice Reads published metadata; empty release metadata preserves an existing release.
@@ -111,9 +114,10 @@ library Utils {
         }
     }
 
-    /// @notice Recognizes CRISP aliases by their configured repository, not only their env label.
+    /// @notice Recognizes mainnet CRISP aliases even without optional repository configuration.
     function isCrispInstallation(string memory prefix, address repo) internal view returns (bool) {
         if (keccak256(bytes(prefix)) == keccak256("CRISP")) return true;
+        if (block.chainid == 1 && repo == MAINNET_CRISP_REPO) return true;
         address crispRepo = VM.envOr("CRISP_PLUGIN_REPO", address(0));
         return crispRepo != address(0) && repo == crispRepo;
     }

@@ -79,8 +79,8 @@ contract SafeActionsScript is WireSppScript {
         _emit(
             "25-set-crisp-voter-minimum",
             "Set the CRISP voter minimum",
-            "Sets the minimum voting power for future CRISP proposals. Preserves the other voting settings. "
-            "Existing proposals retain their recorded settings.",
+            "Sets the minimum voting power for future CRISP proposals. Copies the other settings at generation. "
+            "regenerate if any setting changes before execution. " "Existing proposals retain their recorded settings.",
             action.to,
             action.data
         );

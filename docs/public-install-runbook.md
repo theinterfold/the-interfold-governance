@@ -10,16 +10,16 @@ shaped this way.
 
 ## What gets installed
 
-| What                | Value                                                                 |
-| ------------------- | --------------------------------------------------------------------- |
-| DAO                 | `0x652a31c669f9AB37f6040f279139a75D04F2679e`                          |
-| Signing Safe        | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (foundation, 3-of-5)     |
-| Voting token        | `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E` — **BondedVotes** (bonded + vesting-locked + escrow-locked FOLD vote) |
-| Stage 0             | TokenVoting: 51% support, 2% participation of total FOLD supply, 5-day window, VoteReplacement |
-| Stage 1             | Foundation Safe, **approval mode** (must explicitly approve; silence = expiry), 5-day approve-and-execute deadline |
-| Executor (INV-5)    | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, already on chain; nothing to deploy |
-| Process metadata    | `ipfs://QmUbcjLvWqemx1AzXfDMYsztwPXypi5ykcMyCnn3btLSVT` ("Interfold Governance Proposal: Public", key `IGPP`) |
-| Body metadata       | `ipfs://Qme5g5x85bsa2ExjsEU3M5rq8rDdk5JJcKhohwZpdVLytX` ("Public Token Voting") |
+| What             | Value                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| DAO              | `0x652a31c669f9AB37f6040f279139a75D04F2679e`                                                                           |
+| Signing Safe     | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (foundation, 3-of-5)                                                      |
+| Voting token     | `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E` — **BondedVotes** (bonded + vesting-locked + escrow-locked FOLD vote)     |
+| Stage 0          | TokenVoting: 51% support, 2% participation of total FOLD supply, 5-day window, VoteReplacement                         |
+| Stage 1          | Foundation Safe, **approval mode** (must explicitly approve; silence = expiry), 5-day approve-and-execute deadline     |
+| Executor (INV-5) | `0x56ce4D8006292Abf418291FaE813C1E3769240A4` — Aragon's canonical v1.4.0 Executor, already on chain; nothing to deploy |
+| Process metadata | `ipfs://QmUbcjLvWqemx1AzXfDMYsztwPXypi5ykcMyCnn3btLSVT` ("Interfold Governance Proposal: Public", key `IGPP`)          |
+| Body metadata    | `ipfs://Qme5g5x85bsa2ExjsEU3M5rq8rDdk5JJcKhohwZpdVLytX` ("Public Token Voting")                                        |
 
 The install is **two signing rounds**. Round 2's calldata cannot exist before round 1 executes:
 `prepareInstallation` deploys the plugin proxies, and their fresh addresses are inputs to the
@@ -34,6 +34,10 @@ make setup            # git submodules + pnpm install
 forge build
 cp .env.mainnet.install .env.mainnet
 ```
+
+Before a public-process rehearsal, set `FOLD_TOKEN_ADDRESS` in `.env.mainnet` to
+`0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`. The template selects the new private-process
+adapter. The installed public body still uses the historical adapter in the table above.
 
 Requires [Foundry](https://getfoundry.sh) and pnpm. `.env.mainnet.install` is a committed,
 secrets-free snapshot — every address in it was verified on chain; re-verify freely, all of it is
@@ -112,7 +116,7 @@ Confirm the action list is exactly, in order:
 3. `psp.applyInstallation(dao, <SPP>)` — must match receipt 21
 4. `dao.revoke(dao, PSP, ROOT_PERMISSION)` — must not be missing
 5. `spp.updateStages(...)` — stage 0 = the TokenVoting body (`minAdvance == voteDuration ==
-   432000`), stage 1 = the foundation Safe (`isManual, approvalThreshold 1, vetoThreshold 0`)
+432000`), stage 1 = the foundation Safe (`isManual, approvalThreshold 1, vetoThreshold 0`)
 6. `dao.grant(tokenVoting, spp, CREATE_PROPOSAL_PERMISSION)`
 7. `tokenVoting.setTargetConfig(0x56ce4D80…40A4, DelegateCall)` — the canonical Executor
 8. `dao.revoke(dao, tokenVoting, EXECUTE_PERMISSION)` — closes the bypass (INV-2)
