@@ -22,7 +22,10 @@ export const ballotOptionColor = (index: number) => OPTION_COLORS[index % OPTION
 export type BallotChoice = number | "mask";
 export type BallotChoicePresentation = "current" | "decision" | "framed" | "ink" | "tiles" | "emphasis";
 
-/** Optional ballot actions share their checkbox, states and motion across layouts. */
+/**
+ * Optional ballot actions share their checkbox, states and motion across layouts. An unavailable
+ * action is disabled and shows its reason where its settings would open.
+ */
 export function BallotOptionalAction({
   id,
   title,
@@ -30,6 +33,7 @@ export function BallotOptionalAction({
   icon,
   checked,
   disabled = false,
+  unavailable,
   layout = "card",
   info,
   children,
@@ -41,17 +45,20 @@ export function BallotOptionalAction({
   icon?: ReactNode;
   checked: boolean;
   disabled?: boolean;
-  layout?: "card" | "row" | "compact";
+  /** Why the action cannot change now. */
+  unavailable?: string;
+  layout?: "card" | "compact";
   info?: ReactNode;
   children?: ReactNode;
   onChange: (checked: boolean) => void;
 }) {
+  const blocked = disabled || unavailable !== undefined;
   const control = (
     <label
       className="ballot-optional-card"
       data-layout={layout}
       data-checked={checked}
-      data-disabled={disabled}
+      data-disabled={blocked}
       data-help={!!info}
     >
       <input
@@ -59,7 +66,7 @@ export function BallotOptionalAction({
         type="checkbox"
         className="sr-only"
         checked={checked}
-        disabled={disabled}
+        disabled={blocked}
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-help`}
         onChange={(event) => onChange(event.target.checked)}
@@ -78,7 +85,7 @@ export function BallotOptionalAction({
       </span>
     </label>
   );
-  if (!info && !children) return control;
+  if (!info && !children && unavailable === undefined) return control;
   return (
     <div className="ballot-optional-group" data-layout={layout} data-checked={checked}>
       {control}
@@ -89,9 +96,11 @@ export function BallotOptionalAction({
           </PowerInfo>
         </span>
       )}
-      {children && (
-        <Disclosure open={checked}>
-          <div className="ballot-optional-details">{children}</div>
+      {(children || unavailable !== undefined) && (
+        <Disclosure open={checked || unavailable !== undefined}>
+          <div className="ballot-optional-details">
+            {unavailable === undefined ? children : <p className="ballot-optional-note">{unavailable}</p>}
+          </div>
         </Disclosure>
       )}
     </div>

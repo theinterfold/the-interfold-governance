@@ -20,7 +20,7 @@ import { describeFailure } from "../utils/describeFailure";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
   CensusMode,
-  ballotTypedData,
+  ballotSignatureRequest,
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
@@ -618,7 +618,13 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
             : (connector?.name ?? "your wallet");
         setStepMessage(`Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`);
 
-        const { domain, types } = ballotTypedData(PUB_CHAIN.id, crispProgram);
+        const request = ballotSignatureRequest({
+          chainId: PUB_CHAIN.id,
+          crispProgram,
+          e3Id,
+          slot: voteData.slotAddress as Address,
+          ciphertextCommitment: prepared.ctCommitment,
+        });
 
         // A wallet can accept a request and never show it. After a delay, say where to look.
         const stillWaiting = setTimeout(() => {
@@ -631,16 +637,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // `signTypedData`, not `signMessage`: `ballotDigest` returns an EIP-712 digest that a
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
         // one, and every ballot would fail looking like a bad signature.
-        const signature = await signTypedDataAsync({
-          domain,
-          types,
-          primaryType: "Ballot",
-          message: {
-            e3Id,
-            slot: voteData.slotAddress as `0x${string}`,
-            ciphertextCommitment: prepared.ctCommitment,
-          },
-        }).finally(() => clearTimeout(stillWaiting));
+        const signature = await signTypedDataAsync(request).finally(() => clearTimeout(stillWaiting));
 
         // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
         // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would

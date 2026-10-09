@@ -90,8 +90,7 @@ describe("Ballot eligibility rendering", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={false} />);
     for (const option of ["Yes", "No", "Abstain"]) expect(html).toContain(`aria-label="${option}"`);
     expect(html).not.toContain('value="mask"');
-    expect(html).toContain("Send a mask");
-    expect(html).toContain("Add cover for voters, with or without a vote.");
+    expect(html).toContain('aria-label="Add a mask"');
     expect(html).not.toContain("No voting power for this proposal");
   });
 

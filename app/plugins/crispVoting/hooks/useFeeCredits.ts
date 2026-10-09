@@ -163,8 +163,8 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
   });
 
   /**
-   * Approves exactly `amount` of the fee token to the plugin and deposits it
-   * as credit. No unlimited approvals.
+   * Deposits `amount` of the fee token as credit. It first approves exactly `amount` to the
+   * plugin, unless the plugin can already spend that much. No unlimited approvals.
    */
   const deposit = async (amount: bigint): Promise<boolean> => {
     if (
@@ -197,15 +197,25 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       });
       if (held < amount) throw new Error(insufficientBalanceMessage(amount, held));
 
-      const approveTx = await approveWrite({
-        chainId: PUB_CHAIN.id,
-        abi: iVotesAbi,
+      // An approval can outlive its deposit, for example when the wallet rejected the deposit or
+      // it reverted. Read the allowance fresh and ask for a new approval only when it is short.
+      const allowance = await client.readContract({
         address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
-        functionName: "approve",
-        args: [body, amount],
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [address, body],
       });
-      // A reverted approval must stop the flow: the deposit that follows would fail anyway.
-      await awaitSuccessfulReceipt(client, approveTx, "The fee-token approval");
+      if (allowance < amount) {
+        const approveTx = await approveWrite({
+          chainId: PUB_CHAIN.id,
+          abi: iVotesAbi,
+          address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
+          functionName: "approve",
+          args: [body, amount],
+        });
+        // A reverted approval must stop the flow: the deposit that follows would fail anyway.
+        await awaitSuccessfulReceipt(client, approveTx, "The fee-token approval");
+      }
 
       const depositTx = await depositWrite({
         chainId: PUB_CHAIN.id,

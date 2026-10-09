@@ -26,6 +26,9 @@ export default function Document() {
         />
       </Head>
       <body>
+        {/* Firefox can paint before the stylesheets arrive, which shows the bare header SVGs at full
+            width. An inline script blocks the parser until the stylesheets load, as other browsers do. */}
+        <script dangerouslySetInnerHTML={{ __html: "0" }} />
         <Main />
         <NextScript />
       </body>
