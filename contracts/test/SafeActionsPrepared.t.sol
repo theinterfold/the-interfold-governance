@@ -130,10 +130,13 @@ contract SafeActionsPreparedTest is Test {
     function test_mainnetPrepareChecksCanonicalAndUnconfiguredAliases() public {
         vm.chainId(1);
         _seedCommandAddresses();
+        string memory previousRepo = vm.envOr("CRISP_PLUGIN_REPO", string(""));
         string[2] memory prefixes = [string("CRISP"), string("MAINNET_CRISP_ALIAS")];
         for (uint256 i; i < prefixes.length; ++i) {
             string memory prefix = prefixes[i];
             string memory slug = string.concat("test-voter-floor-", vm.toString(i));
+            string memory path = string.concat("safe-actions/", slug, ".json");
+            if (vm.exists(path)) vm.removeFile(path);
             vm.setEnv("CRISP_PLUGIN_REPO", "");
             vm.setEnv(string.concat(prefix, "_PLUGIN_REPO"), "0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1");
             vm.setEnv("PLUGIN_PREFIX", prefix);
@@ -145,9 +148,11 @@ contract SafeActionsPreparedTest is Test {
 
             vm.setEnv(string.concat(prefix, "_INSTALL_DATA"), vm.toString(_installData(71 ether)));
             harness.prepareInstall();
-            string memory output = vm.readFile(string.concat("safe-actions/", slug, ".json"));
+            string memory output = vm.readFile(path);
             assertEq(vm.parseJsonAddress(output, ".transactions[0].to"), address(0x5050));
+            vm.removeFile(path);
         }
+        vm.setEnv("CRISP_PLUGIN_REPO", previousRepo);
     }
 
     /// @notice The EOA apply path checks the prepared plugin before printing executable actions.

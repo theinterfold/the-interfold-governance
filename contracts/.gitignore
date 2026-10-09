@@ -12,3 +12,5 @@ node_modules/
 # ...and the committed mainnet public-install snapshot (no key: everything is Safe-signed).
 !.env.mainnet.install
 contract.log
+# Safe preparation fixtures are removed on success; ignore interrupted test output.
+/safe-actions/test-voter-floor-[01].json
