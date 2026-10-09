@@ -52,6 +52,10 @@ contract MockVotesToken {
         supply = _supply;
     }
 
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
     function setSupply(uint256 _supply) external {
         supply = _supply;
     }

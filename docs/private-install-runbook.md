@@ -53,11 +53,14 @@ credit back:
 - The failed E3 of proposal 2 had a refund of 349.272 USDS that nobody had claimed. Anyone can call
   `claimRefund` for it. The refund goes to the credit of the payer of that proposal.
 
-The new pair has the same voting rules. It uses parameter set 2, the OpenVM compute provider and the
-new CRISP program.
+The new pair keeps the quorum, support and duration rules. It raises the voter minimum to 71 FOLD.
+It uses parameter set 2, the OpenVM compute provider and the new CRISP program.
 
 ## Voting rules being installed
 
+- The voter minimum is **71 FOLD**, encoded as `71000000000000000000` in 18-decimal voting units.
+  Governance controls this setting. Proposal creators cannot override it. Each proposal keeps its
+  creation-time minimum, which is also passed to its E3.
 - Quorum is **2%** of the total FOLD supply at the snapshot (`MINIMUM_PARTICIPATION=2`, RATIO_BASE
   100).
 - Support: yes must be **more than 51%** of yes+no (`SUPPORT_THRESHOLD=51`). Abstain counts toward
@@ -139,6 +142,7 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    | `PARAM_SET`                           | `2`                                                                   |
    | `COMMITTEE_SIZE`                      | `2`                                                                   |
    | `MINIMUM_DURATION`                    | `432000`                                                              |
+   | `MINIMUM_VOTER_VOTING_POWER`          | `71000000000000000000`                                                |
    | `COMPUTE_PROVIDER_PARAMS`             | The OpenVM value, `{"name":"OpenVM","parallel":false,"batch_size":4}` |
    | `RETIRED_CRISP_VOTING_PLUGIN_ADDRESS` | `0x197be4E09614285Abb4b74b672377c404FD44d54`                          |
    | `RETIRED_SPP_PRIVATE_ADDRESS`         | `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`                          |
@@ -149,8 +153,8 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    make safe-prepare-private ENV_FILE=.env.mainnet
    ```
 
-   The command runs on chain 1, so the mainnet policy applies. It stops if `PARAM_SET`,
-   `COMMITTEE_SIZE` or `MINIMUM_DURATION` has a value that mainnet refuses.
+   The command runs on chain 1, so the mainnet policy applies. It stops if the voter minimum,
+   `PARAM_SET`, `COMMITTEE_SIZE` or `MINIMUM_DURATION` has a value that mainnet refuses.
 
 3. Append the two printed `*_INSTALL_DATA` lines to `.env.mainnet` for the record.
 
@@ -178,7 +182,7 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    - Committee size `2` and parameter set `2`.
    - The new CRISP program.
    - The OpenVM compute provider parameters.
-   - Voting settings `(0, 1, 2, 51, 432000)`.
+   - Voting settings `(0, 71000000000000000000, 2, 51, 432000)`.
    - BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`, then `false` (no `EXECUTE` for the
      body).
 
@@ -387,6 +391,8 @@ Later scripts, for example `printUpdateStages()`, read these two values.
   `EXECUTE_PROPOSAL_PERMISSION` on the armed Admin plugin (INV-31).
 
 ## Rehearsal record
+
+This record predates the 71 FOLD voter-minimum change. It is not qualification of that new policy.
 
 On 2026-10-09, the publish batch and Steps 1 to 5 ran on a mainnet fork at block 26156057. The fork
 used a stand-in program address, because the new program does not exist yet. `.env.mainnet` was a

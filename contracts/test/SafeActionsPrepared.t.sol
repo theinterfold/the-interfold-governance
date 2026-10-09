@@ -5,6 +5,15 @@ import {Test} from "forge-std/Test.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
+import {Utils} from "../script/Utils.sol";
+
+contract PreparedCrispFloor {
+    uint256 public minVoterVotingPower = 1;
+
+    function setMinimum(uint256 value) external {
+        minVoterVotingPower = value;
+    }
+}
 
 /// @dev Exposes the internal env reader so the parallel-array decoding can be asserted directly.
 contract SafeActionsHarness is SafeActionsScript {
@@ -95,5 +104,22 @@ contract SafeActionsPreparedTest is Test {
 
         vm.expectRevert("permission arrays differ in length");
         harness.loadPrepared("TC");
+    }
+
+    /// @notice A caller cannot bypass the mainnet floor by renaming the CRISP env prefix.
+    function test_crispRepoAliasCannotBypassPreparedFloor() public {
+        vm.chainId(1);
+        PreparedCrispFloor plugin = new PreparedCrispFloor();
+        _seed("CRISP_ALIAS_FLOOR");
+        // Distinct from the other fixtures: process-wide env changes cannot classify TA/TB/TC as CRISP.
+        vm.setEnv("CRISP_PLUGIN_REPO", vm.toString(address(0xC1157)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_REPO", vm.toString(address(0xC1157)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_ADDRESS", vm.toString(address(plugin)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PERM_CONDITIONS", "");
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+        harness.loadPrepared("CRISP_ALIAS_FLOOR");
+
+        plugin.setMinimum(71 ether);
+        assertEq(harness.loadPrepared("CRISP_ALIAS_FLOOR").plugin, address(plugin));
     }
 }

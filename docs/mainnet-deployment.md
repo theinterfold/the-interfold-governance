@@ -418,6 +418,9 @@ all history are untouched.
 
 ### Preconditions
 
+- [ ] `MINIMUM_VOTER_VOTING_POWER` is at least `71000000000000000000` (71 FOLD).
+      The deployment scripts check the mainnet environment, encoded prepare data and prepared plugin.
+      Governance can change this global setting later. Proposal creators cannot override it.
 - [ ] Mainnet Interfold E3 coordinator on v0.19: the Interfold repo's `upgrade:v19` batch executed
       and validated, so `activeCryptoConfigId()` returns
       `0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa`. `INTERFOLD_ADDRESS` set.
@@ -426,7 +429,7 @@ all history are untouched.
       app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server
       requests E3s against**.
 - [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
-      In the existing mainnet repo that is build 3 ([why](./publish-crisp-build.md#why-build-3)).
+      Build 3 is expected next, not reserved. Confirm the actual publication receipt before preparing.
 - [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
       and `PARAM_SET=2` (secure-8192): the mainnet policy rejects other values.
 - [ ] `COMPUTE_PROVIDER_PARAMS` names the OpenVM compute provider.

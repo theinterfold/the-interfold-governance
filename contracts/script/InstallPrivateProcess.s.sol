@@ -81,10 +81,10 @@ contract InstallPrivateProcessScript is WireSppScript {
     // ---------------------------------------------------------------------------------
 
     /// @notice Deploys `CrispVotingSetup` and mints a fresh CRISP `PluginRepo` (release 1,
-    ///         build 1). Phase 1 skipped this, so no CRISP repo exists on mainnet.
+    ///         build 1). Use only on a network without an existing CRISP repository.
     ///         Record the printed repo address as CRISP_PLUGIN_REPO before running `prepare()`;
-    ///         later builds then go through `make publish-crisp-build` rather than minting a
-    ///         second repo for the same plugin.
+    ///         Mainnet already has a Foundation-maintained repository; publish later builds
+    ///         with `make safe-publish-crisp-build` instead of minting a second repository.
     ///         Usage: forge script ... --sig "publishCrispRepo()" --broadcast
     function publishCrispRepo() external {
         address pluginRepoFactory = vm.envAddress("PLUGIN_REPO_FACTORY_ADDRESS");
@@ -236,6 +236,7 @@ contract InstallPrivateProcessScript is WireSppScript {
         require(dao != address(0) && adminPlugin != address(0), "missing address env");
 
         crisp.plugin = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
+        Utils.validatePreparedCrisp(crisp.plugin);
         crisp.setupRef = PluginSetupRef(
             PluginRepo.Tag(uint8(vm.envOr("CRISP_RELEASE", uint256(1))), uint16(vm.envOr("CRISP_BUILD", uint256(1)))),
             PluginRepo(vm.envAddress("CRISP_PLUGIN_REPO"))

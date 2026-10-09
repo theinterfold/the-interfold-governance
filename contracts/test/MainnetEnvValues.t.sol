@@ -5,12 +5,9 @@ import {Test} from "forge-std/Test.sol";
 import {Utils} from "../script/Utils.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
 
-/// @notice Asserts the VALUES currently in contracts/.env.mainnet clear the mainnet policy gate.
-/// @dev `Utils.validateDeploymentPolicy` is chain-gated on `chainid == 1`, so a wrong env value is
-///      only caught at deploy time on mainnet itself. This pins the three numbers the Safe flow
-///      will broadcast, so a drifted env file fails here instead of reverting mid-deploy.
+/// @notice Checks the mainnet policy and its chain-specific rejection paths.
+/// @dev SafePrepareCommand.test.mjs checks the values loaded from the deployment templates.
 contract MainnetEnvValuesTest is Test {
-    // The literals below mirror contracts/.env.mainnet. Update both together.
     uint8 internal constant ENV_PARAM_SET = 2; // secure-8192
     IInterfold.CommitteeSize internal constant ENV_COMMITTEE_SIZE = IInterfold.CommitteeSize.Small; // ordinal 2
     uint64 internal constant ENV_MINIMUM_DURATION = 432_000; // 5 days
@@ -20,6 +17,7 @@ contract MainnetEnvValuesTest is Test {
         config.paramSet = ENV_PARAM_SET;
         config.committeeSize = ENV_COMMITTEE_SIZE;
         config.votingSettings.minDuration = ENV_MINIMUM_DURATION;
+        config.votingSettings.minVoterVotingPower = 71 ether;
     }
 
     /// @dev External so `vm.expectRevert` can target a call boundary.
@@ -74,6 +72,7 @@ contract MainnetEnvValuesTest is Test {
         testnet.paramSet = 0;
         testnet.committeeSize = IInterfold.CommitteeSize.Minimum;
         testnet.votingSettings.minDuration = 3600;
+        testnet.votingSettings.minVoterVotingPower = 1;
         Utils.validateDeploymentPolicy(11_155_111, testnet);
         Utils.validateDeploymentPolicy(31_337, testnet);
     }

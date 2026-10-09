@@ -1,6 +1,6 @@
 .PHONY: setup build test predeploy deploy sync-env wire-spp lock-public-execution \
 	publish-crisp-repo prepare-private-process install-private-process \
-	grant-admin revoke-admin disarm-admin \
+	grant-admin revoke-admin disarm-admin safe-set-crisp-voter-minimum \
 	deploy-executor safe-deploy-executor simulate-public-install simulate-public-governance \
 	safe-prepare-public safe-install-public simulate-stage-change safe-update-stages simulate-approval-window dry-run-public print-rotation simulate-rotation simulate-body-execution simulate-quorum-change
 
@@ -28,6 +28,11 @@ build: ## Compile
 
 test: ## Run tests
 	forge test -vvv
+
+safe-set-crisp-voter-minimum: ## Generate a DAO-authorized voter-minimum update (no broadcast)
+	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	forge script script/SafeActions.s.sol:SafeActionsScript \
+		--sig "setCrispVoterMinimum()" --rpc-url $$RPC_URL
 
 # `set -a; . ./$(ENV_FILE); set +a` sources the env file through the shell, which strips
 # the surrounding quotes and exports clean values for forge's vm.env* reads.
@@ -134,13 +139,15 @@ read-prepared: ## Print the <PREFIX>_* env lines from a prepare transaction rece
 # the install data and emits BOTH prepare Safe files (22 + 23). Nothing broadcasts.
 # Stops at the first failure: an env file that already carries *_INSTALL_DATA from an earlier
 # install would otherwise feed those stale values into the prepare files.
+safe-prepare-private: SHELL := /bin/bash
 safe-prepare-private: ## Phase 2: install data + both prepare Safe files, in one command
-	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
+	set -e -o pipefail; set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	test -n "$$CRISP_PROGRAM_ADDRESS" || { echo "ERROR: set CRISP_PROGRAM_ADDRESS in $(ENV_FILE) first"; exit 1; }; \
 	test -n "$$SPP_PRIVATE_METADATA_URI" || { echo "ERROR: set SPP_PRIVATE_METADATA_URI in $(ENV_FILE) first (pin metadata/private-process.json)"; exit 1; }; \
-	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript --sig "printInstallData()" \
-		--rpc-url $$RPC_URL > .install-data.log 2>&1 || { cat .install-data.log; rm -f .install-data.log; exit 1; }; \
-	grep -E "(CRISP|SPP_PRIVATE)_INSTALL_DATA=" .install-data.log | sed 's/^ *//' > .install-data.tmp; rm -f .install-data.log; \
+	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript --sig "printInstallData()" --rpc-url $$RPC_URL \
+		| grep -E "(CRISP|SPP_PRIVATE)_INSTALL_DATA=" | sed 's/^ *//' > .install-data.tmp; \
+	grep -q '^CRISP_INSTALL_DATA=' .install-data.tmp; \
+	grep -q '^SPP_PRIVATE_INSTALL_DATA=' .install-data.tmp; \
 	echo "--- install data (also append these two lines to $(ENV_FILE) for the record) ---"; \
 	cat .install-data.tmp; \
 	set -a; . ./.install-data.tmp; set +a; rm -f .install-data.tmp; \

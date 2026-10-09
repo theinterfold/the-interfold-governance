@@ -12,6 +12,7 @@ import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/Governan
 
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
+import {Utils} from "./Utils.sol";
 
 /// @title PublishCrispBuild
 /// @notice Publishes a new build of the CRISP plugin into the EXISTING repo, leaving the repo
@@ -24,8 +25,8 @@ import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
 ///     published build MUST go out as a new build — an app updated ahead of the publish will fail
 ///     to install against the old one, and vice versa.
 ///
-///     Requires MAINTAINER_PERMISSION_ID on the repo, which `createPluginRepoWithFirstVersion`
-///     granted to the original deployer. Run with the same PRIVATE_KEY.
+///     Requires MAINTAINER_PERMISSION_ID on the repo. Mainnet uses the Foundation Safe publisher.
+///     Use this EOA publisher only when the configured key holds that permission.
 contract PublishCrispBuild is Script {
     function run() public {
         address repoAddress = vm.envAddress("CRISP_PLUGIN_REPO");
@@ -44,9 +45,8 @@ contract PublishCrispBuild is Script {
 
         CrispVotingSetup setup = new CrispVotingSetup(crispVoting);
 
-        // Metadata is not resolved on-chain; the app reads its own copy. Kept non-empty so the
-        // build is distinguishable in explorers.
-        repo.createVersion(release, address(setup), bytes("ipfs://crisp-build"), bytes("ipfs://crisp-release"));
+        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
+        repo.createVersion(release, address(setup), buildMetadata, releaseMetadata);
 
         vm.stopBroadcast();
 

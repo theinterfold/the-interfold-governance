@@ -50,6 +50,9 @@ jobs:
       - name: Test
         run: forge test -vvv
 
+      - name: Test deployment commands
+        run: node --test test/SafePrepareCommand.test.mjs
+
       # Ratchet: the CRISP sources are fully covered today. Fail the build if that
       # slips, rather than letting coverage erode one PR at a time.
       - name: Coverage (enforced minimum)

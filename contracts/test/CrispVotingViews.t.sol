@@ -17,6 +17,18 @@ import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {ICRISP} from "../src/crisp/ICRISP.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
 import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesToken} from "./mocks/CrispMocks.sol";
+import {SafeActionsScript} from "../script/SafeActions.s.sol";
+import {Utils} from "../script/Utils.sol";
+
+contract VoterMinimumActionsHarness is SafeActionsScript {
+    function build(CrispVoting plugin, address dao, uint256 minimum) external view returns (Action memory) {
+        return voterMinimumAction(plugin, dao, minimum);
+    }
+
+    function checkPrepared(address plugin) external view {
+        Utils.validatePreparedCrisp(plugin);
+    }
+}
 
 /// @notice Covers the read surface, the settings path and the revert paths of `CrispVoting`.
 ///         The lifecycle happy paths live in `CrispVotingSpp.t.sol` and the tally maths in
@@ -509,6 +521,56 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.minParticipation(), 13);
         assertEq(plugin.supportThreshold(), 55);
         assertEq(plugin.minDuration(), 7200);
+    }
+
+    function test_safeVoterMinimumUpdatesFutureRoundsWithoutChangingOtherSettings() public {
+        plugin.updateVotingSettings(ICrispVoting.VotingSettings(7, 3, 2, 51, MIN_DURATION));
+        uint256 oldProposalId = _create();
+        vm.chainId(1);
+        VoterMinimumActionsHarness script = new VoterMinimumActionsHarness();
+
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+        script.build(plugin, address(dao), 1);
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 3, 71 ether));
+        script.checkPrepared(address(plugin));
+
+        Action memory action = script.build(plugin, address(dao), 71 ether);
+        assertEq(action.to, address(plugin));
+        assertEq(action.value, 0);
+
+        dao.grant(address(plugin), address(dao), plugin.MANAGER_PERMISSION_ID());
+        vm.prank(address(dao));
+        (bool success,) = action.to.call(action.data);
+        assertTrue(success, "DAO action must execute");
+        assertEq(plugin.minVoterVotingPower(), 71 ether);
+        assertEq(plugin.minProposerVotingPower(), 7);
+        assertEq(plugin.minParticipation(), 2);
+        assertEq(plugin.supportThreshold(), 51);
+        assertEq(plugin.minDuration(), MIN_DURATION);
+        script.checkPrepared(address(plugin));
+        assertEq(plugin.getProposal(oldProposalId).parameters.minVotingPower, 3);
+
+        spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
+        vm.prank(sppAddr);
+        uint256 newProposalId = plugin.createProposal(
+            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
+        );
+        assertEq(plugin.getProposal(newProposalId).parameters.minVotingPower, 71 ether);
+        (, uint256 roundMinimum,,,,,) =
+            abi.decode(interfold.lastCustomParams(), (address, uint256, uint256, uint256, uint256, uint256, uint256));
+        assertEq(roundMinimum, 71 ether, "E3 receives the global voter minimum");
+    }
+
+    function test_testnetVoterMinimumRemainsConfigurable() public {
+        VoterMinimumActionsHarness script = new VoterMinimumActionsHarness();
+        vm.chainId(11_155_111);
+        Action memory action = script.build(plugin, address(dao), 1);
+        dao.grant(address(plugin), address(dao), plugin.MANAGER_PERMISSION_ID());
+        vm.prank(address(dao));
+        (bool success,) = action.to.call(action.data);
+        assertTrue(success);
+        assertEq(plugin.minVoterVotingPower(), 1);
+        script.checkPrepared(address(plugin));
     }
 
     // --- metadata -------------------------------------------------------------

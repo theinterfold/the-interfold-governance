@@ -10,9 +10,10 @@ The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
 ## What this does and what it does not do
 
-The batch publishes **release 1, build 3** of the CRISP plugin into the repo at
+The batch publishes the next build of **release 1** into the repo at
 `interfold-crisp.plugin.dao.eth`. A build is a new `CrispVotingSetup` and the `CrispVoting`
 implementation that it pins.
+Build 3 is expected next, not reserved. Read the actual build number from the publication receipt.
 
 The batch does **not** install anything. Each installed plugin is a proxy that points at its own
 implementation, so the installed private process stays on build 2. The DAO installs build 3 in a
@@ -108,6 +109,9 @@ It is recorded as `CRISP_PLUGIN_REPO` in `contracts/.env.mainnet`.
   ```
 
 - `contracts/.env.mainnet` contains `RPC_URL`, `CRISP_PLUGIN_REPO` and `CRISP_RELEASE=1`.
+- Set published metadata URIs with `CRISP_BUILD_METADATA_URI` and `CRISP_RELEASE_METADATA_URI`.
+  Leave release metadata empty to preserve the existing release entry. Do not use placeholder IPFS URIs.
+  A new release requires real, non-empty release metadata.
 
 ---
 
@@ -129,7 +133,7 @@ Three calls, executed in order, atomically:
 | --- | ---------------- | ----------------------------------------------------------------------- |
 | 0   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVoting`                              |
 | 1   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVotingSetup(impl)`                   |
-| 2   | CRISP repo       | `createVersion(1, setup, "ipfs://crisp-build", "ipfs://crisp-release")` |
+| 2   | CRISP repo       | `createVersion(1, setup, buildMetadata, releaseMetadata)`               |
 
 A Safe cannot send a raw contract creation. Each Transaction Builder entry is a call to an address,
 so the two deploys go through the canonical CREATE2 deployer.
@@ -195,11 +199,29 @@ succeeded, and `buildCount(1)` changed from 2 to 3. The same rehearsal then inst
 
 2. **Confirm the code** at both CREATE2 addresses. Expect a size that is not zero.
 
-3. **Set `CRISP_BUILD=3`** in `contracts/.env.mainnet`.
+3. **Set `CRISP_BUILD` to the actual published build** in `contracts/.env.mainnet`.
 
 4. **Install build 3 into the DAO** with [`private-install-runbook.md`](./private-install-runbook.md).
    The install needs `CRISP_PROGRAM_ADDRESS`, which must be the new CRISP program (see
    [Open items](#open-items-outside-this-batch)).
+
+   Set the mainnet voter minimum to `71000000000000000000` (71 FOLD) before preparation.
+
+### Reproduce the compiled bytecode
+
+Keep the compiler artifacts and source revision with the checked batch. Verify these three links:
+
+1. Compare each creation payload with the artifact's `bytecode.object`.
+2. Check that its CBOR metadata digest commits to the artifact's `rawMetadata`.
+3. Compare the metadata's source hashes with the frozen repository and dependency sources.
+
+These checks establish artifact consistency, not independent compilation correctness.
+For independent compilation, use the exact Solidity standard-JSON input and recorded compiler.
+Preserve source names, contents and settings, including all remapping strings.
+The v0.19 build uses Solidity `0.8.29`, Cancun, optimizer runs `200` and IPFS metadata hashing.
+Absolute remapping contexts affect metadata. An ordinary build from another directory can produce different CREATE2 addresses.
+Exact standard-JSON input can reproduce the bytecode on another machine.
+Do not normalize remappings or disable metadata hashing for an already-checked batch.
 
 ## Open items outside this batch
 
