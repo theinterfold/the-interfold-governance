@@ -1,5 +1,5 @@
 import { ProposalStatus } from "@aragon/ods";
-import { useToken } from "./useToken";
+import { useVotingPowerDivisor } from "./useVotingPowerDivisor";
 import { usePastSupply } from "./usePastSupply";
 import { computeQuorum, meetsSupportThreshold } from "../utils/quorum";
 
@@ -41,13 +41,13 @@ type PrivateProposalStatus = {
 export function derivePrivateProposalStatus({
   proposal,
   totalVotingPower,
-  decimals,
+  divisor,
   e3Failed = false,
   nowMs,
 }: {
   proposal?: Proposal | null;
   totalVotingPower?: bigint;
-  decimals?: bigint | number;
+  divisor?: bigint;
   e3Failed?: boolean;
   nowMs: number;
 }): PrivateProposalStatus {
@@ -64,7 +64,7 @@ export function derivePrivateProposalStatus({
   const endMs = Number(proposal.parameters.endDate) * 1000;
   if (nowMs < startMs) return decided(ProposalStatus.PENDING);
   if (nowMs < endMs) return decided(ProposalStatus.ACTIVE);
-  if (!proposal.isTallied || decimals === undefined) return decided(ProposalStatus.PENDING);
+  if (!proposal.isTallied || divisor === undefined) return decided(ProposalStatus.PENDING);
 
   const tally = proposal.tally ?? [];
   const totalVotes = getTotalVotes(tally);
@@ -74,7 +74,7 @@ export function derivePrivateProposalStatus({
     totalVotingPower ?? 0n,
     Number(proposal.parameters.minParticipation ?? 0n),
     proposal.parameters.creditMode,
-    Number(decimals)
+    divisor
   );
   if (Number(proposal.parameters.minParticipation ?? 0n) > 0 && quorum === null) return decided(ProposalStatus.PENDING);
   // An empty tally lands here whenever a quorum is required. Without one (minParticipation 0)
@@ -94,12 +94,12 @@ export const useProposalStatus = (
   e3Failed = false,
   nowMs = Date.now()
 ) => {
-  const { decimals } = useToken();
+  const divisor = useVotingPowerDivisor(proposal?.e3Id);
   const pastSupply = usePastSupply(proposal?.parameters?.snapshotBlock);
   return derivePrivateProposalStatus({
     proposal,
     totalVotingPower: totalVotingPowerOverride ?? pastSupply,
-    decimals,
+    divisor,
     e3Failed,
     nowMs,
   });

@@ -4,6 +4,7 @@ import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { compactNumber } from "@/utils/numbers";
 import { usePastSupply } from "../hooks/usePastSupply";
 import { useToken } from "../hooks/useToken";
+import { useVotingPowerDivisor } from "../hooks/useVotingPowerDivisor";
 import { tallyCountToTokens, voteScale } from "../utils/quorum";
 import { EligibleVotersDialog } from "./eligibleVotersDialog";
 import { CreditsMode } from "../utils/types";
@@ -12,27 +13,29 @@ import type { Proposal } from "../utils/types";
 
 /**
  * Participation (quorum) panel for a CRISP proposal — the private twin of the
- * TokenVoting ParticipationCard. Turnout is the (scaled) tally sum converted
- * back to raw token units, compared against minParticipation% of the total
- * voting power at the snapshot. Before the tally lands, votes are encrypted
- * and turnout is unknowable.
+ * TokenVoting ParticipationCard. Turnout is the tally sum converted back to raw token units with
+ * the divisor CRISP recorded for the round, compared against minParticipation% of the total
+ * voting power at the snapshot. Before the tally lands, votes are encrypted and turnout is
+ * unknowable.
  */
 export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const pastSupply = usePastSupply(proposal.parameters.snapshotBlock);
   const { decimals } = useToken();
+  const divisor = useVotingPowerDivisor(proposal.e3Id);
   const [showVoters, setShowVoters] = useState(false);
   const votersTriggerRef = useRef<HTMLButtonElement>(null);
 
   const creditMode = proposal.parameters.creditMode;
   const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
 
-  // Turnout is scaled by 10^(decimals-1); rendering before the read lands would
+  // The tally is in units of the round's recorded divisor; rendering before the reads land would
   // show a figure off by orders of magnitude.
-  if (tokenDecimals === undefined) return null;
+  const scale = voteScale(creditMode, divisor);
+  if (tokenDecimals === undefined || (proposal.isTallied && scale === undefined)) return null;
 
   const minParticipation = Number(proposal.parameters.minParticipation ?? 0n);
   const totalVotesScaled = (proposal.tally ?? []).reduce((sum, v) => sum + (v ?? 0n), 0n);
-  const totalVotesRaw = totalVotesScaled * voteScale(creditMode, tokenDecimals);
+  const totalVotesRaw = scale === undefined ? 0n : totalVotesScaled * scale;
   const required = (pastSupply * BigInt(minParticipation)) / 100n;
   const reached = totalVotesRaw >= required;
 
@@ -40,7 +43,7 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const progressPct = required > 0n ? Math.min((Number(totalVotesRaw) / Number(required)) * 100, 100) : 100;
 
   const fmt = (v: bigint) => `${compactNumber(formatUnits(v, tokenDecimals))} ${PUB_TOKEN_SYMBOL}`;
-  const votedTokens = tallyCountToTokens(totalVotesScaled, creditMode, tokenDecimals);
+  const votedTokens = tallyCountToTokens(totalVotesScaled, creditMode, tokenDecimals, divisor) ?? 0;
 
   return (
     <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">
@@ -105,7 +108,6 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
         onClose={() => setShowVoters(false)}
         e3Id={proposal.e3Id}
         chainSnapshot={proposal.parameters.snapshotBlock}
-        creditMode={creditMode}
       />
     </div>
   );

@@ -9,10 +9,10 @@ import { AddressText } from "@/components/text/address";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { useEligibleVoters } from "../hooks/useEligibleVoters";
+import { useVotingPowerDivisor } from "../hooks/useVotingPowerDivisor";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 
-import type { CreditsMode } from "../utils/types";
 import type { EligibleVoterRow, VerificationCheck } from "../hooks/useEligibleVoters";
 
 /** Rows rendered before the "show more" cut — keeps very large sets responsive. */
@@ -24,7 +24,6 @@ interface EligibleVotersDialogProps {
   onClose: () => void;
   e3Id?: bigint;
   chainSnapshot?: bigint;
-  creditMode?: CreditsMode | number;
 }
 
 const STATUS_MARK: Record<VerificationCheck["status"], string> = {
@@ -48,22 +47,15 @@ const STATUS_CLASS: Record<VerificationCheck["status"], string> = {
  * The point is not to display the server's list — that would be the server vouching for
  * itself — but to re-derive it from chain state and show where the two disagree.
  */
-export const EligibleVotersDialog = ({
-  open,
-  triggerRef,
-  onClose,
-  e3Id,
-  chainSnapshot,
-  creditMode,
-}: EligibleVotersDialogProps) => {
+export const EligibleVotersDialog = ({ open, triggerRef, onClose, e3Id, chainSnapshot }: EligibleVotersDialogProps) => {
   const decimals = useTokenDecimals();
+  const divisor = useVotingPowerDivisor(e3Id);
   const [filter, setFilter] = useState("");
   const [limit, setLimit] = useState(PAGE_SIZE);
   const fallbackTrigger = useRef<HTMLButtonElement>(null);
 
   const { data, isLoading, error } = useEligibleVoters(e3Id, {
     chainSnapshot,
-    creditMode,
     decimals,
     enabled: open,
   });
@@ -85,11 +77,10 @@ export const EligibleVotersDialog = ({
     return shownData.rows.filter((r) => r.address.toLowerCase().includes(q));
   }, [shownData, filter]);
 
+  // Served balances are in units of the round's recorded divisor; one unit is `divisor` raw tokens.
   const fmt = (v?: bigint) => {
-    if (v === undefined || decimals === undefined) return "-";
-    // Served balances are already scaled by 10^(decimals-1), so one more decimal
-    // place restores whole tokens.
-    return formatUnits(v, 1);
+    if (v === undefined || decimals === undefined || divisor === undefined) return "-";
+    return formatUnits(v * divisor, decimals);
   };
 
   const pct = (v: bigint) => {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
-import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote, getMaxVoteValue } from "@crisp-e3/sdk";
+import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { parseAbi, size, type Address, type Hex } from "viem";
@@ -23,6 +23,7 @@ import {
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
+  getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
 import { usePublishVote } from "./usePublishVote";
@@ -86,16 +87,22 @@ async function resolveVoteBalance(
     abi: iVotesAbi,
     functionName: "decimals",
   });
+  const constant = roundState.credit_mode === CreditsMode.CONSTANT;
+  // Raw token units in one ballot unit: the divisor the CRISP program recorded for the round, never
+  // derived from the token's decimals. The verifier scales by exactly this number.
+  const unit = constant ? 1n : await getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+  if (unit === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
+
   let adjustedBalance: bigint;
 
   if (crispProgram) {
     // An ONCHAIN round takes both the snapshot and the scaling from the contract, which then
     // verifies the proof against exactly that number. Reading it here — rather than repeating
-    // the `getPastVotes` call and the `10 ** (decimals - 1)` division below — is what keeps the
+    // the `getPastVotes` call and the division below — is what keeps the
     // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
     // naming the cause.
     adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
-  } else if (roundState.credit_mode === CreditsMode.CONSTANT && roundState.credits) {
+  } else if (constant && roundState.credits) {
     adjustedBalance = BigInt(roundState.credits);
   } else {
     // The voting token is timestamp-clocked (EIP-6372, CLOCK_MODE=timestamp), so
@@ -124,15 +131,16 @@ async function resolveVoteBalance(
       ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
     });
 
-    // Must mirror the CRISP server's scaling exactly (it keeps 1 decimal of precision:
-    // balance / 10^(decimals-1)) or our vote won't match the server's merkle leaf. It also
-    // keeps votes within the BFV per-choice encoding cap (2^33 - 1 for 3 options).
-    adjustedBalance = balance / 10n ** BigInt(Math.max(0, decimals - 1));
+    // Must mirror the CRISP server's scaling exactly (the round's recorded divisor) or our vote
+    // won't match the server's merkle leaf. The divisor also keeps every option total below the
+    // BFV plaintext modulus.
+    adjustedBalance = balance / unit;
   }
 
   return {
     available: adjustedBalance,
-    decimals: roundState.credit_mode === CreditsMode.CONSTANT ? 0 : Math.min(decimals, 1),
+    unit,
+    decimals: constant ? 0 : decimals,
   };
 }
 
@@ -334,8 +342,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
     // A mask is still checked against public input 4, so its voting power has to be the number
     // the contract will supply for that slot — not the balance the server recorded. The two
-    // usually coincide, because both scale by the token's decimals, but they diverge the moment a
-    // round names an explicit divisor, and a mask that got it wrong would fail in the verifier.
+    // usually coincide, because both scale by the round's recorded divisor, but a mask that got it
+    // wrong would fail in the verifier.
     const balance = crispProgram
       ? await getOnchainVotingPower(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
       : voter.balance;
@@ -353,21 +361,19 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
       const program = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
       const census = await getCensusMode(publicClient, program, e3Id);
-      const { available, decimals } = await resolveVoteBalance(
+      const { available, unit, decimals } = await resolveVoteBalance(
         e3Id,
         address,
         roundState,
         census === CensusMode.ONCHAIN ? program : undefined
       );
-      if (available > BigInt(getMaxVoteValue(Number(roundState.num_options)))) {
-        throw new Error("Your voting power exceeds this round’s supported ballot size.");
-      }
       return {
         roundId: e3Id,
         voter: address,
         available,
         counted: chooseBallotWeight(available, randomize),
         randomize,
+        unit,
         decimals,
       };
     },

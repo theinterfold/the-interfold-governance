@@ -419,6 +419,7 @@ function ProposalDetailBody({
                     vetoStage={spp.vetoStage}
                     isSignalling={false}
                     proposalId={proposalIdx}
+                    e3Id={proposal.e3Id}
                     results={results}
                     isTallied={proposal.isTallied}
                     networkResultPublished={networkProgress.published}

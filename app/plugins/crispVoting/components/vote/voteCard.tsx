@@ -631,7 +631,8 @@ export const VoteCard = ({
                     <div className="ballot-review-row">
                       <span>Counted in this vote</span>
                       <strong>
-                        {exactNumber(formatUnits(reviewWeight.counted, reviewWeight.decimals))} {PUB_TOKEN_SYMBOL}
+                        {exactNumber(formatUnits(reviewWeight.counted * reviewWeight.unit, reviewWeight.decimals))}{" "}
+                        {PUB_TOKEN_SYMBOL}
                       </strong>
                     </div>
                     <div className="ballot-review-row">
@@ -779,6 +780,7 @@ export const VoteCard = ({
                         selected={targetInput}
                         pending={busy}
                         creditMode={creditMode}
+                        e3Id={e3Id}
                         onSelect={setTargetInput}
                       />
                     </MotionPanel>

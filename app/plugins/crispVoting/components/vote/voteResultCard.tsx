@@ -6,6 +6,7 @@ import { ProposalStatus } from "@aragon/ods";
 import { useProposalExecute } from "../../hooks/useProposalExecute";
 import { useToken } from "../../hooks/useToken";
 import { usePastSupply } from "../../hooks/usePastSupply";
+import { useVotingPowerDivisor } from "../../hooks/useVotingPowerDivisor";
 import { computeQuorum, tallyCountToTokens } from "../../utils/quorum";
 import { CreditsMode } from "../../utils/types";
 import { describeE3Failure, type E3FailureReason } from "../../hooks/useE3Status";
@@ -30,6 +31,8 @@ interface VoteResultCardProps {
   vetoStage?: { vetoThreshold?: number | bigint };
   results?: IResult[];
   proposalId: bigint;
+  /** The round's E3 id — the CRISP program records the divisor that scales the tally. */
+  e3Id?: bigint;
   isSignalling?: boolean;
   isTallied?: boolean;
   /** Authoritative status from useProposalStatus (already factors in quorum). */
@@ -60,6 +63,7 @@ export const VoteResultCard = ({
   vetoStage,
   results,
   proposalId,
+  e3Id,
   isSignalling,
   isTallied = true,
   proposalStatus,
@@ -83,21 +87,23 @@ export const VoteResultCard = ({
   const { decimals, symbol } = useToken();
   const pastSupply = usePastSupply(snapshotBlock);
 
-  // Undefined until the on-chain read lands — tally scaling depends on it, so the
-  // derived token figures stay empty rather than being computed against a guess.
+  // Undefined until the on-chain reads land — tally scaling depends on both, so the derived
+  // token figures stay empty rather than being computed against a guess.
   const tokenDecimals = decimals === undefined ? undefined : Number(decimals);
+  const divisor = useVotingPowerDivisor(e3Id);
   const unitLabel = creditMode === CreditsMode.CONSTANT ? "credits" : symbol && symbol.length > 0 ? symbol : "tokens";
 
   const values = useMemo(() => (results ?? []).map((result) => BigInt(result.value || "0")), [results]);
   const percentages = resultPercentages(values);
   const totalVotes = values.reduce((sum, value) => sum + value, 0n);
-  const amount = (value: bigint) =>
-    tokenDecimals === undefined ? "-" : formatResultAmount(tallyCountToTokens(value, creditMode, tokenDecimals));
-  // CRISP tally units are scaled; preserve its own contract-aligned quorum calculation.
+  const amount = (value: bigint) => {
+    const tokens =
+      tokenDecimals === undefined ? undefined : tallyCountToTokens(value, creditMode, tokenDecimals, divisor);
+    return tokens === undefined ? "-" : formatResultAmount(tokens);
+  };
+  // CRISP tally counts are in units of the round's recorded divisor; mirror the contract's quorum.
   const quorum =
-    tokenDecimals === undefined || minParticipation == null
-      ? null
-      : computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, tokenDecimals);
+    minParticipation == null ? null : computeQuorum(totalVotes, pastSupply, minParticipation, creditMode, divisor);
 
   // Before the empty-results guard: a failed round usually has no tally at all, and that is
   // exactly the case where the reader most needs to be told why.

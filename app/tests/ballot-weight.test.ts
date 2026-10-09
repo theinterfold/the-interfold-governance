@@ -7,7 +7,15 @@ import {
 } from "../plugins/crispVoting/utils/ballotWeight";
 
 const voter = "0x1111111111111111111111111111111111111111";
-const weight: BallotWeight = { roundId: 42n, voter, available: 1000n, counted: 995n, randomize: true, decimals: 1 };
+const weight: BallotWeight = {
+  roundId: 42n,
+  voter,
+  available: 1000n,
+  counted: 995n,
+  randomize: true,
+  unit: 10n ** 12n,
+  decimals: 18,
+};
 
 describe("Private ballot weight", () => {
   test("random weights stay within 99% and strictly below full power, including fractional lower bounds", () => {

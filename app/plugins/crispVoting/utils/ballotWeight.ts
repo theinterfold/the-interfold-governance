@@ -8,7 +8,9 @@ export interface BallotWeight {
   counted: bigint;
   /** The voter kept the random weight on. */
   randomize: boolean;
-  /** Token decimals after the round's existing ballot scaling. */
+  /** Raw token units in one ballot unit: the divisor CRISP recorded for the round (1 for CONSTANT credits). */
+  unit: bigint;
+  /** Decimals of the raw amount `counted * unit`. */
   decimals: number;
 }
 

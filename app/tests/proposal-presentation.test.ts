@@ -102,16 +102,28 @@ describe("vote status at time boundaries", () => {
 
   test("secret vote closes at its deadline even when cached active stays true", () => {
     expect(
-      derivePrivateProposalStatus({ proposal: privateProposal, decimals: 18, totalVotingPower: 100n, nowMs: 999 })
-        .status
+      derivePrivateProposalStatus({
+        proposal: privateProposal,
+        divisor: 10n ** 17n,
+        totalVotingPower: 100n,
+        nowMs: 999,
+      }).status
     ).toBe(ProposalStatus.PENDING);
     expect(
-      derivePrivateProposalStatus({ proposal: privateProposal, decimals: 18, totalVotingPower: 100n, nowMs: 1_000 })
-        .status
+      derivePrivateProposalStatus({
+        proposal: privateProposal,
+        divisor: 10n ** 17n,
+        totalVotingPower: 100n,
+        nowMs: 1_000,
+      }).status
     ).toBe(ProposalStatus.ACTIVE);
     expect(
-      derivePrivateProposalStatus({ proposal: privateProposal, decimals: 18, totalVotingPower: 100n, nowMs: 2_000 })
-        .status
+      derivePrivateProposalStatus({
+        proposal: privateProposal,
+        divisor: 10n ** 17n,
+        totalVotingPower: 100n,
+        nowMs: 2_000,
+      }).status
     ).toBe(ProposalStatus.PENDING);
   });
 });

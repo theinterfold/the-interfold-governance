@@ -10,6 +10,7 @@ import { WalletListRow } from "@/components/walletListRow";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { CreditsMode, type EligibleVoter } from "../../utils/types";
 import { tallyCountToTokens } from "../../utils/quorum";
+import { useVotingPowerDivisor } from "../../hooks/useVotingPowerDivisor";
 
 const PAGE_SIZE = 10;
 
@@ -19,6 +20,7 @@ export function MaskRecipientPicker({
   selected,
   pending,
   creditMode,
+  e3Id,
   onSelect,
 }: {
   voters?: EligibleVoter[];
@@ -26,10 +28,13 @@ export function MaskRecipientPicker({
   selected: string;
   pending: boolean;
   creditMode?: CreditsMode;
+  /** The round whose recorded divisor scales the served balances. */
+  e3Id?: bigint;
   onSelect: (address: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const decimals = useTokenDecimals();
+  const divisor = useVotingPowerDivisor(e3Id);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const filtered = (voters ?? []).filter((voter) => voter.address.toLowerCase().includes(search.trim().toLowerCase()));
 
@@ -58,6 +63,8 @@ export function MaskRecipientPicker({
             <div className="delegate-picker-list" role="group" aria-label="Eligible voters">
               {filtered.slice(0, visibleCount).map((voter) => {
                 const isSelected = voter.address.toLowerCase() === selected.toLowerCase();
+                const tokens =
+                  decimals === undefined ? undefined : tallyCountToTokens(voter.balance, creditMode, decimals, divisor);
                 return (
                   <WalletListRow
                     key={voter.address}
@@ -66,11 +73,7 @@ export function MaskRecipientPicker({
                         <EnsMember address={voter.address as Address} />
                         <div className="pl-9">
                           <ListTokenAmount
-                            value={
-                              decimals === undefined
-                                ? "-"
-                                : compactNumber(tallyCountToTokens(voter.balance, creditMode, decimals))
-                            }
+                            value={tokens === undefined ? "-" : compactNumber(tokens)}
                             symbol={creditMode === CreditsMode.CONSTANT ? "credits" : PUB_TOKEN_SYMBOL}
                           />
                         </div>

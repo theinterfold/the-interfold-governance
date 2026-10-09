@@ -26,7 +26,7 @@ describe("Shared public and secret results", () => {
     expect(resultPercentages(raw)).toEqual([72, 18, 10]);
     expect(resultPercentages(scaled)).toEqual(resultPercentages(raw));
     const publicQuorum = publicResultQuorum(100000n * unit, 10000n * unit, 1000000n * unit);
-    const secretQuorum = computeQuorum(1000000n, 1000000n * unit, 1, CreditsMode.CUSTOM, 18);
+    const secretQuorum = computeQuorum(1000000n, 1000000n * unit, 1, CreditsMode.CUSTOM, 10n ** 17n);
     expect(publicQuorum).toEqual(secretQuorum);
     expect(render({ quorum: publicQuorum })).toBe(render({ quorum: secretQuorum }));
   });

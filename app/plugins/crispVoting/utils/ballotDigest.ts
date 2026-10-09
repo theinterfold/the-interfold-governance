@@ -11,6 +11,7 @@ const crispProgramAbi = parseAbi([
   "function ballotDigest(uint256 e3Id, address slot, bytes32 ciphertextCommitment) view returns (bytes32)",
   "function votingPowerOf(uint256 e3Id, address slot) view returns (uint256)",
   "function censusModeOf(uint256 e3Id) view returns (uint8)",
+  "function votingPowerDivisorOf(uint256 e3Id) view returns (uint256)",
 ]);
 
 /// Mirrors `CRISPProgram.CensusMode`.
@@ -66,9 +67,10 @@ const requestCustomParams = parseAbiParameters(
  * The eligibility floor the CRISP program enforces for a round, in the voting token's raw units.
  *
  * Read from the round's request, not the proposal. `proposal.parameters.minVotingPower` keeps the
- * plugin setting as configured, but `CrispVoting._buildRequestParams` raises it to at least one
- * ballot unit (`10^(decimals-1)`) before requesting — a floor of 1 wei becomes 0.1 FOLD — and the
- * raised value is the one `publishInput` enforces (`SlotNotEligible`) and the CRISP server applies.
+ * plugin setting as configured, but `CrispVoting._buildRequestParams` raises it to at least the
+ * round's minimum divisor (`supply / t + 1`) before requesting — the smallest raw power that still
+ * carries one ballot unit — and the raised value is the one `publishInput` enforces
+ * (`SlotNotEligible`) and the CRISP server applies.
  *
  * @param client The public client.
  * @param pluginAddress The CRISP voting plugin.
@@ -181,6 +183,32 @@ export const getOnchainVotingPower = async (
     abi: crispProgramAbi,
     functionName: "votingPowerOf",
     args: [e3Id, slot],
+  });
+};
+
+/**
+ * The divisor the CRISP program recorded for a round: a ballot's weight is `rawPower / divisor`
+ * (floored), so every tally count and served balance is in units of `divisor` raw token units.
+ *
+ * Read from the program that runs the round, not configured and not derived from the token's
+ * decimals. The divisor is `supply / t + 1` at the snapshot, fixed when the round is requested.
+ *
+ * @param client The public client.
+ * @param pluginAddress The CRISP voting plugin.
+ * @param e3Id The round.
+ * @returns The recorded divisor, or 0n when the program holds no round for the E3.
+ */
+export const getVotingPowerDivisor = async (
+  client: PublicClient,
+  pluginAddress: Address,
+  e3Id: bigint
+): Promise<bigint> => {
+  const crispProgram = await resolveCrispProgram(client, pluginAddress, e3Id);
+  return client.readContract({
+    address: crispProgram,
+    abi: crispProgramAbi,
+    functionName: "votingPowerDivisorOf",
+    args: [e3Id],
   });
 };
 
