@@ -162,3 +162,11 @@ At the user's request, `entrance-moving-439a65ba9b0355bf` prepares the worker th
 The canvas also rises 16 CSS pixels over 600 ms with `cubic-bezier(0.22,1,0.36,1)`, matching the existing ScrollFadeIn/LineReveal. That one-time transform follows the same visible elapsed clock, so pausing or leaving the page keeps the entrance synchronized. Reduced motion bypasses both warmup and rise. Simulation files and the point renderer are unchanged. This trial is available at `http://127.0.0.1:60966/`; the loaded canvas confirmed the new revision, 60,000 points, full reveal and no remaining transform or console error.
 
 The user approved this entrance for the shared demo. Published unchanged as `dpl_vhxWEQ3jVo1R4nA4ynUKi6j5wmrK`, aliased to `https://interfold-governance-review.vercel.app/`, on 3 October 2026.
+
+### Shorter point entrance (2026-10-09)
+
+The user asked for a shorter entrance. The points now appear over 600 ms instead of 1.2 s. The points and the 16 px canvas rise now end at the same time. The text above the artwork uses the same 600 ms entrance.
+
+The appearance delays now spread across 510 ms, and each point fades in over 90 ms instead of 180 ms. The fade is shorter because the renderer scales the delays and the fade with the entrance duration. Point positions, radii, the simulation and reduced motion do not change.
+
+Only `ENTRANCE_DURATION` in `app/utils/governHeroRenderer.js` changes. The runtime files of `entrance-moving-439a65ba9b0355bf` and their `manifest.json` hashes do not change. Thus the `host.js` copy in that directory keeps the approved 1.2 s value.

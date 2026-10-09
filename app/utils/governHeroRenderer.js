@@ -3,7 +3,8 @@ const DISPLAY_DELAY = 1.3;
 const MODEL_FRAME_LAG = 0.1;
 const FRAME_SLOTS = 16;
 const CLOCK_RATE = 2.6;
-const ENTRANCE_DURATION = 1.2;
+// The points appear over the same 600 ms as the canvas rise and the shared page entrance.
+const ENTRANCE_DURATION = 0.6;
 const DISPLAY_START = 0.5;
 const WARMUP_TIME = DISPLAY_START + DISPLAY_DELAY + MODEL_FRAME_LAG;
 const ENTRANCE_RISE_DURATION = 600;
