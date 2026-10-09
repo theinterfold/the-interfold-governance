@@ -38,6 +38,7 @@ const privateProps: VoteCardProps = {
     roundId: 1n,
     voter: "0x0000000000000000000000000000000000000001",
     available: 1000n,
+    power: 1000n * 10n ** 17n,
     counted: 995n,
     randomize: true,
     unit: 10n ** 17n,

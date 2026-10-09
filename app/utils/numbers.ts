@@ -1,9 +1,12 @@
-/** Exact token amounts use a decimal point and never round through a JS number. */
-export function exactNumber(input: string): string {
+/**
+ * Exact token amounts use a decimal point and never round through a JS number. `maxDecimals` cuts
+ * the fraction to that many digits, so the amount rounds down and never shows more than it is.
+ */
+export function exactNumber(input: string, maxDecimals?: number): string {
   if (!/^\d*\.?\d+$/.test(input) && !/^\d+\.$/.test(input)) return "-";
   const [whole, fraction = ""] = input.split(".");
   const normalizedWhole = (whole || "0").replace(/^0+(?=\d)/, "");
-  const normalizedFraction = fraction.replace(/0+$/, "").padEnd(2, "0");
+  const normalizedFraction = fraction.slice(0, maxDecimals).replace(/0+$/, "").padEnd(2, "0");
   return `${normalizedWhole}.${normalizedFraction}`;
 }
 

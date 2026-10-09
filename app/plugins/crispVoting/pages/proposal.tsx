@@ -322,7 +322,6 @@ function ProposalDetailBody({
                           proposalTitle={proposal.title}
                           creditMode={proposal.parameters.creditMode}
                           e3Id={proposal.e3Id}
-                          walletAddress={address}
                           getVoteWeight={getVoteWeight}
                           eligibilityNotice={
                             <BallotEligibilityNotice

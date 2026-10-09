@@ -23,6 +23,7 @@ import {
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
+  getRoundSnapshot,
   getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
@@ -94,6 +95,9 @@ async function resolveVoteBalance(
   if (unit === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
 
   let adjustedBalance: bigint;
+  // The full power, in raw token units. Only the review uses it: the share compares the counted
+  // tokens with it, so the remainder that whole ballot units leave out shows too.
+  let power: bigint;
 
   if (crispProgram) {
     // An ONCHAIN round takes both the snapshot and the scaling from the contract, which then
@@ -102,8 +106,23 @@ async function resolveVoteBalance(
     // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
     // naming the cause.
     adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
+    if (constant) {
+      power = adjustedBalance;
+    } else {
+      // The amount that `votingPowerOf` divides: the voting token at the snapshot of the round.
+      power = await publicClient.readContract({
+        address: votingToken,
+        abi: iVotesAbi,
+        functionName: "getPastVotes",
+        args: [address as `0x${string}`, await getRoundSnapshot(publicClient, crispProgram, e3Id)],
+      });
+      // Both reads use the chain head, so they disagree only when the power changed between them.
+      if (power / unit !== adjustedBalance)
+        throw new Error("Your voting power changed while the app read it. Try again.");
+    }
   } else if (constant && roundState.credits) {
     adjustedBalance = BigInt(roundState.credits);
+    power = adjustedBalance;
   } else {
     // The voting token is timestamp-clocked (EIP-6372, CLOCK_MODE=timestamp), so
     // getPastVotes expects a *timestamp*, not a block number. The CRISP server snapshots
@@ -135,10 +154,12 @@ async function resolveVoteBalance(
     // won't match the server's merkle leaf. The divisor also keeps every option total below the
     // BFV plaintext modulus.
     adjustedBalance = balance / unit;
+    power = balance;
   }
 
   return {
     available: adjustedBalance,
+    power,
     unit,
     decimals: constant ? 0 : decimals,
   };
@@ -361,7 +382,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
       const program = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
       const census = await getCensusMode(publicClient, program, e3Id);
-      const { available, unit, decimals } = await resolveVoteBalance(
+      const { available, power, unit, decimals } = await resolveVoteBalance(
         e3Id,
         address,
         roundState,
@@ -371,6 +392,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         roundId: e3Id,
         voter: address,
         available,
+        power,
         counted: chooseBallotWeight(available, randomize),
         randomize,
         unit,
@@ -578,8 +600,9 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         proof = await finishMaskProof(prepared, digest);
       } else {
         // The voter reviewed this weight before signing: a random share of the voting power, or all
-        // of it when the voter turned the random weight off.
-        const share = ballotWeightPercentage({ available: voteData.balance, counted });
+        // of it when the voter turned the random weight off. `handleVote` checked the review against
+        // this round's balance, so its unit and power measure the encrypted weight.
+        const share = ballotWeightPercentage({ ...weight!, counted });
 
         // Step 3: Signing, now that there is a ciphertext to bind to.
         setVotingStep("signing");

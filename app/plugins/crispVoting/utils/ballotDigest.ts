@@ -12,6 +12,7 @@ const crispProgramAbi = parseAbi([
   "function votingPowerOf(uint256 e3Id, address slot) view returns (uint256)",
   "function censusModeOf(uint256 e3Id) view returns (uint8)",
   "function votingPowerDivisorOf(uint256 e3Id) view returns (uint256)",
+  "function snapshotOf(uint256 e3Id) view returns (uint48)",
 ]);
 
 /// Mirrors `CRISPProgram.CensusMode`.
@@ -210,6 +211,25 @@ export const getVotingPowerDivisor = async (
     functionName: "votingPowerDivisorOf",
     args: [e3Id],
   });
+};
+
+/**
+ * The timepoint at which a round reads voting power, recorded by the program when the round was
+ * requested. `votingPowerOf` reads the round token's `getPastVotes` at this timepoint.
+ *
+ * @param client The public client.
+ * @param crispProgram The CRISP program address.
+ * @param e3Id The round.
+ * @returns The snapshot, in the voting token's clock units.
+ */
+export const getRoundSnapshot = async (client: PublicClient, crispProgram: Address, e3Id: bigint): Promise<bigint> => {
+  const snapshot = await client.readContract({
+    address: crispProgram,
+    abi: crispProgramAbi,
+    functionName: "snapshotOf",
+    args: [e3Id],
+  });
+  return BigInt(snapshot);
 };
 
 /**

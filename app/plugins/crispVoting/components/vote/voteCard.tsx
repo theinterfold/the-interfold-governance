@@ -49,8 +49,6 @@ export interface VoteCardProps {
   proposalTitle?: string;
   /** The round whose eligible voters a mask can target. */
   e3Id?: bigint;
-  /** The connected wallet. Left out of the mask recipients: a mask on your own slot hides nothing. */
-  walletAddress?: string;
   /** Draws the weight that the ballot counts and returns it for the voter to review. */
   getVoteWeight: (randomize: boolean) => Promise<BallotWeight>;
   options: string[];
@@ -91,7 +89,6 @@ export const VoteCard = ({
   canMask = true,
   proposalTitle,
   e3Id,
-  walletAddress,
   getVoteWeight,
   options,
   voteStartDate,
@@ -174,12 +171,10 @@ export const VoteCard = ({
     queryFn: () => crispSdk.getEligibleAddresses(e3Id!),
     enabled: reviewOpen && wantsMask && e3Id !== undefined,
   });
+  // The connected wallet stays in the list, so a voter can also mask their own slot.
   const recipients = useMemo<EligibleVoter[] | undefined>(
-    () =>
-      census
-        ?.filter((voter) => !equalAddresses(voter.address, walletAddress))
-        .map((voter) => ({ address: voter.address, balance: BigInt(voter.balance) })),
-    [census, walletAddress]
+    () => census?.map((voter) => ({ address: voter.address, balance: BigInt(voter.balance) })),
+    [census]
   );
   const invalidTarget =
     wantsMask &&
@@ -631,7 +626,7 @@ export const VoteCard = ({
                     <div className="ballot-review-row">
                       <span>Counted in this vote</span>
                       <strong>
-                        {exactNumber(formatUnits(reviewWeight.counted * reviewWeight.unit, reviewWeight.decimals))}{" "}
+                        {exactNumber(formatUnits(reviewWeight.counted * reviewWeight.unit, reviewWeight.decimals), 2)}{" "}
                         {PUB_TOKEN_SYMBOL}
                       </strong>
                     </div>
@@ -643,8 +638,10 @@ export const VoteCard = ({
                       {!reviewWeight.randomize
                         ? "This ballot uses all of your available voting power."
                         : reviewWeight.counted === reviewWeight.available
-                          ? "Your voting power is too small to reduce by less than 1% at this round’s precision. This ballot uses 100%."
-                          : "This slight reduction helps protect your privacy. To use 100%, close this review and turn off randomization."}
+                          ? "Your voting power is too small to reduce by less than 1% at this round’s precision. This ballot uses all of your available voting power."
+                          : "This slight reduction helps protect your privacy. To use all of your available voting power, close this review and turn off randomization."}
+                      {reviewWeight.power > reviewWeight.available * reviewWeight.unit &&
+                        ` This round counts voting power in whole units of ${exactNumber(formatUnits(reviewWeight.unit, reviewWeight.decimals), 2)} ${PUB_TOKEN_SYMBOL}. Voting power below one unit does not count.`}
                     </p>
                   </div>
                 ) : weightError ? (
@@ -737,7 +734,7 @@ export const VoteCard = ({
                     disabled={busy}
                     options={[
                       { value: "random", label: "Random eligible voter" },
-                      { value: "address", label: "Another wallet" },
+                      { value: "address", label: "Specific wallet" },
                     ]}
                   />
                   <div className="motion-tab-panels">
@@ -757,7 +754,7 @@ export const VoteCard = ({
                             <span>Choosing an eligible voter…</span>
                           ) : (
                             <p className="vp-submission-error" role="alert">
-                              No other eligible voters are available for this proposal.
+                              No eligible voters are available for this proposal.
                             </p>
                           )}
                         </div>

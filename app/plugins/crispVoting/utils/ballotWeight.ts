@@ -2,8 +2,13 @@
 export interface BallotWeight {
   roundId: bigint;
   voter: string;
-  /** The full voting power of the slot, in ballot units. */
+  /** The voting power the ballot can spend, in ballot units: `power / unit`, rounded down. */
   available: bigint;
+  /**
+   * The full voting power of the slot at the round's snapshot, in raw token units (the credits for
+   * CONSTANT credits). It includes the remainder that whole ballot units leave out of `available`.
+   */
+  power: bigint;
   /** The weight the ballot counts, in ballot units. */
   counted: bigint;
   /** The voter kept the random weight on. */
@@ -50,11 +55,16 @@ export function chooseBallotWeight(available: bigint, randomize: boolean): bigin
 }
 
 /**
- * The counted weight as a percentage of the voting power, rounded down to two decimals, for
- * example `"99.47%"`. Rounded down, so a reduced ballot never shows as 100%.
+ * The counted weight as a percentage of the full voting power, rounded down to two decimals, for
+ * example `"99.47%"`. It compares tokens, not ballot units, so it also shows the remainder that whole
+ * units leave out. Rounded down, so a ballot that loses any power never shows as 100%.
  */
-export function ballotWeightPercentage({ available, counted }: Pick<BallotWeight, "available" | "counted">): string {
-  const hundredths = (counted * 10_000n) / available;
+export function ballotWeightPercentage({
+  counted,
+  unit,
+  power,
+}: Pick<BallotWeight, "counted" | "unit" | "power">): string {
+  const hundredths = (counted * unit * 10_000n) / power;
   return `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, "0")}%`;
 }
 

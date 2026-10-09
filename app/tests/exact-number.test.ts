@@ -25,6 +25,11 @@ describe("Exact token amount display", () => {
     expect(exactNumber("10000.125000000000000000")).toBe("10000.125");
   });
 
+  test("cuts to the requested decimals and never rounds up", () => {
+    expect(exactNumber("110003.000000000000000001", 2)).toBe("110003.00");
+    expect(exactNumber("70.588235294117647059", 2)).toBe("70.58");
+  });
+
   test("does not present unavailable or invalid amounts as zero", () => {
     expect(exactNumber("")).toBe("-");
     expect(exactNumber("-")).toBe("-");

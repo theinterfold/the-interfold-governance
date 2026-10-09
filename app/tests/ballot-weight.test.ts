@@ -11,6 +11,7 @@ const weight: BallotWeight = {
   roundId: 42n,
   voter,
   available: 1000n,
+  power: 1000n * 10n ** 12n,
   counted: 995n,
   randomize: true,
   unit: 10n ** 12n,
@@ -67,9 +68,15 @@ describe("Private ballot weight", () => {
     expect(reviewedVote({ ...weight, available: 1n, counted: 1n }, 1n, 42n, voter, 0, 3)).toEqual([1, 0, 0]);
     for (const option of [-1, 3, 0.5, NaN]) expect(() => reviewedVote(weight, 1000n, 42n, voter, option, 3)).toThrow();
   });
-  test("percentages are derived from the actual counted weight and never round a reduction to 100%", () => {
+  test("percentages compare the counted tokens with the full voting power and never round a loss to 100%", () => {
     expect(ballotWeightPercentage(weight)).toBe("99.50%");
-    expect(ballotWeightPercentage({ available: 1000000n, counted: 999999n })).toBe("99.99%");
-    expect(ballotWeightPercentage({ available: 1n, counted: 1n })).toBe("100.00%");
+    // Sepolia round 1: one unit is 11,000,300 FOLD / t = 100, plus 1 wei. 111,100 FOLD holds one
+    // unit, and the remainder of about 1,097 FOLD does not count.
+    const unit = 110_003n * 10n ** 18n + 1n;
+    expect(ballotWeightPercentage({ ...weight, available: 1n, counted: 1n, unit, power: 111_100n * 10n ** 18n })).toBe(
+      "99.01%"
+    );
+    expect(ballotWeightPercentage({ counted: 999_999n, unit: 1n, power: 1_000_000n })).toBe("99.99%");
+    expect(ballotWeightPercentage({ counted: 1n, unit: 1n, power: 1n })).toBe("100.00%");
   });
 });
