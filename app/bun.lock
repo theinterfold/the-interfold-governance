@@ -10,6 +10,7 @@
         "@hookform/resolvers": "^3.9.0",
         "@interfold/sdk": "0.14.0",
         "@phosphor-icons/react": "^2.1.10",
+        "@radix-ui/react-tooltip": "^1.2.8",
         "@react-native-async-storage/async-storage": "^1.24.0",
         "@shazow/whatsabi": "^0.14.1",
         "@tanstack/query-async-storage-persister": "^5.52.0",

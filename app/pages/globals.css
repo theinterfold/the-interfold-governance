@@ -2033,6 +2033,7 @@ label div p.leading-tight {
 .delegate-picker-data { display: flex; flex-shrink: 0; align-items: center; gap: 16px; }
 .power-delegate-data > .delegate-search-action { grid-column: 2; }
 .delegate-picker-row .power-delegate-identity .ml-2 { color: var(--muted); }
+.delegate-picker-options { container: delegate-picker / inline-size; }
 .delegate-picker-options .delegate-picker-action { width: 128px; min-width: 0; padding-inline: 14px; flex-shrink: 0; }
 .delegate-address { font: 12px/1.6 var(--font-mono); overflow-wrap: anywhere; color: var(--muted); }
 @media (max-width: 600px) {
@@ -2040,6 +2041,18 @@ label div p.leading-tight {
   .delegate-picker-row > .delegate-picker-data { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   .delegate-picker-options .delegate-picker-action { width: auto; min-width: 96px; }
   .delegate-picker-data > .delegate-search-action { margin-left: auto; }
+}
+/* The mask recipient picker also sits in narrow ballot columns, where a row cannot hold the action beside the wallet. */
+@container delegate-picker (max-width: 400px) {
+  .delegate-picker-row { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .delegate-picker-row > .power-delegate-identity { max-width: 100%; }
+  .delegate-picker-row > .delegate-picker-data { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .delegate-picker-options .delegate-picker-action { width: auto; min-width: 96px; }
+  .delegate-picker-data > .delegate-search-action { margin-left: auto; }
+}
+/* At a 320px viewport the picker is about 150px wide: rows give their side padding to the wallet and its amount. */
+@container delegate-picker (max-width: 180px) {
+  .delegate-picker-row { padding-inline: 0; }
 }
 .power-page {
   --power-type-display: 48px;
@@ -3450,17 +3463,6 @@ label div p.leading-tight,
   width: 11px;
   height: 11px;
 }
-.ballot-mask-settings { display: flex; flex-direction: column; }
-.ballot-mask-target { border-top: 1px solid var(--rule); padding-top: 20px; }
-.ballot-optionals + .ballot-mask-settings .ballot-mask-target { margin-top: 20px; }
-
-/* One height animation owns checkbox, recipient and asynchronous status changes. */
-.ballot-mask-disclosure { opacity: 0; visibility: hidden; transition: height var(--interfold-ui-duration) var(--interfold-ui-ease), opacity 180ms ease, visibility 0s linear var(--interfold-ui-duration); }
-.ballot-mask-disclosure[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
-.morph-dialog[data-morphing="opening"] .ballot-mask-disclosure[data-open="false"] { height: 0 !important; }
-.ballot-optionals { min-width: 0; margin: 0; padding: 0; border: 0; }
-.ballot-optionals legend { margin-bottom: 12px; padding: 0; color: var(--muted); font: var(--ui-label-font); }
-.ballot-optional-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .ballot-optional-card { position: relative; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto 1fr; align-content: start; gap: 8px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--rule); border-radius: var(--ui-radius); background: var(--paper); color: var(--ink); cursor: pointer; transition: background-color var(--interfold-ui-duration) var(--interfold-ui-ease), border-color var(--interfold-ui-duration) var(--interfold-ui-ease); }
 .ballot-optional-card:not([data-disabled="true"]):hover { background: var(--surface-muted); border-color: var(--ui-stroke-hover); }
 .ballot-optional-card[data-checked="true"] { background: var(--surface-selected); border-color: var(--ink); }
@@ -3475,29 +3477,6 @@ label div p.leading-tight,
 .ballot-optional-card[data-checked="true"] .ballot-optional-check svg { opacity: 1; transform: scale(1); }
 .ballot-optional-card strong { grid-column: 1 / -1; font: 600 14px/1.4 var(--font-sans); }
 .ballot-optional-description { grid-column: 1 / -1; color: var(--muted); font: 400 12px/1.5 var(--font-sans); }
-.ballot-optional-card[data-layout="row"] {
-  grid-template-rows: auto auto;
-  column-gap: 12px;
-  row-gap: 4px;
-}
-.ballot-optional-card[data-layout="row"] strong {
-  grid-column: 1;
-  grid-row: 1;
-}
-.ballot-optional-card[data-layout="row"] .ballot-optional-description {
-  grid-column: 1;
-  grid-row: 2;
-}
-.ballot-optional-card[data-layout="row"] .ballot-optional-check {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  align-self: center;
-}
-.ballot-optional-card[data-layout="row"]:has(.ballot-optional-symbol) { grid-template-columns: 24px minmax(0, 1fr) auto; }
-.ballot-optional-card[data-layout="row"] .ballot-optional-symbol { grid-column: 1; grid-row: 1 / 3; align-self: center; }
-.ballot-optional-card[data-layout="row"]:has(.ballot-optional-symbol) strong,
-.ballot-optional-card[data-layout="row"]:has(.ballot-optional-symbol) .ballot-optional-description { grid-column: 2; }
-.ballot-optional-card[data-layout="row"]:has(.ballot-optional-symbol) .ballot-optional-check { grid-column: 3; }
 .ballot-optional-card[data-layout="compact"] {
   grid-template-columns: 24px minmax(0, 1fr) 20px;
   grid-template-rows: auto;
@@ -3512,9 +3491,7 @@ label div p.leading-tight,
   grid-column: 2;
   grid-row: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
 }
 .ballot-optional-card[data-layout="compact"] .ballot-optional-description { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 .ballot-optional-card[data-layout="compact"] .ballot-optional-check { grid-column: 3; grid-row: 1; }
@@ -3522,6 +3499,7 @@ label div p.leading-tight,
 .ballot-optional-group[data-checked="true"] { background: var(--surface-selected); border-color: var(--ink); }
 .ballot-optional-group > .ballot-optional-card { border: 0; }
 .ballot-optional-group[data-layout="compact"] { border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; }
+.ballot-optional-group[data-layout="compact"]:last-child { border-bottom: 0; }
 .ballot-optional-group[data-layout="compact"][data-checked="true"] { background: var(--paper); }
 .ballot-optional-group[data-layout="compact"][data-checked="true"] .ballot-optional-check { background: var(--if-brand-green); border-color: var(--if-brand-green); }
 .ballot-optional-group[data-layout="compact"] > .ballot-optional-card,
@@ -3536,7 +3514,6 @@ label div p.leading-tight,
 .ballot-optional-group[data-layout="compact"] .ballot-optional-details { padding: 0 12px 16px 48px; }
 .ballot-optional-details > :first-child { border-top: 1px solid var(--rule); padding-top: 16px; }
 .ballot-optional-note { padding-top: 12px; color: var(--muted); font: 400 13px/1.5 var(--font-sans); }
-@media (max-width: 480px) { .ballot-optional-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) {
   .ballot-optional-group,
   .ballot-optional-card,

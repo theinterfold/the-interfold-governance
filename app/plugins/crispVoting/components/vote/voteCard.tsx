@@ -1,18 +1,22 @@
 import { ballotWeightPercentage, type BallotWeight } from "../../utils/ballotWeight";
+import { ballotSignatureRequest } from "../../utils/ballotDigest";
+import { useCrispProgram } from "../../hooks/useCrispProgram";
 import { exactNumber } from "@/utils/numbers";
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { PUB_CHAIN, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ActionIcon } from "@/components/input/actionIcon";
-import { Disclosure } from "@/components/motion/Disclosure";
 import { MaskRecipientPicker } from "./maskRecipientPicker";
 import { ChoiceMenu } from "@/components/input/choiceMenu";
+import { AddressText } from "@/components/text/address";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import type { CreditsMode, EligibleVoter, VotingStep } from "../../utils/types";
 import { PleaseWaitSpinner } from "@/components/please-wait";
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUnits, getAddress, isAddress, type Address } from "viem";
+import { Percent } from "@phosphor-icons/react";
 import { FluidHeight } from "@/components/motion/FluidHeight";
+import { Disclosure } from "@/components/motion/Disclosure";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 import { useInert } from "@/components/motion/useInert";
 import VotingStepIndicator from "./voteProgress";
@@ -21,12 +25,20 @@ import {
   BallotSubmissionInfo,
   BallotChoices,
   BallotReview,
-  BallotOptionalAction,
   MaskIcon,
   ballotOptionColor as getColor,
 } from "@/components/proposalVoting/ballot";
+import {
+  PowerCalculation,
+  PowerShare,
+  PrivacyReview,
+  PrivacyReviewRow,
+  PrivacyTools,
+  SubmissionSteps,
+  type PrivacyTool,
+} from "@/components/proposalVoting/privacyTools";
+import { SignatureData, SignatureDataEntry } from "@/components/proposalVoting/signatureData";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
-import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import { equalAddresses } from "@/utils/evm";
 import { crispSdk } from "../../utils/crispSdk";
 import { getRandomVoterToMask } from "../../utils/voters";
@@ -36,6 +48,22 @@ import {
   type BallotKind,
   type BallotSubmissionResult,
 } from "../../utils/ballotSubmission";
+
+/** What each signed field of a ballot means, beside the request in the review. */
+const SIGNATURE_NOTES = [
+  { field: "verifyingContract", note: "The CRISP program named as the signature verifier." },
+  { field: "e3Id", note: "The encrypted voting round." },
+  { field: "slot", note: "The ballot slot this vote is bound to." },
+  { field: "ciphertextCommitment", note: "Binds the encrypted ballot. The hash does not reveal the choice or amount." },
+];
+
+/** A ballot is encrypted only after its review, so the review cannot show the commitment yet. */
+const COMMITMENT_PENDING = "Computed when your ballot is encrypted, just before your wallet asks you to sign";
+
+const randomizeIcon = <Percent size={18} weight="regular" aria-hidden="true" />;
+
+const tokenAmount = (raw: bigint, decimals: number) =>
+  `${exactNumber(formatUnits(raw, decimals), 2)} ${PUB_TOKEN_SYMBOL}`;
 
 export interface VoteCardProps {
   creditMode?: CreditsMode;
@@ -111,7 +139,6 @@ export const VoteCard = ({
 }: VoteCardProps) => {
   // A mask adds cover independently of the selected voting option.
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const ballotMaskId = useId();
   const [mode, setMode] = useState<"vote" | "mask">("vote");
   const [submittedMode, setSubmittedMode] = useState<BallotKind | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -122,7 +149,6 @@ export const VoteCard = ({
   const [editingMode, setEditingMode] = useState<BallotKind | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [randomizeWeight, setRandomizeWeight] = useState(true);
-  const randomizeId = useId();
   const [reviewWeight, setReviewWeight] = useState<BallotWeight>();
   const [weightError, setWeightError] = useState<string>();
   const [weightAttempt, setWeightAttempt] = useState(0);
@@ -130,15 +156,15 @@ export const VoteCard = ({
   const [includeMask, setIncludeMask] = useState(false);
   const [sendFirst, setSendFirst] = useState<BallotKind>("vote");
   const [sendWithAnotherWallet, setSendWithAnotherWallet] = useState(false);
-  const otherWalletId = useId();
-  const maskOptionId = useId();
   const [targetMode, setTargetMode] = useState<"random" | "address">("random");
   const [targetInput, setTargetInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string>();
   // The first submission of a vote + mask attempt. Null when the attempt sends one ballot.
   const [combinedFirst, setCombinedFirst] = useState<BallotKind | null>(null);
+  const [signatureExpanded, setSignatureExpanded] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const signatureTrigger = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const submittingRef = useRef(false);
   useEffect(() => {
@@ -158,7 +184,7 @@ export const VoteCard = ({
   const feedbackRef = useInert(!feedbackVisible);
   const isReviewMasking = reviewMode === "mask";
   const wantsMask = isReviewMasking || includeMask;
-  const maskSettingsRef = useInert(!wantsMask);
+  const crispProgram = useCrispProgram(e3Id);
 
   // The CRISP server's census is what the random pick draws from, and the chain still has the last
   // word: `handleMask` re-reads an ONCHAIN round's weight from the program before proving.
@@ -169,7 +195,7 @@ export const VoteCard = ({
   } = useQuery({
     queryKey: ["crisp-mask-candidates", e3Id?.toString()],
     queryFn: () => crispSdk.getEligibleAddresses(e3Id!),
-    enabled: reviewOpen && wantsMask && e3Id !== undefined,
+    enabled: e3Id !== undefined && (includeMask || (reviewOpen && isReviewMasking)),
   });
   // The connected wallet stays in the list, so a voter can also mask their own slot.
   const recipients = useMemo<EligibleVoter[] | undefined>(
@@ -206,9 +232,7 @@ export const VoteCard = ({
     setReviewMode(kind);
     setReviewWeight(undefined);
     setWeightError(undefined);
-    setSendWithAnotherWallet(false);
-    setTargetMode("random");
-    setTargetInput("");
+    setSignatureExpanded(false);
     setSendFirst(randomFirstBallot());
     setReviewOpen(true);
   };
@@ -290,7 +314,215 @@ export const VoteCard = ({
   const isDisabled = disabled || busy || votingClosed;
   const notStarted = voteStartDate > Math.round(Date.now() / 1000);
   const started = voteStartDate < Math.round(Date.now() / 1000);
-  const sendOrderText = sendFirst === "mask" ? "Mask first, then vote." : "Vote first, then mask.";
+
+  const setMaskTool = (checked: boolean) => {
+    // The bar can turn the mask on without its details, so it starts with the random recipient.
+    if (checked) setTargetMode("random");
+    setIncludeMask(checked);
+  };
+
+  const setOtherWallet = (checked: boolean) => {
+    setSendWithAnotherWallet(checked);
+    // Another wallet sends only the signed vote. A mask is sent separately.
+    if (checked) setIncludeMask(false);
+  };
+
+  // The mask tool and the review of a mask sent alone choose the recipient with the same controls.
+  const maskRecipient = (
+    <div className="ballot-mask-target">
+      <ChoiceMenu
+        label="Mask recipient"
+        value={targetMode}
+        onChange={setTargetMode}
+        disabled={busy}
+        options={[
+          { value: "random", label: "Random eligible voter" },
+          { value: "address", label: "Specific wallet" },
+        ]}
+      />
+      <FluidHeight>
+        <div className="motion-tab-panels">
+          <MotionPanel active={targetMode === "random"} direction="left">
+            {(recipientError || !recipients || !recipients.length) && (
+              <div className="ballot-mask-address" aria-live="polite">
+                {recipientError ? (
+                  <>
+                    <p className="vp-submission-error" role="alert">
+                      Could not load the eligible voters from the CRISP server.
+                    </p>
+                    <button type="button" className="vp-retry-mask" onClick={() => void reloadRecipients()}>
+                      Try again
+                    </button>
+                  </>
+                ) : !recipients ? (
+                  <span>Choosing an eligible voter…</span>
+                ) : (
+                  <p className="vp-submission-error" role="alert">
+                    No eligible voters are available for this proposal.
+                  </p>
+                )}
+              </div>
+            )}
+          </MotionPanel>
+          <MotionPanel active={targetMode === "address"} direction="right">
+            {recipientError && (
+              <div role="alert">
+                <p className="vp-submission-error">Could not load the eligible voters from the CRISP server.</p>
+                <PowerAction size="compact" onClick={() => void reloadRecipients()}>
+                  Try again
+                </PowerAction>
+              </div>
+            )}
+            <MaskRecipientPicker
+              voters={recipients}
+              loading={!recipients && !recipientError}
+              selected={targetInput}
+              pending={busy}
+              creditMode={creditMode}
+              e3Id={e3Id}
+              onSelect={setTargetInput}
+            />
+          </MotionPanel>
+        </div>
+      </FluidHeight>
+      <p>Adds cover for voters without changing any votes.</p>
+    </div>
+  );
+
+  const privacyTools: PrivacyTool[] = [
+    {
+      id: "randomize",
+      title: "Randomize voting power",
+      description: "Use 99–100%",
+      hint: "Use 99–100% of your snapshot power.",
+      icon: randomizeIcon,
+      checked: randomizeWeight,
+      info: (
+        <p>
+          Use a random 99–100% of your snapshot voting power. Slightly reducing the weight makes it harder to link a
+          ballot to your wallet balance. The review shows the amount used before you confirm.
+        </p>
+      ),
+      details: (
+        <p className="ballot-optional-note">
+          Your ballot counts a random 99–100% of your snapshot voting power. The review shows the exact amount.
+        </p>
+      ),
+      onChange: setRandomizeWeight,
+    },
+    ...(canMask
+      ? [
+          {
+            id: "mask",
+            title: "Add a mask",
+            description: "Adds cover",
+            hint: "Uses a random eligible voter by default. Open details to change the recipient.",
+            icon: <MaskIcon />,
+            checked: includeMask,
+            unavailable: sendWithAnotherWallet
+              ? "You cannot add a mask when another wallet sends your vote. Send the mask separately."
+              : undefined,
+            info: (
+              <p>
+                A mask adds cover without voting power. It is sent separately from your vote and does not change the
+                option you chose. Choose who receives the cover below.
+              </p>
+            ),
+            details: (
+              <>
+                {maskRecipient}
+                <Disclosure open={selectedOption !== null}>
+                  <button
+                    type="button"
+                    className="vp-foot-note vp-mode-toggle"
+                    disabled={isDisabled}
+                    onClick={(event) => openReview(event.currentTarget, "mask")}
+                  >
+                    Send only a mask
+                  </button>
+                </Disclosure>
+              </>
+            ),
+            onChange: setMaskTool,
+          },
+        ]
+      : []),
+    ...(onPrepareVote
+      ? [
+          {
+            id: "wallet",
+            title: "Send from another wallet",
+            description: "Use another sender",
+            hint: "Prepare with your voting wallet, then switch wallets to send.",
+            icon: <ActionIcon name="send" />,
+            checked: sendWithAnotherWallet,
+            // A tool that is on stays available, so that it can be turned off.
+            unavailable:
+              sendWithAnotherWallet || canPublishOnChain
+                ? undefined
+                : (onChainBlockedReason ?? "Checking whether this round accepts wallet-sent votes…"),
+            info: (
+              <p>
+                Prepare the encrypted vote with your voting wallet, then switch to a wallet with{" "}
+                {PUB_CHAIN.nativeCurrency.symbol} to send it. Your voting power still comes from the original wallet.
+              </p>
+            ),
+            details: (
+              <p className="ballot-optional-note">
+                Prepare the vote here, then switch wallets to send it. The signed ballot stays in this browser until you
+                send or discard it. A mask cannot be sent in the same step.
+              </p>
+            ),
+            onChange: setOtherWallet,
+          },
+        ]
+      : []),
+  ];
+
+  const power = reviewWeight && {
+    share: ballotWeightPercentage(reviewWeight),
+    counted: tokenAmount(reviewWeight.counted * reviewWeight.unit, reviewWeight.decimals),
+    snapshot: tokenAmount(reviewWeight.power, reviewWeight.decimals),
+    randomized: reviewWeight.randomize,
+    // Rules of the round that make the counted amount differ from the share the voter chose.
+    notes: [
+      reviewWeight.randomize && reviewWeight.counted === reviewWeight.available
+        ? "Your voting power is too small to reduce by less than 1% at this round’s precision. This ballot uses all of your available voting power."
+        : undefined,
+      reviewWeight.power > reviewWeight.available * reviewWeight.unit
+        ? `This round counts voting power in whole units of ${tokenAmount(reviewWeight.unit, reviewWeight.decimals)}. Voting power below one unit does not count.`
+        : undefined,
+    ].filter((note) => note !== undefined),
+  };
+
+  const voteStep = {
+    title: "Sign your encrypted vote",
+    text: sendWithAnotherWallet ? "Prepare the ballot." : "Sign and submit the ballot.",
+  };
+  const maskStep = { title: "Send the mask", text: "Add cover in a separate submission." };
+  const submissionSteps = sendWithAnotherWallet
+    ? [
+        voteStep,
+        { title: "Switch wallet", text: "Choose the wallet that pays gas." },
+        { title: "Send your vote", text: "Submit the signed ballot." },
+      ]
+    : includeMask
+      ? sendFirst === "mask"
+        ? [maskStep, voteStep]
+        : [voteStep, maskStep]
+      : [voteStep];
+
+  // What the wallet will be asked to sign, except the commitment that encryption makes after the review.
+  const signatureRequest =
+    !isReviewMasking && crispProgram && e3Id !== undefined && reviewWeight
+      ? ballotSignatureRequest({
+          chainId: PUB_CHAIN.id,
+          crispProgram,
+          e3Id,
+          slot: getAddress(reviewWeight.voter),
+          ciphertextCommitment: undefined,
+        })
+      : undefined;
 
   return (
     <BallotPanel
@@ -378,29 +610,7 @@ export const VoteCard = ({
                   voteDisabled={voteDisabled}
                 />
               ) : null}
-              {canMask && !isSubmitted && !voteDisabled && (
-                <>
-                  <BallotOptionalAction
-                    id={ballotMaskId}
-                    layout="row"
-                    title="Send a mask"
-                    description="Add cover for voters, with or without a vote."
-                    checked={includeMask}
-                    disabled={isDisabled}
-                    onChange={setIncludeMask}
-                  />
-                  <Disclosure open={includeMask && selectedOption !== null}>
-                    <button
-                      type="button"
-                      className="vp-foot-note vp-mode-toggle"
-                      disabled={isDisabled}
-                      onClick={(event) => openReview(event.currentTarget, "mask")}
-                    >
-                      Send only a mask
-                    </button>
-                  </Disclosure>
-                </>
-              )}
+              {!isSubmitted && !voteDisabled && <PrivacyTools tools={privacyTools} disabled={isDisabled} />}
               {canMask && (isSubmitted || voteDisabled) && (
                 <button
                   type="button"
@@ -447,20 +657,6 @@ export const VoteCard = ({
             </div>
           </div>
         </FluidHeight>
-
-        {!isMasking && !voteDisabled && !isSubmitted && (
-          <Disclosure open={submissionKind !== "mask"}>
-            <BallotOptionalAction
-              id={randomizeId}
-              layout="row"
-              title="Randomize voting power"
-              description="Use 99–100% to help protect your privacy."
-              checked={randomizeWeight}
-              disabled={isDisabled || submissionKind === "mask"}
-              onChange={setRandomizeWeight}
-            />
-          </Disclosure>
-        )}
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
@@ -616,237 +812,142 @@ export const VoteCard = ({
         choice={isReviewMasking ? "Mask" : selectedOption === null ? "" : options[selectedOption]}
         optionIndex={selectedOption ?? 0}
         isMask={isReviewMasking}
-        votingPower={
-          <>
-            {votingPower}
-            <div aria-live="polite">
-              <FluidHeight>
-                {reviewWeight ? (
-                  <div className="ballot-review-summary">
-                    <div className="ballot-review-row">
-                      <span>Counted in this vote</span>
-                      <strong>
-                        {exactNumber(formatUnits(reviewWeight.counted * reviewWeight.unit, reviewWeight.decimals), 2)}{" "}
-                        {PUB_TOKEN_SYMBOL}
-                      </strong>
-                    </div>
-                    <div className="ballot-review-row">
-                      <span>Share of voting power</span>
-                      <strong>{ballotWeightPercentage(reviewWeight)}</strong>
-                    </div>
-                    <p className="ballot-optional-note">
-                      {!reviewWeight.randomize
-                        ? "This ballot uses all of your available voting power."
-                        : reviewWeight.counted === reviewWeight.available
-                          ? "Your voting power is too small to reduce by less than 1% at this round’s precision. This ballot uses all of your available voting power."
-                          : "This slight reduction helps protect your privacy. To use all of your available voting power, close this review and turn off randomization."}
-                      {reviewWeight.power > reviewWeight.available * reviewWeight.unit &&
-                        ` This round counts voting power in whole units of ${exactNumber(formatUnits(reviewWeight.unit, reviewWeight.decimals), 2)} ${PUB_TOKEN_SYMBOL}. Voting power below one unit does not count.`}
-                    </p>
-                  </div>
-                ) : weightError ? (
-                  <div role="alert">
-                    <p className="vp-submission-error">{weightError}</p>
-                    <PowerAction size="compact" onClick={() => setWeightAttempt((attempt) => attempt + 1)}>
-                      Try again
-                    </PowerAction>
-                  </div>
-                ) : (
-                  <p className="vp-note">Calculating your voting power…</p>
-                )}
-              </FluidHeight>
-            </div>
-          </>
+        emphasis={isReviewMasking ? "standard" : "choice"}
+        signatureExpanded={signatureExpanded}
+        detailView={
+          isReviewMasking
+            ? undefined
+            : {
+                open: signatureExpanded,
+                title: "Signature data",
+                content: signatureRequest && (
+                  <SignatureData request={signatureRequest} notes={SIGNATURE_NOTES} pending={COMMITMENT_PENDING} />
+                ),
+                onBack: () => setSignatureExpanded(false),
+                triggerRef: signatureTrigger,
+              }
+        }
+        footer={
+          <PowerAction
+            intent={isReviewMasking ? "confirm" : "vote"}
+            disabled={isDisabled || invalidTarget || (!isReviewMasking && (voteDisabled || !reviewWeight))}
+            onClick={() => void confirmSubmission()}
+          >
+            {isReviewMasking
+              ? "Submit mask ballot"
+              : sendWithAnotherWallet
+                ? "Sign and save ballot"
+                : includeMask
+                  ? sendFirst === "mask"
+                    ? "Mask and vote"
+                    : "Vote and mask"
+                  : receipts.vote
+                    ? "Update vote"
+                    : "Submit encrypted ballot"}
+          </PowerAction>
         }
       >
-        <div className="ballot-review-extras">
-          {!isReviewMasking && (
-            <fieldset className="ballot-optionals">
-              <legend>
-                <span className="ui-label-with-info">
-                  Optional
-                  <PowerInfo label="About optional actions" compact={true}>
-                    {onPrepareVote && (
-                      <p>
-                        Sign with your eligible wallet, then switch to another wallet with{" "}
-                        {PUB_CHAIN.nativeCurrency.symbol} to pay for sending. Your vote uses the signing wallet’s voting
-                        power.
-                      </p>
-                    )}
-                    <p>
-                      Masks are encrypted ballots with no voting power. They add cover for eligible voters without
-                      changing anyone’s vote or the result.
-                    </p>
-                  </PowerInfo>
-                </span>
-              </legend>
-              <div className="ballot-optional-grid">
-                {onPrepareVote && (
-                  <BallotOptionalAction
-                    id={otherWalletId}
-                    title="Send from another wallet"
-                    description={
-                      canPublishOnChain
-                        ? "Sign here, then send with another wallet."
-                        : (onChainBlockedReason ?? "Checking whether this round accepts wallet-sent votes…")
+        {isReviewMasking ? (
+          maskRecipient
+        ) : (
+          <PrivacyReview
+            rows={
+              <>
+                <PrivacyReviewRow
+                  tool={randomizeWeight ? "Randomize voting power" : "Randomization off · Full voting power"}
+                  icon={randomizeIcon}
+                  active={randomizeWeight}
+                  label="Your voting power"
+                  value={
+                    power ? (
+                      <PowerShare share={power.share} counted={power.counted} randomized={power.randomized} />
+                    ) : weightError ? (
+                      "Unavailable"
+                    ) : (
+                      "Calculating…"
+                    )
+                  }
+                  explanation={
+                    power && {
+                      content: (
+                        <PowerCalculation snapshot={power.snapshot} share={power.share} counted={power.counted}>
+                          {power.notes.map((note) => (
+                            <p key={note}>{note}</p>
+                          ))}
+                        </PowerCalculation>
+                      ),
+                      labelHelp: "How your voting power is calculated",
+                      valueHelp: `How ${power.counted} is calculated`,
                     }
-                    icon={<ActionIcon name="send" />}
-                    checked={sendWithAnotherWallet}
-                    disabled={!canPublishOnChain || busy}
-                    onChange={(checked) => {
-                      setSendWithAnotherWallet(checked);
-                      if (checked) setIncludeMask(false);
-                    }}
+                  }
+                />
+                {includeMask && (
+                  <PrivacyReviewRow
+                    tool="Add a mask"
+                    icon={<MaskIcon />}
+                    active={true}
+                    label="Mask recipient"
+                    value={
+                      targetMode === "random" ? (
+                        "Random eligible voter"
+                      ) : isAddress(targetInput.trim()) ? (
+                        <AddressText>{targetInput.trim()}</AddressText>
+                      ) : (
+                        "No wallet selected"
+                      )
+                    }
                   />
                 )}
-                <BallotOptionalAction
-                  id={maskOptionId}
-                  title="Also send a mask"
-                  description="Add cover for eligible voters. No voting power."
-                  icon={<MaskIcon />}
-                  checked={includeMask}
-                  disabled={!canMask || sendWithAnotherWallet || busy}
-                  onChange={setIncludeMask}
-                />
-              </div>
-              <Disclosure open={sendWithAnotherWallet}>
-                <p className="ballot-optional-note">
-                  Your vote uses this wallet’s voting power. The signed ballot is saved in this browser until you send
-                  or discard it. A mask cannot be sent in the same step.
-                </p>
-              </Disclosure>
-            </fieldset>
-          )}
-          <div className="ballot-mask-settings" data-open={wantsMask}>
-            <FluidHeight
-              expanded={wantsMask}
-              collapsedHeight={0}
-              className="ballot-mask-disclosure"
-              data-open={wantsMask}
-              aria-hidden={!wantsMask}
-            >
-              <div ref={maskSettingsRef}>
-                <div className="ballot-mask-target">
-                  <ChoiceMenu
-                    label="Mask recipient"
-                    value={targetMode}
-                    onChange={setTargetMode}
-                    disabled={busy}
-                    options={[
-                      { value: "random", label: "Random eligible voter" },
-                      { value: "address", label: "Specific wallet" },
-                    ]}
+                {sendWithAnotherWallet && (
+                  <PrivacyReviewRow
+                    tool="Send from another wallet"
+                    icon={<ActionIcon name="send" />}
+                    active={true}
+                    label="Sending wallet"
+                    value="Another wallet"
                   />
-                  <div className="motion-tab-panels">
-                    <MotionPanel active={targetMode === "random"} direction="left">
-                      {(recipientError || !recipients || !recipients.length) && (
-                        <div className="ballot-mask-address" aria-live="polite">
-                          {recipientError ? (
-                            <>
-                              <p className="vp-submission-error" role="alert">
-                                Could not load the eligible voters from the CRISP server.
-                              </p>
-                              <button type="button" className="vp-retry-mask" onClick={() => void reloadRecipients()}>
-                                Try again
-                              </button>
-                            </>
-                          ) : !recipients ? (
-                            <span>Choosing an eligible voter…</span>
-                          ) : (
-                            <p className="vp-submission-error" role="alert">
-                              No eligible voters are available for this proposal.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </MotionPanel>
-                    <MotionPanel active={targetMode === "address"} direction="right">
-                      {recipientError && (
-                        <div role="alert">
-                          <p className="vp-submission-error">
-                            Could not load the eligible voters from the CRISP server.
-                          </p>
-                          <PowerAction size="compact" onClick={() => void reloadRecipients()}>
-                            Try again
-                          </PowerAction>
-                        </div>
-                      )}
-                      <MaskRecipientPicker
-                        voters={recipients}
-                        loading={!recipients && !recipientError}
-                        selected={targetInput}
-                        pending={busy}
-                        creditMode={creditMode}
-                        e3Id={e3Id}
-                        onSelect={setTargetInput}
-                      />
-                    </MotionPanel>
-                  </div>
-                  <p>Adds cover for voters without changing any votes.</p>
-                  {!isReviewMasking && (
-                    <>
-                      <ChoiceMenu
-                        label="Send order"
-                        value={sendFirst}
-                        onChange={setSendFirst}
-                        disabled={busy}
-                        options={[
-                          { value: "vote", label: "Vote first" },
-                          { value: "mask", label: "Mask first" },
-                        ]}
-                      />
-                      <p>Selected at random for each ballot. A fixed order can show which submission is your vote.</p>
-                    </>
-                  )}
-                </div>
+                )}
+              </>
+            }
+          >
+            <p className="sr-only" aria-live="polite">
+              {power && `Your voting power: ${power.share}, ${power.counted}`}
+            </p>
+            {weightError && (
+              <div role="alert">
+                <p className="vp-submission-error">{weightError}</p>
+                <PowerAction size="compact" onClick={() => setWeightAttempt((attempt) => attempt + 1)}>
+                  Try again
+                </PowerAction>
               </div>
-            </FluidHeight>
-          </div>
-        </div>
-
-        <div className="ballot-review-submission">
-          <strong>
-            {sendWithAnotherWallet && !isReviewMasking
-              ? "Sign now · send after switching wallets"
-              : `${!isReviewMasking && includeMask ? "2" : "1"} ${
-                  submitOnChain
-                    ? !isReviewMasking && includeMask
-                      ? "transactions"
-                      : "transaction"
-                    : !isReviewMasking && includeMask
-                      ? "submissions"
-                      : "submission"
-                }`}
-          </strong>
-          <p>
-            {sendWithAnotherWallet && !isReviewMasking
-              ? "Nothing is sent yet. After signing, switch wallets and confirm the transaction."
-              : submitOnChain
-                ? !isReviewMasking && includeMask
-                  ? `${sendOrderText} Confirm each gas fee in ETH in your wallet.`
-                  : "Confirm in your wallet, where you can review the gas fee in ETH."
-                : !isReviewMasking && includeMask
-                  ? `${sendOrderText} Both are sent through the relayer. If it cannot send one, your wallet is asked to.`
-                  : "Your encrypted ballot is sent through the relayer. If it cannot send it, your wallet is asked to."}
-          </p>
-        </div>
-        <PowerAction
-          intent={isReviewMasking ? "confirm" : "vote"}
-          disabled={isDisabled || invalidTarget || (!isReviewMasking && (voteDisabled || !reviewWeight))}
-          onClick={() => void confirmSubmission()}
-        >
-          {isReviewMasking
-            ? "Submit mask ballot"
-            : sendWithAnotherWallet
-              ? "Sign and save ballot"
-              : includeMask
-                ? sendFirst === "mask"
-                  ? "Mask and vote"
-                  : "Vote and mask"
-                : receipts.vote
-                  ? "Update vote"
-                  : "Submit encrypted ballot"}
-        </PowerAction>
+            )}
+            {/* A recipient that cannot receive the mask is fixed here, without leaving the review. */}
+            {includeMask && invalidTarget && (recipientError || recipients) && maskRecipient}
+            <SubmissionSteps steps={submissionSteps} />
+            {includeMask && (
+              <div className="ballot-mask-target">
+                <ChoiceMenu
+                  label="Send order"
+                  value={sendFirst}
+                  onChange={setSendFirst}
+                  disabled={busy}
+                  options={[
+                    { value: "vote", label: "Vote first" },
+                    { value: "mask", label: "Mask first" },
+                  ]}
+                />
+                <p>Selected at random for each ballot. A fixed order can show which submission is your vote.</p>
+              </div>
+            )}
+            {signatureRequest && (
+              <SignatureDataEntry
+                ref={signatureTrigger}
+                network={PUB_CHAIN.name}
+                onClick={() => setSignatureExpanded(true)}
+              />
+            )}
+          </PrivacyReview>
+        )}
       </BallotReview>
 
       {(isMasking || !voteDisabled) && (

@@ -1,4 +1,4 @@
-import { decodeAbiParameters, parseAbi, parseAbiParameters, type Address, type PublicClient } from "viem";
+import { decodeAbiParameters, parseAbi, parseAbiParameters, type Address, type Hex, type PublicClient } from "viem";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 
@@ -118,18 +118,36 @@ export const getBallotDigest = async (
 };
 
 /**
- * The EIP-712 domain and type a ballot signature covers.
+ * The EIP-712 request a voter signs to authorise one ballot.
  *
  * Must match `CRISPProgram`'s `EIP712("CRISP", "1")` and `BALLOT_TYPEHASH`. A wallet signs this
  * through `signTypedData`, which produces a signature over the same digest `ballotDigest` returns.
  * `signMessage` would add the EIP-191 prefix and sign a different one, and every ballot would fail
  * for a reason that looks like a bad signature.
  *
- * @param chainId The chain the program is deployed on.
- * @param crispProgram The CRISP program address.
- * @returns The domain, types and primary type for `signTypedData`.
+ * The ballot review shows this same request, so what the voter checks is what the wallet signs.
+ *
+ * @param ballot.chainId The chain the program is deployed on.
+ * @param ballot.crispProgram The CRISP program address.
+ * @param ballot.e3Id The round the ballot belongs to.
+ * @param ballot.slot The slot address the ballot is written to.
+ * @param ballot.ciphertextCommitment The commitment from `prepareBallot`. It is undefined while the
+ *   voter reviews the ballot, because the ballot is encrypted only after the review.
+ * @returns The request for `signTypedData`.
  */
-export const ballotTypedData = (chainId: number, crispProgram: Address) =>
+export const ballotSignatureRequest = <Commitment extends Hex | undefined>({
+  chainId,
+  crispProgram,
+  e3Id,
+  slot,
+  ciphertextCommitment,
+}: {
+  chainId: number;
+  crispProgram: Address;
+  e3Id: bigint;
+  slot: Address;
+  ciphertextCommitment: Commitment;
+}) =>
   ({
     domain: { name: "CRISP", version: "1", chainId, verifyingContract: crispProgram },
     types: {
@@ -140,6 +158,7 @@ export const ballotTypedData = (chainId: number, crispProgram: Address) =>
       ],
     },
     primaryType: "Ballot",
+    message: { e3Id, slot, ciphertextCommitment },
   }) as const;
 
 /**

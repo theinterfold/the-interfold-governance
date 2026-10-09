@@ -1,0 +1,421 @@
+/* A neutral rule separates the vote choices from the tools, with 14px on each side. */
+.group {
+  min-width: 0;
+}
+.divider {
+  height: 1px;
+  margin-bottom: 14px;
+  background: var(--rule);
+}
+.tools {
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+}
+/* The dashed outline follows the natural height of the box and keeps its dashes, radius and stroke. */
+.outline {
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+}
+.outline rect {
+  x: 0.5px;
+  y: 0.5px;
+  width: calc(100% - 1px);
+  height: calc(100% - 1px);
+  rx: var(--ui-radius);
+  fill: none;
+  stroke: var(--rule);
+  stroke-width: 1px;
+  stroke-dasharray: 12px 12px;
+}
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-height: 52px;
+}
+.tools[data-open="true"] .head {
+  border-bottom: 1px solid var(--rule);
+}
+/* The whole bar opens and closes the tools, except the toggles laid over it. */
+.toggle {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 8px 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.toggle:hover {
+  background: var(--surface-hover);
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -3px;
+}
+.title {
+  min-width: 0;
+  color: var(--ink);
+  font: 600 14px/1.4 var(--font-sans);
+  white-space: nowrap;
+}
+.chevron {
+  display: grid;
+  grid-column: 2;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ink);
+}
+.toggles {
+  z-index: 1;
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  align-items: center;
+  gap: 4px;
+  margin-right: 52px;
+  pointer-events: none;
+}
+.tools[data-open="true"] .toggles {
+  display: none;
+}
+/* While copies fly, the real icons wait hidden in both places. */
+.tools[data-icon-flight="true"] .toggles,
+.tools[data-icon-flight="true"] [data-flight-place="open"] {
+  opacity: 0;
+}
+.tools [data-flight-place="open"] {
+  display: inline-flex;
+  align-items: center;
+}
+.iconToggle {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+  background: var(--paper);
+  color: var(--muted);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    border-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    box-shadow var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.tools[data-icon-flight="true"] .iconToggle {
+  pointer-events: none;
+}
+.iconToggle > svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.iconToggle:not([aria-disabled="true"]):hover {
+  border-color: var(--ink);
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--ink);
+}
+/* An active tool has the outline of a selected vote card and keeps its green symbol. */
+.iconToggle[data-active="true"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--if-brand-green);
+}
+.iconToggle[data-active="true"]:not([aria-disabled="true"]):hover {
+  color: var(--if-brand-green);
+}
+.iconToggle[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
+.iconToggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 4px 12px 12px;
+}
+.tooltip:global(.power-info-popover) {
+  width: min(250px, calc(100vw - 32px));
+}
+.tooltip strong {
+  display: block;
+  font: 600 14px/1.4 var(--font-sans);
+}
+.tooltip:global(.power-info-popover) > p {
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  font: 400 13px/1.5 var(--font-sans);
+}
+/* The collapsed bar keeps one line: narrow boxes shrink the controls slightly. */
+@container (max-width: 315px) {
+  .tools[data-open="false"] .toggle {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    padding-left: 12px;
+  }
+  .toggles {
+    gap: 2px;
+    margin-right: 44px;
+  }
+  .iconToggle,
+  .chevron {
+    width: 32px;
+    height: 32px;
+  }
+  .iconToggle > svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+@container (max-width: 285px) {
+  .title {
+    font-size: 13px;
+  }
+}
+/* A 320px viewport leaves about 236px: smaller controls keep the title, icons and chevron on one line. */
+@container (max-width: 255px) {
+  .tools[data-open="false"] .toggle {
+    grid-template-columns: minmax(0, 1fr) 28px;
+    padding-left: 10px;
+  }
+  .toggles {
+    margin-right: 40px;
+  }
+  .iconToggle,
+  .chevron {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Review rows: each tool icon beside the data it changes. */
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.reviewRows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.reviewRow {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-space-related);
+  min-width: 0;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule);
+  font: 400 14px/1.5 var(--font-sans);
+}
+.reviewRow:first-child {
+  padding-top: 0;
+}
+.reviewTool {
+  display: inline-flex;
+  grid-column: 1;
+}
+.reviewTool :global(.power-preview-trigger) {
+  border-radius: var(--ui-radius);
+}
+.reviewBubble {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--if-brand-green);
+}
+.reviewBubble[data-active="false"] {
+  color: color-mix(in srgb, var(--muted) 45%, var(--paper));
+}
+.reviewBubble svg {
+  width: 18px;
+  height: 18px;
+}
+.reviewToolName:global(.power-info-popover) {
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.reviewContent {
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-controls);
+  min-width: 0;
+}
+.reviewContent > span {
+  color: var(--muted);
+}
+.reviewContent > strong {
+  min-width: 0;
+  color: var(--ink);
+  font: 600 16px/1.4 var(--font-sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+}
+.explained {
+  display: flex;
+  align-items: center;
+}
+.reviewContent > strong.explained {
+  justify-content: flex-end;
+}
+/* The label and the amount open the calculation without underline or lift. */
+.explained :global(.power-preview-trigger) {
+  align-items: center;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  text-decoration: none;
+}
+.explained :global(.power-preview-trigger:hover:not(:disabled)),
+.explained :global(.power-preview-trigger:focus-visible),
+.explained :global(.power-preview-trigger[data-state="delayed-open"]),
+.explained :global(.power-preview-trigger[data-state="instant-open"]) {
+  filter: none;
+  box-shadow: none;
+  text-decoration: none;
+}
+.powerValues {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  white-space: nowrap;
+}
+.powerPercent {
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.powerPercent[data-active="false"] {
+  color: var(--muted);
+  font-weight: 400;
+}
+.calculation:global(.power-info-popover) {
+  width: min(360px, calc(100vw - 32px));
+}
+.calculationTerms {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.calculationTerms > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: var(--ui-space-controls);
+}
+.calculationTerms.calculationTerms > div + div {
+  margin-top: 0;
+}
+.calculationTerms > div > dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 400;
+}
+.calculationTerms > div > dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Each number keeps its unit: lines break only between the terms. */
+.formula {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.formula > span {
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .reviewContent {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .reviewContent > strong {
+    text-align: left;
+  }
+  .reviewContent > strong.explained {
+    justify-content: flex-start;
+  }
+}
+
+/* Submission steps: a small monospaced number, a bold title and a short explanation on one line. */
+.steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--ui-radius);
+  list-style: none;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 14px;
+}
+.steps li + li {
+  border-top: 1px solid var(--rule);
+}
+.stepNumber {
+  align-self: baseline;
+  color: var(--muted);
+  font: 500 10px/1.4 var(--font-mono);
+}
+.stepTitle {
+  align-self: baseline;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font: 600 13px/1.6 var(--font-sans);
+}
+.stepTitle > strong {
+  font: inherit;
+}
+.stepText {
+  margin-left: 8px;
+  color: var(--muted);
+  font: 400 12px/1.6 var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconToggle {
+    transition: none;
+  }
+}
