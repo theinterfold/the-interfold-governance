@@ -33,7 +33,7 @@ function FaucetStripBody() {
       <div className="faucet-strip-content page-content">
         <p>
           <span className="faucet-strip-network">{PUB_CHAIN.name} testnet</span>
-          Test {PUB_TOKEN_SYMBOL} and fee tokens are free.
+          Test {PUB_TOKEN_SYMBOL} and fee tokens are free. Claim again for more voting weight, up to 5.
         </p>
         <Button size="sm" className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
           {isConfirming ? <Spinner size="sm" /> : "Get test tokens"}

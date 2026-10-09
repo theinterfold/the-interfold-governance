@@ -10,12 +10,12 @@ import type { Address } from "viem";
  * Testnet faucet claim, mirroring the contract's own gate so the UI can explain
  * itself before spending a transaction.
  *
- * `Faucet.faucet()` tops up each token independently when the caller holds less
- * than `AMOUNT_FOLD` / `AMOUNT_FEE_TOKEN`, and reverts with "You have enough
- * tokens" when neither is below its threshold. Both the amounts and the token
- * addresses are read off the faucet rather than assumed, so the check can't
- * drift from what the contract actually dispenses (the fee token is 6 decimals,
- * FOLD is 18 — nothing here hardcodes either).
+ * `VotingFaucet.faucet()` sends `foldShortfall(caller)` FOLD (the amount to the next voting
+ * weight, 0 at the cap) and `AMOUNT_FEE_TOKEN` when the caller holds less fee token than that. It
+ * reverts `NothingToClaim` when neither is due, and `FaucetEmpty` when it cannot pay either part.
+ * Amounts and token addresses are read off the faucet rather than assumed, so the check can't drift
+ * from what the contract actually dispenses (the fee token is 6 decimals, FOLD is 18 — nothing here
+ * hardcodes either).
  */
 export function useFaucet() {
   const { address } = useAccount();
@@ -27,7 +27,6 @@ export function useFaucet() {
     contracts: [
       { ...faucetContract, functionName: "fold" },
       { ...faucetContract, functionName: "feeToken" },
-      { ...faucetContract, functionName: "AMOUNT_FOLD" },
       { ...faucetContract, functionName: "AMOUNT_FEE_TOKEN" },
     ],
     query: { enabled, staleTime: Infinity },
@@ -35,14 +34,13 @@ export function useFaucet() {
 
   const foldToken = config?.[0]?.result as Address | undefined;
   const feeToken = config?.[1]?.result as Address | undefined;
-  const amountFold = config?.[2]?.result as bigint | undefined;
-  const amountFee = config?.[3]?.result as bigint | undefined;
+  const amountFee = config?.[2]?.result as bigint | undefined;
 
   const balancesEnabled = enabled && !!address && !!foldToken && !!feeToken;
 
   const { data: balances, refetch: refetchBalances } = useReadContracts({
     contracts: [
-      { chainId: PUB_CHAIN.id, address: foldToken!, abi: erc20Abi, functionName: "balanceOf", args: [address!] },
+      { ...faucetContract, functionName: "foldShortfall", args: [address!] },
       { chainId: PUB_CHAIN.id, address: feeToken!, abi: erc20Abi, functionName: "balanceOf", args: [address!] },
       {
         chainId: PUB_CHAIN.id,
@@ -62,7 +60,7 @@ export function useFaucet() {
     query: { enabled: balancesEnabled },
   });
 
-  const yourFold = balances?.[0]?.result as bigint | undefined;
+  const shortfall = balances?.[0]?.result as bigint | undefined;
   const yourFee = balances?.[1]?.result as bigint | undefined;
   const heldFold = balances?.[2]?.result as bigint | undefined;
   const heldFee = balances?.[3]?.result as bigint | undefined;
@@ -74,17 +72,16 @@ export function useFaucet() {
   });
 
   const ready =
-    amountFold !== undefined &&
     amountFee !== undefined &&
-    yourFold !== undefined &&
+    shortfall !== undefined &&
     yourFee !== undefined &&
     heldFold !== undefined &&
     heldFee !== undefined;
 
-  // Mirrors Faucet.faucet() exactly: per-token top-up, then a per-token funding check.
-  const needsFold = ready && yourFold < amountFold;
+  // Mirrors VotingFaucet.faucet() exactly: FOLD shortfall plus fee-token top-up, each funding-checked.
+  const needsFold = ready && shortfall > 0n;
   const needsFee = ready && yourFee < amountFee;
-  const wouldRevertDry = ready && ((needsFold && heldFold < amountFold) || (needsFee && heldFee < amountFee));
+  const wouldRevertDry = ready && ((needsFold && heldFold < shortfall) || (needsFee && heldFee < amountFee));
 
   let blockedReason: string | undefined;
   if (!address) blockedReason = "Connect your wallet to claim test tokens";

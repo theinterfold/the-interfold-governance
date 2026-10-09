@@ -35,7 +35,7 @@ export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_AD
 // Unset => the whole locking section is hidden (deployments where only wallet FOLD votes).
 export const PUB_VE_LOCKER_ADDRESS = (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "") as Address;
 export const PUB_ENABLE_LOCKING = !!PUB_VE_LOCKER_ADDRESS;
-// Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
+// Testnet voting faucet: each `faucet()` call sends FOLD for one more voting weight (up to 5) plus fee tokens.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
 // Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet
 // and the button would point at a non-existent contract.
