@@ -219,7 +219,7 @@ export function useCreateProposal(draft?: ProposalDraft) {
       const ipfsPin = await uploadToPinata(JSON.stringify(proposalMetadataJsonObject));
 
       // Top up the fee escrow if the current credit doesn't cover the quote.
-      // Approves exactly the shortfall (+10% buffer) — no unlimited approvals.
+      // `deposit` approves exactly the shortfall (+10% buffer) when the allowance is short. No unlimited approvals.
       if (depositNeeded > 0n) {
         const deposited = await deposit(depositNeeded);
         if (!deposited) {
