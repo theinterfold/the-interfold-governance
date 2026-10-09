@@ -201,11 +201,7 @@ export function LockForm(props: Props) {
         canContinue: () => mounted.current,
       });
       if (mounted.current && result === "complete") {
-        setCompleted(
-          ownerIsAccount
-            ? `${PUB_TOKEN_SYMBOL} locked. You can vote with it.`
-            : `${PUB_TOKEN_SYMBOL} locked for ${owner.slice(0, 6)}…${owner.slice(-4)}. They own the lock and control withdrawals.`
-        );
+        setCompleted("");
         setLockConfirmed(false);
         setAttempted(false);
         setAmountAttempted(false);
@@ -213,6 +209,8 @@ export function LockForm(props: Props) {
         setOwnerInput("");
         setOwnerTouched(false);
         props.onValueChange("");
+        // The page shows the new lock, so close the tray instead of confirming inside it.
+        props.onClose();
       }
     } finally {
       processing.current = false;
