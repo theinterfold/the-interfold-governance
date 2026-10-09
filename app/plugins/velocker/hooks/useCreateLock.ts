@@ -11,8 +11,8 @@ import { lockCreationRequest } from "../utils/lockRequest";
 import { unvestedBalance } from "../utils/foldAllocation";
 
 /**
- * Locks FOLD into the voting escrow: an exact-amount approval to the escrow, then
- * `createLock`, which transfers the FOLD in and mints the lock NFT. No unlimited approvals.
+ * Locks FOLD into the voting escrow: an exact-amount approval to the escrow when its allowance is
+ * short, then `createLock`, which transfers the FOLD in and mints the lock NFT. No unlimited approvals.
  *
  * With an `owner` other than the caller, `createLockFor` is used instead: the FOLD still comes
  * from the caller, but the lock NFT — and so the voting power and the eventual withdrawal —
@@ -73,7 +73,11 @@ export function useCreateLock(onLocked?: () => void) {
   const lockable = transferable ?? balance;
   // FOLD held but not yet transferable. Without the lock extension nothing is vesting, so a failed
   // transferable read means zero rather than "still loading".
-  const unvested = transferableFailed ? (balance === undefined ? undefined : 0n) : unvestedBalance(balance, transferable);
+  const unvested = transferableFailed
+    ? balance === undefined
+      ? undefined
+      : 0n
+    : unvestedBalance(balance, transferable);
 
   // The three reads move together: a lock, a claim, or a bond release changes all of them, and
   // refreshing only the raw balance would leave the form's cap stale.
@@ -133,16 +137,26 @@ export function useCreateLock(onLocked?: () => void) {
         );
       }
 
-      const approveTx = await approveWrite({
-        account: address,
-        chainId: PUB_CHAIN.id,
-        abi: erc20Abi,
+      // An approval can outlive its lock, for example when the wallet rejected the lock or it
+      // reverted. Read the allowance fresh and ask for a new approval only when it is short.
+      const allowance = await client.readContract({
         address: PUB_TOKEN_ADDRESS,
-        functionName: "approve",
-        args: [PUB_VE_LOCKER_ADDRESS, amount],
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [address, PUB_VE_LOCKER_ADDRESS],
       });
-      // A reverted approval must stop the flow: the lock that follows would fail anyway.
-      await awaitSuccessfulReceipt(client, approveTx, "The FOLD approval");
+      if (allowance < amount) {
+        const approveTx = await approveWrite({
+          account: address,
+          chainId: PUB_CHAIN.id,
+          abi: erc20Abi,
+          address: PUB_TOKEN_ADDRESS,
+          functionName: "approve",
+          args: [PUB_VE_LOCKER_ADDRESS, amount],
+        });
+        // A reverted approval must stop the flow: the lock that follows would fail anyway.
+        await awaitSuccessfulReceipt(client, approveTx, "The FOLD approval");
+      }
       if (connectedAccount.current?.toLowerCase() !== address.toLowerCase()) {
         throw new Error("Your wallet changed. Review the lock again before continuing.");
       }

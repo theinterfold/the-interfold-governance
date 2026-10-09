@@ -106,7 +106,8 @@ holds a **per-address prepaid credit** in the Interfold fee token:
 
 - `deposit(amount)` / `withdraw(amount)` — top up or pull back credit (`feeCredits[you]`). Deposit
   is a two-step ERC20 `approve` → `deposit`; the UI approves the exact amount (no unlimited
-  approvals) plus a small buffer for fee drift.
+  approvals) plus a small buffer for fee drift. The UI skips the approval when the allowance
+  already covers the deposit.
 - On create, `_chargeFee` debits the **SPP proposal creator's** credit. The payer is attested by
   the SPP itself (`getProposal(id).creator` via the SPP-encoded metadata), so nobody can spend
   someone else's credit — a junk proposal only burns the junk-creator's own deposit.
