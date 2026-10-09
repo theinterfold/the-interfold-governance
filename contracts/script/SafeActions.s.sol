@@ -11,7 +11,7 @@ import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProc
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import {IAdmin, ISpp, IPluginTarget, WireSppScript} from "./WireSpp.s.sol";
+import {IAdmin, IDAOPerms, ISpp, IPluginTarget, WireSppScript} from "./WireSpp.s.sol";
 import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 
 /// @dev The DAO permission surface this script touches. Declared locally rather than imported so
@@ -51,6 +51,9 @@ interface IDAOPermissions {
  */
 contract SafeActionsScript is WireSppScript {
     bytes32 internal constant ROOT_PERMISSION_ID = keccak256("ROOT_PERMISSION");
+    /// @dev OSx `PermissionManager.ANY_ADDR`: the wildcard `who` behind the SPP's open
+    ///      CREATE_PROPOSAL grant.
+    address internal constant ANY_ADDR = address(type(uint160).max);
 
     struct Prepared {
         address plugin;
@@ -258,10 +261,18 @@ contract SafeActionsScript is WireSppScript {
     ///                                                      applied-but-unwired holding EXECUTE
     ///           6. grant CREATE_PROPOSAL on body -> SPP    only the SPP may open sub-proposals (INV-3)
     ///           7. body.setTargetConfig(Executor, delegatecall)  INV-5
+    ///           8. revoke EXECUTE on the DAO from the retired SPP          only when RETIRED_* is set:
+    ///           9. revoke CREATE_PROPOSAL on the retired SPP from ANY_ADDR  the private pair this
+    ///          10. revoke CREATE_PROPOSAL on the retired body from its SPP  install replaces
     ///
     ///      Deliberately ONE `admin.executeProposal`, like the public install: splitting the
     ///      applies from the wiring leaves a window where the applied SPP holds EXECUTE with no
     ///      stage configuration. Does NOT disarm the Admin bootstrap — that stays its own step.
+    ///
+    ///      The retire revokes ride in the same execution for the same reason: a replacement
+    ///      applied without them leaves two private processes executing on the DAO. They remove
+    ///      every path from the retired pair to a DAO action and leave everything else in place,
+    ///      so its proposals, tallies, fee credits and refunds stay readable and withdrawable.
     ///
     ///      Reads the prepared values from the `CRISP_*` / `SPP_PRIVATE_*` env written by
     ///      `read-prepared.sh` after the two prepare transactions.
@@ -277,11 +288,12 @@ contract SafeActionsScript is WireSppScript {
 
         Prepared memory crisp = _loadPrepared("CRISP");
         Prepared memory spp = _loadPrepared("SPP_PRIVATE");
+        (address retiredBody, address retiredSpp) = _retiredPrivatePair(dao);
 
         IPlugin.TargetConfig memory delegateExecutor =
             IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
 
-        Action[] memory actions = new Action[](7);
+        Action[] memory actions = new Action[](retiredSpp == address(0) ? 7 : 10);
         actions[0] =
             Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.grant, (dao, psp, ROOT_PERMISSION_ID))});
         actions[1] = Action({
@@ -326,17 +338,65 @@ contract SafeActionsScript is WireSppScript {
             to: crisp.plugin, value: 0, data: abi.encodeCall(IPluginTarget.setTargetConfig, (delegateExecutor))
         });
 
+        if (retiredSpp != address(0)) {
+            actions[7] = Action({
+                to: dao,
+                value: 0,
+                data: abi.encodeCall(IDAOPermissions.revoke, (dao, retiredSpp, EXECUTE_PERMISSION_ID))
+            });
+            actions[8] = Action({
+                to: dao,
+                value: 0,
+                data: abi.encodeCall(IDAOPermissions.revoke, (retiredSpp, ANY_ADDR, CREATE_PROPOSAL_PERMISSION_ID))
+            });
+            actions[9] = Action({
+                to: dao,
+                value: 0,
+                data: abi.encodeCall(IDAOPermissions.revoke, (retiredBody, retiredSpp, CREATE_PROPOSAL_PERMISSION_ID))
+            });
+        }
+
         _emitActions(
             "24-install-and-wire-private-process",
-            "Install and wire the private process (CRISP + SPP)",
-            "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
-            "revoked, then the private stages, the SPP's sole CREATE_PROPOSAL on the body, and "
-            "the delegatecall Executor target. Does NOT disarm the Admin bootstrap.",
+            retiredSpp == address(0)
+                ? "Install and wire the private process (CRISP + SPP)"
+                : "Replace the private process (CRISP + SPP)",
+            retiredSpp == address(0)
+                ? "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
+                "revoked, then the private stages, the SPP's sole CREATE_PROPOSAL on the body, and "
+                "the delegatecall Executor target. Does NOT disarm the Admin bootstrap."
+                : "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
+                "revoked, the private stages, the SPP's sole CREATE_PROPOSAL on the body and the "
+                "delegatecall Executor target, then the retired pair loses EXECUTE on the DAO and "
+                "both CREATE_PROPOSAL grants. Does NOT disarm the Admin bootstrap.",
             actions
         );
     }
 
     // --- internals -----------------------------------------------------------------
+
+    /// @dev The private pair a replacement install retires, from `RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`
+    ///      and `RETIRED_SPP_PRIVATE_ADDRESS`. Both unset on a first install.
+    ///
+    ///      A revoke of a permission that is not granted is a silent no-op on chain, so a mistyped
+    ///      address would leave the real pair executing while the batch still succeeds. The pair is
+    ///      therefore checked against the chain here: the SPP must hold EXECUTE on the DAO and
+    ///      CREATE_PROPOSAL on the body, exactly what the original install wired.
+    function _retiredPrivatePair(address dao) internal view returns (address body, address spp) {
+        body = vm.envOr("RETIRED_CRISP_VOTING_PLUGIN_ADDRESS", address(0));
+        spp = vm.envOr("RETIRED_SPP_PRIVATE_ADDRESS", address(0));
+        require((body == address(0)) == (spp == address(0)), "set both RETIRED_* addresses or neither");
+        if (spp == address(0)) return (body, spp);
+
+        require(
+            IDAOPerms(dao).hasPermission(dao, spp, EXECUTE_PERMISSION_ID, ""),
+            "RETIRED_SPP_PRIVATE_ADDRESS holds no EXECUTE on the DAO"
+        );
+        require(
+            IDAOPerms(dao).hasPermission(body, spp, CREATE_PROPOSAL_PERMISSION_ID, ""),
+            "RETIRED_SPP_PRIVATE_ADDRESS holds no CREATE_PROPOSAL on RETIRED_CRISP_VOTING_PLUGIN_ADDRESS"
+        );
+    }
 
     /// @dev Rebuilds a prepared installation from `<PREFIX>_*` env vars, exactly as
     ///      `prepareInstallation` reported them.
