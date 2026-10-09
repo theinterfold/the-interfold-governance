@@ -19,6 +19,22 @@ interface ICRISP {
     /// @return The decoded tally results as an array of uint256
     function decodeTally(uint256 e3Id) external view returns (uint256[] memory);
 
+    /// @notice The divisor a round applies to raw voting power: a ballot's weight is
+    ///         `rawPower / votingPowerDivisor` (floored), so decrypted tally counts are in units
+    ///         of this many raw token units. Recorded when the E3 is requested; 0 for an E3 the
+    ///         program holds no round for.
+    /// @param e3Id The identifier for the e3 instance
+    function votingPowerDivisorOf(uint256 e3Id) external view returns (uint256);
+
+    /// @notice The BFV parameters Interfold registers per parameter set, which `CRISPProgram`
+    ///         decodes from `e3ProgramParams`. The layout must match `CRISPProgram.BfvParameters`.
+    struct BfvParameters {
+        uint256 degree;
+        uint256 plaintextModulus;
+        uint256[] moduli;
+        string error1Variance;
+    }
+
     /// @notice Enum to represent credit modes
     enum CreditMode {
         /// @notice Everyone has constant credits

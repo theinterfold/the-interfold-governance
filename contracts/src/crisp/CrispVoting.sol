@@ -12,7 +12,6 @@ import {IERC6372Upgradeable} from "@openzeppelin/contracts-upgradeable/interface
 import {IProposal} from "@aragon/osx-commons-contracts/src/plugin/extensions/proposal/IProposal.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import {
@@ -64,7 +63,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     ///         config id, as `ActiveCryptoConfig.ENCRYPTION_SCHEME_ID` and `CIRCUIT_VERSION` in the
     ///         Interfold contracts. See `_buildRequestParams`.
     bytes32 internal constant ENCRYPTION_SCHEME_ID = keccak256("fhe.rs:BFV");
-    bytes32 internal constant CIRCUIT_VERSION = keccak256("interfold-bfv-v4");
+    bytes32 internal constant CIRCUIT_VERSION = keccak256("interfold-bfv-v5");
 
     /// @notice The interface id for the Crisp Voting plugin
     bytes4 internal constant CRISP_VOTING_INTERFACE_ID = this.initialize.selector ^ this.minProposerVotingPower.selector
@@ -396,16 +395,17 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         return votingToken.getPastTotalSupply(_blockNumber);
     }
 
-    /// @notice Divisor aligning raw token voting power with the CRISP tally units. The CRISP
-    ///         server keeps 1 decimal of precision (balance / 10^(decimals-1)) when encoding
-    ///         ballots, so tallies come back in those units. Tokens without `decimals()` (or
-    ///         with 0/1 decimals) are unscaled.
-    function _tallyScale() internal view returns (uint256) {
-        try IERC20Metadata(address(votingToken)).decimals() returns (uint8 dec) {
-            return dec > 1 ? 10 ** (uint256(dec) - 1) : 1;
-        } catch {
-            return 1;
-        }
+    /// @notice The divisor CRISP's `_initCredits` records as the minimum for a round: a
+    ///         round's total ballot weight must stay below the BFV plaintext modulus `t`, so
+    ///         `minDivisor = supply / t + 1`, with `supply` read at the snapshot CRISP uses
+    ///         (the token's previous ERC-6372 timepoint). Computed from the same inputs in the
+    ///         same transaction as the E3 request, so it equals the value CRISP will compute.
+    function _minVotingPowerDivisor() internal view returns (uint256) {
+        uint256 plaintextModulus =
+            abi.decode(interfold.paramSetRegistry(paramSet), (ICRISP.BfvParameters)).plaintextModulus;
+        uint256 clock = _tokenClock();
+        uint256 snapshot = clock == 0 ? 0 : clock - 1;
+        return votingToken.getPastTotalSupply(snapshot) / plaintextModulus + 1;
     }
 
     /// @notice Current timepoint in the voting token's ERC-6372 clock units, so snapshots work
@@ -637,13 +637,20 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
             }
         }
 
-        // Check quorum: totalVotes * RATIO_BASE >= minParticipation * totalSupply.
-        // The CRISP server (and app) scale each voter's balance to 1 decimal of precision
-        // (balance / 10^(decimals-1)) before encrypting, so the decrypted tally counts are in
-        // those units — scale them back up to raw token units to compare like with like
-        // (multiplying the votes rather than dividing the supply avoids truncation).
+        // Check quorum: totalVotes * divisor * RATIO_BASE >= minParticipation * totalSupply.
+        // CRISP weighs each voter's raw power as `rawPower / divisor` (floored) with the divisor
+        // it recorded for this round, so the decrypted tally counts are in units of `divisor`
+        // raw tokens. Multiplying the votes back up by that recorded divisor compares like with
+        // like, and multiplying the votes rather than dividing the supply avoids truncation.
         uint256 _totalVotingPower = totalVotingPower(proposal.parameters.snapshotBlock);
         if (_totalVotingPower == 0) {
+            return false;
+        }
+
+        // A round always records a divisor of at least 1. Zero means the program holds no
+        // divisor for this E3, and multiplying by it would make every quorum trivially true.
+        uint256 divisor = ICRISP(crispProgramAddress).votingPowerDivisorOf(proposal.e3Id);
+        if (divisor == 0) {
             return false;
         }
 
@@ -653,8 +660,8 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         // proposal to a `stageConfigIndex`. Reading the live value here let a governance proposal
         // that changed the quorum retroactively decide votes already in flight — and a CRISP
         // ballot is encrypted and cannot be re-cast, so voters could not even respond.
-        bool quorumReached = totalVotes * _tallyScale() * RATIO_BASE
-            >= uint256(proposal.parameters.minParticipation) * _totalVotingPower;
+        bool quorumReached =
+            totalVotes * divisor * RATIO_BASE >= uint256(proposal.parameters.minParticipation) * _totalVotingPower;
         if (!quorumReached) {
             return false;
         }
@@ -701,17 +708,19 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
         // required the coordinator to reconstruct it from transfer logs and publish a Merkle root
         // before anyone could vote.
         //
-        // The divisor is 0, meaning "derive from the token's decimals". That derivation is
-        // `10 ** (decimals - 1)`, the same rule `_tallyScale()` applies when reading results back,
-        // so ballots and tallies stay in one set of units.
+        // The divisor is 0, meaning "use the minimum". `CRISPProgram` then records exactly
+        // `supply / t + 1` for the round (`t` is the BFV plaintext modulus of `paramSet`, `supply`
+        // the token's total supply at the snapshot), the smallest divisor that keeps the summed
+        // ballot weight below `t`. Quorum reads the recorded value back with
+        // `votingPowerDivisorOf`, so ballots and tallies stay in one set of units.
         //
-        // The floor is raised to at least one ballot unit. `CRISPProgram` refuses an ONCHAIN round
-        // whose floor is worth less than that, because a voter could clear it and still scale to
-        // zero weight — able to publish, but counted for nothing. A DAO that set no floor would
-        // otherwise be unable to create a proposal at all.
+        // The floor is raised to at least that divisor. `CRISPProgram` refuses an ONCHAIN round
+        // whose floor is worth less than one ballot unit (`MinVotingPowerBelowScale`), because a
+        // voter could clear it and still scale to zero weight — able to publish, but counted for
+        // nothing. A DAO that set no floor would otherwise be unable to create a proposal at all.
         uint256 minVotingPower = votingSettings.minVoterVotingPower;
-        uint256 ballotUnit = _tallyScale();
-        if (minVotingPower < ballotUnit) minVotingPower = ballotUnit;
+        uint256 minDivisor = _minVotingPowerDivisor();
+        if (minVotingPower < minDivisor) minVotingPower = minDivisor;
 
         // Credits are always 0 (token-weighted CUSTOM mode). A creator-supplied credits field
         // used to pass through here, but `quoteProposalFee` could not see it, so a quote could

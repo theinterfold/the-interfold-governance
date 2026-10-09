@@ -15,13 +15,12 @@ import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesToken} 
 
 // --- Tests -----------------------------------------------------------------
 
-/// @notice Covers the quorum / tally-scaling half of `CrispVoting`.
+/// @notice Covers the quorum half of `CrispVoting`.
 ///
-/// The CRISP server encodes each voter's power at 1 decimal of precision
-/// (`balance / 10^(decimals-1)`), so decrypted tallies arrive in scaled units.
-/// `_tallyScale()` must undo exactly that when checking quorum — it is one leg of
-/// the three-way sync (server / contract / app) called out in AGENTS.md, and a
-/// mismatch silently changes which proposals pass.
+/// CRISP weighs each ballot as `floor(rawPower / divisor)` with the divisor it records for the
+/// round, so decrypted tallies arrive in units of `divisor` raw tokens. `_canExecute` must scale
+/// them back up by exactly that recorded divisor (`votingPowerDivisorOf`) — a mismatch silently
+/// changes which proposals pass.
 contract CrispVotingQuorumTest is Test {
     DAO internal dao;
     CrispVoting internal plugin;
@@ -38,15 +37,17 @@ contract CrispVotingQuorumTest is Test {
     uint256 internal constant SPP_PROPOSAL_ID = 777;
     uint32 internal constant MIN_PARTICIPATION = 50; // 50% of RATIO_BASE (=100)
 
-    /// @dev 18-decimal token => the server scales by 10^17.
-    uint256 internal constant SCALE = 10 ** 17;
+    /// @dev Raw supply at the snapshot. With the insecure-512 plaintext modulus `t = 100` the
+    ///      mock program records `supply / t + 1 = 10` as the round's divisor, so the supply is
+    ///      exactly 90 ballot units and a 50% quorum is exactly 45 units.
+    uint256 internal constant SUPPLY = 900;
+    uint256 internal constant DIVISOR = 10;
 
     function setUp() public {
         vm.roll(100);
 
         feeToken = new MockFeeToken();
-        // 1000 whole tokens of supply at 18 decimals.
-        votesToken = new MockVotesToken(1000 * 10 ** 18, 18);
+        votesToken = new MockVotesToken(SUPPLY);
         interfold = new MockInterfold(address(feeToken));
         crispProgram = new MockCrispProgram();
         spp = new MockSpp();
@@ -124,13 +125,13 @@ contract CrispVotingQuorumTest is Test {
     // --- quorum ---
 
     function test_quorumReachedExactlyAtThresholdSucceeds() public {
-        // Supply 1000e18, minParticipation 50% => need 500e18 raw = 5000 scaled units.
-        uint256 proposalId = _createWithTally(_counts(3000, 2000)); // 5000 scaled == exactly 50%
+        // Supply is 90 ballot units, minParticipation 50% => quorum is exactly 45 units.
+        uint256 proposalId = _createWithTally(_counts(27, 18));
         assertTrue(plugin.canExecute(proposalId), "exactly-at-quorum must pass");
     }
 
     function test_quorumOneUnitBelowThresholdFails() public {
-        uint256 proposalId = _createWithTally(_counts(3000, 1999)); // 4999 scaled < 50%
+        uint256 proposalId = _createWithTally(_counts(27, 17)); // 44 units < 45
         assertFalse(plugin.canExecute(proposalId), "one unit below quorum must fail");
     }
 
@@ -142,10 +143,10 @@ contract CrispVotingQuorumTest is Test {
     ///      quorum retroactively fails every CRISP vote already in flight — the goalposts move
     ///      after people have voted, and an encrypted vote cannot even be re-cast.
     function test_quorumRaisedMidProposalDoesNotAffectAnOpenProposal() public {
-        // Created under 50%: 5000 scaled units is exactly quorum, so it passes.
-        uint256 proposalId = _createWithTally(_counts(3000, 2000));
+        // Created under 50%: 45 units is exactly quorum, so it passes.
+        uint256 proposalId = _createWithTally(_counts(27, 18));
 
-        // Mid-flight, governance raises the bar to 90% (9000 scaled units).
+        // Mid-flight, governance raises the bar to 90% (81 units).
         dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
         plugin.updateVotingSettings(
             ICrispVoting.VotingSettings({
@@ -163,8 +164,8 @@ contract CrispVotingQuorumTest is Test {
 
     /// @notice The converse: LOWERING the quorum must not rescue a proposal that already failed.
     function test_quorumLoweredMidProposalDoesNotRescueAnOpenProposal() public {
-        // Created under 50%: 4999 scaled units is one unit short, so it fails.
-        uint256 proposalId = _createWithTally(_counts(3000, 1999));
+        // Created under 50%: 44 units is one unit short, so it fails.
+        uint256 proposalId = _createWithTally(_counts(27, 17));
 
         dao.grant(address(plugin), address(this), plugin.MANAGER_PERMISSION_ID());
         plugin.updateVotingSettings(
@@ -271,39 +272,52 @@ contract CrispVotingQuorumTest is Test {
         assertTrue(plugin.canExecute(proposalId), "minParticipation 0 => quorum disabled");
     }
 
-    // --- tally scaling ---
+    // --- recorded divisor ---
 
-    /// @notice The scaling invariant: a tally expressed in scaled units must be judged
-    ///         against raw supply as `counts * 10^(decimals-1)`. If `_tallyScale()` ever
-    ///         drifts from the server's encoding, this is the test that catches it.
-    function test_tallyScaleMatchesTheServerEncoding() public {
-        // Half the supply voted: 500e18 raw => 500e18 / 10^17 == 5000 scaled units.
-        uint256 halfSupplyScaled = (500 * 10 ** 18) / SCALE;
-        assertEq(halfSupplyScaled, 5000, "sanity: 18-decimal scaling is 10^17");
+    /// @notice Tallies are in units of the divisor CRISP recorded for the round, which is
+    ///         `supply / t + 1` — not a power of ten, and not the same for every supply.
+    function test_quorumScalesTalliesByTheRecordedDivisor() public {
+        // 9000 raw supply at t = 100 => divisor 91. 50% quorum is 4500 raw, so 50 units
+        // (4550 raw) pass and 49 units (4459 raw) do not.
+        votesToken.setSupply(9000);
+        uint256 proposalId = _createWithTally(_counts(50, 0));
+        uint256 e3Id = plugin.getProposal(proposalId).e3Id;
+        assertEq(crispProgram.votingPowerDivisorOf(e3Id), 91, "sanity: CRISP's minimum divisor");
+        assertTrue(plugin.canExecute(proposalId), "50 units of 91 raw cover 50% of 9000");
 
-        uint256 proposalId = _createWithTally(_counts(halfSupplyScaled, 0));
-        assertTrue(plugin.canExecute(proposalId), "half the supply must meet a 50% quorum");
+        crispProgram.setTally(e3Id, _counts(49, 0));
+        assertFalse(plugin.canExecute(proposalId), "49 units of 91 raw fall short of 50% of 9000");
     }
 
-    /// @dev Tokens with 0 or 1 decimals are unscaled (scale == 1).
-    function test_lowDecimalTokenIsUnscaled() public {
-        votesToken = new MockVotesToken(1000, 1);
-        _deployPlugin(MIN_PARTICIPATION);
-        spp.setCreator(SPP_PROPOSAL_ID, creator);
+    /// @notice The divisor is read from the program, so quorum moves with it in both directions
+    ///         at the boundary: a smaller divisor fails a tally that a larger one passes.
+    function test_aSmallerDivisorWouldChangeTheOutcome() public {
+        uint256 proposalId = _createWithTally(_counts(27, 18)); // 45 units
+        uint256 e3Id = plugin.getProposal(proposalId).e3Id;
+        assertEq(crispProgram.votingPowerDivisorOf(e3Id), DIVISOR, "sanity: recorded divisor");
+        assertTrue(plugin.canExecute(proposalId), "45 units x 10 meets the 450 raw quorum");
 
-        uint256 proposalId = _createWithTally(_counts(500, 0)); // 500/1000 == 50%, unscaled
-        assertTrue(plugin.canExecute(proposalId), "1-decimal token must not be scaled");
+        crispProgram.setVotingPowerDivisor(e3Id, DIVISOR - 1);
+        assertFalse(plugin.canExecute(proposalId), "45 units x 9 falls short of 450");
+
+        crispProgram.setTally(e3Id, _counts(27, 17)); // 44 units
+        crispProgram.setVotingPowerDivisor(e3Id, DIVISOR);
+        assertFalse(plugin.canExecute(proposalId), "44 units x 10 falls short of 450");
+        crispProgram.setVotingPowerDivisor(e3Id, DIVISOR + 1);
+        assertTrue(plugin.canExecute(proposalId), "44 units x 11 meets 450");
     }
 
-    /// @dev A token without `decimals()` must fall back to scale 1 rather than revert.
-    function test_tokenWithoutDecimalsFallsBackToUnscaled() public {
-        votesToken = new MockVotesToken(1000, 18);
-        _deployPlugin(MIN_PARTICIPATION);
-        spp.setCreator(SPP_PROPOSAL_ID, creator);
-        votesToken.setRevertOnDecimals(true);
+    /// @notice A recorded divisor of 0 means the program holds no round for the E3. Multiplying
+    ///         the votes by it zeroes the left side of the quorum comparison, so with quorum
+    ///         disabled (`minParticipation == 0`) `0 >= 0` would read as a passing quorum.
+    function test_zeroDivisorNeverPassesQuorum() public {
+        _deployPlugin(0);
+        uint256 proposalId = _createWithTally(_counts(1_000_000, 0));
+        uint256 e3Id = plugin.getProposal(proposalId).e3Id;
+        assertTrue(plugin.canExecute(proposalId), "sanity: with quorum disabled this tally passes");
 
-        uint256 proposalId = _createWithTally(_counts(500, 0));
-        assertTrue(plugin.canExecute(proposalId), "missing decimals() must degrade to scale 1");
+        crispProgram.setVotingPowerDivisor(e3Id, 0);
+        assertFalse(plugin.canExecute(proposalId), "no recorded divisor must not read as a passing quorum");
     }
 
     /// @notice Quorum must be monotonic: more turnout never turns a passing proposal

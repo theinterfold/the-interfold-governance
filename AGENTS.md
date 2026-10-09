@@ -199,7 +199,7 @@ reasoning where the code is. A register that only grows is failing at its job.
 
 | Id         | Invariant                                                                                                                                                                                                                                                                                                                                      | Guarded by                                                                                                            |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **INV-16** | **Vote scaling is a three-way sync.** The CRISP server encodes power as `balance / 10^(decimals-1)`, so tallies arrive scaled. The factor must match in the server, `CrispVoting._tallyScale()`, and the app (`useCrispServer` `adjustedBalance` + `utils/quorum.ts` `voteScale`).                                                             | `CrispVotingQuorum.t.sol::test_tallyScaleMatchesTheServerEncoding`; app `quorum-invariants.test.ts`                   |
+| **INV-16** | **Vote scaling is a contract ↔ CRISP ↔ app sync on the recorded divisor.** CRISP weighs each ballot as `floor(rawPower / divisor)` and records the divisor per round (`votingPowerDivisorOf(e3Id)`; minimum `supply / t + 1`, `t` = the BFV plaintext modulus of the parameter set). Quorum (`CrispVoting._canExecute`) and the app (`utils/quorum.ts`) must scale tallies by that recorded value, never by a constant derived from the token's decimals; a zero divisor must not pass quorum. | `CrispVotingQuorum.t.sol::test_quorumScalesTalliesByTheRecordedDivisor`, `…ASmallerDivisorWouldChangeTheOutcome`, `…ZeroDivisorNeverPassesQuorum`; app `quorum-invariants.test.ts` |
 | **INV-17** | **`RATIO_BASE == 100`**, so CRISP `minParticipation` AND `supportThreshold` are whole percentages (1 = 1%) and the finest step is 1%. TokenVoting's are ppm out of 1_000_000 — do not conflate them.                                                                                                                                           | `CrispVotingViews.t.sol::test_initializeRevertsWhenMinParticipationExceedsRatioBase`; app `quorum-invariants.test.ts` |
 | **INV-18** | **The CRISP `_data` tuple is `(uint256 allowFailureMap)`** — nothing else. The voting window is the stage-configured one (never creator-chosen) and credits are always 0; the tuple must stay in sync between `customProposalParamsABI()`, `createProposal`'s decode, and the app encoder in `plugins/crispVoting/hooks/useCreateProposal.ts`. | `CrispVotingViews.t.sol::test_customProposalParamsAbiMatchesTheDecodedTuple`                                          |
 | **INV-19** | **Snapshot timepoints are token-clock units, not block numbers.** FOLD is ERC-6372 `mode=timestamp`, so `snapshotBlock` holds a **timestamp**. Feed it to `getPastVotes`/`getPastTotalSupply`; never use it as an `eth_call` block tag.                                                                                                        | `CrispVotingViews.t.sol::test_snapshotUsesTheTokenClockWhenAvailable`, `…UsesBlockNumberWhenTheTokenHasNoClock`       |
@@ -337,11 +337,12 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   finest step is 1%. `0` disables quorum (testing). TokenVoting's `TV_MIN_PARTICIPATION` is ppm
   out of 1_000_000 instead.
 - **The floor a round enforces is not `proposal.parameters.minVotingPower`.** That field keeps the
-  plugin's `minVoterVotingPower` as configured; `_buildRequestParams` raises it to one ballot unit
-  (`10^(decimals-1)`, so 1 wei becomes 0.1 FOLD) before requesting, and the raised value — in the
-  round's `customParams` — is what `publishInput` enforces and the CRISP server applies. Read it
-  with `getRoundEligibilityFloor`. Using the proposal field flagged the server's census as wrong
-  and told holders under 0.1 FOLD they could vote, until `SlotNotEligible` refused the ballot.
+  plugin's `minVoterVotingPower` as configured; `_buildRequestParams` raises it to the round's
+  minimum divisor (`supply / t + 1`, computed exactly as `CRISPProgram` computes it in the same
+  transaction) before requesting, and the raised value — in the round's `customParams` — is what
+  `publishInput` enforces and the CRISP server applies. Read it with `getRoundEligibilityFloor`.
+  Using the proposal field flagged the server's census as wrong and told small holders they could
+  vote, until `SlotNotEligible` refused the ballot.
 - **The indexer RPC only serves addresses it is told about, and the app reaches ones it is not.**
   `/chain/rpc` on the CRISP server answers `Address not served by this indexer: 0x…` for anything
   outside `INDEX_CONTRACTS`, and the escrow's satellites (exit queue, lock NFT, IVotes adapter) are

@@ -422,10 +422,10 @@ all history are untouched.
 - [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
       In the existing mainnet repo that is build 3 ([why](./publish-crisp-build.md#why-build-3)).
 - [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
-      and `PARAM_SET=1` (secure-8192): the mainnet policy rejects other values.
-- [ ] CRISP server configured for mainnet, and its vote-scaling factor matches
-      `CrispVoting._tallyScale()` and the app — a three-way sync
-      ([INV-16](../AGENTS.md#cross-boundary-sync-contract--server--app)).
+      and `PARAM_SET=2` (secure-8192): the mainnet policy rejects other values.
+- [ ] CRISP server configured for mainnet. Quorum and the app read each round's recorded
+      `votingPowerDivisorOf(e3Id)` from the CRISP program, so there is no scaling factor to keep
+      in step by hand ([INV-16](../AGENTS.md#cross-boundary-sync-contract--server--app)).
 - [ ] Fee token confirmed; decimals read on-chain, never assumed ([INV-20](../AGENTS.md#cross-boundary-sync-contract--server--app)).
 
 ### How the install works

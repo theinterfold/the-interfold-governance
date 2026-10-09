@@ -40,6 +40,8 @@ contract CrispVotingViewsTest is Test {
     uint256 internal constant SPP_PROPOSAL_ID = 777;
     uint32 internal constant MIN_PARTICIPATION = 50;
     uint256 internal constant SUPPLY = 1000 * 10 ** 18;
+    /// @dev CRISP's minimum divisor for `SUPPLY` at the insecure-512 plaintext modulus `t = 100`.
+    uint256 internal constant MIN_DIVISOR = SUPPLY / 100 + 1;
 
     event VotingSettingsUpdated(
         uint256 minProposerVotingPower,
@@ -55,7 +57,7 @@ contract CrispVotingViewsTest is Test {
         vm.warp(1_000_000);
 
         feeToken = new MockFeeToken();
-        votesToken = new MockVotesToken(SUPPLY, 18);
+        votesToken = new MockVotesToken(SUPPLY);
         interfold = new MockInterfold(address(feeToken));
         crispProgram = new MockCrispProgram();
         spp = new MockSpp();
@@ -176,15 +178,133 @@ contract CrispVotingViewsTest is Test {
         assertEq(credits, 0, "credits");
         assertEq(censusMode, uint256(ICRISP.CensusMode.ONCHAIN), "censusMode");
 
-        // 0 means "derive from the token decimals", which is the same rule `_tallyScale()` applies
-        // when reading results back — so ballots and tallies stay in one set of units.
-        assertEq(votingPowerDivisor, 0, "divisor derived on-chain");
+        // 0 means "use the minimum": CRISP records `supply / t + 1` itself, and quorum reads it
+        // back from the program, so ballots and tallies stay in one set of units.
+        assertEq(votingPowerDivisor, 0, "divisor left to CRISP");
+        assertEq(minVotingPower, MIN_DIVISOR, "floor raised to the minimum divisor");
+    }
 
-        // The DAO configured a floor of 3 raw units, far below one ballot unit (10 ** 17 for an
-        // 18-decimal token). `CRISPProgram` refuses such a round, because a voter could clear the
-        // floor and still scale to zero weight, so the plugin raises it to exactly one unit.
+    /// @dev The floor the plugin put in the last request's `customParams`.
+    function _requestedFloor() internal view returns (uint256 floor) {
+        (, floor,,,,,) =
+            abi.decode(interfold.lastCustomParams(), (address, uint256, uint256, uint256, uint256, uint256, uint256));
+    }
+
+    /// @notice A floor below the round's divisor is refused by `CRISPProgram` (the mock reverts
+    ///         `MinVotingPowerBelowScale` exactly as it does), because a voter could clear it and
+    ///         still scale to zero weight. The DAO configured 3 raw units, far below the minimum
+    ///         divisor, so the plugin must raise the request's floor to exactly that divisor — the
+    ///         value CRISP records — without touching the DAO's setting.
+    function test_requestFloorIsRaisedToTheMinimumDivisor() public {
+        uint256 proposalId = _create();
+
         assertEq(plugin.minVoterVotingPower(), 3, "DAO setting is untouched");
-        assertEq(minVotingPower, 10 ** 17, "floor raised to one ballot unit");
+        assertEq(_requestedFloor(), MIN_DIVISOR, "floor == supply / t + 1 with t = 100");
+        assertEq(
+            crispProgram.votingPowerDivisorOf(plugin.getProposal(proposalId).e3Id),
+            MIN_DIVISOR,
+            "CRISP records the divisor the floor was raised to"
+        );
+    }
+
+    /// @notice The floor is `max(minVoterVotingPower, minDivisor)`: a DAO floor already above the
+    ///         divisor is requested as configured, and the recorded divisor is unaffected by it.
+    function test_requestKeepsADaoFloorAboveTheMinimumDivisor() public {
+        uint256 daoFloor = MIN_DIVISOR * 10;
+        plugin.updateVotingSettings(
+            ICrispVoting.VotingSettings({
+                minProposerVotingPower: 7,
+                minVoterVotingPower: daoFloor,
+                minParticipation: MIN_PARTICIPATION,
+                supportThreshold: 50,
+                minDuration: MIN_DURATION
+            })
+        );
+
+        uint256 proposalId = _create();
+
+        assertEq(_requestedFloor(), daoFloor, "a DAO floor above the divisor is passed through");
+        assertEq(crispProgram.votingPowerDivisorOf(plugin.getProposal(proposalId).e3Id), MIN_DIVISOR);
+    }
+
+    /// @notice The supply is read at the token's PREVIOUS ERC-6372 timepoint, the one CRISP
+    ///         snapshots. Reading the current one (or the live supply) would put the floor out of
+    ///         step with the divisor CRISP records and the request would revert.
+    function test_requestFloorReadsTheSupplyAtThePreviousClockTimepoint() public {
+        MockVotesToken clocked = new MockVotesToken(SUPPLY);
+        clocked.setClock(5000);
+        clocked.setSupplyAt(4999, 5_000);
+        plugin = _deploy(address(clocked), MIN_PARTICIPATION);
+
+        uint256 proposalId = _create();
+
+        assertEq(_requestedFloor(), 5_000 / 100 + 1, "supply at clock() - 1");
+        assertEq(crispProgram.votingPowerDivisorOf(plugin.getProposal(proposalId).e3Id), 5_000 / 100 + 1);
+    }
+
+    /// @notice A token without `clock()` is snapshotted at `block.number - 1`, like CRISP does.
+    function test_requestFloorReadsTheSupplyAtThePreviousBlockWithoutAClock() public {
+        votesToken.setSupplyAt(block.number - 1, 2_000);
+
+        uint256 proposalId = _create();
+
+        assertEq(_requestedFloor(), 2_000 / 100 + 1, "supply at block.number - 1");
+        assertEq(crispProgram.votingPowerDivisorOf(plugin.getProposal(proposalId).e3Id), 2_000 / 100 + 1);
+    }
+
+    /// @notice A request asserts the coordinator's crypto config id for the parameter set it
+    ///         requests, for both sets the protocol supports.
+    /// @dev `request` compares `expectedCryptoConfigId` with
+    ///      `ActiveCryptoConfig.configIdForParamSet(paramSet)`. The coordinator's
+    ///      `activeCryptoConfigId()` returns the secure id on every chain, so a plugin that asserted
+    ///      it on the insecure set had every Sepolia request revert `CryptoConfigChanged`. The
+    ///      encodings are the protocol's `BFV_PARAMS`, and the expected ids are its
+    ///      `INSECURE_CONFIG_ID` and `SECURE_CONFIG_ID` for circuit version `interfold-bfv-v5`.
+    function test_requestAssertsTheCryptoConfigOfItsParameterSet() public {
+        uint256[] memory insecureModuli = new uint256[](2);
+        insecureModuli[0] = 0xffffee001;
+        insecureModuli[1] = 0xffffc4001;
+        interfold.setParamSet(0, abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3")));
+
+        uint256[] memory secureModuli = new uint256[](3);
+        secureModuli[0] = 0x0800000000db4001;
+        secureModuli[1] = 0x0800000000d54001;
+        secureModuli[2] = 0x0800000000cbc001;
+        interfold.setParamSet(
+            2,
+            abi.encode(ICRISP.BfvParameters(8192, 17000000, secureModuli, "17723039943798878305460955570711717478400"))
+        );
+
+        _create();
+        assertEq(interfold.lastParamSet(), 0);
+        assertEq(
+            interfold.lastExpectedCryptoConfigId(),
+            0x7d3f52af7ad13baa9f34ce2426e980907ffeb86b4b374308e6c590d5d43f9e41,
+            "insecure-512 config id"
+        );
+
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 2, bytes(""));
+        spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
+        _depositAs(creator, 100 ether);
+        vm.prank(sppAddr);
+        uint256 secureProposalId = plugin.createProposal(
+            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
+        );
+        assertEq(interfold.lastParamSet(), 2);
+        assertEq(
+            interfold.lastExpectedCryptoConfigId(),
+            0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa,
+            "secure-8192 config id"
+        );
+
+        // The plaintext modulus comes from the registered parameters of the configured set, so
+        // the secure set (t = 17_000_000) yields a far smaller floor than the insecure one (t = 100).
+        assertEq(_requestedFloor(), SUPPLY / 17_000_000 + 1, "floor uses t of the configured parameter set");
+        assertEq(
+            crispProgram.votingPowerDivisorOf(plugin.getProposal(secureProposalId).e3Id),
+            SUPPLY / 17_000_000 + 1,
+            "CRISP records the divisor the floor was raised to"
+        );
     }
 
     function test_createSchedulesAFullVotingWindowAfterDkgAndBeforeAvailability() public {
@@ -267,60 +387,6 @@ contract CrispVotingViewsTest is Test {
         // unbounded limit would pay a moved price silently.
         assertEq(interfold.lastMaxFee(), interfold.fee(), "max fee is the quoted fee");
         assertLt(interfold.lastMaxFee(), type(uint256).max, "must not stay unbounded");
-    }
-
-    /// @dev The coordinator's `BfvParams` tuple, in the layout that `encodeBfvParams` in the
-    ///      Interfold deploy scripts produces.
-    struct BfvParams {
-        uint256 degree;
-        uint256 plaintextModulus;
-        uint256[] moduli;
-        string error1Variance;
-    }
-
-    /// @notice A request asserts the coordinator's crypto config id for the parameter set it
-    ///         requests, for both sets the protocol supports.
-    /// @dev `request` compares `expectedCryptoConfigId` with
-    ///      `ActiveCryptoConfig.configIdForParamSet(paramSet)`. The coordinator's
-    ///      `activeCryptoConfigId()` returns the secure id on every chain, so a plugin that asserted
-    ///      it on the insecure set had every Sepolia request revert `CryptoConfigChanged`. The
-    ///      encodings are the protocol's `BFV_PARAMS`, and the expected ids are its
-    ///      `INSECURE_CONFIG_ID` and `SECURE_CONFIG_ID` for circuit version `interfold-bfv-v4`.
-    function test_requestAssertsTheCryptoConfigOfItsParameterSet() public {
-        uint256[] memory insecureModuli = new uint256[](2);
-        insecureModuli[0] = 0xffffee001;
-        insecureModuli[1] = 0xffffc4001;
-        interfold.setParamSet(0, abi.encode(BfvParams(512, 100, insecureModuli, "3")));
-
-        uint256[] memory secureModuli = new uint256[](3);
-        secureModuli[0] = 0x0400000000c00001;
-        secureModuli[1] = 0x0400000000a40001;
-        secureModuli[2] = 0x0400000000990001;
-        interfold.setParamSet(
-            2, abi.encode(BfvParams(8192, 1000000, secureModuli, "17723039943798878305460955570711717478400"))
-        );
-
-        _create();
-        assertEq(interfold.lastParamSet(), 0);
-        assertEq(
-            interfold.lastExpectedCryptoConfigId(),
-            0x119c9bde7d7a31aaeef3e696ea29f8590c611d431921b6981434bd2c0fb5f7d1,
-            "insecure-512 config id"
-        );
-
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 2, bytes(""));
-        spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
-        _depositAs(creator, 100 ether);
-        vm.prank(sppAddr);
-        plugin.createProposal(
-            abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
-        );
-        assertEq(interfold.lastParamSet(), 2);
-        assertEq(
-            interfold.lastExpectedCryptoConfigId(),
-            0x5ebb3432396f21cd97fca47e006b9dd38c021bf2902d3e555cf74cb91b28e44e,
-            "secure-8192 config id"
-        );
     }
 
     // --- initialize -----------------------------------------------------------
@@ -467,12 +533,12 @@ contract CrispVotingViewsTest is Test {
         assertEq(interfold.lastComputeProviderParams(), bytes(""));
 
         vm.expectEmit(true, true, true, true, address(plugin));
-        emit E3SettingsUpdated(IInterfold.CommitteeSize.Small, 1, hex"beef");
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 1, hex"beef");
+        emit E3SettingsUpdated(IInterfold.CommitteeSize.Small, 2, hex"beef");
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 2, hex"beef");
 
         (IInterfold.CommitteeSize cs, uint8 ps, bytes memory cpp) = plugin.getE3Settings();
         assertEq(uint8(cs), uint8(IInterfold.CommitteeSize.Small));
-        assertEq(ps, 1);
+        assertEq(ps, 2);
         assertEq(cpp, hex"beef");
 
         // The NEXT proposal's E3 request carries the updated parameters. A fresh SPP sub-proposal
@@ -484,7 +550,7 @@ contract CrispVotingViewsTest is Test {
             abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
         assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Small));
-        assertEq(interfold.lastParamSet(), 1);
+        assertEq(interfold.lastParamSet(), 2);
         assertEq(interfold.lastComputeProviderParams(), hex"beef");
     }
 
@@ -797,7 +863,7 @@ contract CrispVotingViewsTest is Test {
     ///         TIMESTAMP, not a block number. Anything consuming `snapshotBlock` must treat
     ///         it as a token-clock unit.
     function test_snapshotUsesTheTokenClockWhenAvailable() public {
-        MockVotesToken clocked = new MockVotesToken(SUPPLY, 18);
+        MockVotesToken clocked = new MockVotesToken(SUPPLY);
         clocked.setClock(uint48(block.timestamp));
 
         plugin = _deploy(address(clocked), MIN_PARTICIPATION);

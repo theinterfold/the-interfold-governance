@@ -47,7 +47,7 @@ deferred); the final install is one `admin.executeProposal` signed by the founda
 - Stage 1: **5 days** foundation approval (approval mode: 2d + 3d summed into `maxAdvance`;
   silence past it = expiry = rejection). Both quorum and support are frozen per proposal at
   creation (INV-33).
-- E3: the secure-8192 parameter set (`PARAM_SET=1`) and the Small committee, 14 of 19
+- E3: the secure-8192 parameter set (`PARAM_SET=2`) and the Small committee, 14 of 19
   (`COMMITTEE_SIZE=2`). Mainnet accepts no other values.
 
 ---
@@ -87,7 +87,7 @@ Do these items in order. Items 1 and 2 are in the Interfold repository (`theinte
 
 7. Append the two printed `*_INSTALL_DATA` lines to `.env.mainnet` for the record.
 8. Verify the values that the two files embed: the program, the coordinator, BondedVotes, the repo
-   and build 3, the IPP metadata URI, 2% / 51% / 5 days, `PARAM_SET=1`, `COMMITTEE_SIZE=2` and the
+   and build 3, the IPP metadata URI, 2% / 51% / 5 days, `PARAM_SET=2`, `COMMITTEE_SIZE=2` and the
    RISC0 params.
 
 ### Step 1 — execute the two prepare transactions
