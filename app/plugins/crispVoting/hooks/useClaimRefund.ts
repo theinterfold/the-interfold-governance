@@ -2,13 +2,14 @@ import { useAccount, usePublicClient, useReadContract } from "wagmi";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseAbi, parseAbiItem, type Address } from "viem";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
 import { isRefundQueryStale } from "../utils/refundQuery";
 import { describeFailure } from "../utils/describeFailure";
 import { E3Stage } from "./useE3Status";
+import { usePrivatePair } from "./usePrivatePair";
 
 const refundClaimedEvent = parseAbiItem(
   "event RefundClaimed(uint256 indexed proposalId, uint256 indexed e3Id, address indexed payer, uint256 amount)"
@@ -66,6 +67,7 @@ const refundManagerAbi = parseAbi([
  */
 export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | undefined, enabled = true) {
   const { address } = useAccount();
+  const { body } = usePrivatePair();
   const client = usePublicClient();
   const [isClaiming, setIsClaiming] = useState(false);
   const [isClaimed, setIsClaimed] = useState<boolean | undefined>(undefined);
@@ -74,7 +76,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
 
   const { data: payer, refetch: refetchPayer } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "proposalPayer",
     args: [proposalId ?? 0n],
@@ -83,7 +85,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
 
   const { data: interfold } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: pluginAbi,
     functionName: "interfold",
     query: { enabled: active },
@@ -194,7 +196,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
       // on the proposal — one request instead of a scan from the deployment block per card.
       const claimed = (
         await fetchProposals({
-          plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+          plugin: body,
           fromBlock: PUB_DEPLOYMENT_BLOCK,
           proposalId,
           flags: ["refund_claimed"],
@@ -207,7 +209,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
       }
 
       const logs = await client.getLogs({
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         event: refundClaimedEvent,
         args: { proposalId },
         fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
@@ -221,7 +223,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
       if (isStale()) return;
       setIsClaimed(undefined);
     }
-  }, [client, proposalId]);
+  }, [body, client, proposalId]);
 
   useEffect(() => {
     activeProposalId.current = proposalId;
@@ -306,7 +308,7 @@ export function useClaimRefund(proposalId: bigint | undefined, e3Id: bigint | un
       const hash = await claimWrite({
         chainId: PUB_CHAIN.id,
         abi: CrispVotingAbi,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         functionName: "claimRefund",
         args: [proposalId],
       });

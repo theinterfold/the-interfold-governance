@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useBlockNumber, useReadContract } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
 import { getAbiItem, fromHex } from "viem";
@@ -15,6 +15,7 @@ import { CreditsMode } from "../utils/types";
 import { crispSdk } from "../utils/crispSdk";
 import { E3Stage, useE3Status } from "./useE3Status";
 import { e3Lifecycle, hasPublishedTally } from "../utils/e3Lifecycle";
+import { usePrivatePair } from "./usePrivatePair";
 
 type ProposalCreatedLogResponse = {
   args: {
@@ -44,6 +45,7 @@ export type ProposalSourceOverride = {
 };
 
 export function useProposal(proposalId: bigint, override?: ProposalSourceOverride) {
+  const { body } = usePrivatePair();
   const [creationEvent, setCreationEvent] = useState<ProposalCreatedLogResponse["args"]>();
   const [metadataUri, setMetadataUri] = useState<string>();
 
@@ -54,7 +56,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
     fetchStatus: proposalFetchStatus,
     refetch: refetchProposal,
   } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "getProposal",
     args: [proposalId],
@@ -66,7 +68,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
   // On-chain tally
   const { data: tallyResult, refetch: refetchTally } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "getTally",
     args: [proposalId],
@@ -168,7 +170,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
       // the deployment block on every proposal page.
       const match = (
         await fetchProposals({
-          plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+          plugin: body,
           fromBlock: PUB_DEPLOYMENT_BLOCK,
           proposalId,
         })
@@ -187,7 +189,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
       try {
         const logs = await publicClient.getLogs({
-          address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+          address: body,
           event: ProposalCreatedEvent,
           args: { proposalId },
           // INV-19: `snapshotBlock` is in the token's ERC-6372 clock units — a TIMESTAMP for
@@ -205,7 +207,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
         console.error("Could not fetch proposal creation event", err);
       }
     })();
-  }, [proposalId, snapshotBlock, creationEvent, override?.metadataUri]);
+  }, [body, proposalId, snapshotBlock, creationEvent, override?.metadataUri]);
 
   // JSON metadata
   const {

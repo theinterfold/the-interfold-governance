@@ -8,7 +8,8 @@ import { ActionButton } from "@/components/input/actionButton";
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
-import { SppProposalState, sppAddressFor } from "../utils/types";
+import { SppProposalState } from "../utils/types";
+import { useSppAddress } from "../hooks/useSppAddress";
 import { useSppAdvance } from "../hooks/useSppAdvance";
 import { useSppVeto } from "../hooks/useSppVeto";
 
@@ -19,11 +20,12 @@ const proposalExecutedEvent = parseAbiItem("event ProposalExecuted(uint256 index
 
 /** Tx hash of the SPP's ProposalExecuted event for this proposal, once executed. */
 function useExecutionTx(kind: SppKind, proposalId: bigint, executed: boolean) {
+  const address = useSppAddress(kind);
   const { data } = useQuery<string | null>({
-    queryKey: ["spp-execution-tx", kind, proposalId.toString()],
+    queryKey: ["spp-execution-tx", address, proposalId.toString()],
     queryFn: async () => {
       const logs = await publicClient.getLogs({
-        address: sppAddressFor(kind),
+        address,
         event: proposalExecutedEvent,
         args: { proposalId },
         fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),

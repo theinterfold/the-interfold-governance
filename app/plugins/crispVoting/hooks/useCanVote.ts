@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
 import { useEffect } from "react";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { classifyVoteEligibility } from "../utils/voteEligibility";
 import { getRoundEligibilityFloor } from "../utils/ballotDigest";
 import { publicClient } from "../utils/client";
@@ -22,10 +22,11 @@ import type { CanVoteResult } from "../utils/voteEligibility";
  */
 export function useCanVote(proposalId: bigint): CanVoteResult {
   const { address } = useAccount();
+  const { body } = usePrivatePair();
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const { data: proposalData } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "getProposal",
     args: [proposalId],
@@ -38,8 +39,8 @@ export function useCanVote(proposalId: bigint): CanVoteResult {
   // Fixed when the round is requested, so a later settings change cannot move it either.
   const e3Id = proposal?.e3Id;
   const { data: minimum } = useQuery({
-    queryKey: ["crisp-round-floor", e3Id?.toString()],
-    queryFn: () => getRoundEligibilityFloor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id!),
+    queryKey: ["crisp-round-floor", body, e3Id?.toString()],
+    queryFn: () => getRoundEligibilityFloor(publicClient, body, e3Id!),
     enabled: e3Id !== undefined,
     staleTime: Infinity,
   });
@@ -48,10 +49,7 @@ export function useCanVote(proposalId: bigint): CanVoteResult {
 
   // The voting token comes from `useVotingToken` (the plugin, with the configured source as a
   // fallback), and the read is pinned to the proposal's snapshot.
-  const { votingPower: pastVotes, refetch: refreshPastVotes } = useSnapshotVotingPower(
-    PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-    snapshotBlock
-  );
+  const { votingPower: pastVotes, refetch: refreshPastVotes } = useSnapshotVotingPower(body, snapshotBlock);
 
   useEffect(() => {
     refreshPastVotes();

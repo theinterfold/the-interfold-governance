@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { erc20Abi, formatUnits } from "viem";
 import { useAccount, usePublicClient, useReadContract } from "wagmi";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_INTERFOLD_FEE_TOKEN_ADDRESS } from "@/constants";
+import { PUB_CHAIN, PUB_INTERFOLD_FEE_TOKEN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
 import { describeFailure } from "../utils/describeFailure";
+import { usePrivatePair } from "./usePrivatePair";
 
 /** Extra margin applied when depositing a fee-credit shortfall (10%). */
 const FEE_BUFFER_PERCENT = 10n;
@@ -19,6 +20,7 @@ const FEE_BUFFER_PERCENT = 10n;
  */
 export function useFeeCredits(chosenDurationSeconds?: number) {
   const { address } = useAccount();
+  const { body } = usePrivatePair();
   const client = usePublicClient();
   const [isDepositing, setIsDepositing] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -40,7 +42,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     refetch: refetchQuote,
   } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "quoteProposalFeeForDuration",
     args: [BigInt(chosenDurationSeconds ?? 0)],
@@ -53,7 +55,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
     refetch: refetchCredit,
   } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "feeCredits",
     args: [address!],
@@ -200,7 +202,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
         abi: iVotesAbi,
         address: PUB_INTERFOLD_FEE_TOKEN_ADDRESS,
         functionName: "approve",
-        args: [PUB_CRISP_VOTING_PLUGIN_ADDRESS, amount],
+        args: [body, amount],
       });
       // A reverted approval must stop the flow: the deposit that follows would fail anyway.
       await awaitSuccessfulReceipt(client, approveTx, "The fee-token approval");
@@ -208,7 +210,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       const depositTx = await depositWrite({
         chainId: PUB_CHAIN.id,
         abi: CrispVotingAbi,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         functionName: "deposit",
         args: [amount],
       });
@@ -241,7 +243,7 @@ export function useFeeCredits(chosenDurationSeconds?: number) {
       const tx = await withdrawWrite({
         chainId: PUB_CHAIN.id,
         abi: CrispVotingAbi,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         functionName: "withdraw",
         args: [value],
       });

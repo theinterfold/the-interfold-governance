@@ -5,7 +5,8 @@ import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
-import { SPP_PROPOSAL_WITHOUT_ID, SppProposalState, sppAddressFor } from "../utils/types";
+import { SPP_PROPOSAL_WITHOUT_ID, SppProposalState } from "../utils/types";
+import { useSppAddress } from "./useSppAddress";
 import { useSppStages } from "./useSppStages";
 
 import type { AbiEvent, Address, Hex } from "viem";
@@ -23,7 +24,7 @@ export const SppProposalCreatedEvent = getAbiItem({
  * URI + creator from the SPP's ProposalCreated event.
  */
 export function useSppProposal(kind: SppKind, proposalId: bigint) {
-  const address = sppAddressFor(kind);
+  const address = useSppAddress(kind);
   const [metadataUri, setMetadataUri] = useState<string>();
   const [creator, setCreator] = useState<string>();
 

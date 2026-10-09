@@ -1,7 +1,8 @@
 import { useAccount, useReadContracts } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CHAIN } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { bondedVotesAbi } from "@/artifacts/bondedVotes";
 import { zeroAddress, type Address } from "viem";
 
@@ -37,19 +38,20 @@ export type CanCreateProposal = {
  */
 export function useCanCreateProposal(): CanCreateProposal {
   const { address } = useAccount();
+  const { body } = usePrivatePair();
 
   // Phase 1: read the plugin config (min power + voting token address).
   const { data: pluginReads, isLoading: pluginLoading } = useReadContracts({
     contracts: [
       {
         chainId: PUB_CHAIN.id,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         abi: CrispVotingAbi,
         functionName: "minProposerVotingPower",
       },
       {
         chainId: PUB_CHAIN.id,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: body,
         abi: CrispVotingAbi,
         functionName: "getVotingToken",
       },

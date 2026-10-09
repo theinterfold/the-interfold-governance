@@ -243,7 +243,7 @@ This is the path the mainnet Interfold DAO took. Its state at the start:
 | What                | Address                                      |
 | ------------------- | -------------------------------------------- |
 | DAO (OSx 1.4.0)     | `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
-| Admin plugin        | `0xf21E25455988887ee797050080141EBa67b33920` |
+| Admin plugin        | `0xF21e25455988887EE797050080141eba67B33920` |
 | Foundation Safe (stage-1 body) | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` (3-of-5) |
 | Admin-bootstrap driver         | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` — rotation from `0x5429D8C7…fC018` started; its revoke is outstanding (INV-31) |
 | FOLD (raw)          | `0xE172e9B6cfBeeB5593bDcE3f077356FDb33af904` |
@@ -410,19 +410,26 @@ cast call $TOKEN_VOTING_PLUGIN_ADDRESS "getVotingToken()(address)" --rpc-url $M
 Runs against the live DAO once the mainnet CRISP stack exists. The DAO, FOLD, public process and
 all history are untouched.
 
+> **The mainnet DAO already has a private process.** It was installed on 2026-09-18 from CRISP
+> build 2, and it cannot run on Interfold v0.19. To replace it, use
+> [private-install-runbook.md](./private-install-runbook.md). The foundation Safe installs build 3
+> and removes the powers of the old pair in one transaction. The steps below are for a first
+> install from an EOA.
+
 ### Preconditions
 
-- [ ] Mainnet Interfold E3 coordinator on the v3 crypto configuration: the Interfold repo's
-      `upgrade:secure-crisp` batch executed and validated, so `activeCryptoConfigId()` returns
-      `0x3115e08eb5c87d6d245eda5dff0cf377c42e29b9741f94fc7a83efc3da7da920`. `INTERFOLD_ADDRESS` set.
-- [ ] Mainnet CRISP program deployed from the same Interfold source as the `@crisp-e3` release that
-      the CRISP server and the app use, and registered (`e3Programs(program)` returns `true`).
-      `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server requests
-      E3s against**.
+- [ ] Mainnet Interfold E3 coordinator on v0.19: the Interfold repo's `upgrade:v19` batch executed
+      and validated, so `activeCryptoConfigId()` returns
+      `0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa`. `INTERFOLD_ADDRESS` set.
+- [ ] Mainnet OpenVM CRISP program deployed and registered (`e3Programs(program)` returns `true`).
+      It comes from the Interfold source of the `@crisp-e3` release that the CRISP server and the
+      app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server
+      requests E3s against**.
 - [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
       In the existing mainnet repo that is build 3 ([why](./publish-crisp-build.md#why-build-3)).
 - [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
       and `PARAM_SET=2` (secure-8192): the mainnet policy rejects other values.
+- [ ] `COMPUTE_PROVIDER_PARAMS` names the OpenVM compute provider.
 - [ ] CRISP server configured for mainnet. Quorum and the app read each round's recorded
       `votingPowerDivisorOf(e3Id)` from the CRISP program, so there is no scaling factor to keep
       in step by hand ([INV-16](../AGENTS.md#cross-boundary-sync-contract--server--app)).

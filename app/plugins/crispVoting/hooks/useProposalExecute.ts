@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useReadContract } from "wagmi";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { useRouter } from "next/router";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CHAIN } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { DaoAbi } from "@/artifacts/DAO.sol";
 
 export function useProposalExecute(proposalId: bigint) {
   const { reload } = useRouter();
+  const { body } = usePrivatePair();
   const [isExecuting, setIsExecuting] = useState(false);
 
   const {
@@ -15,7 +17,7 @@ export function useProposalExecute(proposalId: bigint) {
     isError: isCanVoteError,
     isLoading: isCanVoteLoading,
   } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     chainId: PUB_CHAIN.id,
     functionName: "canExecute",
@@ -46,7 +48,7 @@ export function useProposalExecute(proposalId: bigint) {
     writeContract({
       chainId: PUB_CHAIN.id,
       abi: CrispVotingAbi.concat(DaoAbi as any),
-      address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+      address: body,
       functionName: "execute",
       args: [BigInt(proposalId)],
     });

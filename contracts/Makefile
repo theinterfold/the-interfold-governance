@@ -71,10 +71,12 @@ install-private-process: ## Phase 2 step 3: Admin applies both installs + wires 
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
 		--rpc-url $$RPC_URL --broadcast --slow -vvvv
 
+# --rpc-url is load-bearing: Utils.validateDeploymentPolicy gates on block.chainid, and a script
+# run without it executes on chain 31337, so a mainnet env would skip the policy check.
 print-crisp-install-data: ## Print CRISP + private-SPP install params for the Safe-only prepare flow (no broadcast)
 	set -a; . ./$(ENV_FILE); set +a; \
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript \
-		--sig "printInstallData()"
+		--sig "printInstallData()" --rpc-url $$RPC_URL
 
 print-private-actions: ## Print the phase-2 actions as proposal calldata (no broadcast; use if Admin is already disarmed)
 	set -a; . ./$(ENV_FILE); set +a; \
@@ -130,17 +132,20 @@ read-prepared: ## Print the <PREFIX>_* env lines from a prepare transaction rece
 # Emitted as ONE file: stages without grants, or grants without stages, is a broken process.
 # ONE command once CRISP_PROGRAM_ADDRESS + SPP_PRIVATE_METADATA_URI are in the env: generates
 # the install data and emits BOTH prepare Safe files (22 + 23). Nothing broadcasts.
+# Stops at the first failure: an env file that already carries *_INSTALL_DATA from an earlier
+# install would otherwise feed those stale values into the prepare files.
 safe-prepare-private: ## Phase 2: install data + both prepare Safe files, in one command
 	set -a; . ./$(ENV_FILE); set +a; mkdir -p safe-actions; \
 	test -n "$$CRISP_PROGRAM_ADDRESS" || { echo "ERROR: set CRISP_PROGRAM_ADDRESS in $(ENV_FILE) first"; exit 1; }; \
 	test -n "$$SPP_PRIVATE_METADATA_URI" || { echo "ERROR: set SPP_PRIVATE_METADATA_URI in $(ENV_FILE) first (pin metadata/private-process.json)"; exit 1; }; \
 	forge script script/InstallPrivateProcess.s.sol:InstallPrivateProcessScript --sig "printInstallData()" \
-		| grep -E "(CRISP|SPP_PRIVATE)_INSTALL_DATA=" | sed 's/^ *//' > .install-data.tmp; \
+		--rpc-url $$RPC_URL > .install-data.log 2>&1 || { cat .install-data.log; rm -f .install-data.log; exit 1; }; \
+	grep -E "(CRISP|SPP_PRIVATE)_INSTALL_DATA=" .install-data.log | sed 's/^ *//' > .install-data.tmp; rm -f .install-data.log; \
 	echo "--- install data (also append these two lines to $(ENV_FILE) for the record) ---"; \
 	cat .install-data.tmp; \
 	set -a; . ./.install-data.tmp; set +a; rm -f .install-data.tmp; \
 	PLUGIN_PREFIX=CRISP PLUGIN_SLUG=22-prepare-crisp \
-	forge script script/SafeActions.s.sol:SafeActionsScript --sig "prepareInstall()" --rpc-url $$RPC_URL; \
+	forge script script/SafeActions.s.sol:SafeActionsScript --sig "prepareInstall()" --rpc-url $$RPC_URL && \
 	PLUGIN_PREFIX=SPP_PRIVATE PLUGIN_SLUG=23-prepare-spp-private \
 	forge script script/SafeActions.s.sol:SafeActionsScript --sig "prepareInstall()" --rpc-url $$RPC_URL
 

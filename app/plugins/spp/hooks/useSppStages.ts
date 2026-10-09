@@ -1,7 +1,7 @@
 import { useReadContract } from "wagmi";
 import { PUB_CHAIN } from "@/constants";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
-import { sppAddressFor } from "../utils/types";
+import { useSppAddress } from "./useSppAddress";
 
 import type { SppKind, SppStage } from "../utils/types";
 
@@ -11,7 +11,7 @@ import type { SppKind, SppStage } from "../utils/types";
  * pass `proposal.stageConfigIndex` to read the config a proposal was created with.
  */
 export function useSppStages(kind: SppKind, configIndex?: number) {
-  const address = sppAddressFor(kind);
+  const address = useSppAddress(kind);
 
   const { data: currentConfigIndex } = useReadContract({
     chainId: PUB_CHAIN.id,

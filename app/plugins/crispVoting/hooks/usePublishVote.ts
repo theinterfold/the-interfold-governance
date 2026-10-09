@@ -1,9 +1,10 @@
 import { usePublicClient, useReadContract } from "wagmi";
 import { parseAbi, type Address, type Hex } from "viem";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CHAIN } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { awaitSuccessfulReceipt } from "../utils/awaitReceipt";
 import { E3Stage } from "./useE3Status";
+import { usePrivatePair } from "./usePrivatePair";
 import { isVotingOpenAt } from "../utils/votingSchedule";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
@@ -68,11 +69,12 @@ export type PublishVote = {
  */
 export function usePublishVote(e3Id: bigint | undefined): PublishVote {
   const client = usePublicClient();
+  const { body } = usePrivatePair();
   const enabled = e3Id !== undefined;
 
   const { data: interfold } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: pluginAbi,
     functionName: "interfold",
     query: { enabled },
@@ -188,7 +190,9 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
         args: [e3Id],
       });
       if (live.e3Program.toLowerCase() !== options.expectedProgram.toLowerCase()) {
-        throw new Error("The prepared ballot belongs to a different voting program. Discard it and prepare a new vote.");
+        throw new Error(
+          "The prepared ballot belongs to a different voting program. Discard it and prepare a new vote."
+        );
       }
       program = live.e3Program;
     }

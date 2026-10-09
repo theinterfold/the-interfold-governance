@@ -3,7 +3,8 @@ import { useRouter } from "next/router";
 import { PUB_CHAIN } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
-import { SppResultType, sppAddressFor } from "../utils/types";
+import { SppResultType } from "../utils/types";
+import { useSppAddress } from "./useSppAddress";
 
 import type { SppKind } from "../utils/types";
 
@@ -17,7 +18,7 @@ const VETO_STAGE_ID = 1;
  */
 export function useSppVeto(kind: SppKind, proposalId: bigint) {
   const { reload } = useRouter();
-  const address = sppAddressFor(kind);
+  const address = useSppAddress(kind);
   const [isReporting, setIsReporting] = useState(false);
   const [resultLabel, setResultLabel] = useState<"vetoed" | "approved">("vetoed");
 
