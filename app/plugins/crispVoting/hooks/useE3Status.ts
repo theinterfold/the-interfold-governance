@@ -3,7 +3,8 @@ import { useReadContract } from "wagmi";
 import { parseAbi } from "viem";
 import type { Address } from "viem";
 import { interfoldViewsAbi } from "../artifacts/interfoldViews";
-import { PUB_CHAIN_ID, PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { PUB_CHAIN_ID } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 
 /** Lifecycle stages of an E3 computation (mirrors IInterfold.E3Stage). */
 export enum E3Stage {
@@ -72,11 +73,12 @@ export function describeE3Failure(reason: E3FailureReason | undefined): string {
  * these reads.
  */
 export function useE3Status(e3Id: bigint | undefined, enabled = true) {
+  const { body } = usePrivatePair();
   const active = enabled && e3Id !== undefined;
 
   const { data: interfold } = useReadContract({
     chainId: PUB_CHAIN_ID,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: pluginAbi,
     functionName: "interfold",
     query: { enabled: active },

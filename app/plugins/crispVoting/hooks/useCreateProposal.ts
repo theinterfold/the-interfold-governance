@@ -4,12 +4,7 @@ import { encodeAbiParameters, encodeFunctionData, type Hex, parseAbi, parseAbiPa
 import { getCapabilities, sendCalls, waitForCallsStatus } from "viem/actions";
 import { useConfig, useReadContract } from "wagmi";
 import { getConnectorClient, readContract } from "wagmi/actions";
-import {
-  MINIMUM_START_DELAY_IN_SECONDS,
-  PUB_CHAIN,
-  PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_SPP_PRIVATE_ADDRESS,
-} from "@/constants";
+import { MINIMUM_START_DELAY_IN_SECONDS, PUB_CHAIN } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
@@ -21,6 +16,7 @@ import { decodeTxError } from "@/utils/tx-errors";
 import type { ProposalMetadata } from "@/utils/types";
 import { waitForWalletSync } from "@/utils/wallet-sync";
 import { useFeeCredits } from "./useFeeCredits";
+import { usePrivatePair } from "./usePrivatePair";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { scheduleVotingStart } from "../utils/votingSchedule";
 
@@ -45,6 +41,7 @@ const interfoldGuardAbi = parseAbi(["function nexte3Id() view returns (uint256)"
 export function useCreateProposal(draft?: ProposalDraft) {
   const { push } = useRouter();
   const config = useConfig();
+  const pair = usePrivatePair();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
   const localDraft = useProposalDraft();
@@ -71,14 +68,14 @@ export function useCreateProposal(draft?: ProposalDraft) {
 
   const { data: earliestVotingStartData } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: pair.body,
     abi: CrispVotingAbi,
     functionName: "earliestVotingStart",
   });
 
   const { data: availabilityWindowData } = useReadContract({
     chainId: PUB_CHAIN.id,
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: pair.body,
     abi: CrispVotingAbi,
     functionName: "availabilityFinalizationWindow",
   });
@@ -124,7 +121,7 @@ export function useCreateProposal(draft?: ProposalDraft) {
     try {
       const interfold = await readContract(config, {
         chainId: PUB_CHAIN.id,
-        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        address: pair.body,
         abi: CrispVotingAbi,
         functionName: "interfold",
       });
@@ -138,7 +135,7 @@ export function useCreateProposal(draft?: ProposalDraft) {
       const { id } = await sendCalls(wallet, {
         forceAtomic: true,
         calls: [
-          { to: PUB_SPP_PRIVATE_ADDRESS, data: createProposalData },
+          { to: pair.spp, data: createProposalData },
           {
             to: interfold,
             data: encodeFunctionData({ abi: interfoldGuardAbi, functionName: "getE3", args: [nextE3Id] }),
@@ -255,7 +252,7 @@ export function useCreateProposal(draft?: ProposalDraft) {
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
         abi: StagedProposalProcessorAbi,
-        address: PUB_SPP_PRIVATE_ADDRESS,
+        address: pair.spp,
         functionName: "createProposal",
         args: createArgs,
         gas: CREATE_PROPOSAL_GAS_LIMIT,

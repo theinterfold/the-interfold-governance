@@ -1,6 +1,7 @@
 import { voteEvidence } from "../utils/voteEvidence";
 import { ballotWeightPercentage, chooseBallotWeight, reviewedVote, type BallotWeight } from "../utils/ballotWeight";
-import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
@@ -68,6 +69,7 @@ function toKeyBytes(value: unknown): Uint8Array | undefined {
 }
 
 async function resolveVoteBalance(
+  body: `0x${string}`,
   e3Id: bigint,
   address: string,
   roundState: IRoundDetailsResponse,
@@ -78,7 +80,7 @@ async function resolveVoteBalance(
   // match the server's merkle tree. Falls back to the configured source if the read fails.
   const votingToken = ((await publicClient
     .readContract({
-      address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+      address: body,
       abi: votingTokenAbi,
       functionName: "getVotingToken",
     })
@@ -91,7 +93,7 @@ async function resolveVoteBalance(
   const constant = roundState.credit_mode === CreditsMode.CONSTANT;
   // Raw token units in one ballot unit: the divisor the CRISP program recorded for the round, never
   // derived from the token's decimals. The verifier scales by exactly this number.
-  const unit = constant ? 1n : await getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+  const unit = constant ? 1n : await getVotingPowerDivisor(publicClient, body, e3Id);
   if (unit === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
 
   let adjustedBalance: bigint;
@@ -243,6 +245,7 @@ export interface BroadcastVoteRequest {
  */
 export function useCrispServer(e3Id?: bigint): CrispServerState {
   const { address, chainId: walletChainId, connector } = useAccount();
+  const { body } = usePrivatePair();
   const { switchChainAsync } = useSwitchChain();
   const { addAlert } = useAlerts();
 
@@ -260,9 +263,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   // A ballot that this browser signed and staged, for a different wallet to send. It is keyed by
   // chain, plugin and round, not by wallet, so it survives the wallet switch.
   const pending = usePreparedBallot(
-    e3Id === undefined
-      ? undefined
-      : { chainId: PUB_CHAIN.id, plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS, roundId: e3Id.toString() }
+    e3Id === undefined ? undefined : { chainId: PUB_CHAIN.id, plugin: body, roundId: e3Id.toString() }
   );
   const [preparedReceipt, setPreparedReceipt] = useState<PreparedVoteReceipt | null>(null);
   useEffect(() => {
@@ -380,9 +381,10 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     async (randomize: boolean): Promise<BallotWeight> => {
       if (e3Id === undefined || !address) throw new Error("Connect your wallet before reviewing a ballot.");
       const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
-      const program = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+      const program = await resolveCrispProgram(publicClient, body, e3Id);
       const census = await getCensusMode(publicClient, program, e3Id);
       const { available, power, unit, decimals } = await resolveVoteBalance(
+        body,
         e3Id,
         address,
         roundState,
@@ -399,7 +401,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         decimals,
       };
     },
-    [e3Id, address]
+    [body, e3Id, address]
   );
 
   const handleVote = async (
@@ -410,7 +412,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     crispProgram: `0x${string}` | undefined,
     weight: BallotWeight | undefined
   ): Promise<VoteData> => {
-    const { available } = await resolveVoteBalance(e3Id, address!, roundState, crispProgram);
+    const { available } = await resolveVoteBalance(body, e3Id, address!, roundState, crispProgram);
     return {
       vote: reviewedVote(weight, available, e3Id, address!, Number(voteOption), numOptions),
       // Eligibility still proves the FULL balance. Only the encrypted choice is reduced.
@@ -474,7 +476,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       const evidenceScope = {
         chainId: PUB_CHAIN.id,
-        plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        plugin: body,
         roundId: e3Id,
         voter: address,
       };
@@ -519,7 +521,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       // Resolved before the ballot is built: an ONCHAIN round takes its weight from this contract
       // rather than from a census, so the program has to be known first.
-      const crispProgram = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+      const crispProgram = await resolveCrispProgram(publicClient, body, e3Id);
       const censusMode = await getCensusMode(publicClient, crispProgram, e3Id);
       const isOnchainCensus = censusMode === CensusMode.ONCHAIN;
 
@@ -746,7 +748,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         if (commitmentDeadline === undefined) throw new Error("The voting deadline has not loaded yet. Try again.");
         pending.save(
           buildPreparedBallot({
-            scope: { chainId: PUB_CHAIN.id, plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS, roundId: e3Id.toString() },
+            scope: { chainId: PUB_CHAIN.id, plugin: body, roundId: e3Id.toString() },
             voter: address,
             program: crispProgram,
             attestedPayload: step.payload as Hex,

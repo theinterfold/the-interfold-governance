@@ -60,6 +60,10 @@ NEXT_PUBLIC_SPP_PUBLIC_ADDRESS=           # PUBLIC process (wraps TokenVoting)
 NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS=  # PRIVATE body
 NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS=  # PUBLIC body
 
+# Optional: a private pair that a replacement install retired. Its proposals stay readable.
+NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS=
+NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS=
+
 # Indexing / network
 NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK=      # block to start event queries from (speeds up loading)
 NEXT_PUBLIC_SECONDS_PER_BLOCK=12
@@ -80,6 +84,7 @@ Field notes:
 - `NEXT_PUBLIC_TOKEN_ADDRESS` — FOLD, the ERC20Votes token both plugins read voting power from.
 - `NEXT_PUBLIC_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_SPP_PUBLIC_ADDRESS` — the two SPP processes proposals are created on and the list scans for `ProposalCreated` events.
 - `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS` / `NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS` — the stage-0 bodies, resolved (via `getBodyProposalId`) to render each proposal's voting UI. Either pair may be empty if only one process is deployed; the UI adapts.
+- `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: optional. The private pair that a replacement install retired. The list and the proposal page still show its proposals. Set both or neither, as checksummed addresses.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS` / `NEXT_PUBLIC_CRISP_SERVER_URL` — only used by the private (CRISP) flow.
 - `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` — set to the DAO/plugin deployment block to avoid scanning from genesis.
 - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — from [WalletConnect](https://walletconnect.com/).

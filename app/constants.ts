@@ -46,6 +46,12 @@ export const PUB_TOKEN_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_TOKEN_VO
 // Staged Proposal Processor (SPP) instances — proposals are created here; the bodies above are stage-0 sub-bodies.
 export const PUB_SPP_PRIVATE_ADDRESS = (process.env.NEXT_PUBLIC_SPP_PRIVATE_ADDRESS ?? "") as Address;
 export const PUB_SPP_PUBLIC_ADDRESS = (process.env.NEXT_PUBLIC_SPP_PUBLIC_ADDRESS ?? "") as Address;
+// The private pair (SPP + CRISP body) that a replacement install retired. It accepts no new
+// proposal, but its proposals stay readable, so the list and the detail page still show them.
+// Unset when no private pair was ever replaced.
+export const PUB_RETIRED_SPP_PRIVATE_ADDRESS = (process.env.NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS ?? "") as Address;
+export const PUB_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS = (process.env.NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS ??
+  "") as Address;
 export const PUB_CRISP_SERVER_URL = (process.env.NEXT_PUBLIC_CRISP_SERVER_URL ?? "") as string;
 // The CRISP program (Crisp.sol). `CrispVoting` stores it privately with no getter, so the
 // app needs it from env to read a round's on-chain data (merkle root, numOptions, ...).

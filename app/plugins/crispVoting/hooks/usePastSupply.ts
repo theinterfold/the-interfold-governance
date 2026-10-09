@@ -1,4 +1,4 @@
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { useVotingToken } from "@/hooks/useVotingToken";
 import { useReadContract } from "wagmi";
 import { parseAbi } from "viem";
@@ -9,7 +9,8 @@ export function usePastSupply(snapshotBlock: bigint | undefined) {
   // Quorum is a fraction of the VOTING token's supply, which is what the plugin and the server
   // both measure. Asked of the plugin rather than read from env, so a deployment whose voting
   // token differs from the configured one cannot size quorum against the wrong supply.
-  const votingToken = useVotingToken(PUB_CRISP_VOTING_PLUGIN_ADDRESS);
+  const { body } = usePrivatePair();
+  const votingToken = useVotingToken(body);
 
   const { data: pastSupply } = useReadContract({
     address: votingToken,

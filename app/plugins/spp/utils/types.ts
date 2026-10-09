@@ -1,14 +1,8 @@
-import { PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS } from "@/constants";
-
 import type { Address } from "viem";
 import type { RawAction } from "@/utils/types";
 
 /** Which SPP instance a proposal lives on. */
 export type SppKind = "private" | "public";
-
-export function sppAddressFor(kind: SppKind): Address {
-  return kind === "private" ? PUB_SPP_PRIVATE_ADDRESS : PUB_SPP_PUBLIC_ADDRESS;
-}
 
 /** SPP body proposal id sentinel — sub-proposal creation on the body failed. */
 export const SPP_PROPOSAL_WITHOUT_ID = BigInt("0x" + "ff".repeat(32));

@@ -3,7 +3,7 @@ import { usePublicClient } from "wagmi";
 // viem's `hexToBytes` validates its input; a hand-rolled per-byte `Number.parseInt` yields NaN on
 // malformed hex, which a `Uint8Array` silently stores as 0.
 import { hexToBytes, parseAbi, parseAbiItem, type Address, type Hex } from "viem";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import {
   decodeParamSet,
   isCommitteeKeyAuthentic,
@@ -12,6 +12,7 @@ import {
 } from "../utils/committeeKey";
 import type { ThresholdBfvParamsPresetName } from "@interfold/sdk";
 import { getPastBlockNumberAtTimestamp } from "../utils/blockAtTimestamp";
+import { usePrivatePair } from "./usePrivatePair";
 
 const pluginAbi = parseAbi(["function interfold() view returns (address)"]);
 
@@ -66,6 +67,7 @@ export type CommitteeKeyResolution = {
  */
 export function useCommitteeKeyCheck(e3Id: bigint | undefined) {
   const client = usePublicClient();
+  const { body } = usePrivatePair();
 
   return useCallback(
     async (serverKey?: Uint8Array): Promise<CommitteeKeyResolution> => {
@@ -74,7 +76,7 @@ export function useCommitteeKeyCheck(e3Id: bigint | undefined) {
 
       try {
         const interfold = (await client.readContract({
-          address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+          address: body,
           abi: pluginAbi,
           functionName: "interfold",
         })) as Address;
@@ -127,7 +129,7 @@ export function useCommitteeKeyCheck(e3Id: bigint | undefined) {
         return { reason: `The committee public key could not be verified (${message}).` };
       }
     },
-    [client, e3Id]
+    [body, client, e3Id]
   );
 }
 

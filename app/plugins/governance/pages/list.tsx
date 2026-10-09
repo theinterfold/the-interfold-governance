@@ -17,6 +17,11 @@ import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
+import {
+  INSTALLED_PRIVATE_PAIR,
+  PrivatePairProvider,
+  RETIRED_PRIVATE_PAIR,
+} from "@/plugins/crispVoting/hooks/usePrivatePair";
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 import { PrivateRow } from "../components/privateRow";
 import { PublicRow } from "../components/publicRow";
@@ -24,9 +29,12 @@ import { publicClient } from "../utils/client";
 import { STATUS_BUCKETS, matchesStatusFilter } from "../utils/statusBucket";
 
 import type { StatusBucket, StatusFilter } from "../utils/statusBucket";
+import type { PrivatePair } from "@/plugins/crispVoting/hooks/usePrivatePair";
 
 type Kind = "private" | "public";
-type Entry = { kind: Kind; id: bigint; block: bigint };
+/** A private entry carries the pair it was found on: the installed one or a retired one. */
+type Entry = { kind: Kind; id: bigint; block: bigint; pair?: PrivatePair };
+type Source = { key: string; kind: Kind; address: `0x${string}`; pair?: PrivatePair };
 
 const FILTERS: { label: string; value: "all" | Kind }[] = [
   { label: "All voting methods", value: "all" },
@@ -80,7 +88,7 @@ export default function Proposals() {
   const [statuses, setStatuses] = useState<Record<string, StatusBucket | undefined>>({});
   // Each processor advances only after its own read succeeds. A failed public scan
   // must not cause the next block to skip public proposals while private succeeds.
-  const lastFetchedBlock = useRef<Partial<Record<Kind, bigint>>>({});
+  const lastFetchedBlock = useRef<Partial<Record<string, bigint>>>({});
 
   const reportStatus = useCallback((key: string, bucket: StatusBucket | undefined) => {
     setStatuses((prev) => (prev[key] === bucket ? prev : { ...prev, [key]: bucket }));
@@ -93,18 +101,21 @@ export default function Proposals() {
   const fetchProposals = useCallback(async () => {
     if (!blockNumber || !PUB_DEPLOYMENT_BLOCK) return;
 
-    // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals).
-    const sources: { kind: Kind; address: `0x${string}`; event: typeof SppProposalCreatedEvent }[] = [];
+    // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals). A
+    // retired private pair stays a source: its proposals are history that the DAO still shows.
+    const sources: Source[] = [];
     if (isAddress(PUB_SPP_PRIVATE_ADDRESS))
-      sources.push({ kind: "private", address: PUB_SPP_PRIVATE_ADDRESS, event: SppProposalCreatedEvent });
+      sources.push({ key: "private", kind: "private", address: PUB_SPP_PRIVATE_ADDRESS, pair: INSTALLED_PRIVATE_PAIR });
+    if (RETIRED_PRIVATE_PAIR)
+      sources.push({ key: "retired", kind: "private", address: RETIRED_PRIVATE_PAIR.spp, pair: RETIRED_PRIVATE_PAIR });
     if (isAddress(PUB_SPP_PUBLIC_ADDRESS))
-      sources.push({ kind: "public", address: PUB_SPP_PUBLIC_ADDRESS, event: SppProposalCreatedEvent });
+      sources.push({ key: "public", kind: "public", address: PUB_SPP_PUBLIC_ADDRESS });
 
     try {
       setIsLoading(true);
       const perSource = await Promise.allSettled(
-        sources.map(async ({ kind, address, event }) => {
-          const lastBlock = lastFetchedBlock.current[kind];
+        sources.map(async ({ key, kind, address, pair }) => {
+          const lastBlock = lastFetchedBlock.current[key];
           const fromBlock = lastBlock === undefined ? BigInt(PUB_DEPLOYMENT_BLOCK) : lastBlock + 1n;
           if (fromBlock > blockNumber) return [] as Entry[];
           // One request per SPP instead of a log walk each, and the answer is the whole list
@@ -112,16 +123,21 @@ export default function Proposals() {
           const fromServer = await fetchProposalsFromServer({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK });
           if (fromServer) {
             return fromServer.map(
-              (proposal) => ({ kind, id: BigInt(proposal.proposal_id), block: BigInt(proposal.block) }) as Entry
+              (proposal) => ({ kind, id: BigInt(proposal.proposal_id), block: BigInt(proposal.block), pair }) as Entry
             );
           }
 
           if (!publicClient) throw new Error("Proposal RPC is unavailable");
-          const logs = await publicClient.getLogs({ address, event, fromBlock, toBlock: blockNumber });
+          const logs = await publicClient.getLogs({
+            address,
+            event: SppProposalCreatedEvent,
+            fromBlock,
+            toBlock: blockNumber,
+          });
           return logs
             .map((log) => {
               const id = (log.args as { proposalId?: bigint })?.proposalId;
-              return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n } as Entry);
+              return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n, pair } as Entry);
             })
             .filter((e): e is Entry => e !== null);
         })
@@ -130,14 +146,14 @@ export default function Proposals() {
       const fresh: Entry[] = [];
       let failed = false;
       perSource.forEach((result, index) => {
-        const kind = sources[index].kind;
+        const { key } = sources[index];
         if (result.status === "rejected") {
           failed = true;
-          console.error(`Could not fetch ${kind} proposals`, result.reason);
+          console.error(`Could not fetch ${key} proposals`, result.reason);
           return;
         }
-        const prior = lastFetchedBlock.current[kind];
-        if (prior === undefined || blockNumber > prior) lastFetchedBlock.current[kind] = blockNumber;
+        const prior = lastFetchedBlock.current[key];
+        if (prior === undefined || blockNumber > prior) lastFetchedBlock.current[key] = blockNumber;
         fresh.push(...result.value);
       });
       setError(failed ? "Some proposals could not be loaded." : null);
@@ -323,7 +339,9 @@ export default function Proposals() {
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
                       {e.kind === "private" ? (
-                        <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                        <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
+                          <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                        </PrivatePairProvider>
                       ) : (
                         <PublicRow proposalId={e.id} {...rowHandlers[key]} />
                       )}

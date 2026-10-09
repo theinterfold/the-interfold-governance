@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
+import { usePrivatePair } from "./usePrivatePair";
 import { getVotingPowerDivisor } from "../utils/ballotDigest";
 import { publicClient } from "../utils/client";
 
@@ -12,9 +12,10 @@ import { publicClient } from "../utils/client";
  * requested, so it is cached for good.
  */
 export function useVotingPowerDivisor(e3Id: bigint | undefined): bigint | undefined {
+  const { body } = usePrivatePair();
   const { data } = useQuery({
-    queryKey: ["crisp-voting-power-divisor", e3Id?.toString()],
-    queryFn: () => getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id!),
+    queryKey: ["crisp-voting-power-divisor", body, e3Id?.toString()],
+    queryFn: () => getVotingPowerDivisor(publicClient, body, e3Id!),
     enabled: e3Id !== undefined,
     staleTime: Infinity,
   });

@@ -1,7 +1,8 @@
 import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAbiItem, type Address } from "viem";
-import { PUB_CHAIN, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
+import { usePrivatePair } from "../hooks/usePrivatePair";
 import { fetchRoundInputs } from "@/utils/crispIndexer";
 import { publicClient } from "../utils/client";
 import { crispSdk } from "../utils/crispSdk";
@@ -46,9 +47,9 @@ type RoundScope = { program: Address; inputStart: bigint; inputEnd: bigint };
 
 const roundScopeKey = (e3Id: bigint) => ["crisp-activity-scope", e3Id.toString()] as const;
 
-async function readRoundScope(e3Id: bigint): Promise<RoundScope> {
+async function readRoundScope(body: Address, e3Id: bigint): Promise<RoundScope> {
   const interfold = (await publicClient.readContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    address: body,
     abi: CrispVotingAbi,
     functionName: "interfold",
   })) as Address;
@@ -71,6 +72,7 @@ async function readRoundScope(e3Id: bigint): Promise<RoundScope> {
  */
 export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const queryClient = useQueryClient();
+  const { body } = usePrivatePair();
   const {
     data: entries,
     isLoading,
@@ -81,7 +83,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
       // Read once and kept, so a refresh reads only the two logs below.
       const { program, inputStart } = await queryClient.fetchQuery({
         queryKey: roundScopeKey(e3Id),
-        queryFn: () => readRoundScope(e3Id),
+        queryFn: () => readRoundScope(body, e3Id),
         staleTime: Infinity,
       });
 

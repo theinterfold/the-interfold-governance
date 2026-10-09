@@ -4,7 +4,7 @@ import { useRouter } from "next/router";
 import { PUB_CHAIN } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
-import { sppAddressFor } from "../utils/types";
+import { useSppAddress } from "./useSppAddress";
 
 import type { SppKind } from "../utils/types";
 
@@ -14,7 +14,7 @@ import type { SppKind } from "../utils/types";
  */
 export function useSppAdvance(kind: SppKind, proposalId: bigint, isLastStage: boolean) {
   const { reload } = useRouter();
-  const address = sppAddressFor(kind);
+  const address = useSppAddress(kind);
   const [isAdvancing, setIsAdvancing] = useState(false);
 
   const { data: canAdvance } = useReadContract({

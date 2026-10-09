@@ -5,7 +5,13 @@ import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout
 import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
 import { e3RoundNumber } from "../utils/ballotDigest";
 import { useProposal } from "../hooks/useProposal";
-import { PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_ENABLE_LOCKING } from "@/constants";
+import { PUB_ENABLE_LOCKING } from "@/constants";
+import {
+  INSTALLED_PRIVATE_PAIR,
+  PrivatePairProvider,
+  RETIRED_PRIVATE_PAIR,
+  usePrivatePair,
+} from "../hooks/usePrivatePair";
 import ProposalHeader from "../components/proposal/header";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useProposalStatus } from "../hooks/useProposalStatus";
@@ -54,9 +60,19 @@ export default function ProposalDetail({
   index: bigint;
   embedded?: boolean;
 }) {
+  const pair = usePrivatePair();
   const spp = useSppProposal("private", sppProposalId);
 
   if (spp.missing) {
+    // A replacement install moves new proposals to a new pair, but the retired pair's proposals
+    // keep their route. Look for the id there before reporting it as missing.
+    if (pair === INSTALLED_PRIVATE_PAIR && RETIRED_PRIVATE_PAIR) {
+      return (
+        <PrivatePairProvider value={RETIRED_PRIVATE_PAIR}>
+          <ProposalDetail index={sppProposalId} embedded={embedded} />
+        </PrivatePairProvider>
+      );
+    }
     return (
       <UnavailableProposalDetail
         proposalId={sppProposalId}
@@ -112,6 +128,7 @@ function ProposalDetailBody({
   embedded: boolean;
 }) {
   const { address } = useAccount();
+  const { body } = usePrivatePair();
   const { open: openWallet } = useWalletModal();
   // The CRISP server sends ballots by default. The voter can send from the wallet instead.
   const [submitOnChain, setSubmitOnChain] = useState(false);
@@ -145,7 +162,7 @@ function ProposalDetailBody({
   } = useCrispServer(proposal?.e3Id);
   const personalVoteStatus = usePrivateVoteStatus(proposal?.e3Id, address);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
-  const snapshot = useSnapshotVotingPower(PUB_CRISP_VOTING_PLUGIN_ADDRESS, proposal?.parameters.snapshotBlock);
+  const snapshot = useSnapshotVotingPower(body, proposal?.parameters.snapshotBlock);
   const { balance, votingPower, delegatesTo } = useTokenVotes(address);
 
   const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
@@ -314,7 +331,7 @@ function ProposalDetailBody({
                           key={`${proposalIdx}-${address}`}
                           votingPower={
                             <VotingPower
-                              votingPlugin={PUB_CRISP_VOTING_PLUGIN_ADDRESS}
+                              votingPlugin={body}
                               snapshotTimepoint={proposal.parameters.snapshotBlock}
                               compact={true}
                             />

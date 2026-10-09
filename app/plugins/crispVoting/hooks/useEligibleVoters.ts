@@ -1,12 +1,6 @@
 import { formatUnits, parseAbi } from "viem";
 import { useQuery } from "@tanstack/react-query";
-import {
-  PUB_CHAIN,
-  PUB_CRISP_PROGRAM_ADDRESS,
-  PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_TOKEN_SYMBOL,
-  PUB_VOTING_POWER_SOURCE,
-} from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_PROGRAM_ADDRESS, PUB_TOKEN_SYMBOL, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { generateMerkleTree, hashLeaf } from "@crisp-e3/sdk";
@@ -19,6 +13,7 @@ import {
   getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
+import { usePrivatePair } from "./usePrivatePair";
 
 import type { Address } from "viem";
 
@@ -99,9 +94,10 @@ export function useEligibleVoters(
   }
 ) {
   const { chainSnapshot, decimals, enabled = true } = opts;
+  const { body } = usePrivatePair();
 
   return useQuery<EligibleVotersReport>({
-    queryKey: ["crisp-eligible-voters", REPORT_VERSION, e3Id?.toString(), chainSnapshot?.toString(), decimals],
+    queryKey: ["crisp-eligible-voters", REPORT_VERSION, body, e3Id?.toString(), chainSnapshot?.toString(), decimals],
     // The set is immutable once the snapshot has passed.
     staleTime: Infinity,
     enabled: enabled && e3Id !== undefined && decimals !== undefined,
@@ -118,10 +114,10 @@ export function useEligibleVoters(
             : undefined,
           // The PLUGIN decides which token carries voting power; env constants only mirror it and
           // can drift. Ask the contract, and fall back to the configured source if the read fails.
-          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+          publicClient && body
             ? publicClient
                 .readContract({
-                  address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+                  address: body,
                   abi: votingTokenAbi,
                   functionName: "getVotingToken",
                 })
@@ -130,21 +126,17 @@ export function useEligibleVoters(
           // The floor the CRISP program enforces, read from the round's own request. The proposal's
           // `minVotingPower` is the setting BEFORE the plugin raised it to one ballot unit, so it
           // would report the server as wrong whenever the DAO's floor sits below that.
-          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
-            ? getRoundEligibilityFloor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id).catch(() => undefined)
-            : undefined,
+          publicClient && body ? getRoundEligibilityFloor(publicClient, body, id).catch(() => undefined) : undefined,
           // The census the round's own program validated it under. Asking the configured program would
           // work for current rounds, but `censusModeOf` answers TOKEN (0) for a round it never saw.
-          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
-            ? resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id)
+          publicClient && body
+            ? resolveCrispProgram(publicClient, body, id)
                 .then((program) => getCensusMode(publicClient, program, id))
                 .catch(() => undefined)
             : undefined,
           // The divisor the program recorded for the round: the server scaled every served balance
           // by exactly this, and the tally counts are in units of it.
-          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
-            ? getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id).catch(() => 0n)
-            : 0n,
+          publicClient && body ? getVotingPowerDivisor(publicClient, body, id).catch(() => 0n) : 0n,
         ]);
 
       if (divisor === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
