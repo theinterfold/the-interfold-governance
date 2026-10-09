@@ -6,13 +6,21 @@ assume knowledge of the work that produced the batch.
 
 The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
+The qualified v0.19 publication file has SHA-256
+`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`.
+It deploys implementation `0x8153c6dce903b3A4a886399D310668FB8c97cEC6` and setup
+`0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`, with empty build and release metadata.
+Confirm `buildCount(1) == 2` before signing. Reject older copies with different addresses or
+placeholder metadata. A newly generated file needs its own qualification if its checksum differs.
+
 ---
 
 ## What this does and what it does not do
 
-The batch publishes **release 1, build 3** of the CRISP plugin into the repo at
+The batch publishes the next build of **release 1** into the repo at
 `interfold-crisp.plugin.dao.eth`. A build is a new `CrispVotingSetup` and the `CrispVoting`
 implementation that it pins.
+Build 3 is expected next, not reserved. Read the actual build number from the publication receipt.
 
 The batch does **not** install anything. Each installed plugin is a proxy that points at its own
 implementation, so the installed private process stays on build 2. The DAO installs build 3 in a
@@ -66,14 +74,14 @@ calls `createVersion` on the repo.
 
 ## Addresses
 
-| What                                       | Address                                      |
-| ------------------------------------------ | -------------------------------------------- |
-| CRISP plugin repo                          | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
-| Foundation Safe (signer)                   | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
-| CREATE2 deployer                           | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
-| New `CrispVoting` implementation (build 3) | `0xE9173750958F9f1545bfcBf0b88fE71acE908518` |
-| New `CrispVotingSetup` (build 3)           | `0xCc83E1936BA14F8F81Da21c1Df606033249ef29e` |
-| Current `CrispVotingSetup` (build 2)       | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
+| What                                 | Address                                      |
+| ------------------------------------ | -------------------------------------------- |
+| CRISP plugin repo                    | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
+| Foundation Safe (signer)             | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
+| CREATE2 deployer                     | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
+| New `CrispVoting` implementation     | Read the checked generator output            |
+| New `CrispVotingSetup`               | Read the checked generator output            |
+| Current `CrispVotingSetup` (build 2) | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
 
 The repo address is not in a receipt. It was resolved from ENS:
 
@@ -108,28 +116,36 @@ It is recorded as `CRISP_PLUGIN_REPO` in `contracts/.env.mainnet`.
   ```
 
 - `contracts/.env.mainnet` contains `RPC_URL`, `CRISP_PLUGIN_REPO` and `CRISP_RELEASE=1`.
+- Set published metadata URIs with `CRISP_BUILD_METADATA_URI` and `CRISP_RELEASE_METADATA_URI`.
+  Leave release metadata empty to preserve the existing release entry. Do not use placeholder IPFS URIs.
+  A new release requires real, non-empty release metadata.
 
 ---
 
 ## Generate
+
+For the qualified v0.19 batch, use the file with the checksum above. Do not regenerate it with
+an ordinary build from another directory. The command below is for a future publication or a
+new qualification. A changed payload needs a new bytecode check and Safe rehearsal before signing.
 
 ```bash
 cd contracts
 ENV_FILE=.env.mainnet make safe-publish-crisp-build   # -> safe-actions/12-publish-crisp-build.json
 ```
 
-The generator is deterministic. The same salt and initcode give the same two addresses, so you can
-run it again safely. Only `createdAt` changes.
+The generator is deterministic for the same compiler input, salt, initcode and metadata URIs.
+Keep the generated addresses with the checked batch. Another build can produce different addresses.
+Do not sign a previously committed file without comparing it with the qualified release artifacts.
 
 ## What is in the batch
 
 Three calls, executed in order, atomically:
 
-| #   | To               | Call                                                                    |
-| --- | ---------------- | ----------------------------------------------------------------------- |
-| 0   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVoting`                              |
-| 1   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVotingSetup(impl)`                   |
-| 2   | CRISP repo       | `createVersion(1, setup, "ipfs://crisp-build", "ipfs://crisp-release")` |
+| #   | To               | Call                                                      |
+| --- | ---------------- | --------------------------------------------------------- |
+| 0   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVoting`                |
+| 1   | CREATE2 deployer | `salt ++ initcode` → deploys `CrispVotingSetup(impl)`     |
+| 2   | CRISP repo       | `createVersion(1, setup, buildMetadata, releaseMetadata)` |
 
 A Safe cannot send a raw contract creation. Each Transaction Builder entry is a call to an address,
 so the two deploys go through the canonical CREATE2 deployer.
@@ -146,8 +162,9 @@ check both before you sign.
 1. **Both target addresses are empty.** If one of them already holds code, the batch reverts:
 
    ```bash
-   cast codesize 0xE9173750958F9f1545bfcBf0b88fE71acE908518 --rpc-url "$RPC_URL"   # expect 0
-   cast codesize 0xCc83E1936BA14F8F81Da21c1Df606033249ef29e --rpc-url "$RPC_URL"   # expect 0
+   # Set these addresses from the checked generator output first.
+   cast codesize "$CRISP_IMPLEMENTATION_ADDRESS" --rpc-url "$RPC_URL"   # expect 0
+   cast codesize "$CRISP_SETUP_ADDRESS" --rpc-url "$RPC_URL"            # expect 0
    ```
 
 2. **tx2 points at the setup from tx1.** The setup address must be in the `createVersion` calldata.
@@ -177,9 +194,28 @@ check both before you sign.
      | grep -c 9ae5be6a352cd245259ba1cc07b57c755ecd466f62ff9b95d3ec77f05b8c24b0   # expect 1
    ```
 
-On 2026-10-09, the Safe executed this batch on a mainnet fork at block 26156057. All three calls
+6. **The final Safe transaction matches the checked calls.** Recheck its owners, threshold and
+   nonce before signing. Check the selected MultiSend contract, delegatecall operation, three
+   zero-value inner calls, and transaction hash. A Transaction Builder file does not pin these
+   outer transaction fields. The qualification used Safe 1.4.1 and MultiSendCallOnly 1.3.0.
+   A different MultiSend contract requires a new check of the outer transaction.
+
+   ```bash
+   SAFE=0x8B43b2852fc5031D01DDfCDF702973D93A2FF593
+   cast call "$SAFE" 'getOwners()(address[])' --rpc-url "$RPC_URL"
+   cast call "$SAFE" 'getThreshold()(uint256)' --rpc-url "$RPC_URL"
+   cast call "$SAFE" 'nonce()(uint256)' --rpc-url "$RPC_URL"
+   ```
+
+The qualified publication file passed a mainnet-fork test through Safe 1.4.1 at block 26155854.
+Independent standard-JSON compilation matched both contracts' creation code, runtime code and metadata.
+The check verified all 95 source hashes: 11 project sources and 84 dependency sources.
+This qualifies publication only, not installation of the private pair or the Interfold switch.
+
+On 2026-10-09, the Safe executed an earlier compiled batch on a mainnet fork at block 26156057. All three calls
 succeeded, and `buildCount(1)` changed from 2 to 3. The same rehearsal then installed build 3 with
 [`private-install-runbook.md`](./private-install-runbook.md#rehearsal-record).
+That record does not qualify a different creation payload or the 71 FOLD installation policy.
 
 ---
 
@@ -195,11 +231,29 @@ succeeded, and `buildCount(1)` changed from 2 to 3. The same rehearsal then inst
 
 2. **Confirm the code** at both CREATE2 addresses. Expect a size that is not zero.
 
-3. **Set `CRISP_BUILD=3`** in `contracts/.env.mainnet`.
+3. **Set `CRISP_BUILD` to the actual published build** in `contracts/.env.mainnet`.
 
 4. **Install build 3 into the DAO** with [`private-install-runbook.md`](./private-install-runbook.md).
    The install needs `CRISP_PROGRAM_ADDRESS`, which must be the new CRISP program (see
    [Open items](#open-items-outside-this-batch)).
+
+   Set the mainnet voter minimum to `71000000000000000000` (71 FOLD) before preparation.
+
+### Reproduce the compiled bytecode
+
+Keep the compiler artifacts and source revision with the checked batch. Verify these three links:
+
+1. Compare each creation payload with the artifact's `bytecode.object`.
+2. Check that its CBOR metadata digest commits to the artifact's `rawMetadata`.
+3. Compare the metadata's source hashes with the frozen repository and dependency sources.
+
+These checks establish artifact consistency, not independent compilation correctness.
+For independent compilation, use the exact Solidity standard-JSON input and recorded compiler.
+Preserve source names, contents and settings, including all remapping strings.
+The v0.19 build uses Solidity `0.8.29`, Cancun, optimizer runs `200` and IPFS metadata hashing.
+Absolute remapping contexts affect metadata. An ordinary build from another directory can produce different CREATE2 addresses.
+Exact standard-JSON input can reproduce the bytecode on another machine.
+Do not normalize remappings or disable metadata hashing for an already-checked batch.
 
 ## Open items outside this batch
 

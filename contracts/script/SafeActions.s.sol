@@ -4,7 +4,10 @@ pragma solidity ^0.8.29;
 import {Script, console2} from "forge-std/Script.sol";
 
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
+import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
+import {Utils} from "./Utils.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {PluginSetupProcessor} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
@@ -67,6 +70,46 @@ contract SafeActionsScript is WireSppScript {
     string internal constant OUT_DIR = "safe-actions";
 
     // --- entrypoints ---------------------------------------------------------------
+
+    /// @notice Emit a voter-minimum update without changing the other live voting settings.
+    function setCrispVoterMinimum() external {
+        CrispVoting plugin = CrispVoting(vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS"));
+        Action memory action =
+            voterMinimumAction(plugin, vm.envAddress("DAO_ADDRESS"), vm.envUint("MINIMUM_VOTER_VOTING_POWER"));
+        _emit(
+            "25-set-crisp-voter-minimum",
+            "Set the CRISP voter minimum",
+            "Sets the minimum voting power for future CRISP proposals. Copies the other settings at generation. "
+            "regenerate if any setting changes before execution. " "Existing proposals retain their recorded settings.",
+            action.to,
+            action.data
+        );
+    }
+
+    function voterMinimumAction(CrispVoting plugin, address dao, uint256 minimum)
+        internal
+        view
+        returns (Action memory)
+    {
+        require(address(plugin.dao()) == dao, "CRISP plugin belongs to a different DAO");
+        Utils.validateVoterMinimum(block.chainid, minimum);
+        if (block.chainid == 1) {
+            require(
+                IERC20Metadata(address(plugin.getVotingToken())).decimals() == 18, "Mainnet FOLD must use 18 decimals"
+            );
+        }
+
+        ICrispVoting.VotingSettings memory settings = ICrispVoting.VotingSettings({
+            minProposerVotingPower: plugin.minProposerVotingPower(),
+            minVoterVotingPower: minimum,
+            minParticipation: plugin.minParticipation(),
+            supportThreshold: plugin.supportThreshold(),
+            minDuration: plugin.minDuration()
+        });
+
+        return
+            Action({to: address(plugin), value: 0, data: abi.encodeCall(ICrispVoting.updateVotingSettings, (settings))});
+    }
 
     /// @notice Emit `grant(ROOT)` to the PSP as its own action.
     function grantRootToPsp() external {
@@ -199,6 +242,9 @@ contract SafeActionsScript is WireSppScript {
         uint8 release = uint8(vm.envOr(string.concat(prefix, "_RELEASE"), uint256(1)));
         uint16 build = uint16(vm.envOr(string.concat(prefix, "_BUILD"), uint256(1)));
         bytes memory installData = vm.envBytes(string.concat(prefix, "_INSTALL_DATA"));
+        if (Utils.isCrispInstallation(prefix, repo)) {
+            Utils.validateCrispInstallData(block.chainid, installData);
+        }
 
         // DIRECT, not Admin-wrapped: prepareInstallation is permissionless and touches nothing
         // the DAO owns, so routing it through the bootstrap would spend an Admin proposal for
@@ -402,12 +448,14 @@ contract SafeActionsScript is WireSppScript {
     ///      `prepareInstallation` reported them.
     function _loadPrepared(string memory prefix) internal view returns (Prepared memory p) {
         p.plugin = vm.envAddress(string.concat(prefix, "_PLUGIN_ADDRESS"));
+        address repo = vm.envAddress(string.concat(prefix, "_PLUGIN_REPO"));
+        if (Utils.isCrispInstallation(prefix, repo)) Utils.validatePreparedCrisp(p.plugin);
         p.setupRef = PluginSetupRef(
             PluginRepo.Tag(
                 uint8(vm.envOr(string.concat(prefix, "_RELEASE"), uint256(1))),
                 uint16(vm.envOr(string.concat(prefix, "_BUILD"), uint256(1)))
             ),
-            PluginRepo(vm.envAddress(string.concat(prefix, "_PLUGIN_REPO")))
+            PluginRepo(repo)
         );
         p.helpersHash = vm.envBytes32(string.concat(prefix, "_HELPERS_HASH"));
 
@@ -631,12 +679,9 @@ contract SafeActionsScript is WireSppScript {
         tos[2] = repo;
         datas[0] = bytes.concat(salt, implCode);
         datas[1] = bytes.concat(salt, setupCode);
+        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
         datas[2] = abi.encodeWithSignature(
-            "createVersion(uint8,address,bytes,bytes)",
-            release,
-            setup,
-            bytes("ipfs://crisp-build"),
-            bytes("ipfs://crisp-release")
+            "createVersion(uint8,address,bytes,bytes)", release, setup, buildMetadata, releaseMetadata
         );
 
         console2.log("=== Publish a new CRISP build into the existing repo (Safe-signed) ===");

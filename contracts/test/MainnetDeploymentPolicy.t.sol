@@ -14,6 +14,10 @@ contract PolicyHarness {
     function check(uint256 chainId, Utils.CrispEnvVariables memory config) external pure {
         Utils.validateDeploymentPolicy(chainId, config);
     }
+
+    function checkEncoded(uint256 chainId, bytes memory data) external pure {
+        Utils.validateCrispInstallData(chainId, data);
+    }
 }
 
 /// @notice Guards the mainnet deployment policy in `Utils.validateDeploymentPolicy`.
@@ -50,7 +54,7 @@ contract MainnetDeploymentPolicyTest is Test {
         config.paramSet = 2;
         config.votingSettings = ICrispVoting.VotingSettings({
             minProposerVotingPower: 1,
-            minVoterVotingPower: 1,
+            minVoterVotingPower: 71 ether,
             minDuration: 5 days,
             minParticipation: 10,
             supportThreshold: 50
@@ -72,6 +76,27 @@ contract MainnetDeploymentPolicyTest is Test {
 
     function test_mainnetAcceptsSecureParamsWithASmallCommittee() public view {
         harness.check(MAINNET, _validMainnetConfig());
+    }
+
+    function test_mainnetRejectsAVoterMinimumBelow71Fold() public {
+        Utils.CrispEnvVariables memory config = _validMainnetConfig();
+        config.votingSettings.minVoterVotingPower = 71 ether - 1;
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 71 ether - 1, 71 ether));
+        harness.check(MAINNET, config);
+    }
+
+    function test_encodedSafeInstallRejectsTheOldVoterMinimum() public {
+        Utils.CrispEnvVariables memory config = _validMainnetConfig();
+        ICrispVoting.PluginInitParams memory params;
+        params.paramSet = config.paramSet;
+        params.committeeSize = config.committeeSize;
+        params.votingSettings = config.votingSettings;
+        params.votingSettings.minVoterVotingPower = 1;
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+        harness.checkEncoded(MAINNET, abi.encode(params, address(0), false));
+
+        params.votingSettings.minVoterVotingPower = 71 ether;
+        harness.checkEncoded(MAINNET, abi.encode(params, address(0), false));
     }
 
     function test_mainnetRejectsTheInsecureParamSet() public {
@@ -133,6 +158,7 @@ contract MainnetDeploymentPolicyTest is Test {
         config.paramSet = 0;
         config.committeeSize = IInterfold.CommitteeSize.Minimum;
         config.votingSettings.minDuration = 0;
+        config.votingSettings.minVoterVotingPower = 1;
 
         harness.check(SEPOLIA, config);
     }

@@ -48,7 +48,10 @@ jobs:
         run: forge build
 
       - name: Test
-        run: forge test -vvv
+        run: make test
+
+      - name: Test deployment commands
+        run: node --test test/SafePrepareCommand.test.mjs
 
       # Ratchet: the CRISP sources are fully covered today. Fail the build if that
       # slips, rather than letting coverage erode one PR at a time.
@@ -56,7 +59,7 @@ jobs:
         env:
           MIN_COVERAGE: 100
         run: |
-          forge coverage --report summary | tee /tmp/coverage.txt
+          forge coverage --threads 1 --report summary | tee /tmp/coverage.txt
           python3 - <<'EOF'
           import os, re, sys
 

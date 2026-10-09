@@ -25,10 +25,10 @@ of the committed `.env.mainnet.install` (Step 1). The Safe files go to `contract
 | Foundation Safe (Admin driver)                      | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593`                                                                                                                                                                                                                                            |
 | Admin plugin                                        | `0xF21e25455988887EE797050080141eba67B33920`. It is armed: it holds `EXECUTE_PERMISSION` on the DAO (INV-29 deferred)                                                                                                                                                                   |
 | CRISP PluginRepo (`interfold-crisp.plugin.dao.eth`) | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1`. Release 1 has builds 1 and 2. The Safe is the maintainer                                                                                                                                                                                  |
-| CRISP build 3 (not published)                       | Setup `0xCc83E1936BA14F8F81Da21c1Df606033249ef29e`, implementation `0xE9173750958F9f1545bfcBf0b88fE71acE908518`. `safe-actions/12-publish-crisp-build.json` publishes it, see [publish-crisp-build.md](./publish-crisp-build.md)                                                        |
+| Next CRISP build (not published)                    | Generate and check the publication batch from the frozen compiler artifacts. Use its CREATE2 addresses, not predictions from another build. See [publish-crisp-build.md](./publish-crisp-build.md)                                                                                      |
 | Installed private process (this runbook retires it) | Body `0x197be4E09614285Abb4b74b672377c404FD44d54` (build 2, program `0x53FC…1BA3`, parameter set 1). SPP `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`, which holds `EXECUTE_PERMISSION` on the DAO. Installed at block 26006243. 3 proposals, none executed. 35.4272 USDS of fee credit |
 | Interfold coordinator                               | `0x28cF63B459e6218C69EA97ea7D90541cf648c715`. `feeToken()` is **USDS** (`0xdC03…384F`). `requestsPaused()` is `true`. `activeCryptoConfigId()` is `0xd9c8…fb4e`, the configuration before v0.19. `paramSetRegistry(2)` is empty                                                         |
-| CRISP E3 program                                    | `0x53FC…1BA3` is registered. It is a RISC Zero program, and the v0.19 cutover retires it. The new OpenVM program does not exist yet                                                                                                                                                     |
+| CRISP E3 program                                    | `0x53FC…1BA3` is registered. The OpenVM replacement `0x1EA4dBdec0F2F1E9235915847fc59EF4045EEe28` is deployed with deferred wiring. The v0.19 batch binds and registers it, and retires the RISC Zero program                                                                            |
 | Process metadata (pinned)                           | `ipfs://QmSEYaoXRLu2ut2aBkCB527cLQV5ow1JUij4HxkRYXBd2Y`, "Interfold Protocol Proposal", key `IPP`                                                                                                                                                                                       |
 | Prepare files                                       | None. Step 1 generates `safe-actions/22-prepare-crisp.json` and `23-prepare-spp-private.json`                                                                                                                                                                                           |
 
@@ -53,11 +53,14 @@ credit back:
 - The failed E3 of proposal 2 had a refund of 349.272 USDS that nobody had claimed. Anyone can call
   `claimRefund` for it. The refund goes to the credit of the payer of that proposal.
 
-The new pair has the same voting rules. It uses parameter set 2, the OpenVM compute provider and the
-new CRISP program.
+The new pair keeps the quorum, support and duration rules. It raises the voter minimum to 71 FOLD.
+It uses parameter set 2, the OpenVM compute provider and the new CRISP program.
 
 ## Voting rules being installed
 
+- The voter minimum is **71 FOLD**, encoded as `71000000000000000000` in 18-decimal voting units.
+  Governance controls this setting. Proposal creators cannot override it. Each proposal keeps its
+  creation-time minimum. The E3 uses the larger of that minimum and the round's voting-power divisor.
 - Quorum is **2%** of the total FOLD supply at the snapshot (`MINIMUM_PARTICIPATION=2`, RATIO_BASE
   100).
 - Support: yes must be **more than 51%** of yes+no (`SUPPORT_THRESHOLD=51`). Abstain counts toward
@@ -79,6 +82,7 @@ new CRISP program.
 Three repositories take part. Do the steps in this order. For the protocol steps, the source of
 truth is the "v0.19 cutover on mainnet" section of `agent/flow-trace/07_UPGRADES.md` in the
 Interfold repository.
+Complete stable v0.19.0 CI and software publication before the Safe executes the protocol cutover.
 
 | #   | Where                        | Step                                                                                                                          |
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -90,6 +94,13 @@ Interfold repository.
 | 6   | Operators and Interfold repo | Ciphernodes restart on the release. Run `upgrade:v19:refresh`, then `upgrade:v19:resume -- --ciphernodes-restarted`           |
 | 7   | Foundation Safe              | Execute the unpause batch that `upgrade:v19:resume` writes                                                                    |
 | 8   | This repository              | Simulate one full private proposal and disarm later ([Step 7](#step-7-before-the-announcement))                               |
+
+For operation 3, use only the qualified publication file with SHA-256
+`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`.
+It deploys implementation `0x8153c6dce903b3A4a886399D310668FB8c97cEC6` and setup
+`0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`. Confirm `buildCount(1) == 2` before signing.
+Reject older copies with different addresses or placeholder metadata. Publication can run before
+operation 2; it does not change the installed plugins or the protocol.
 
 Requests stay paused from operation 2 until operation 7. During this interval, nobody can create a
 private proposal. The protocol flow trace requires operation 5 before operation 7: "update the
@@ -135,10 +146,12 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    | Variable                              | Value                                                                 |
    | ------------------------------------- | --------------------------------------------------------------------- |
    | `CRISP_PROGRAM_ADDRESS`               | The new OpenVM CRISP program                                          |
+   | `FOLD_TOKEN_ADDRESS`                  | `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`                          |
    | `CRISP_BUILD`                         | `3`                                                                   |
    | `PARAM_SET`                           | `2`                                                                   |
    | `COMMITTEE_SIZE`                      | `2`                                                                   |
    | `MINIMUM_DURATION`                    | `432000`                                                              |
+   | `MINIMUM_VOTER_VOTING_POWER`          | `71000000000000000000`                                                |
    | `COMPUTE_PROVIDER_PARAMS`             | The OpenVM value, `{"name":"OpenVM","parallel":false,"batch_size":4}` |
    | `RETIRED_CRISP_VOTING_PLUGIN_ADDRESS` | `0x197be4E09614285Abb4b74b672377c404FD44d54`                          |
    | `RETIRED_SPP_PRIVATE_ADDRESS`         | `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`                          |
@@ -149,8 +162,8 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    make safe-prepare-private ENV_FILE=.env.mainnet
    ```
 
-   The command runs on chain 1, so the mainnet policy applies. It stops if `PARAM_SET`,
-   `COMMITTEE_SIZE` or `MINIMUM_DURATION` has a value that mainnet refuses.
+   The command runs on chain 1, so the mainnet policy applies. It stops if the voter minimum,
+   `PARAM_SET`, `COMMITTEE_SIZE` or `MINIMUM_DURATION` has a value that mainnet refuses.
 
 3. Append the two printed `*_INSTALL_DATA` lines to `.env.mainnet` for the record.
 
@@ -172,14 +185,13 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    ```
 
    Expect these values, in this order:
-
    - DAO and token `0x0000…0000`. The setup fills them in at install.
    - Interfold `0x28cF63B459e6218C69EA97ea7D90541cf648c715`.
    - Committee size `2` and parameter set `2`.
    - The new CRISP program.
    - The OpenVM compute provider parameters.
-   - Voting settings `(0, 1, 2, 51, 432000)`.
-   - BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`, then `false` (no `EXECUTE` for the
+   - Voting settings `(0, 71000000000000000000, 2, 51, 432000)`.
+   - BondedVotes `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`, then `false` (no `EXECUTE` for the
      body).
 
 6. Make sure that the SPP prepare file contains the IPP metadata URI. Expect `1`:
@@ -313,9 +325,10 @@ Also make sure of these items:
 - The receipt has four `Revoked` events from the DAO. They remove ROOT from the PSP and `EXECUTE`
   from the old SPP. They also remove the two `CREATE_PROPOSAL` grants of the old pair. The DAO
   emits `Revoked` only for a permission that was granted.
-- New body: `implementation()` is `0xE9173750958F9f1545bfcBf0b88fE71acE908518`. `getVotingToken()`
-  is BondedVotes `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`. `supportThreshold()` is 51, and
+- New body: `implementation()` matches the checked publication receipt. `getVotingToken()`
+  is BondedVotes `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`. `supportThreshold()` is 51, and
   `minParticipation()` is 2.
+- New body: `minVoterVotingPower()` is `71000000000000000000` (71 FOLD).
 - New body: `getE3Settings()` is `(2, 2, <OpenVM parameters>)`, and `getTargetConfig()` is
   (`0x56ce…40A4`, DelegateCall).
 - New SPP: stage 0 has `minAdvance` 0 (INV-9). Stage 1 has `vetoThreshold` 0, which is approval
@@ -363,10 +376,18 @@ tally.
 - `NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS`: the new program, the same value as `CRISP_PROGRAM_ADDRESS`.
 - `NEXT_PUBLIC_CRISP_SERVER_URL`: the CRISP server that tracks the new program.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS`: USDS, `0xdC035D45d973E3EC169d2276DDab16f1e407384F`.
+- `NEXT_PUBLIC_BONDED_VOTES_ADDRESS`: the new private-process adapter,
+  `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`.
+- `NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK`: `26155854`.
 - `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: the old body,
   `0x197be4E09614285Abb4b74b672377c404FD44d54`.
 - `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS`: the old SPP,
   `0x364686f83d7cCEdf88B881B23d4437D1652A8FfB`.
+
+The global delegation and voting-power screens follow the configured adapter. The public body
+still uses `0x028deEA644258c78b1B5B2eacF469F5D781Fb43E`; delegation to the new adapter does not
+migrate that body. Proposal voting-power reads use each body's own token. Verify both processes
+before changing the live app. This runbook does not implement a body-specific delegation screen.
 
 The two `RETIRED` values keep the 3 old proposals in the proposal list and on their pages. Copy
 each address exactly as it shows here. The app ignores an address with an incorrect checksum and
@@ -387,6 +408,8 @@ Later scripts, for example `printUpdateStages()`, read these two values.
   `EXECUTE_PROPOSAL_PERMISSION` on the armed Admin plugin (INV-31).
 
 ## Rehearsal record
+
+This record predates the 71 FOLD voter-minimum change. It is not qualification of that new policy.
 
 On 2026-10-09, the publish batch and Steps 1 to 5 ran on a mainnet fork at block 26156057. The fork
 used a stand-in program address, because the new program does not exist yet. `.env.mainnet` was a

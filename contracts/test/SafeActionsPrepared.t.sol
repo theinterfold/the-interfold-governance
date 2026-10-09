@@ -5,6 +5,18 @@ import {Test} from "forge-std/Test.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
+import {InstallPrivateProcessScript} from "../script/InstallPrivateProcess.s.sol";
+import {Utils} from "../script/Utils.sol";
+import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
+import {IInterfold} from "../src/crisp/IInterfold.sol";
+
+contract PreparedCrispFloor {
+    uint256 public minVoterVotingPower = 1;
+
+    function setMinimum(uint256 value) external {
+        minVoterVotingPower = value;
+    }
+}
 
 /// @dev Exposes the internal env reader so the parallel-array decoding can be asserted directly.
 contract SafeActionsHarness is SafeActionsScript {
@@ -23,8 +35,8 @@ contract SafeActionsHarness is SafeActionsScript {
  *      VotingPowerCondition), and so does the SPP's, so every generated apply action for the
  *      mainnet DAO would have been rejected on chain.
  *
- *      Each test uses its OWN prefix: `vm.setEnv` writes the forge process environment, which is
- *      shared across test functions, so a common prefix makes the cases race each other.
+ *      Array-reader fixtures use separate prefixes. Real commands have fixed environment keys;
+ *      run the whole suite serially with `make test` because `vm.setEnv` is process-global.
  */
 contract SafeActionsPreparedTest is Test {
     SafeActionsHarness internal harness;
@@ -95,5 +107,93 @@ contract SafeActionsPreparedTest is Test {
 
         vm.expectRevert("permission arrays differ in length");
         harness.loadPrepared("TC");
+    }
+
+    /// @notice A caller cannot bypass the mainnet floor by renaming the CRISP env prefix.
+    function test_crispRepoAliasCannotBypassPreparedFloor() public {
+        vm.chainId(1);
+        PreparedCrispFloor plugin = new PreparedCrispFloor();
+        _seed("CRISP_ALIAS_FLOOR");
+        // Keep the canonical repo distinct from the non-CRISP prepared fixtures.
+        vm.setEnv("CRISP_PLUGIN_REPO", vm.toString(address(0xC1157)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_REPO", vm.toString(address(0xC1157)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PLUGIN_ADDRESS", vm.toString(address(plugin)));
+        vm.setEnv("CRISP_ALIAS_FLOOR_PERM_CONDITIONS", "");
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+        harness.loadPrepared("CRISP_ALIAS_FLOOR");
+
+        plugin.setMinimum(71 ether);
+        assertEq(harness.loadPrepared("CRISP_ALIAS_FLOOR").plugin, address(plugin));
+    }
+
+    /// @notice Real prepare commands reject stale data even without a configured canonical repo.
+    function test_mainnetPrepareChecksCanonicalAndUnconfiguredAliases() public {
+        vm.chainId(1);
+        _seedCommandAddresses();
+        string memory previousRepo = vm.envOr("CRISP_PLUGIN_REPO", string(""));
+        string[2] memory prefixes = [string("CRISP"), string("MAINNET_CRISP_ALIAS")];
+        for (uint256 i; i < prefixes.length; ++i) {
+            string memory prefix = prefixes[i];
+            string memory slug = string.concat("test-voter-floor-", vm.toString(i));
+            string memory path = string.concat("safe-actions/", slug, ".json");
+            if (vm.exists(path)) vm.removeFile(path);
+            vm.setEnv("CRISP_PLUGIN_REPO", "");
+            vm.setEnv(string.concat(prefix, "_PLUGIN_REPO"), "0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1");
+            vm.setEnv("PLUGIN_PREFIX", prefix);
+            vm.setEnv("PLUGIN_SLUG", slug);
+            vm.setEnv(string.concat(prefix, "_INSTALL_DATA"), vm.toString(_installData(1)));
+
+            vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+            harness.prepareInstall();
+
+            vm.setEnv(string.concat(prefix, "_INSTALL_DATA"), vm.toString(_installData(71 ether)));
+            harness.prepareInstall();
+            string memory output = vm.readFile(path);
+            assertEq(vm.parseJsonAddress(output, ".transactions[0].to"), address(0x5050));
+            vm.removeFile(path);
+        }
+        vm.setEnv("CRISP_PLUGIN_REPO", previousRepo);
+    }
+
+    /// @notice The EOA apply path checks the prepared plugin before printing executable actions.
+    function test_eoaApplyRejectsAStalePreparedMinimum() public {
+        vm.chainId(1);
+        _seedCommandAddresses();
+        PreparedCrispFloor plugin = new PreparedCrispFloor();
+        vm.setEnv("CRISP_VOTING_PLUGIN_ADDRESS", vm.toString(address(plugin)));
+        vm.setEnv("CRISP_PLUGIN_REPO", "0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1");
+        vm.setEnv("PREPARED_CRISP_HELPERS_HASH", vm.toString(keccak256("crisp helpers")));
+        vm.setEnv("SPP_PRIVATE_ADDRESS", vm.toString(address(0x5151)));
+        vm.setEnv("SPP_PLUGIN_REPO", vm.toString(REPO));
+        vm.setEnv("PREPARED_SPP_HELPERS_HASH", vm.toString(keccak256("spp helpers")));
+        PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](0);
+        vm.setEnv("PREPARED_CRISP_PERMISSIONS", vm.toString(abi.encode(permissions)));
+        vm.setEnv("PREPARED_SPP_PERMISSIONS", vm.toString(abi.encode(permissions)));
+        vm.setEnv("SPP_PRIVATE_VOTE_DURATION", "432000");
+        vm.setEnv("MINIMUM_DURATION", "432000");
+        InstallPrivateProcessScript installer = new InstallPrivateProcessScript();
+
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetVoterMinimumTooLow.selector, 1, 71 ether));
+        installer.printProposalActions();
+
+        plugin.setMinimum(71 ether);
+        installer.printProposalActions();
+    }
+
+    function _seedCommandAddresses() internal {
+        vm.setEnv("DAO_ADDRESS", vm.toString(address(0xDA0)));
+        vm.setEnv("ADMIN_PLUGIN_ADDRESS", vm.toString(address(0xAD01)));
+        vm.setEnv("FOUNDATION_ADDRESS", vm.toString(address(0xF001)));
+        vm.setEnv("PLUGIN_SETUP_PROCESSOR_ADDRESS", vm.toString(address(0x5050)));
+        vm.setEnv("EXECUTOR_ADDRESS", vm.toString(address(0xE001)));
+    }
+
+    function _installData(uint256 minimum) internal pure returns (bytes memory) {
+        ICrispVoting.PluginInitParams memory params;
+        params.paramSet = 2;
+        params.committeeSize = IInterfold.CommitteeSize.Small;
+        params.votingSettings.minDuration = 5 days;
+        params.votingSettings.minVoterVotingPower = minimum;
+        return abi.encode(params, address(0), false);
     }
 }
