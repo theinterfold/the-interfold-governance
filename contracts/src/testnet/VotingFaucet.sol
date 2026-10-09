@@ -7,7 +7,15 @@ import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/
 import {IERC6372Upgradeable} from "@openzeppelin/contracts-upgradeable/interfaces/IERC6372Upgradeable.sol";
 
 import {CrispVoting} from "../crisp/CrispVoting.sol";
-import {ICRISP} from "../crisp/ICRISP.sol";
+
+/// @notice The layout in which the Interfold coordinator ABI-encodes a parameter set's BFV
+///         parameters (`paramSetRegistry`). The faucet reads only `plaintextModulus`.
+struct BfvParameters {
+    uint256 degree;
+    uint256 plaintextModulus;
+    uint256[] moduli;
+    string error1Variance;
+}
 
 /// @title VotingFaucet
 /// @notice Testnet faucet for CRISP voters. Each call tops the caller's FOLD up to the next whole
@@ -75,7 +83,7 @@ contract VotingFaucet {
     function votingFloor() public view returns (uint256) {
         IVotesUpgradeable token = plugin.getVotingToken();
         (, uint8 paramSet,) = plugin.getE3Settings();
-        uint256 t = abi.decode(plugin.interfold().paramSetRegistry(paramSet), (ICRISP.BfvParameters)).plaintextModulus;
+        uint256 t = abi.decode(plugin.interfold().paramSetRegistry(paramSet), (BfvParameters)).plaintextModulus;
         uint256 divisor = token.getPastTotalSupply(IERC6372Upgradeable(address(token)).clock() - 1) / t + 1;
         uint256 minVoterVotingPower = plugin.minVoterVotingPower();
         return minVoterVotingPower > divisor ? minVoterVotingPower : divisor;
