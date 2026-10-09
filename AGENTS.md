@@ -1,8 +1,53 @@
+## Design source of truth
+
+Before UI changes, read [DESIGN.md](DESIGN.md). It defines the current rules and links the shared Interfold source. Shared design tokens are maintained in `Interfold-Website/DESIGN.md`; do not edit generated token CSS.
+
 # Agent guide — the-interfold-governance
+
+## Shared animation patterns — persistent user preference
+
+For every new or updated interface, consider the established **shared animation patterns from the start**. This is a required part of implementation and review, not optional polish. Before changing UI, inspect the existing motion components and the corresponding reference/implementation; reuse their behavior, timing, easing, sequencing and transitions rather than inventing a separate animation style. Preserve these patterns when updating existing components. Check relevant entrances/exits, state and step changes, disclosures, dialogs, hover and focus interactions, including reduced-motion behavior and performance. Do not consider a UI change complete until its motion has been checked against these patterns. This does not mean adding animation everywhere or re-enabling intentionally paused artwork. If the relevant motion reference is unavailable or ambiguous, say so rather than guessing.
 
 Operational entry point for coding agents. **Read [`docs/architecture.md`](docs/architecture.md)
 first** — it is the authoritative explanation of how staged governance works. This file is the
 short operational layer: commands, invariants, and traps.
+
+Describe motion through its behavior: continuity between source and destination, shared elements, coordinated height, sequencing, easing and focus restoration. Describe animation styles by behavior rather than naming them after a company, including in comments, documentation and commit messages. See [motion patterns](docs/design/motion-patterns.md).
+
+## UI workflow — user preference
+
+Develop and review UI changes on the running local version so Tiago can follow the work.
+Keep that local version available during iteration. Publish accumulated changes to the
+shared preview after a batch is finished and Tiago asks for it, rather than after each edit.
+
+For every new UI request, **reuse first**. Inspect the existing components, their supported
+variants, design tokens and `docs/design/interface-consistency.md` before proposing or
+implementing anything new. Prefer composing existing components with their current API.
+Components serving the same purpose must keep the same presentation and interaction.
+
+**Ask the user before changing an existing UI component.** This includes its appearance,
+dimensions, spacing, typography, icons, states, behavior, API or variants, and shared CSS/tokens
+that would change existing instances. A request for a new feature is not permission to alter
+existing components as a side effect.
+
+Before asking, inspect the code and prepare a concrete proposal: name the component, explain
+why its existing options are insufficient, describe the proposed change and identify the
+other screens affected. Keep the existing implementation unchanged until the user approves
+that change. Continue independent work that does not depend on approval. Do not ask again
+when the user has already explicitly approved the same concrete change in the conversation.
+
+Do not bypass this rule with page-specific overrides, copied components or near-duplicate
+variants. If no existing component fits, explain the gap before introducing a new pattern.
+These instructions apply to future work, not only to the current consistency pass.
+
+**Header and footer follow theinterfold.com.** Their canonical structure and visual styles
+live in `../Interfold-Website/packages/site-header/src`. Aesthetic changes must be global
+across the main website and Governance; only the background colour may differ by site.
+Edit that shared source and run `bun run sync:header` in Interfold-Website to update both
+consumers. Do not modify generated `app/vendor/site-header` or create a Governance-only
+restyling of the header/footer. Application destinations and wallet controls remain slots.
+Footer content is application-specific: Governance uses its own links and copyright,
+without Updates. Supply these through the shared footer's props; keep its styling shared.
 
 ## What this is
 
@@ -154,7 +199,7 @@ reasoning where the code is. A register that only grows is failing at its job.
 
 | Id         | Invariant                                                                                                                                                                                                                                                                                                                                      | Guarded by                                                                                                            |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **INV-16** | **Vote scaling is a three-way sync.** The CRISP server encodes power as `balance / 10^(decimals-1)`, so tallies arrive scaled. The factor must match in the server, `CrispVoting._tallyScale()`, and the app (`useCrispServer` `adjustedBalance` + `utils/quorum.ts` `voteScale`).                                                             | `CrispVotingQuorum.t.sol::test_tallyScaleMatchesTheServerEncoding`; app `quorum-invariants.test.ts`                   |
+| **INV-16** | **Vote scaling is a contract ↔ CRISP ↔ app sync on the recorded divisor.** CRISP weighs each ballot as `floor(rawPower / divisor)` and records the divisor per round (`votingPowerDivisorOf(e3Id)`; minimum `supply / t + 1`, `t` = the BFV plaintext modulus of the parameter set). Quorum (`CrispVoting._canExecute`) and the app (`utils/quorum.ts`) must scale tallies by that recorded value, never by a constant derived from the token's decimals; a zero divisor must not pass quorum. | `CrispVotingQuorum.t.sol::test_quorumScalesTalliesByTheRecordedDivisor`, `…ASmallerDivisorWouldChangeTheOutcome`, `…ZeroDivisorNeverPassesQuorum`; app `quorum-invariants.test.ts` |
 | **INV-17** | **`RATIO_BASE == 100`**, so CRISP `minParticipation` AND `supportThreshold` are whole percentages (1 = 1%) and the finest step is 1%. TokenVoting's are ppm out of 1_000_000 — do not conflate them.                                                                                                                                           | `CrispVotingViews.t.sol::test_initializeRevertsWhenMinParticipationExceedsRatioBase`; app `quorum-invariants.test.ts` |
 | **INV-18** | **The CRISP `_data` tuple is `(uint256 allowFailureMap)`** — nothing else. The voting window is the stage-configured one (never creator-chosen) and credits are always 0; the tuple must stay in sync between `customProposalParamsABI()`, `createProposal`'s decode, and the app encoder in `plugins/crispVoting/hooks/useCreateProposal.ts`. | `CrispVotingViews.t.sol::test_customProposalParamsAbiMatchesTheDecodedTuple`                                          |
 | **INV-19** | **Snapshot timepoints are token-clock units, not block numbers.** FOLD is ERC-6372 `mode=timestamp`, so `snapshotBlock` holds a **timestamp**. Feed it to `getPastVotes`/`getPastTotalSupply`; never use it as an `eth_call` block tag.                                                                                                        | `CrispVotingViews.t.sol::test_snapshotUsesTheTokenClockWhenAvailable`, `…UsesBlockNumberWhenTheTokenHasNoClock`       |
@@ -292,27 +337,19 @@ CRISP server must be honest about the eligible-voter set (documented trust assum
   finest step is 1%. `0` disables quorum (testing). TokenVoting's `TV_MIN_PARTICIPATION` is ppm
   out of 1_000_000 instead.
 - **The floor a round enforces is not `proposal.parameters.minVotingPower`.** That field keeps the
-  plugin's `minVoterVotingPower` as configured; `_buildRequestParams` raises it to one ballot unit
-  (`10^(decimals-1)`, so 1 wei becomes 0.1 FOLD) before requesting, and the raised value — in the
-  round's `customParams` — is what `publishInput` enforces and the CRISP server applies. Read it
-  with `getRoundEligibilityFloor`. Using the proposal field flagged the server's census as wrong
-  and told holders under 0.1 FOLD they could vote, until `SlotNotEligible` refused the ballot.
+  plugin's `minVoterVotingPower` as configured; `_buildRequestParams` raises it to the round's
+  minimum divisor (`supply / t + 1`, computed exactly as `CRISPProgram` computes it in the same
+  transaction) before requesting, and the raised value — in the round's `customParams` — is what
+  `publishInput` enforces and the CRISP server applies. Read it with `getRoundEligibilityFloor`.
+  Using the proposal field flagged the server's census as wrong and told small holders they could
+  vote, until `SlotNotEligible` refused the ballot.
 - **The indexer RPC only serves addresses it is told about, and the app reaches ones it is not.**
   `/chain/rpc` on the CRISP server answers `Address not served by this indexer: 0x…` for anything
   outside `INDEX_CONTRACTS`, and the escrow's satellites (exit queue, lock NFT, IVotes adapter) are
   read OFF the escrow at runtime — no allowlist could have been configured with them by name. That
   is why the wagmi transport is a `fallback([indexer, /api/rpc])`: whatever the indexer refuses
-  goes to the generic relay. It cost a lock page rendering "a —-day cooldown" and a permanently
-  empty delegate list to find. `/api/rpc` needs `WEB3_RPC_URL` set server-side for the fallback to
-  land anywhere.
-- **A delegate scan starts where the DELEGATION source was deployed, not the token.** With locking
-  on, `DelegateChanged` comes from the escrow's adapter, which on mainnet is ~306k blocks younger
-  than FOLD (25779726 vs 25473449). `useDelegates` passes `PUB_DELEGATION_DEPLOYMENT_BLOCK` as
-  `from_block`, which is both the range `/members/delegates` scans and the coverage its answer is
-  checked against. With the token's block there instead, the first caller after a server restart
-  waits out a third of a million blocks that cannot contain a matching event — long enough to time
-  out, drop to the client-side scan, and fail as "Could not load delegates" until someone else's
-  request finished the scan and warmed the cache.
+  goes to the generic relay. It cost a lock page rendering "a —-day cooldown" to find. `/api/rpc`
+  needs `WEB3_RPC_URL` set server-side for the fallback to land anywhere.
 - **Etherscan V1 endpoints are sunset.** All Etherscan reads go through the V2 multichain
   endpoint (`api.etherscan.io/v2/api` + `chainid`); `hooks/useAbi.ts` rides the chainid in with
   the API key because whatsabi 0.14 has no chainid config.

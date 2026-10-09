@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
 import { ProposalStatus } from "@aragon/ods";
-import { useToken } from "./useToken";
+import { useVotingPowerDivisor } from "./useVotingPowerDivisor";
 import { usePastSupply } from "./usePastSupply";
 import { computeQuorum, meetsSupportThreshold } from "../utils/quorum";
 
@@ -29,76 +28,79 @@ function hasPassed(tally: bigint[], supportThreshold: bigint): boolean {
   return meetsSupportThreshold(tally[0] ?? 0n, tally[1] ?? 0n, supportThreshold);
 }
 
+type PrivateProposalStatus = {
+  status: ProposalStatus;
+  /** True only alongside REJECTED: turnout fell short of the proposal's frozen quorum rather than the vote going against it. */
+  quorumNotMet: boolean;
+};
+
 /**
- * The body-level status of a CRISP proposal, mirroring `CrispVoting._canExecute`.
- *
- * @returns `status`, and `quorumNotMet` — true only alongside REJECTED, when turnout fell short of the
- *          proposal's frozen quorum rather than the vote going against it.
+ * The body-level status of a CRISP proposal, mirroring `CrispVoting._canExecute`. A closed secret
+ * vote remains undecided until its tally and quorum inputs are known.
  */
-export const useProposalStatus = (proposal: Proposal, totalVotingPowerOverride?: bigint, e3Failed = false) => {
-  const [status, setStatus] = useState<ProposalStatus>(ProposalStatus.PENDING);
-  const [quorumNotMet, setQuorumNotMet] = useState(false);
+export function derivePrivateProposalStatus({
+  proposal,
+  totalVotingPower,
+  divisor,
+  e3Failed = false,
+  nowMs,
+}: {
+  proposal?: Proposal | null;
+  totalVotingPower?: bigint;
+  divisor?: bigint;
+  e3Failed?: boolean;
+  nowMs: number;
+}): PrivateProposalStatus {
+  const decided = (status: ProposalStatus, quorumNotMet = false): PrivateProposalStatus => ({ status, quorumNotMet });
 
-  const { decimals } = useToken();
-  // Quorum uses the total voting power at the snapshot timepoint, mirroring the
-  // contract's `totalVotingPower(snapshotBlock)` (= getPastTotalSupply).
+  // A failed round is terminal and is checked before the voting window: the most common failures
+  // (committee formation timeout, DKG timeout) happen early, inside the window, and the round can
+  // never be tallied or executed.
+  if (e3Failed) return decided(ProposalStatus.REJECTED);
+  if (!proposal?.parameters) return decided(ProposalStatus.PENDING);
+  if (proposal.executed) return decided(ProposalStatus.EXECUTED);
+
+  const startMs = Number(proposal.parameters.startDate) * 1000;
+  const endMs = Number(proposal.parameters.endDate) * 1000;
+  if (nowMs < startMs) return decided(ProposalStatus.PENDING);
+  if (nowMs < endMs) return decided(ProposalStatus.ACTIVE);
+  if (!proposal.isTallied || divisor === undefined) return decided(ProposalStatus.PENDING);
+
+  const tally = proposal.tally ?? [];
+  const totalVotes = getTotalVotes(tally);
+
+  const quorum = computeQuorum(
+    totalVotes,
+    totalVotingPower ?? 0n,
+    Number(proposal.parameters.minParticipation ?? 0n),
+    proposal.parameters.creditMode,
+    divisor
+  );
+  if (Number(proposal.parameters.minParticipation ?? 0n) > 0 && quorum === null) return decided(ProposalStatus.PENDING);
+  // An empty tally lands here whenever a quorum is required. Without one (minParticipation 0)
+  // it fails support below instead: `hasPassed` is false on zero votes.
+  if (quorum && !quorum.reached) return decided(ProposalStatus.REJECTED, true);
+
+  const supportThreshold = proposal.parameters.supportThreshold ?? 50n;
+  // The tally is published and did not pass: below the frozen support threshold (a tie at the 50
+  // default included) is a rejection, matching `_canExecute`.
+  if (!hasPassed(tally, supportThreshold)) return decided(ProposalStatus.REJECTED);
+  return decided(proposal.actions.length > 0 ? ProposalStatus.EXECUTABLE : ProposalStatus.ACCEPTED);
+}
+
+export const useProposalStatus = (
+  proposal: Proposal,
+  totalVotingPowerOverride?: bigint,
+  e3Failed = false,
+  nowMs = Date.now()
+) => {
+  const divisor = useVotingPowerDivisor(proposal?.e3Id);
   const pastSupply = usePastSupply(proposal?.parameters?.snapshotBlock);
-  const effectiveTotalSupply = totalVotingPowerOverride ?? pastSupply;
-
-  useEffect(() => {
-    if (!proposal || !proposal?.parameters) return;
-    // Quorum scales by the token's decimals; wait for the real value rather than
-    // settling a pass/fail verdict against an assumed 18.
-    if (decimals === undefined) return;
-
-    const tally = proposal.tally ?? [];
-    const totalVotes = getTotalVotes(tally);
-    // Frozen at creation (INV-33); default to the simple-majority 50 only if an old
-    // proposal predates the field.
-    const supportThreshold = proposal.parameters.supportThreshold ?? 50n;
-
-    // Quorum applies to EVERY proposal, with or without actions — `CrispVoting._canExecute`
-    // gates on it unconditionally. Skipping it for "signaling" proposals would make the app
-    // report a pass the chain rejects.
-    const quorum = computeQuorum(
-      totalVotes,
-      effectiveTotalSupply,
-      Number(proposal.parameters.minParticipation ?? 0n),
-      proposal.parameters.creditMode,
-      Number(decimals)
-    );
-
-    let quorumFailed = false;
-
-    // Checked BEFORE `active`. `active` means only "the end date is in the future", and the
-    // most common failures — committee formation timeout, DKG timeout — happen early, well
-    // inside the voting window. Testing `active` first therefore advertised a dead round as
-    // open for votes until its end date passed, with a vote card people could still click.
-    // A failed round is terminal: it can never be tallied or executed.
-    if (e3Failed) {
-      setStatus(ProposalStatus.REJECTED);
-    } else if (proposal?.active) {
-      setStatus(ProposalStatus.ACTIVE);
-    } else if (proposal?.executed) {
-      setStatus(ProposalStatus.EXECUTED);
-    } else if (!proposal?.isTallied) {
-      setStatus(ProposalStatus.PENDING);
-    } else if (quorum && !quorum.reached) {
-      // An empty tally lands here whenever a quorum is required. Without one (minParticipation 0)
-      // it fails support below instead: `hasPassed` is false on zero votes.
-      quorumFailed = true;
-      setStatus(ProposalStatus.REJECTED);
-    } else if (hasPassed(tally, supportThreshold) && proposal.actions.length > 0) {
-      setStatus(ProposalStatus.EXECUTABLE);
-    } else if (hasPassed(tally, supportThreshold) && proposal.actions.length === 0) {
-      setStatus(ProposalStatus.ACCEPTED);
-    } else {
-      // The tally is published and did not pass: below the frozen support threshold
-      // (a tie at the 50 default included) is a rejection, matching `_canExecute`.
-      setStatus(ProposalStatus.REJECTED);
-    }
-    setQuorumNotMet(quorumFailed);
-  }, [proposal, effectiveTotalSupply, decimals, e3Failed]);
-
-  return { status, quorumNotMet };
+  return derivePrivateProposalStatus({
+    proposal,
+    totalVotingPower: totalVotingPowerOverride ?? pastSupply,
+    divisor,
+    e3Failed,
+    nowMs,
+  });
 };

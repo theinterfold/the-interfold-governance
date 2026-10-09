@@ -1,84 +1,38 @@
-import { AvatarIcon, Breadcrumbs, Heading, IBreadcrumbsLink, IconType, ProposalStatus, Tag } from "@aragon/ods";
-import { Publisher } from "@/components/publisher";
-import { Proposal } from "../../utils/types";
+import { ProposalStatus } from "@aragon/ods";
+import type { Proposal } from "../../utils/types";
 import { useProposalStatus } from "../../hooks/useProposalVariantStatus";
-import { Else, ElseIf, If, Then } from "@/components/if";
-import { getSimpleRelativeTimeFromDate } from "@/utils/dates";
-import { HeaderSection } from "@/components/layout/header-section";
-import { getTagVariantFromStatus } from "@/utils/ui-variants";
+import { ProposalReadingHeader } from "@/components/proposal/proposalReadingHeader";
+import { ProposalCountdown } from "@/components/proposal/proposalCountdown";
 import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
-import { shortProposalId } from "@/utils/proposalId";
-import dayjs from "dayjs";
+import type { ReactNode } from "react";
+import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
 
-const DEFAULT_PROPOSAL_TITLE = "(No proposal title)";
-const DEFAULT_PROPOSAL_SUMMARY = "(No proposal summary)";
-
-interface ProposalHeaderProps {
-  proposalIdx: bigint;
-  proposal: Proposal;
-}
-
-const ProposalHeader: React.FC<ProposalHeaderProps> = ({ proposalIdx, proposal }) => {
+const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presentation?: ProposalPresentation }) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
-  const tagVariant = getTagVariantFromStatus(proposalStatus);
-
-  const breadcrumbs: IBreadcrumbsLink[] = [{ label: "Proposals", href: "#/" }, { label: shortProposalId(proposalIdx) }];
-  const endDateIsInThePast = Number(proposal.parameters.endDate) * 1000 < Date.now();
+  const startMs = Number(proposal.parameters.startDate) * 1000;
+  const endMs = Number(proposal.parameters.endDate) * 1000;
+  const endDateIsInThePast = endMs < Date.now();
+  let timing: ReactNode;
+  // Before the start, the reader wants to know when they can vote.
+  if (presentation?.votingPending) timing = <ProposalCountdown boundary="start" atMs={startMs} />;
+  else if (presentation && !presentation.votingOpen) timing = presentation.timing;
+  else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
+  else if (proposalStatus === ProposalStatus.REJECTED)
+    timing = quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected";
+  else if (endDateIsInThePast) timing = "The voting period is over";
+  else timing = <ProposalCountdown boundary="end" atMs={endMs} />;
 
   return (
-    <div className="flex w-full justify-center bg-neutral-0">
-      {/* Wrapper */}
-      <HeaderSection>
-        <Breadcrumbs
-          links={breadcrumbs}
-          tag={
-            proposalStatus && {
-              label: bodyStatusLabel(proposalStatus, quorumNotMet),
-              variant: tagVariant,
-            }
-          }
-        />
-        {/* Title & description */}
-        <div className="flex w-full flex-col gap-y-2">
-          <div className="flex w-full items-center gap-x-4">
-            <Heading size="h1">{proposal.title || DEFAULT_PROPOSAL_TITLE}</Heading>
-            <Tag label="Transparent fallback" variant="neutral" />
-          </div>
-          <p className="text-lg leading-normal text-neutral-500">{proposal.summary || DEFAULT_PROPOSAL_SUMMARY}</p>
-        </div>
-        {/* Metadata */}
-        <div className="flex flex-wrap gap-x-10 gap-y-2">
-          <div className="flex items-center gap-x-2">
-            <AvatarIcon icon={IconType.APP_MEMBERS} size="sm" variant="primary" />
-            <Publisher publisher={[{ address: proposal.creator }]} />
-          </div>
-          <div className="flex items-center gap-x-2">
-            <AvatarIcon icon={IconType.APP_MEMBERS} size="sm" variant="primary" />
-            <div className="flex gap-x-1 text-base leading-tight ">
-              <If val={proposalStatus} is={ProposalStatus.ACCEPTED}>
-                <Then>
-                  <span className="text-neutral-500">The proposal has been accepted</span>
-                </Then>
-                <ElseIf val={proposalStatus} is={ProposalStatus.REJECTED}>
-                  <span className="text-neutral-500">
-                    {quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected"}
-                  </span>
-                </ElseIf>
-                <ElseIf true={endDateIsInThePast}>
-                  <span className="text-neutral-500">The voting period is over</span>
-                </ElseIf>
-                <Else>
-                  <span className="text-neutral-500">Active for </span>
-                  <span className="text-neutral-800">
-                    {getSimpleRelativeTimeFromDate(dayjs(Number(proposal.parameters.endDate) * 1000))}
-                  </span>
-                </Else>
-              </If>
-            </div>
-          </div>
-        </div>
-      </HeaderSection>
-    </div>
+    <ProposalReadingHeader
+      title={proposal.title}
+      summary={proposal.summary}
+      creator={proposal.creator}
+      status={presentation?.label ?? proposalStatus}
+      statusClass={presentation?.className}
+      statusLabel={presentation ? undefined : bodyStatusLabel(proposalStatus, quorumNotMet)}
+      kind="Transparent fallback"
+      timing={timing}
+    />
   );
 };
 

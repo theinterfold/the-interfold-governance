@@ -9,7 +9,7 @@ import type { Proposal, VoteCastEvent } from "../utils/types";
 
 const event = getAbiItem({ abi: TokenVotingAbi, name: "VoteCast" }) as AbiEvent;
 
-export function useProposalVoteList(proposalId: bigint, proposal: Proposal | null) {
+export function useProposalVoteList(proposalId: bigint, proposal: Proposal | null, refreshKey?: string) {
   const [proposalLogs, setLogs] = useState<VoteCastEvent[]>([]);
 
   async function getLogs() {
@@ -29,7 +29,7 @@ export function useProposalVoteList(proposalId: bigint, proposal: Proposal | nul
         voteOption: vote.vote_option,
         votingPower: BigInt(vote.voting_power),
       }));
-      if (votes.length > proposalLogs.length) setLogs(votes);
+      setLogs(votes);
       return;
     }
 
@@ -42,12 +42,12 @@ export function useProposalVoteList(proposalId: bigint, proposal: Proposal | nul
     });
 
     const newLogs = logs.flatMap((log) => (log as unknown as { args: VoteCastEvent }).args);
-    if (newLogs.length > proposalLogs.length) setLogs(newLogs);
+    setLogs(newLogs);
   }
 
   useEffect(() => {
     getLogs();
-  }, [proposalId, !!proposal]);
+  }, [proposalId, !!proposal, refreshKey]);
 
   return proposalLogs;
 }

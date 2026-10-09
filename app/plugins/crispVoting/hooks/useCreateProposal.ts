@@ -1,47 +1,65 @@
 import { useRouter } from "next/router";
 import { useState } from "react";
-import { encodeAbiParameters, parseAbiParameters, toHex } from "viem";
-import { useReadContract } from "wagmi";
+import { encodeAbiParameters, encodeFunctionData, type Hex, parseAbi, parseAbiParameters, toHex } from "viem";
+import { getCapabilities, sendCalls, waitForCallsStatus } from "viem/actions";
+import { useConfig, useReadContract } from "wagmi";
+import { getConnectorClient, readContract } from "wagmi/actions";
 import {
   MINIMUM_START_DELAY_IN_SECONDS,
-  PUB_APP_NAME,
   PUB_CHAIN,
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-  PUB_PROJECT_URL,
   PUB_SPP_PRIVATE_ADDRESS,
 } from "@/constants";
 import { useAlerts } from "@/context/Alerts";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
 import { StagedProposalProcessorAbi } from "@/plugins/spp/artifacts/StagedProposalProcessor";
 import { useSppStages } from "@/plugins/spp/hooks/useSppStages";
-import { URL_PATTERN } from "@/utils/input-values";
+import { validateProposalDetails } from "@/plugins/governance/utils/proposalValidation";
+import { useProposalDraft, type ProposalDraft } from "@/plugins/governance/hooks/useProposalDraft";
 import { uploadToPinata } from "@/utils/ipfs";
-import type { ProposalMetadata, RawAction } from "@/utils/types";
+import { decodeTxError } from "@/utils/tx-errors";
+import type { ProposalMetadata } from "@/utils/types";
+import { waitForWalletSync } from "@/utils/wallet-sync";
 import { useFeeCredits } from "./useFeeCredits";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { scheduleVotingStart } from "../utils/votingSchedule";
 
-const UrlRegex = new RegExp(URL_PATTERN);
-
 /**
- * Explicit gas limit for SPP createProposal. The SPP wraps the body's sub-proposal creation in
- * try/catch, so eth_estimateGas converges on a limit where the CRISP sub-proposal (E3 request
- * included) runs out of gas, gets swallowed, and the outer tx still "succeeds". Over-provision
- * instead of trusting the estimate; unused gas is refunded.
+ * Explicit gas limit for SPP createProposal when the app sends it as a single transaction. The SPP
+ * wraps the body's sub-proposal creation in try/catch, so eth_estimateGas converges on a limit where
+ * the CRISP sub-proposal (E3 request included) runs out of gas, gets swallowed, and the outer tx
+ * still "succeeds". Over-provision instead of trusting the estimate; unused gas is refunded. MetaMask
+ * can replace this limit with that estimate, so the app sends an atomic batch instead when the
+ * wallet supports one (see `createProposalAtomically`).
+ *
+ * On Sepolia, where EIP-8037 makes new storage slots much more expensive, the sub-proposal needs a
+ * limit of at least 13.3M gas (12.7M used, 10M of it in the E3 request). The limit stays below
+ * 2^24 (16,777,216) gas because EIP-7825 rejects a higher limit on chains without EIP-8037.
  */
-const CREATE_PROPOSAL_GAS_LIMIT = 5_000_000n;
+const CREATE_PROPOSAL_GAS_LIMIT = 16_000_000n;
 
-export function useCreateProposal() {
+// `getE3` reverts with `E3DoesNotExist` for an id that no request has used. The batch reads no
+// result from it, so the fragment declares no outputs.
+const interfoldGuardAbi = parseAbi(["function nexte3Id() view returns (uint256)", "function getE3(uint256 e3Id) view"]);
+
+export function useCreateProposal(draft?: ProposalDraft) {
   const { push } = useRouter();
+  const config = useConfig();
   const { addAlert } = useAlerts();
   const [isCreating, setIsCreating] = useState(false);
-  const [title, setTitle] = useState<string>("");
-  const [summary, setSummary] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
-  const [actions, setActions] = useState<RawAction[]>([]);
-  const [resources, setResources] = useState<{ name: string; url: string }[]>([
-    { name: PUB_APP_NAME, url: PUB_PROJECT_URL },
-  ]);
+  const localDraft = useProposalDraft();
+  const {
+    title,
+    summary,
+    description,
+    actions,
+    resources,
+    setTitle,
+    setSummary,
+    setDescription,
+    setActions,
+    setResources,
+  } = draft ?? localDraft;
 
   // The voting window is the stage-configured one (5 days on mainnet), never creator-chosen:
   // the SPP creates the sub-proposal with endDate = start + stage.voteDuration, and the
@@ -75,44 +93,100 @@ export function useCreateProposal() {
   // Creator-pays E3 fee escrow on the CRISP plugin — quoted against the stage window.
   const { quote, credit, depositNeeded, balanceShortfall, deposit, refetchCredit } = useFeeCredits(durationSeconds);
 
+  const showProposalList = () =>
+    setTimeout(() => {
+      push("#/");
+      window.scroll(0, 0);
+    }, 1000 * 2);
+
   const { writeContractAsync: createProposalWrite } = useTransactionManager({
     onSuccessMessage: "Proposal created",
-    onSuccess() {
-      setTimeout(() => {
-        push("#/");
-        window.scroll(0, 0);
-      }, 1000 * 2);
-    },
+    onSuccess: showProposalList,
     onErrorMessage: "Could not create the proposal",
     onError: () => setIsCreating(false),
   });
 
-  const submitProposal = async () => {
-    if (!title.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a title",
-        type: "error",
+  /**
+   * Sends createProposal and `Interfold.getE3(nexte3Id)` as one atomic batch. Returns false, and
+   * sends nothing, when the wallet cannot send an atomic batch.
+   *
+   * `getE3` reverts when the CRISP sub-proposal did not request its E3. A batch whose sub-proposal
+   * runs out of gas therefore reverts and creates no proposal, and the wallet's gas estimate for the
+   * batch covers the E3 request. The estimate for createProposal alone does not.
+   */
+  const createProposalAtomically = async (createProposalData: Hex): Promise<boolean> => {
+    // A failed probe sends nothing here: the single-transaction path then reports the wallet error.
+    const wallet = await getConnectorClient(config, { chainId: PUB_CHAIN.id }).catch(() => undefined);
+    const capabilities = wallet && (await getCapabilities(wallet, { chainId: PUB_CHAIN.id }).catch(() => undefined));
+    const atomic = capabilities?.atomic?.status;
+    if (!wallet || (atomic !== "supported" && atomic !== "ready")) return false;
+
+    try {
+      const interfold = await readContract(config, {
+        chainId: PUB_CHAIN.id,
+        address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        abi: CrispVotingAbi,
+        functionName: "interfold",
       });
-    }
-    if (!summary.trim()) {
-      return addAlert("Invalid proposal details", {
-        description: "Please enter a summary of what the proposal is about",
-        type: "error",
+      const nextE3Id = await readContract(config, {
+        chainId: PUB_CHAIN.id,
+        address: interfold,
+        abi: interfoldGuardAbi,
+        functionName: "nexte3Id",
       });
-    }
-    for (const item of resources) {
-      if (!item.name.trim()) {
-        return addAlert("Invalid resource name", {
-          description: "Please enter a name for all the resources",
+      await waitForWalletSync(config, PUB_CHAIN.id);
+      const { id } = await sendCalls(wallet, {
+        forceAtomic: true,
+        calls: [
+          { to: PUB_SPP_PRIVATE_ADDRESS, data: createProposalData },
+          {
+            to: interfold,
+            data: encodeFunctionData({ abi: interfoldGuardAbi, functionName: "getE3", args: [nextE3Id] }),
+          },
+        ],
+      });
+      addAlert("Transaction submitted", { description: "Waiting for the transaction to be validated" });
+
+      // `timeout: 0` waits for the final status with no time limit, as the single-transaction path does.
+      const { status, receipts } = await waitForCallsStatus(wallet, { id, timeout: 0 });
+      const txHash = receipts?.[0]?.transactionHash;
+      if (status !== "success") {
+        addAlert("Could not create the proposal", {
           type: "error",
+          description: "The transaction failed and did not create a proposal. Please try again.",
+          txHash,
         });
-      } else if (!UrlRegex.test(item.url.trim())) {
-        return addAlert("Invalid resource URL", {
-          description: "Please enter valid URL for all the resources",
-          type: "error",
-        });
+        setIsCreating(false);
+        return true;
       }
+      addAlert("Proposal created", {
+        type: "success",
+        description: "The transaction has been validated on the network",
+        txHash,
+      });
+      showProposalList();
+    } catch (err) {
+      const friendly = decodeTxError(err, "Could not create the proposal");
+      if (friendly.isUserRejection) {
+        addAlert("The transaction signature was declined", { description: friendly.description, timeout: 4 * 1000 });
+      } else {
+        console.error("ERROR", err);
+        addAlert(friendly.title, { type: "error", description: friendly.description });
+      }
+      setIsCreating(false);
     }
+    return true;
+  };
+
+  const submitProposal = async () => {
+    const [detailsError] = validateProposalDetails({ title, summary, resources });
+    if (detailsError) {
+      return addAlert("Check your proposal", {
+        description: detailsError.message,
+        type: "error",
+      });
+    }
+
     if (durationSeconds === undefined) {
       return addAlert("Voting window unavailable", {
         description: "Could not read the stage voting window. Please try again.",
@@ -167,15 +241,23 @@ export function useCreateProposal() {
       // _proposalParams is indexed [stageIdx][bodyIdx]; stage 1 (veto) is manual.
       const proposalParams: `0x${string}`[][] = [[crispData], []];
 
+      // Positional: (metadata, actions, allowFailureMap, startDate, proposalParams). Every action
+      // must succeed, and 0 starts the stage now — CrispVoting lifts any start below
+      // `earliestVotingStart()` up to it, so the voting window never depended on this argument.
+      const createArgs = [toHex(ipfsPin), actions, 0n, 0n, proposalParams] as const;
+      const createProposalData = encodeFunctionData({
+        abi: StagedProposalProcessorAbi,
+        functionName: "createProposal",
+        args: createArgs,
+      });
+      if (await createProposalAtomically(createProposalData)) return;
+
       await createProposalWrite({
         chainId: PUB_CHAIN.id,
         abi: StagedProposalProcessorAbi,
         address: PUB_SPP_PRIVATE_ADDRESS,
         functionName: "createProposal",
-        // Positional: (metadata, actions, allowFailureMap, startDate, proposalParams). Every action
-        // must succeed, and 0 starts the stage now — CrispVoting lifts any start below
-        // `earliestVotingStart()` up to it, so the voting window never depended on this argument.
-        args: [toHex(ipfsPin), actions, 0n, 0n, proposalParams],
+        args: createArgs,
         gas: CREATE_PROPOSAL_GAS_LIMIT,
       });
     } catch (err) {

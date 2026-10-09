@@ -7,8 +7,8 @@ import type { Address, Hex } from "viem";
  *
  * The server indexes these contracts' logs to run rounds, so every `getLogs` walk in this app is
  * work repeated by each client against data the server already holds — a proposal list scanned
- * from the deployment block on every page load, a delegate directory rebuilt per visitor, a vote
- * list scanned per proposal. One request replaces each of them.
+ * from the deployment block on every page load, a vote list scanned per proposal. One request
+ * replaces each of them.
  *
  * Every function here returns `null` rather than throwing, for ANY failure: no server configured,
  * the contract not served, unreachable, or an answer that does not reach back far enough to be
@@ -19,36 +19,14 @@ import type { Address, Hex } from "viem";
 /** How far back an answer must reach to be trusted. */
 type Coverage = { scanned_from: number };
 
-/**
- * How patient a call is willing to be.
- *
- * Default: none. Most routes here answer from an index that is either warm or not, and a caller
- * that can scan for itself should not sit waiting. `/members/delegates` is the exception — see
- * `fetchDelegates`.
- */
-type Patience = {
-  /** Total tries, including the first. */
-  attempts?: number;
-  /** Per-try cap. A hung request must not leave the caller's spinner up for ever. */
-  timeoutMs?: number;
-};
+/** Per-request cap. A hung request must not leave the caller's spinner up for ever. */
+const REQUEST_TIMEOUT_MS = 15_000;
 
-/** Backoff before try N (1-indexed), in ms. Long enough for a cold scan to finish. */
-const RETRY_DELAYS = [1_000, 4_000, 10_000];
+async function post<T extends Coverage>(endpoint: string, body: unknown, requiredFrom: number): Promise<T | null> {
+  if (!PUB_CRISP_SERVER_URL || !requiredFrom) return null;
 
-/**
- * One try. `null` means "the answer is not usable"; `retry` says whether trying again could
- * change that — a timeout or a 5xx could, a 404 (`not served by this indexer`) never will, and
- * retrying it just makes a client wait to be told the same thing.
- */
-async function attempt<T extends Coverage>(
-  endpoint: string,
-  body: unknown,
-  requiredFrom: number,
-  timeoutMs: number
-): Promise<{ data: T | null; retry: boolean }> {
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  const timer = setTimeout(() => abort.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(`${PUB_CRISP_SERVER_URL.replace(/\/$/, "")}/${endpoint}`, {
@@ -57,46 +35,20 @@ async function attempt<T extends Coverage>(
       body: JSON.stringify(body),
       signal: abort.signal,
     });
-
-    // 5xx and 429 are states the server leaves; 4xx is a verdict on the request itself.
-    if (!response.ok) return { data: null, retry: response.status >= 500 || response.status === 429 };
+    if (!response.ok) return null;
 
     const data = (await response.json()) as T;
 
     // Trust it only as far as it says it scanned. The server's own coverage starts wherever IT
     // began indexing, so an answer built from a shorter range is missing entries — and for a list,
     // missing entries are indistinguishable from there being none.
-    if (!(data?.scanned_from <= requiredFrom)) return { data: null, retry: false };
-
-    return { data, retry: false };
+    return data?.scanned_from <= requiredFrom ? data : null;
   } catch {
-    // Aborted, offline, DNS, CORS — all worth another go.
-    return { data: null, retry: true };
+    // Aborted, offline, DNS, CORS.
+    return null;
   } finally {
     clearTimeout(timer);
   }
-}
-
-async function post<T extends Coverage>(
-  endpoint: string,
-  body: unknown,
-  requiredFrom: number,
-  patience: Patience = {}
-): Promise<T | null> {
-  if (!PUB_CRISP_SERVER_URL || !requiredFrom) return null;
-
-  const attempts = patience.attempts ?? 1;
-  const timeoutMs = patience.timeoutMs ?? 15_000;
-
-  for (let i = 0; i < attempts; i++) {
-    if (i > 0) await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[i - 1] ?? 10_000));
-
-    const { data, retry } = await attempt<T>(endpoint, body, requiredFrom, timeoutMs);
-    if (data) return data;
-    if (!retry) return null;
-  }
-
-  return null;
 }
 
 export type ServerProposal = {
@@ -168,68 +120,6 @@ export async function fetchVotes(options: {
   );
 
   return Array.isArray(data?.votes) ? data.votes : null;
-}
-
-export type ServerDelegates = {
-  delegates: { address: Address; votingPower: bigint }[];
-  totalSupply: bigint;
-};
-
-/**
- * The delegate directory: every address ever delegated to that still holds power, ranked.
- *
- * The one call here that waits and retries, because its fallback is not a real one. The route
- * builds the directory by scanning `DelegateChanged` from the token's deployment block, and the
- * FIRST caller after the server starts pays for that scan inside their request — tens of upstream
- * windows, long enough to time out in a browser. Every later caller gets it from the server's
- * cache in milliseconds. So a failure here is nearly always "come back in a moment", not "this
- * server cannot answer".
- *
- * Meanwhile the client-side fallback that failure drops us into scans the same range through the
- * indexer's own rate-limited RPC, ~40 sequential windowed `eth_getLogs` — slower than waiting,
- * and in practice it just fails differently. Retrying the route is strictly the better bet, and
- * a 4xx still returns immediately, so a server that genuinely does not serve this token costs
- * nothing.
- */
-export async function fetchDelegates(options: {
-  token: Address;
-  fromBlock: number;
-  /** Where voting power is read from, when that is not the token — here, the bonded-votes
-   *  adapter. Named explicitly because a directory built entirely against the token would list
-   *  the right delegates with the wrong numbers. */
-  powerSource?: Address;
-  /** Where `DelegateChanged` is emitted, when that is not the token. With the escrow enabled that
-   *  is its IVotes adapter, and the token's own delegation feeds a read nobody consumes. */
-  delegationSource?: Address;
-}): Promise<ServerDelegates | null> {
-  const data = await post<{
-    scanned_from: number;
-    total_supply: string;
-    delegates: { address: Address; voting_power: string }[];
-  }>(
-    "members/delegates",
-    {
-      token: options.token,
-      from_block: options.fromBlock,
-      ...(options.powerSource && options.powerSource !== options.token ? { power_source: options.powerSource } : {}),
-      ...(options.delegationSource && options.delegationSource !== options.token
-        ? { delegation_source: options.delegationSource }
-        : {}),
-    },
-    options.fromBlock,
-    { attempts: 4, timeoutMs: 45_000 }
-  );
-
-  if (!Array.isArray(data?.delegates)) return null;
-
-  return {
-    // Already ranked and zero-filtered server-side; re-sorting here would only disagree.
-    delegates: data.delegates.map((entry) => ({
-      address: entry.address,
-      votingPower: BigInt(entry.voting_power),
-    })),
-    totalSupply: BigInt(data.total_supply),
-  };
 }
 
 export type ServerInput = {

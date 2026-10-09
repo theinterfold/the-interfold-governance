@@ -1,0 +1,45 @@
+.interactive :global(.fold-allocation-chart circle[data-allocation]) {
+  pointer-events: visibleStroke;
+  transition:
+    opacity 160ms ease,
+    stroke-width 160ms ease;
+}
+.interactive[data-highlighting="true"] :global(.fold-allocation-chart circle[data-allocation]) {
+  opacity: 0.2;
+}
+.interactive[data-highlighting="true"] :global(.fold-allocation-chart circle[data-highlighted="true"]) {
+  opacity: 1;
+  stroke-width: 20px;
+}
+.interactive :global(.fold-allocation-legend > div) {
+  border-radius: var(--ui-radius);
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+.interactive :global(.fold-allocation-legend > div[data-highlighted="true"]) {
+  background: color-mix(in srgb, var(--allocation-color) 12%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--allocation-color) 12%, transparent);
+}
+.legendTarget {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border-radius: var(--ui-radius);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.legendTarget:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .interactive :global(.fold-allocation-chart circle[data-allocation]),
+  .interactive :global(.fold-allocation-legend > div) {
+    transition: none;
+  }
+}

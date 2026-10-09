@@ -1,24 +1,32 @@
-import { AlertCard } from "@aragon/ods";
 import Link from "next/link";
-import { formatUnits, type Address } from "viem";
-import { useReadContracts } from "wagmi";
-import { PUB_CHAIN, PUB_TOKEN_ADDRESS, PUB_TOKEN_SYMBOL, PUB_VE_LOCKER_ADDRESS } from "@/constants";
+import { formatUnits, isAddress, type Address } from "viem";
+import { useReadContract, useReadContracts } from "wagmi";
+import {
+  PUB_BONDED_VOTES_ADDRESS,
+  PUB_CHAIN,
+  PUB_TOKEN_ADDRESS,
+  PUB_TOKEN_SYMBOL,
+  PUB_VE_LOCKER_ADDRESS,
+} from "@/constants";
+import { bondedVotesAbi } from "@/artifacts/bondedVotes";
 import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { ADDRESS_ZERO, equalAddresses } from "@/utils/evm";
-import { compactNumber } from "@/utils/numbers";
+import { exactNumber } from "@/utils/numbers";
 import { foldLockAbi } from "../artifacts/foldLock";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
+import { PowerWarning } from "./powerWarning";
 
 /**
  * Names the FOLD of an account that gives it no voting power under the voting escrow, and what
  * makes that FOLD count.
  *
  * `BondedVotes` counts escrow locks only through the adapter's delegation, and never counts
- * unlocked wallet FOLD. FOLD that is still vesting and bonded FOLD count without either. So an
- * account can vote while part of its FOLD does not count, and the fix depends on the part: unlocked
- * FOLD must be locked, and a lock must be delegated.
+ * unlocked wallet FOLD. FOLD that is still vesting and bonded FOLD count without either, unless the
+ * owner gave them to a bonded delegate. So an account can vote while part of its FOLD does not
+ * count for it, and the fix depends on the part: unlocked FOLD must be locked, a lock must be
+ * delegated to the account itself, and bonded delegation must be stopped on the Voting power page.
  *
  * @param delegatesTo The adapter's delegate for `address`, from `useTokenVotes`.
  */
@@ -43,6 +51,15 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
     ],
     query: { enabled: !!address },
   });
+  // An adapter without bonded delegation reverts here, and the bonded line stays hidden.
+  const { data: bondedDelegate } = useReadContract({
+    chainId: PUB_CHAIN.id,
+    address: PUB_BONDED_VOTES_ADDRESS,
+    abi: bondedVotesAbi,
+    functionName: "bondedDelegate",
+    args: [address!],
+    query: { enabled: !!address && isAddress(PUB_BONDED_VOTES_ADDRESS), retry: false },
+  });
   // Unlocked wallet FOLD: what the vesting schedule no longer holds, net of any bond.
   const unlocked = data?.[0].result;
   const locked = data?.[1].result;
@@ -59,39 +76,46 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
   const noDelegate = equalAddresses(delegatesTo, ADDRESS_ZERO);
   const undelegated = noDelegate ? locked : 0n;
   const delegatedElsewhere = locked > 0n && !noDelegate && !equalAddresses(delegatesTo, address);
-  if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere) return null;
+  const bondedAway = !!bondedDelegate && !equalAddresses(bondedDelegate, ADDRESS_ZERO);
+  if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere && !bondedAway) return null;
 
-  const fmt = (v: bigint) => `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const fmt = (v: bigint) => `${exactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const link = "underline underline-offset-2";
   return (
-    <AlertCard
-      variant="info"
-      message={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}
-      description={
-        <span className="flex flex-col gap-y-1 text-sm">
-          {unlocked > 0n && (
-            <span>
-              {fmt(unlocked)} in your wallet is not locked.{" "}
-              <Link href="/plugins/lock/#/" className="!text-sm text-primary-400 hover:underline">
-                Lock it
-              </Link>{" "}
-              to vote with it.
-            </span>
-          )}
-          {undelegated > 0n && (
-            <span>
-              {fmt(undelegated)} in the voting escrow is not delegated.{" "}
-              <SelfDelegateLink label="Delegate it to yourself" /> to vote with it.
-            </span>
-          )}
-          {delegatedElsewhere && (
-            <span>
-              Your locked {PUB_TOKEN_SYMBOL} votes through <AddressText bold={false}>{delegatesTo}</AddressText>.{" "}
-              <SelfDelegateLink label="Delegate it to yourself" /> to vote with it yourself.
-            </span>
-          )}
-          <span>A change counts only for proposals created after it.</span>
+    <PowerWarning title={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}>
+      {unlocked > 0n && (
+        <span className="block">
+          {fmt(unlocked)} in your wallet is not locked.{" "}
+          <Link href="/plugins/lock/#/" className={link}>
+            Lock it
+          </Link>{" "}
+          to vote with it.
         </span>
-      }
-    />
+      )}
+      {undelegated > 0n && (
+        <span className="block">
+          {fmt(undelegated)} in the voting escrow is not delegated. <SelfDelegateLink label="Delegate it to yourself" />{" "}
+          to vote with it.
+        </span>
+      )}
+      {delegatedElsewhere && (
+        <span className="block">
+          {exactNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
+          <AddressText bold={false}>{delegatesTo}</AddressText>. <SelfDelegateLink label="Delegate to yourself" /> to
+          vote with it.
+        </span>
+      )}
+      {bondedAway && (
+        <span className="block">
+          Your bonded and vesting {PUB_TOKEN_SYMBOL} votes through{" "}
+          <AddressText bold={false}>{bondedDelegate}</AddressText>.{" "}
+          <Link href="/plugins/lock/#/" className={link}>
+            Stop the delegation
+          </Link>{" "}
+          to vote with it yourself.
+        </span>
+      )}
+      <span className="block">A change counts only for proposals created after it.</span>
+    </PowerWarning>
   );
 }

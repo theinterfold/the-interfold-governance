@@ -355,9 +355,17 @@ interface IInterfold {
     /// @notice Returns the ERC20 token used to pay for E3 fees.
     function feeToken() external view returns (IERC20);
 
-    /// @notice The circuit configuration accepted by new requests.
-    /// @return The active crypto config id.
+    /// @notice The coordinator's production circuit configuration. It does not change with the
+    ///         chain or the parameter set: `request` checks `expectedCryptoConfigId` against the
+    ///         configuration of the requested parameter set instead.
+    /// @return The production crypto config id.
     function activeCryptoConfigId() external view returns (bytes32);
+
+    /// @notice The ABI-encoded BFV parameters registered for a parameter set (the coordinator's
+    ///         public `paramSetRegistry` mapping). Empty when the set is not registered.
+    /// @param paramSet The parameter set index (0 = insecure-512, 1 = secure-8192).
+    /// @return The encoded parameters.
+    function paramSetRegistry(uint8 paramSet) external view returns (bytes memory);
 
     /// @notice Returns the BondingRegistry contract.
     function bondingRegistry() external view returns (IBondingRegistry);

@@ -24,6 +24,16 @@ const crispProgramAbi = parseAbi([
 /// Mirrors `CRISPProgram.CensusMode`.
 const CENSUS_MODE_ONCHAIN = 2;
 
+/** Sends a ballot another wallet prepared. Without options, `publish` sends from the connected wallet as before. */
+export type PublishOptions = {
+  /** The wallet that sends and pays gas. It need not be the wallet that signed the ballot. */
+  account?: Address;
+  /** The CRISP program the ballot was prepared for. A round that moved to another program refuses it. */
+  expectedProgram?: Address;
+  /** Called with the hash as soon as the wallet broadcasts, before the receipt is awaited. */
+  onSubmitted?: (hash: Hex) => void;
+};
+
 export type PublishVote = {
   /** Every precondition `publishInput` enforces is satisfied right now. */
   canPublish: boolean;
@@ -31,23 +41,30 @@ export type PublishVote = {
   blockedReason?: string;
   /** Still resolving the reads needed to answer that. */
   isLoading: boolean;
+  /** The program refuses a new input at this Unix time (seconds). Undefined until it is read. */
+  commitmentDeadline: bigint | undefined;
   /** Submits an already-built vote payload directly to the CRISP program. */
-  publish: (encodedProof: Hex) => Promise<Hex>;
+  publish: (attestedPayload: Hex, options?: PublishOptions) => Promise<Hex>;
 };
 
 /**
  * Submits a vote straight to the CRISP program instead of handing it to the CRISP server.
  *
- * The client already does all the work — encrypting the ballot and generating the Noir proof
- * happen locally, and `encodeSolidityProof` produces exactly the `(bytes, address, bytes32, bytes)`
- * tuple that `CRISPProgram.publishInput` decodes. The server's only role in the existing flow is
- * to relay that payload in a transaction, so bypassing it costs the voter gas and removes a
- * liveness dependency without changing the ballot in any way.
+ * The client encrypts the ballot and generates the Noir proof locally, and the CRISP server stages
+ * it (`/voting/broadcast`) and signs the availability attestation. The payload sent here is that
+ * ATTESTED `InputCommitmentEnvelope` — never the client's own `encodeSolidityProof` output, which
+ * lacks the attestation. The server's only other role in the existing flow is to relay that
+ * payload in a transaction, so bypassing it costs the voter gas and removes a liveness dependency
+ * without changing the ballot in any way.
  *
  * `publishInput` verifies the Noir proof on-chain against `e3.committeePublicKey`, so a vote that
  * reaches the tally this way cannot have been encrypted under a key the committee does not hold.
  * (It does NOT protect ballot secrecy — a ballot encrypted to the wrong key is broadcast publicly
  * before it is rejected — but it does mean a relayer cannot substitute or drop a valid vote.)
+ *
+ * The transaction sender is irrelevant to the program: it authenticates the ballot's signature and
+ * the server's attestation, and the ballot counts for the slot it names. `options.account` therefore
+ * lets a different wallet from the signer send it.
  */
 export function usePublishVote(e3Id: bigint | undefined): PublishVote {
   const client = usePublicClient();
@@ -154,20 +171,44 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     onErrorMessage: "Could not publish the vote on-chain",
   });
 
-  const publish = async (encodedProof: Hex) => {
+  const publish = async (attestedPayload: Hex, options?: PublishOptions) => {
     if (e3Id === undefined) throw new Error("No round selected");
     if (!client) throw new Error("No RPC client available");
     if (!programAddress) throw new Error("The round's CRISP program could not be resolved");
     if (blockedReason) throw new Error(blockedReason);
 
-    const hash = await writeContractAsync({
+    // A prepared ballot can be sent long after it was staged. Check the live round again: cached
+    // reads are only UI hints, and the round must still run the program that verified the ballot.
+    let program = programAddress;
+    if (options?.expectedProgram) {
+      const live = await client.readContract({
+        address: interfoldAddress!,
+        abi: interfoldAbi,
+        functionName: "getE3",
+        args: [e3Id],
+      });
+      if (live.e3Program.toLowerCase() !== options.expectedProgram.toLowerCase()) {
+        throw new Error("The prepared ballot belongs to a different voting program. Discard it and prepare a new vote.");
+      }
+      program = live.e3Program;
+    }
+
+    const request = {
+      ...(options?.account ? { account: options.account } : {}),
       chainId: PUB_CHAIN.id,
       abi: crispProgramAbi,
-      address: programAddress,
-      functionName: "publishInput",
-      args: [e3Id, encodedProof],
-    });
+      address: program,
+      functionName: "publishInput" as const,
+      args: [e3Id, attestedPayload] as const,
+    };
 
+    // A stale slot head, an expired attestation or a closed round must fail before the sending
+    // wallet is asked to pay gas.
+    if (options) await client.simulateContract(request);
+
+    const hash = await writeContractAsync(request);
+
+    options?.onSubmitted?.(hash);
     await awaitSuccessfulReceipt(client, hash, "The vote");
 
     return hash;
@@ -177,6 +218,7 @@ export function usePublishVote(e3Id: bigint | undefined): PublishVote {
     canPublish: !isLoading && !blockedReason && !!programAddress,
     blockedReason,
     isLoading: Boolean(isLoading),
+    commitmentDeadline,
     publish,
   };
 }

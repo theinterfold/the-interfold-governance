@@ -1,7 +1,6 @@
-import { Else, ElseIf, If, Then } from "@/components/if";
 import { AddressText } from "@/components/text/address";
-import { DefinitionList, Heading, IconType, Link } from "@aragon/ods";
-import { Address } from "viem";
+import { IconType, Link } from "@aragon/ods";
+import type { Address } from "viem";
 
 export interface IVotingDetailsProps {
   startDate?: string;
@@ -13,53 +12,84 @@ export interface IVotingDetailsProps {
   strategy: string;
 }
 
+/** Match the exact UTC dates used by the proposal's deadline help. */
+function VotingDate({ value }: { value: string }) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return <span>{value}</span>;
+  const day = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+  const clock = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(date);
+  return (
+    <time className="voting-detail-date" dateTime={date.toISOString()}>
+      <span>{day}</span>
+      <span>{clock}</span>
+    </time>
+  );
+}
+
 export const VotingDetails: React.FC<IVotingDetailsProps> = (props) => {
   const { startDate, endDate, snapshotBlockURL, snapshotTakenAt, tokenAddress, options, strategy } = props;
   return (
-    <div className="flex flex-col gap-y-3">
-      <div>
-        <Heading size="h4">Voting</Heading>
-        <DefinitionList.Container className="">
-          <If true={startDate}>
-            <DefinitionList.Item term="Starting" className="!gap-y-1 *:text-neutral-500">
-              <div className="w-full text-neutral-800 md:text-right">{startDate}</div>
-            </DefinitionList.Item>
-          </If>
-          <DefinitionList.Item term="Ending" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{endDate}</div>
-          </DefinitionList.Item>
-          <DefinitionList.Item term="Census Snapshot" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">
-              <If true={!!snapshotBlockURL}>
-                <Then>
-                  <Link iconRight={IconType.LINK_EXTERNAL} href={snapshotBlockURL} target="_blank">
-                    {snapshotTakenAt}
-                  </Link>
-                </Then>
-                <Else>{snapshotTakenAt}</Else>
-              </If>
+    <div className="voting-method-details">
+      <section>
+        <div className="vp-head">
+          <h3>Schedule</h3>
+        </div>
+        <div className="vp-body">
+          {startDate && (
+            <div className="ui-fact-row">
+              <span className="text-neutral-500">Starts</span>
+              <VotingDate value={startDate} />
             </div>
-          </DefinitionList.Item>
-        </DefinitionList.Container>
-      </div>
-      <div>
-        <Heading size="h4">Governance Settings</Heading>
-        <DefinitionList.Container>
-          <If true={!!tokenAddress}>
-            <DefinitionList.Item term="Token contract" className="!gap-y-1 *:text-neutral-500">
-              <div className="w-full text-ellipsis text-neutral-800 md:text-right">
-                <AddressText>{tokenAddress}</AddressText>
-              </div>
-            </DefinitionList.Item>
-          </If>
-          <DefinitionList.Item term="Strategy" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{strategy}</div>
-          </DefinitionList.Item>
-          <DefinitionList.Item term="Voting options" className="!gap-y-1 *:text-neutral-500">
-            <div className="w-full text-neutral-800 md:text-right">{options}</div>
-          </DefinitionList.Item>
-        </DefinitionList.Container>
-      </div>
+          )}
+          <div className="ui-fact-row">
+            <span className="text-neutral-500">Ends</span>
+            <VotingDate value={endDate} />
+          </div>
+          <div className="ui-fact-row">
+            <span className="text-neutral-500">Snapshot</span>
+            {snapshotBlockURL ? (
+              <Link iconRight={IconType.LINK_EXTERNAL} href={snapshotBlockURL} target="_blank">
+                <VotingDate value={snapshotTakenAt} />
+              </Link>
+            ) : (
+              <VotingDate value={snapshotTakenAt} />
+            )}
+          </div>
+        </div>
+      </section>
+      <section>
+        <div className="vp-head">
+          <h3>Governance settings</h3>
+        </div>
+        <div className="vp-body">
+          {tokenAddress && (
+            <div className="ui-fact-row">
+              <span className="text-neutral-500">Token contract</span>
+              <AddressText>{tokenAddress}</AddressText>
+            </div>
+          )}
+          <div className="ui-fact-row">
+            <span className="text-neutral-500">Strategy</span>
+            <span>{strategy}</span>
+          </div>
+          <div className="ui-fact-row">
+            <span className="text-neutral-500">Voting options</span>
+            <span>{options}</span>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

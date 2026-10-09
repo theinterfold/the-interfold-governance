@@ -1,19 +1,18 @@
 import { parseAbi } from "viem";
 
 /**
- * Testnet faucet. A single `faucet()` call tops the caller up to a fixed amount
- * of both the DAO voting token (FOLD) and the CRISP fee token — the FOLD token
- * itself exposes no public `mint`, so this is the only way to fund a test wallet.
- *
- * It is a top-up, not a one-shot claim: each token is refilled independently
- * whenever the caller holds less than its `AMOUNT_*`, so a tester who spent
- * their fee tokens can replenish while still holding FOLD. `faucet()` reverts
- * with "You have enough tokens" only when neither side is below its threshold.
+ * Testnet voting faucet (`contracts/src/testnet/VotingFaucet.sol`). A `faucet()` call tops the
+ * caller's FOLD up to the next whole multiple of the CRISP voting floor (plus 1%), to at most five
+ * floors, so one claim is the minimum to vote and each further claim adds one ballot weight. Wallet
+ * FOLD and locked FOLD both count. It also sends `AMOUNT_FEE_TOKEN` fee tokens when the caller holds
+ * less than that. `foldShortfall(account)` is the FOLD the next claim sends (0 at the cap).
  */
 export const faucetAbi = parseAbi([
   "function faucet() external",
   "function fold() view returns (address)",
   "function feeToken() view returns (address)",
-  "function AMOUNT_FOLD() view returns (uint256)",
+  "function foldShortfall(address account) view returns (uint256)",
   "function AMOUNT_FEE_TOKEN() view returns (uint256)",
+  "error NothingToClaim()",
+  "error FaucetEmpty(address token)",
 ]);

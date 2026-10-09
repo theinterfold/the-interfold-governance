@@ -1,0 +1,495 @@
+/* Extracted from Header.tsx and SiteMobileHeader.tsx. Both sites consume this
+   block, including its breakpoints, font, wordmark and symbol dimensions. */
+:root {
+  --site-symbol-width: 32px;
+  --site-symbol-height: 28px;
+  --site-chrome-ink: #3a5e3c;
+  --site-chrome-hover: #173e23;
+  --site-content-width: 1052px;
+  --site-content-gutter: 16px;
+}
+@media (min-width: 768px) {
+  :root { --site-content-gutter: 32px; }
+}
+/* The header and footer always share a single content frame. */
+.site-header-grid,
+.site-footer-grid {
+  box-sizing: border-box;
+  width: calc(100% - 2 * var(--site-content-gutter));
+  max-width: var(--site-content-width);
+  margin-inline: auto;
+}
+.site-header-chrome,
+.site-header-pill-type {
+  --site-chrome-font: "ABC_Gramercy", "ABC Gramercy", Georgia, serif;
+}
+.site-header-chrome {
+  width: 100%;
+  height: 60px;
+  color: var(--site-chrome-ink);
+}
+.site-header-grid {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+.site-header-brand-slot {
+  position: absolute;
+  left: 0;
+}
+.site-header-brand {
+  display: block;
+  color: var(--site-chrome-ink);
+  white-space: nowrap;
+  font: 400 22px/1.05 var(--site-chrome-font);
+  letter-spacing: -0.66px;
+  font-feature-settings:
+    "liga" 1,
+    "clig" 1;
+  font-variant-ligatures: common-ligatures;
+  transition: color 200ms;
+}
+.site-header-brand:hover,
+.site-header-brand:focus-visible {
+  color: var(--site-chrome-hover);
+}
+/* The same focus cue stays legible on the mint and grey product grounds. */
+:is(.site-header-brand, .site-header-symbol, .site-header-link, .site-header-menu-link):focus-visible {
+  outline: 2px solid var(--site-chrome-hover);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.site-header-wordmark {
+  display: block;
+  width: 112px;
+  height: 16px;
+  overflow: visible;
+}
+.site-header-wordmark[data-governance] {
+  width: calc(112px * 237 / 120.421);
+}
+.site-header-governance {
+  fill: currentColor;
+  font-family: var(--site-chrome-font);
+  font-weight: 400;
+  font-style: normal;
+}
+.site-header-symbol {
+  display: block;
+  width: var(--site-symbol-width);
+  height: var(--site-symbol-height);
+  color: var(--site-chrome-ink);
+  transition: color 200ms;
+}
+.site-header-symbol:hover,
+.site-header-symbol:focus-visible {
+  color: var(--site-chrome-hover);
+}
+.site-header-symbol svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.site-header-navigation {
+  display: none;
+  align-items: center;
+  justify-self: end;
+  gap: 0;
+  font: 400 22px/1.05 var(--site-chrome-font);
+  letter-spacing: -0.66px;
+  color: var(--site-chrome-ink);
+}
+.site-header-links {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  color: inherit;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.site-header-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding-inline: 8px;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  transition: color 200ms;
+}
+.site-header-menu-primary {
+  color: #121718;
+}
+.site-header-link:hover,
+.site-header-link:focus-visible,
+.site-header-menu-link:hover,
+.site-header-menu-link:focus-visible {
+  color: var(--site-chrome-hover);
+}
+.site-header-menu-link:hover,
+.site-header-menu-link:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .15em;
+}
+.site-header-action {
+  margin-left: 8px;
+  align-self: center;
+  flex-shrink: 0;
+}
+.site-header-pill-type {
+  font: 400 22px/1.05 var(--site-chrome-font);
+  letter-spacing: -0.66px;
+  white-space: nowrap;
+}
+.site-header-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: calc(1.05em + 18px);
+  box-sizing: border-box;
+  padding: 9px 13px 9px 16px;
+}
+.site-header-menu-trigger {
+  position: fixed;
+  right: max(var(--site-content-gutter), calc((100% - var(--site-content-width)) / 2));
+  top: 28px;
+  z-index: 70;
+  width: 28px;
+  height: 16px;
+  transform: translateY(-50%);
+}
+.site-header-menu-trigger .hamburger-react {
+  position: absolute !important;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.site-header-chrome[data-variant="desktop"] {
+  --site-symbol-width: 46px;
+  --site-symbol-height: 35px;
+  height: 63px;
+}
+.site-header-chrome[data-variant="mobile"] {
+  --site-symbol-width: 32px;
+  --site-symbol-height: 28px;
+}
+.site-header-chrome[data-variant="desktop"] .site-header-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px;
+}
+.site-header-chrome[data-variant="desktop"] .site-header-brand-slot {
+  position: static;
+  justify-self: start;
+}
+.site-header-chrome[data-variant="desktop"] .site-header-symbol-slot {
+  justify-self: center;
+}
+.site-header-chrome[data-variant="desktop"] .site-header-wordmark {
+  width: 120px;
+  height: 17px;
+}
+.site-header-chrome[data-variant="desktop"]
+  .site-header-wordmark[data-governance] {
+  width: calc(120px * 237 / 120.421);
+}
+.site-header-chrome[data-variant="desktop"] .site-header-navigation {
+  display: flex;
+}
+/* Persistent homepage link arrows; animation follows their containing link. */
+.interfold-arrow-slide { position: relative; display: inline-block; overflow: hidden; flex-shrink: 0; }
+.interfold-arrow-slide__track {
+  display: flex;
+  flex-direction: column;
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
+}
+.group:hover .interfold-arrow-slide__track,
+.group:focus-visible .interfold-arrow-slide__track { transform: translateY(-50%); }
+@media (prefers-reduced-motion: reduce) {
+  .interfold-arrow-slide__track { transition: none; }
+  .group:hover .interfold-arrow-slide__track,
+  .group:focus-visible .interfold-arrow-slide__track { transform: none; }
+}
+@media (min-width: 1280px) {
+  :root {
+    --site-symbol-width: 46px;
+    --site-symbol-height: 35px;
+  }
+  .site-header-chrome[data-variant="responsive"] {
+    height: 63px;
+  }
+  .site-header-chrome[data-variant="responsive"] .site-header-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 16px;
+  }
+  .site-header-chrome[data-variant="responsive"] .site-header-brand-slot {
+    position: static;
+    justify-self: start;
+  }
+  .site-header-chrome[data-variant="responsive"] .site-header-symbol-slot {
+    justify-self: center;
+  }
+  .site-header-chrome[data-variant="responsive"] .site-header-wordmark {
+    width: 120px;
+    height: 17px;
+  }
+  .site-header-chrome[data-variant="responsive"]
+    .site-header-wordmark[data-governance] {
+    width: calc(120px * 237 / 120.421);
+  }
+  .site-header-chrome[data-variant="responsive"] .site-header-navigation {
+    display: flex;
+  }
+  .site-header-menu-trigger {
+    display: none;
+  }
+}
+@media (max-width: 639px) {
+  .site-header-chrome[data-extended-brand] .site-header-symbol-slot {
+    visibility: hidden;
+  }
+}
+
+/* One motion source for homepage menus and governance disclosures. Each arm
+   keeps its midpoint fixed, with the original 200ms homepage easing. */
+.interfold-chevron {
+  display: inline-block;
+  position: relative;
+  flex-shrink: 0;
+  width: var(--chevron-width);
+  height: calc(var(--chevron-width) * .5 + var(--chevron-thickness));
+}
+.interfold-chevron-arm {
+  position: absolute;
+  background: currentColor;
+  border-radius: calc(var(--chevron-thickness) * .5);
+  width: calc(var(--chevron-width) * .70710678);
+  height: var(--chevron-thickness);
+  top: calc(var(--chevron-width) * .25 - var(--chevron-thickness) * .5);
+  transform-origin: center;
+  transition: transform 200ms cubic-bezier(0.33, 0, 0.2, 1);
+}
+.interfold-chevron-left {
+  left: calc(var(--chevron-width) * -.10355339);
+  transform: rotate(45deg);
+}
+.interfold-chevron-right {
+  left: calc(var(--chevron-width) * .39644661);
+  transform: rotate(-45deg);
+}
+.interfold-chevron[data-open="true"] > .interfold-chevron-left,
+details[open] > summary > .interfold-chevron:not([data-open]) > .interfold-chevron-left,
+[data-state="open"] > .interfold-chevron:not([data-open]) > .interfold-chevron-left {
+  transform: rotate(-45deg);
+}
+.interfold-chevron[data-open="true"] > .interfold-chevron-right,
+details[open] > summary > .interfold-chevron:not([data-open]) > .interfold-chevron-right,
+[data-state="open"] > .interfold-chevron:not([data-open]) > .interfold-chevron-right {
+  transform: rotate(45deg);
+}
+/* Kept separate so browsers without select:open still animate disclosures. */
+select:open + .interfold-chevron > .interfold-chevron-left { transform: rotate(-45deg); }
+select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) {
+  .interfold-chevron-arm { transition: none; }
+}
+
+@keyframes interfold-top-nav-line-in {
+  from {
+    opacity: 1;
+    transform: scaleX(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Link and underline padding share one value. The compact navigation stays
+   inside its column without covering the central symbol. */
+.interfold-top-nav-link {
+  --nav-link-pad: .5rem;
+  padding-inline: var(--nav-link-pad);
+  position: relative;
+  text-decoration: none;
+}
+
+.interfold-top-nav-link::after {
+  background: currentColor;
+  bottom: -5px;
+  content: "";
+  height: 1px;
+  left: var(--nav-link-pad);
+  opacity: 0;
+  position: absolute;
+  right: var(--nav-link-pad);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.interfold-top-nav-link.is-active::after {
+  animation: interfold-top-nav-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1)
+    120ms both;
+}
+.interfold-top-nav-link:not(.is-active):hover::after,
+.interfold-top-nav-link:not(.is-active):focus-visible::after {
+  animation: interfold-top-nav-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interfold-top-nav-link.is-active::after,
+  .interfold-top-nav-link:not(.is-active):hover::after,
+  .interfold-top-nav-link:not(.is-active):focus-visible::after {
+    animation: none;
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Footer and newsletter extracted from the main website, shared by both apps. */
+.interfold-ghost-signup__embed {
+  color: #3a5e3c;
+  font-family: "ABC_Gramercy", "ABC Gramercy", serif;
+  position: relative;
+  z-index: 30;
+}
+
+.interfold-ghost-signup__embed .gh-signup-root {
+  background: transparent !important;
+  width: 100%;
+}
+
+.interfold-ghost-signup__embed iframe {
+  background: transparent !important;
+  border: 0 !important;
+  display: block;
+  min-height: 58px;
+  position: relative;
+  width: 100% !important;
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .interfold-footer-signup .interfold-ghost-signup__embed {
+    max-width: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .interfold-footer-baseline-item {
+    align-self: last baseline;
+  }
+
+  .interfold-footer-signup-form .interfold-ghost-signup__embed {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: baseline;
+  }
+}
+
+.interfold-ghost-signup__embed form {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.interfold-ghost-signup__embed input {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: #3a5e3c !important;
+  font-family: "ABC_Gramercy", "ABC Gramercy", serif !important;
+}
+
+.interfold-ghost-signup__embed input::placeholder {
+  color: #3a5e3c !important;
+  opacity: 1 !important;
+}
+
+.site-footer {
+  --site-chrome-font: "ABC_Gramercy", "ABC Gramercy", Georgia, serif;
+  --site-chrome-mono: "Office_Code_Pro:Medium", "Office Code Pro", monospace;
+  position: relative;
+  width: 100%;
+  color: #3a5e3c;
+}
+.site-footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 312px;
+  gap: 48px;
+  padding-block: 24px;
+}
+.site-footer-grid > * { min-width: 0; }
+.site-footer .site-footer-wordmark {
+  margin: 0;
+  color: inherit;
+  font: 400 40px/.87 var(--site-chrome-font);
+  letter-spacing: -1.92px;
+  font-feature-settings: "liga" 1, "clig" 1;
+  font-variant-ligatures: common-ligatures;
+}
+.site-footer-wordmark span { display: block; }
+.site-footer-wordmark span + span { padding-left: 8px; }
+.site-footer-group { display: flex; flex-direction: column; gap: 8px; }
+.site-footer .site-footer-label,
+.interfold-ghost-signup .site-footer-label {
+  margin: 0;
+  color: #3a5e3c;
+  font: 500 14px/1.075 var(--site-chrome-mono, "Office_Code_Pro:Medium", "Office Code Pro", monospace);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.site-footer-group .site-footer-label,
+.interfold-ghost-signup__label { white-space: nowrap; }
+.site-footer-links a {
+  display: block;
+  color: inherit;
+  font: 500 16px/1.5 var(--site-chrome-font);
+  letter-spacing: -.66px;
+  text-align: left;
+  text-decoration: none;
+  transition: color 150ms;
+}
+.site-footer-links a:hover,
+.site-footer-links a:focus-visible {
+  color: var(--site-chrome-hover);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+.site-footer-links a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.interfold-ghost-signup {
+  position: relative;
+  margin-inline: -12px;
+  padding: 8px 12px;
+  transition: background-color 300ms;
+}
+.interfold-ghost-signup:hover { background: rgba(193,217,191,.2); }
+.interfold-ghost-signup:focus-within { background: rgba(193,217,191,.34); }
+.interfold-ghost-signup .interfold-ghost-signup__label { margin-bottom: 12px; }
+@media (min-width: 768px) {
+  .site-footer-grid {
+    min-height: 412px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: 1fr auto;
+    gap: 40px 32px;
+  }
+  .site-footer-brand { grid-area: 1 / 1; }
+  .site-footer .site-footer-wordmark { font-size: 64px; }
+  .site-footer-wordmark span + span { padding-left: 12px; }
+  .site-footer-legal { grid-area: 1 / 3; }
+  .site-footer-social { grid-area: 1 / 4; }
+  .interfold-footer-signup { grid-area: 2 / 3 / auto / span 2; width: 100%; }
+  .site-footer-copyright { grid-area: 2 / 1; }
+  .interfold-footer-signup-form { padding-block: 0; }
+  .interfold-ghost-signup__embed { margin-inline: auto; max-width: 440px; }
+}
+@media (min-width: 1280px) {
+  .interfold-footer-signup { grid-area: 2 / 4; }
+}

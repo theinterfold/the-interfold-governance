@@ -9,14 +9,18 @@ import {
 } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { generateMerkleTree, getScaledBalance, hashLeaf } from "@crisp-e3/sdk";
+import { generateMerkleTree, hashLeaf } from "@crisp-e3/sdk";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import { crispSdk } from "../utils/crispSdk";
-import { CensusMode, getCensusMode, getRoundEligibilityFloor, resolveCrispProgram } from "../utils/ballotDigest";
-import { voteScale } from "../utils/quorum";
+import {
+  CensusMode,
+  getCensusMode,
+  getRoundEligibilityFloor,
+  getVotingPowerDivisor,
+  resolveCrispProgram,
+} from "../utils/ballotDigest";
 
 import type { Address } from "viem";
-import type { CreditsMode } from "../utils/types";
 
 const pastSupplyAbi = parseAbi(["function getPastTotalSupply(uint256 timepoint) view returns (uint256)"]);
 /** The plugin is authoritative about which token carries voting power. */
@@ -29,7 +33,7 @@ const votingTokenAbi = parseAbi(["function getVotingToken() view returns (addres
  * (see `PersistQueryClientProvider` in `context/index.tsx`, gcTime 24h), so a code
  * change alone will keep serving a stale report — the query key must change too.
  */
-const REPORT_VERSION = 5;
+const REPORT_VERSION = 6;
 
 /** How many `getPastVotes` reads to bundle into a single multicall. */
 const MULTICALL_BATCH = 200;
@@ -90,12 +94,11 @@ export function useEligibleVoters(
   opts: {
     /** `proposal.parameters.snapshotBlock` — token-clock units (a TIMESTAMP for FOLD). */
     chainSnapshot?: bigint;
-    creditMode?: CreditsMode | number;
     decimals?: number;
     enabled?: boolean;
   }
 ) {
-  const { chainSnapshot, creditMode, decimals, enabled = true } = opts;
+  const { chainSnapshot, decimals, enabled = true } = opts;
 
   return useQuery<EligibleVotersReport>({
     queryKey: ["crisp-eligible-voters", REPORT_VERSION, e3Id?.toString(), chainSnapshot?.toString(), decimals],
@@ -105,7 +108,7 @@ export function useEligibleVoters(
     queryFn: async () => {
       const id = BigInt(e3Id!);
 
-      const [holders, leafHashes, tokenDetails, onChainRound, pluginVotingToken, roundFloor, censusMode] =
+      const [holders, leafHashes, tokenDetails, onChainRound, pluginVotingToken, roundFloor, censusMode, divisor] =
         await Promise.all([
           crispSdk.getEligibleAddresses(id),
           crispSdk.getTokenHolderHashes(id).catch(() => [] as string[]),
@@ -137,7 +140,14 @@ export function useEligibleVoters(
                 .then((program) => getCensusMode(publicClient, program, id))
                 .catch(() => undefined)
             : undefined,
+          // The divisor the program recorded for the round: the server scaled every served balance
+          // by exactly this, and the tally counts are in units of it.
+          publicClient && PUB_CRISP_VOTING_PLUGIN_ADDRESS
+            ? getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, id).catch(() => 0n)
+            : 0n,
         ]);
+
+      if (divisor === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
 
       // Authoritative source for every voting-power read below.
       const votingToken = (pluginVotingToken as Address | undefined) ?? PUB_VOTING_POWER_SOURCE;
@@ -174,10 +184,6 @@ export function useEligibleVoters(
           .catch(() => undefined);
       }
 
-      // Scaling comes from the SDK so the per-row check and the leaf recomputation below
-      // can never drift from each other (or from the server).
-      const scaleDown = (raw: bigint) => getScaledBalance(raw, BigInt(decimals!));
-
       if (snapshot !== undefined && publicClient) {
         for (let i = 0; i < rows.length; i += MULTICALL_BATCH) {
           const batch = rows.slice(i, i + MULTICALL_BATCH);
@@ -201,7 +207,9 @@ export function useEligibleVoters(
             const power = res.result as unknown as bigint;
             const row = batch[j];
             row.onChainPower = power;
-            row.expectedBalance = scaleDown(power);
+            // Served balances are in units of the round's recorded divisor: the same reduction the
+            // server applied.
+            row.expectedBalance = power / divisor;
             row.matches = row.expectedBalance === row.servedBalance;
           });
         }
@@ -235,7 +243,7 @@ export function useEligibleVoters(
               id: "balances",
               label: "Balances match the token at the snapshot",
               status: "warn",
-              detail: `${rows.length - unread}/${rows.length} checked — ${unread} could not be read`,
+              detail: `${rows.length - unread}/${rows.length} checked, ${unread} could not be read`,
             }
           : mismatchCount === 0
             ? {
@@ -255,7 +263,7 @@ export function useEligibleVoters(
       // The tally is compared against getPastTotalSupply for quorum, so the eligible set
       // can never legitimately exceed it.
       if (totalVotingPower !== undefined) {
-        const servedRaw = servedTotal * voteScale(creditMode, decimals!);
+        const servedRaw = servedTotal * divisor;
         checks.push({
           id: "supply",
           label: "Total credits do not exceed voting power at the snapshot",
@@ -323,7 +331,7 @@ export function useEligibleVoters(
             detail:
               onChainRound.merkleRoot !== 0n
                 ? `0x${onChainRound.merkleRoot.toString(16)}`
-                : "root is zero — nothing binds this set on-chain",
+                : "root is zero, so nothing binds this set on-chain",
           });
         }
 
@@ -393,7 +401,7 @@ export function useEligibleVoters(
       if (hasCensusTree && leaves.length && decimals !== undefined) {
         const leafSet = new Set(leaves);
         const checkable = rows.filter((r) => r.onChainPower !== undefined);
-        const missing = checkable.filter((r) => !leafSet.has(hashLeaf(r.address, scaleDown(r.onChainPower!)))).length;
+        const missing = checkable.filter((r) => !leafSet.has(hashLeaf(r.address, r.onChainPower! / divisor))).length;
 
         checks.push({
           id: "leaf-contents",

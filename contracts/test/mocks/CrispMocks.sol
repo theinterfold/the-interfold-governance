@@ -2,6 +2,7 @@
 pragma solidity ^0.8.29;
 
 import {IInterfold} from "../../src/crisp/IInterfold.sol";
+import {ICRISP} from "../../src/crisp/ICRISP.sol";
 import {IStagedProposalProcessor} from "../../src/crisp/IStagedProposalProcessor.sol";
 import {E3} from "../../src/crisp/IE3.sol";
 
@@ -36,27 +37,29 @@ contract MockFeeToken {
     }
 }
 
-/// @notice IVotes-shaped token with configurable supply, decimals and ERC-6372 clock.
-/// @dev `decimals` drives `_tallyScale()`; `clock()` drives `_tokenClock()`. Both can be
-///      made to revert so the plugin's try/catch fallbacks are exercised.
+/// @notice IVotes-shaped token with configurable supply and ERC-6372 clock.
+/// @dev `clock()` drives `_tokenClock()` and can be left unset so the plugin's `block.number`
+///      fallback is exercised. `getPastTotalSupply` answers per timepoint once `setSupplyAt`
+///      records one, so tests can tell which snapshot a caller read.
 contract MockVotesToken {
     uint256 public supply;
-    uint8 internal dec;
-    bool internal revertOnDecimals;
     bool internal hasClock;
     uint48 internal clockValue;
+    mapping(uint256 => uint256) internal supplyAt;
+    mapping(uint256 => bool) internal hasSupplyAt;
 
-    constructor(uint256 _supply, uint8 _decimals) {
+    constructor(uint256 _supply) {
         supply = _supply;
-        dec = _decimals;
     }
 
     function setSupply(uint256 _supply) external {
         supply = _supply;
     }
 
-    function setRevertOnDecimals(bool v) external {
-        revertOnDecimals = v;
+    /// @dev Records the total supply `getPastTotalSupply(timepoint)` reports for one timepoint.
+    function setSupplyAt(uint256 timepoint, uint256 _supply) external {
+        supplyAt[timepoint] = _supply;
+        hasSupplyAt[timepoint] = true;
     }
 
     /// @dev Enables an ERC-6372 timestamp clock, as FOLD (`mode=timestamp`) has.
@@ -68,11 +71,6 @@ contract MockVotesToken {
     function clock() external view returns (uint48) {
         require(hasClock, "no clock()");
         return clockValue;
-    }
-
-    function decimals() external view returns (uint8) {
-        require(!revertOnDecimals, "no decimals()");
-        return dec;
     }
 
     /// @dev Voting power per account, defaulting to 0 so existing tests are unaffected.
@@ -90,8 +88,8 @@ contract MockVotesToken {
         return votes[who];
     }
 
-    function getPastTotalSupply(uint256) external view returns (uint256) {
-        return supply;
+    function getPastTotalSupply(uint256 timepoint) external view returns (uint256) {
+        return hasSupplyAt[timepoint] ? supplyAt[timepoint] : supply;
     }
 
     function balanceOf(address) external pure returns (uint256) {
@@ -131,6 +129,18 @@ contract MockInterfold {
     constructor(address _feeToken) {
         feeTokenAddr = _feeToken;
         e3RefundManager = address(new MockRefundManager(MockFeeToken(_feeToken)));
+
+        uint256[] memory insecureModuli = new uint256[](2);
+        insecureModuli[0] = 0xffffee001;
+        insecureModuli[1] = 0xffffc4001;
+        paramSetRegistry[0] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
+
+        uint256[] memory secureModuli = new uint256[](3);
+        secureModuli[0] = 0x0800000000db4001;
+        secureModuli[1] = 0x0800000000d54001;
+        secureModuli[2] = 0x0800000000cbc001;
+        paramSetRegistry[2] =
+            abi.encode(ICRISP.BfvParameters(8192, 17000000, secureModuli, "17723039943798878305460955570711717478400"));
     }
 
     function setFee(uint256 _fee) external {
@@ -141,10 +151,15 @@ contract MockInterfold {
         return feeTokenAddr;
     }
 
-    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin now reads
-    ///         when building request params. Without it the call reverts and every proposal path
-    ///         fails, which is how its absence first showed up.
-    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+    /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping. The plugin decodes the
+    ///         BFV parameters registered for its parameter set (plaintext modulus `t`) and hashes
+    ///         the bytes into the crypto config id it asserts. Sets 0 and 2 start out as the
+    ///         protocol's `BFV_PARAMS.insecure512` and `BFV_PARAMS.secure8192`.
+    mapping(uint8 => bytes) public paramSetRegistry;
+
+    function setParamSet(uint8 paramSet, bytes calldata encodedParams) external {
+        paramSetRegistry[paramSet] = encodedParams;
+    }
 
     /// @notice The last request's asserted fee limits, so tests can pin what the plugin promises.
     address public lastExpectedFeeToken;
@@ -181,10 +196,55 @@ contract MockInterfold {
         lastParamSet = params.paramSet;
         lastComputeProviderParams = params.computeProviderParams;
         e3Id = nextE3Id++;
+        // Like the coordinator, hand the program the registered parameter bytes so it records the
+        // round exactly as `CRISPProgram.validate` does.
+        MockCrispProgram(address(params.e3Program))
+            .initRound(e3Id, params.customParams, paramSetRegistry[params.paramSet]);
     }
 }
 
+/// @notice Records a round the way `CRISPProgram._initRound` / `_initCredits` do for a CUSTOM,
+///         ONCHAIN round, including the two reverts that bound the floor and the divisor.
 contract MockCrispProgram {
+    error VotingPowerDivisorBelowMinimum(uint256 divisor, uint256 minimum);
+    error MinVotingPowerBelowScale();
+
+    /// @notice The divisor recorded for each E3 by `initRound`. Tests may overwrite it.
+    mapping(uint256 => uint256) public votingPowerDivisorOf;
+
+    /// @notice Overwrites a recorded divisor, to model a program that records something else
+    ///         (or nothing, with 0) for an E3.
+    function setVotingPowerDivisor(uint256 e3Id, uint256 divisor) external {
+        votingPowerDivisorOf[e3Id] = divisor;
+    }
+
+    /// @notice The part of `CRISPProgram.validate` that fixes a round's scale. Mirrors
+    ///         `_initRound` / `_initCredits` for a CUSTOM round: the snapshot is the token's
+    ///         previous ERC-6372 timepoint (`block.number - 1` without `clock()`), the minimum
+    ///         divisor is `supply / t + 1`, a requested divisor of 0 records that minimum, and an
+    ///         ONCHAIN round whose floor is below the divisor is refused.
+    function initRound(uint256 e3Id, bytes calldata customParams, bytes calldata e3ProgramParams) external {
+        (address token, uint256 minVotingPower,,,, uint256 censusMode, uint256 requestedDivisor) =
+            abi.decode(customParams, (address, uint256, uint256, uint256, uint256, uint256, uint256));
+        uint256 plaintextModulus = abi.decode(e3ProgramParams, (ICRISP.BfvParameters)).plaintextModulus;
+
+        uint256 snapshot;
+        try MockVotesToken(token).clock() returns (uint48 current) {
+            snapshot = current == 0 ? 0 : current - 1;
+        } catch {
+            snapshot = block.number - 1;
+        }
+
+        uint256 minimum = MockVotesToken(token).getPastTotalSupply(snapshot) / plaintextModulus + 1;
+        uint256 divisor = requestedDivisor == 0 ? minimum : requestedDivisor;
+        if (divisor < minimum) revert VotingPowerDivisorBelowMinimum(divisor, minimum);
+        if (censusMode == uint256(ICRISP.CensusMode.ONCHAIN) && minVotingPower < divisor) {
+            revert MinVotingPowerBelowScale();
+        }
+
+        votingPowerDivisorOf[e3Id] = divisor;
+    }
+
     mapping(uint256 => uint256[]) internal tallies;
     uint256 public votingStartDelay;
     uint256 public availabilityFinalizationWindow = 3 hours;

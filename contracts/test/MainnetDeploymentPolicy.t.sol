@@ -20,9 +20,9 @@ contract PolicyHarness {
 ///
 /// @dev These constants are not cosmetic. `E3RequestParams.committeeSize` and `.paramSet` cross
 ///      the ABI as bare `uint8` ordinals, and Interfold resolves them through
-///      `ActiveCryptoConfig`: `isParamSetSupported` accepts ONLY `SECURE_PARAM_SET == 1` outside
+///      `ActiveCryptoConfig`: `isParamSetSupported` accepts ONLY `SECURE_PARAM_SET == 2` outside
 ///      Sepolia and local chains, and `committeeParams` maps 0/1/2 to Minimum(2 of 3),
-///      Micro(5 of 9), Small(10 of 19).
+///      Micro(5 of 9), Small(14 of 19).
 ///
 ///      The incident this guards: the vendored `CommitteeSize` enum read
 ///      `Micro, Small, Medium, Large` while the coordinator declared `Minimum, Micro, Small`.
@@ -47,7 +47,7 @@ contract MainnetDeploymentPolicyTest is Test {
         config.crispProgramAddress = address(0xCAFE);
         config.targetConfig = IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
         config.committeeSize = IInterfold.CommitteeSize.Small;
-        config.paramSet = 1;
+        config.paramSet = 2;
         config.votingSettings = ICrispVoting.VotingSettings({
             minProposerVotingPower: 1,
             minVoterVotingPower: 1,
@@ -65,7 +65,7 @@ contract MainnetDeploymentPolicyTest is Test {
     function test_committeeSizeOrdinalsMatchTheCoordinator() public pure {
         assertEq(uint8(IInterfold.CommitteeSize.Minimum), 0, "Minimum must be ordinal 0 (2 of 3)");
         assertEq(uint8(IInterfold.CommitteeSize.Micro), 1, "Micro must be ordinal 1 (5 of 9)");
-        assertEq(uint8(IInterfold.CommitteeSize.Small), 2, "Small must be ordinal 2 (10 of 19)");
+        assertEq(uint8(IInterfold.CommitteeSize.Small), 2, "Small must be ordinal 2 (14 of 19)");
     }
 
     // --- mainnet is constrained ----------------------------------------------

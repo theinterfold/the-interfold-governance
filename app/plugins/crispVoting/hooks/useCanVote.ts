@@ -1,14 +1,13 @@
 import { useAccount, useBlockNumber, useReadContract } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { CrispVotingAbi } from "../artifacts/CrispVoting";
-import { iVotesAbi } from "../artifacts/iVotes";
+import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
 import { useEffect } from "react";
 import { PUB_CRISP_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { classifyVoteEligibility } from "../utils/voteEligibility";
 import { getRoundEligibilityFloor } from "../utils/ballotDigest";
 import { publicClient } from "../utils/client";
 
-import type { Address } from "viem";
 import type { Proposal } from "../utils/types";
 import type { CanVoteResult } from "../utils/voteEligibility";
 
@@ -33,12 +32,6 @@ export function useCanVote(proposalId: bigint): CanVoteResult {
   });
   const proposal = proposalData as Proposal | undefined;
 
-  const { data: votingToken } = useReadContract({
-    address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-    abi: CrispVotingAbi,
-    functionName: "getVotingToken",
-  });
-
   // The round's floor, not the plugin's live `minVoterVotingPower`. The plugin raises a floor below
   // one ballot unit when it requests the round (1 wei becomes 0.1 FOLD), and `publishInput` refuses
   // anything under the raised value with `SlotNotEligible` — after the voter has signed and proven.
@@ -53,13 +46,12 @@ export function useCanVote(proposalId: bigint): CanVoteResult {
 
   const snapshotBlock = proposal?.parameters?.snapshotBlock;
 
-  const { data: pastVotes, refetch: refreshPastVotes } = useReadContract({
-    address: votingToken as Address | undefined,
-    abi: iVotesAbi,
-    functionName: "getPastVotes",
-    args: [address!, snapshotBlock!],
-    query: { enabled: !!address && !!votingToken && snapshotBlock !== undefined },
-  });
+  // The voting token comes from `useVotingToken` (the plugin, with the configured source as a
+  // fallback), and the read is pinned to the proposal's snapshot.
+  const { votingPower: pastVotes, refetch: refreshPastVotes } = useSnapshotVotingPower(
+    PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+    snapshotBlock
+  );
 
   useEffect(() => {
     refreshPastVotes();

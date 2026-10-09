@@ -11,7 +11,7 @@ import {IInterfold} from "../src/crisp/IInterfold.sol";
 ///      will broadcast, so a drifted env file fails here instead of reverting mid-deploy.
 contract MainnetEnvValuesTest is Test {
     // The literals below mirror contracts/.env.mainnet. Update both together.
-    uint8 internal constant ENV_PARAM_SET = 1; // secure-8192
+    uint8 internal constant ENV_PARAM_SET = 2; // secure-8192
     IInterfold.CommitteeSize internal constant ENV_COMMITTEE_SIZE = IInterfold.CommitteeSize.Small; // ordinal 2
     uint64 internal constant ENV_MINIMUM_DURATION = 432_000; // 5 days
     uint64 internal constant ENV_SPP_PRIVATE_VOTE_DURATION = 432_000; // 5 days
@@ -33,7 +33,7 @@ contract MainnetEnvValuesTest is Test {
     }
 
     function test_envParamSetIsTheSecureSet() public pure {
-        assertEq(ENV_PARAM_SET, 1, "mainnet must deploy secure-8192, not insecure-512");
+        assertEq(ENV_PARAM_SET, 2, "mainnet must deploy secure-8192, not insecure-512");
     }
 
     /// @dev The ordinal is what crosses the ABI as `uint8`, so pin the number, not the name.

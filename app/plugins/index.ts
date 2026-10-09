@@ -26,8 +26,8 @@ export const plugins: PluginItem[] = [
     // Informational only — the governance shell talks to both plugin addresses.
     pluginAddress: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
   },
-  // With a voting escrow configured, locking and delegation are ONE surface (the adapter), so
-  // they share one page. Without one (testnet), delegation lives on the token and stands alone.
+  // With a voting escrow configured, locking and self-delegation share one page (the adapter).
+  // Without one (testnet), the token page activates wallet FOLD.
   ...(PUB_ENABLE_LOCKING
     ? [
         {

@@ -12,12 +12,20 @@ export const PUB_INTERFOLD_FEE_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_INTERFOL
 // token directly reports zero weight for an operator who has bonded everything — while that same
 // FOLD still counts in the quorum denominator.
 //
-// Reads only. It holds no delegation state: `delegate()` reverts `DelegationNotSupported`, and it
-// emits no `DelegateChanged`, so delegation and the delegate list must stay on the token itself.
+// Wallet and escrowed FOLD do not delegate here: `delegate()` reverts `DelegationNotSupported`, and
+// the adapter emits no `DelegateChanged`. Its only delegation is bonded delegation, which gives an
+// owner's bonded (and, under the escrow, vesting) FOLD to one delegate: `delegateBonded` asks,
+// `acceptBonded` moves the weight, `dropBonded` returns it. A delegate represents at most
+// `MAX_BONDED_OWNERS` owners. Adapters deployed before bonded delegation lack those functions, so
+// `useBondedDelegation` probes for them and hides the controls.
 //
 // Falls back to the token when unset, which keeps the app working against a deployment that has
 // no adapter — it just cannot see bonded weight.
 export const PUB_BONDED_VOTES_ADDRESS = (process.env.NEXT_PUBLIC_BONDED_VOTES_ADDRESS ?? "") as Address;
+// Block the BondedVotes adapter was deployed at — where the scan for bonded delegation requests
+// starts. A delegate finds the requests sent to it only in those logs. Unset scans from block 0,
+// which is correct but slow.
+export const PUB_BONDED_VOTES_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK ?? 0);
 /// The address to read balances and voting power from.
 export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_ADDRESS) as Address;
 // VotingEscrow ("velocker"): lock FOLD to gain voting power. Only the escrow address is
@@ -27,7 +35,7 @@ export const PUB_VOTING_POWER_SOURCE = (PUB_BONDED_VOTES_ADDRESS || PUB_TOKEN_AD
 // Unset => the whole locking section is hidden (deployments where only wallet FOLD votes).
 export const PUB_VE_LOCKER_ADDRESS = (process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS ?? "") as Address;
 export const PUB_ENABLE_LOCKING = !!PUB_VE_LOCKER_ADDRESS;
-// Testnet faucet: one `faucet()` call drips both FOLD and the fee token to the caller.
+// Testnet voting faucet: each `faucet()` call sends FOLD for one more voting weight (up to 5) plus fee tokens.
 export const PUB_FAUCET_ADDRESS = (process.env.NEXT_PUBLIC_FAUCET_ADDRESS ?? "") as Address;
 // Testnet-only UI. Must be false/unset in production — there is no faucet on mainnet
 // and the button would point at a non-existent contract.
@@ -75,7 +83,7 @@ export const PUB_WEB3_ENDPOINT =
  * file, but the app also reaches addresses it discovers ON CHAIN — the escrow's exit queue, lock
  * NFT and IVotes adapter are read off the escrow (useVeEscrow), and they are not in any allowlist
  * the server could have been configured with. Those reads failed silently: the lock copy printed
- * "a —-day cooldown" and the delegate list gave up with "Could not load delegates".
+ * "a —-day cooldown" and the lock position list gave up with an error.
  *
  * So keep the indexer first (it is the whole point — no provider account needed) and let the
  * generic relay pick up whatever it will not serve. Unset when the indexer IS the relay, or when
@@ -103,26 +111,9 @@ export const PUB_IPFS_ENDPOINTS = process.env.NEXT_PUBLIC_IPFS_ENDPOINTS ?? "";
 
 // General
 export const PUB_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK ?? 0);
-// Block the FOLD token was deployed at — start of the delegate-event scan.
-export const PUB_TOKEN_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK ?? 0);
-// Block the VotingEscrow was deployed at, which is also its satellites' — the lock NFT, exit
-// queue and IVotes adapter ship in the same transaction.
-//
-// A delegate scan has to start where the contract it scans began, not where the TOKEN began. With
-// locking on, `DelegateChanged` comes from the adapter, which on mainnet is ~306k blocks younger
-// than FOLD: scanning from the token's block asks the indexer (or the browser) to walk a third of
-// a million blocks that cannot contain a single matching event, and that walk is what the first
-// caller after a server restart waits for.
-//
-// Falls back to the token's block when unset, which is correct but slow — never wrong, so a
-// deployment that has not filled this in still works.
-export const PUB_VE_LOCKER_DEPLOYMENT_BLOCK = Number(process.env.NEXT_PUBLIC_VE_LOCKER_DEPLOYMENT_BLOCK ?? 0);
-/** Where `DelegateChanged` history starts, for whichever contract actually emits it. */
-export const PUB_DELEGATION_DEPLOYMENT_BLOCK =
-  (PUB_ENABLE_LOCKING && PUB_VE_LOCKER_DEPLOYMENT_BLOCK) || PUB_TOKEN_DEPLOYMENT_BLOCK;
 export const PUB_APP_NAME = "Interfold Governance";
 export const PUB_APP_DESCRIPTION =
-  "Governance for the Interfold — public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
+  "Governance for the Interfold: public on-chain proposals and private, encrypted (CRISP) proposals, powered by Aragon OSx and FOLD.";
 export const PUB_TOKEN_SYMBOL = "FOLD";
 
 export const PUB_PROJECT_LOGO = "/theinterfold-logo.png";
@@ -130,6 +121,8 @@ export const PUB_PROJECT_URL = process.env.NEXT_PUBLIC_PROJECT_URL ?? "https://t
 export const PUB_WALLET_ICON = "https://avatars.githubusercontent.com/u/37784886";
 export const PUB_BLOG_URL = "https://blog.theinterfold.com/";
 export const PUB_SOCIALS_URL = "https://x.com/theinterfold";
+export const PUB_DOCUMENTATION_URL = "https://docs.theinterfold.com/";
+export const PUB_COMMUNITY_URL = "https://community.theinterfold.com/";
 /** The DAO Constitution. Locking FOLD is an opt-in to it (Constitution art. 3.2), so the lock
  *  flow links here as well as the footer. */
 export const PUB_CONSTITUTION_URL =

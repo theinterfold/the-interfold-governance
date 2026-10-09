@@ -6,13 +6,15 @@ import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
 import { getAbiItem, fromHex } from "viem";
 import { publicClient } from "../utils/client";
+import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
 
 import type { RawAction, ProposalMetadata } from "@/utils/types";
 import type { IRoundDetailsResponse, Proposal, Tally } from "../utils/types";
 import type { AbiEvent, Hex } from "viem";
 import { CreditsMode } from "../utils/types";
 import { crispSdk } from "../utils/crispSdk";
-import { useE3Status } from "./useE3Status";
+import { E3Stage, useE3Status } from "./useE3Status";
+import { e3Lifecycle, hasPublishedTally } from "../utils/e3Lifecycle";
 
 type ProposalCreatedLogResponse = {
   args: {
@@ -44,13 +46,13 @@ export type ProposalSourceOverride = {
 export function useProposal(proposalId: bigint, override?: ProposalSourceOverride) {
   const [creationEvent, setCreationEvent] = useState<ProposalCreatedLogResponse["args"]>();
   const [metadataUri, setMetadataUri] = useState<string>();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   // On-chain proposal data
   const {
     data: proposalResult,
     error: proposalError,
     fetchStatus: proposalFetchStatus,
+    refetch: refetchProposal,
   } = useReadContract({
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
@@ -63,7 +65,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
   const [totalVotingPower, setTotalVotingPower] = useState<bigint | undefined>(undefined);
 
   // On-chain tally
-  const { data: tallyResult } = useReadContract({
+  const { data: tallyResult, refetch: refetchTally } = useReadContract({
     address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
     abi: CrispVotingAbi,
     functionName: "getTally",
@@ -72,6 +74,12 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
   const proposalRaw = proposalResult as Proposal | undefined;
 
+  const tally: Tally = useMemo(() => {
+    if (!tallyResult) return [];
+    const result = tallyResult as { counts?: bigint[] };
+    return Array.isArray(result.counts) ? result.counts : [];
+  }, [tallyResult]);
+
   // Interfold is the authority on whether a round failed, so ask it about anything not yet
   // tallied — not just rounds whose committee never formed. Gating on `!isCommitteeReady`
   // would leave every post-DKG failure (ComputeTimeout, ComputeProviderExpired,
@@ -79,23 +87,50 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
   // on a proposal the UI still showed as healthy. A tallied round is terminal and cannot fail
   // afterwards, so that gate stays.
   const {
+    stage: e3Stage,
+    inputStartMs,
+    inputEndMs,
     isDead: e3Failed,
     isFailurePending: e3FailurePending,
     failureReason: e3FailureReason,
-    inputDeadline: e3InputDeadline,
-  } = useE3Status(proposalRaw?.e3Id, !isTallied);
+  } = useE3Status(proposalRaw?.e3Id, !hasPublishedTally(tally, isTallied));
 
-  const tally: Tally = useMemo(() => {
-    if (!tallyResult) return [];
-    const result = tallyResult as { counts?: bigint[] };
-    return Array.isArray(result.counts) ? result.counts : [];
-  }, [tallyResult]);
+  const startMs = proposalRaw ? Number(proposalRaw.parameters.startDate) * 1000 : undefined;
+  const endMs = proposalRaw ? Number(proposalRaw.parameters.endDate) * 1000 : undefined;
+  const nowMs = useProposalBoundaryClock(startMs, endMs);
+  const tallyMissing = tally.length === 0;
+
+  // A tallied round or a dead round cannot change again, so it stops following the chain. A dead
+  // round can be one the CRISP server never recorded, which answers 404 to every poll.
+  const roundSettled = (isTallied && isCommitteeReady) || e3Failed;
+  const { data: blockNumber } = useBlockNumber({ watch: proposalRaw?.e3Id !== undefined && !roundSettled });
+
+  // The SDK can mark a round Finished before getTally becomes available. Refresh
+  // the on-chain reads at the deadline and on subsequent blocks until it does.
+  useEffect(() => {
+    if (!proposalRaw || startMs === undefined || endMs === undefined) return;
+    const inVotingWindow = nowMs >= startMs && nowMs < endMs;
+    if ((inVotingWindow && !proposalRaw.executed) || (nowMs >= endMs && tallyMissing)) {
+      void refetchProposal();
+    }
+    if (tallyMissing && (isTallied || nowMs >= endMs)) void refetchTally();
+  }, [
+    blockNumber,
+    startMs,
+    endMs,
+    nowMs,
+    proposalRaw?.executed,
+    tallyMissing,
+    isTallied,
+    refetchProposal,
+    refetchTally,
+  ]);
 
   const eligibleVotersFetched = useRef(false);
 
   useEffect(() => {
     if (proposalRaw?.e3Id === undefined) return;
-    if (isTallied && isCommitteeReady) return;
+    if (roundSettled) return;
 
     const roundId = BigInt(proposalRaw.e3Id.toString());
 
@@ -119,7 +154,7 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
         }
       })
       .catch(() => {});
-  }, [proposalRaw?.e3Id, blockNumber, isTallied, isCommitteeReady]);
+  }, [proposalRaw?.e3Id, blockNumber, roundSettled]);
 
   // Fetch creation event (only once when proposal data is available)
   const snapshotBlock = proposalRaw?.parameters?.snapshotBlock;
@@ -180,19 +215,36 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
   } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri);
 
   const proposal = useMemo(
-    () => arrangeProposalData(proposalRaw, creationEvent, metadata, tally, isTallied, override?.creator),
-    [proposalRaw, creationEvent, metadata, tally, isTallied, override?.creator]
+    () =>
+      arrangeProposalData(
+        proposalRaw,
+        creationEvent,
+        metadata,
+        tally,
+        isTallied || e3Stage === E3Stage.Complete,
+        override?.creator
+      ),
+    [proposalRaw, creationEvent, metadata, tally, isTallied, e3Stage, override?.creator]
   );
+
+  const networkNowMs = useProposalBoundaryClock(inputStartMs, inputEndMs);
+  const networkProgress = e3Lifecycle({
+    stage: e3Stage,
+    inputStartMs,
+    inputEndMs,
+    nowMs: networkNowMs,
+    hasTally: proposal?.isTallied,
+    failed: e3Failed,
+  });
 
   return {
     proposal,
+    networkProgress,
     isCommitteeReady,
     totalVotingPower,
     e3Failed,
     e3FailurePending,
     e3FailureReason,
-    /** When the settlement window closes and the tally becomes due. */
-    e3InputDeadline,
     status: {
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
@@ -214,8 +266,6 @@ function arrangeProposalData(
 ): Proposal | null {
   if (!proposalData) return null;
 
-  const hasVotes = tally.some((v) => v > 0n);
-
   return {
     actions: proposalData.actions,
     active: proposalData.parameters.endDate > BigInt(Math.floor(Date.now() / 1000)),
@@ -231,6 +281,6 @@ function arrangeProposalData(
     e3Id: proposalData.e3Id,
     options: metadata?.options ?? ["Yes", "No"],
     numOptions: metadata?.options?.length ?? 2,
-    isTallied: hasVotes || isTallied,
+    isTallied: hasPublishedTally(tally, isTallied),
   };
 }

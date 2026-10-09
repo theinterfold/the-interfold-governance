@@ -1,0 +1,10 @@
+.details > :global(.proposal-disclosure-trigger) {
+  color: var(--muted);
+  font: 500 13px/1.5 var(--font-sans);
+}
+.details > :global(.proposal-disclosure-trigger:hover) {
+  color: var(--ink);
+}
+.activity {
+  padding-left: var(--ui-space-related);
+}

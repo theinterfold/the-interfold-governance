@@ -13,6 +13,7 @@ import {ProxyLib} from "@aragon/osx-commons-contracts/src/utils/deployment/Proxy
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
+import {ICRISP} from "../src/crisp/ICRISP.sol";
 import {IStagedProposalProcessor} from "../src/crisp/IStagedProposalProcessor.sol";
 import {E3} from "../src/crisp/IE3.sol";
 
@@ -110,11 +111,17 @@ contract MockInterfold {
     constructor(address _feeToken) {
         feeTokenAddr = _feeToken;
         e3RefundManager = address(new MockRefundManager(MockFeeToken(_feeToken)));
+
+        uint256[] memory insecureModuli = new uint256[](2);
+        insecureModuli[0] = 0xffffee001;
+        insecureModuli[1] = 0xffffc4001;
+        paramSetRegistry[0] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
     }
 
-    /// @notice Mirrors the real coordinator's `activeCryptoConfigId`, which the plugin reads when
-    ///         building request params. Absent, every proposal path reverts.
-    bytes32 public activeCryptoConfigId = keccak256("mock-crypto-config");
+    /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping, which the plugin reads
+    ///         (plaintext modulus) when building request params. Absent, every proposal path
+    ///         reverts. Set 0 is registered as the protocol's insecure-512 parameters.
+    mapping(uint8 => bytes) public paramSetRegistry;
 
     function feeToken() external view returns (address) {
         return feeTokenAddr;
@@ -147,6 +154,11 @@ contract MockCrispProgram {
 
     function availabilityFinalizationWindow() external pure returns (uint256) {
         return 3 hours;
+    }
+
+    /// @dev Every round records a divisor of 1, so tallies in these lifecycle tests are in raw units.
+    function votingPowerDivisorOf(uint256) external pure returns (uint256) {
+        return 1;
     }
 
     function setTally(uint256 e3Id, uint256[] memory counts) external {

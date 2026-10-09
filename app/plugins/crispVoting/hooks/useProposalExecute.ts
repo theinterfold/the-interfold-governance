@@ -26,7 +26,7 @@ export function useProposalExecute(proposalId: bigint) {
   // (tryAdvance) — it advances the staged proposal to the veto stage rather
   // than executing anything on the DAO.
   const { writeContract, isConfirming, isConfirmed } = useTransactionManager({
-    onSuccessMessage: "Result submitted — proposal advanced to the veto stage",
+    onSuccessMessage: "Result submitted and proposal advanced to the veto stage",
     onSuccess() {
       setTimeout(() => reload(), 1000 * 2);
     },

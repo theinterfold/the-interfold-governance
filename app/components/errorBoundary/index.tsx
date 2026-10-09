@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <div className="my-8 rounded-xl border border-neutral-200 p-6">
         <p className="text-md font-semibold text-neutral-800">Something went wrong</p>
         <p className="mt-2 text-sm text-neutral-500">
-          This section failed to render. The rest of the app is unaffected — reloading usually clears it.
+          This section failed to render. The rest of the app is unaffected, and a reload usually clears the error.
         </p>
         <p className="font-mono mt-3 break-words text-xs text-neutral-400">{error.message}</p>
         <button type="button" className="chip mt-4" onClick={this.reset}>

@@ -26,7 +26,6 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const address = sppAddressFor(kind);
   const [metadataUri, setMetadataUri] = useState<string>();
   const [creator, setCreator] = useState<string>();
-  const { data: blockNumber } = useBlockNumber({ watch: true });
 
   const {
     data: proposalData,
@@ -44,6 +43,7 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const proposal = proposalData as SppProposal | undefined;
   // lastStageTransition == 0 means the proposal does not exist.
   const exists = !!proposal && proposal.lastStageTransition !== 0n;
+  const missing = !!proposal && !exists;
 
   const { data: stateData, refetch: refetchState } = useReadContract({
     chainId: PUB_CHAIN.id,
@@ -54,12 +54,25 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     query: { enabled: exists },
   });
   const state = stateData === undefined ? undefined : (Number(stateData) as SppProposalState);
+  // An executed, canceled or expired proposal cannot change again, so it stops following the chain.
+  const settled = exists && (proposal.executed || proposal.canceled || state === SppProposalState.Expired);
+  const { data: blockNumber } = useBlockNumber({ watch: exists && !settled });
 
-  const { stages, votingStage, vetoStage } = useSppStages(kind, exists ? proposal.stageConfigIndex : undefined);
+  const {
+    stages,
+    votingStage,
+    vetoStage,
+    error: stagesError,
+    refetch: refetchStages,
+  } = useSppStages(kind, exists ? proposal.stageConfigIndex : undefined);
 
   // Stage-0 sub-proposal id on the voting body
   const stage0Body = votingStage?.bodies?.[0]?.addr as Address | undefined;
-  const { data: bodyProposalIdData } = useReadContract({
+  const {
+    data: bodyProposalIdData,
+    error: bodyProposalError,
+    refetch: refetchBodyProposal,
+  } = useReadContract({
     chainId: PUB_CHAIN.id,
     address,
     abi: StagedProposalProcessorAbi,
@@ -69,15 +82,24 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
   });
   const subProposalId = bodyProposalIdData as bigint | undefined;
   const subProposalFailed = subProposalId !== undefined && subProposalId === SPP_PROPOSAL_WITHOUT_ID;
+  const readError = proposalError ?? (exists ? (stagesError ?? bodyProposalError) : null);
+  const retry = async () => {
+    await refetchProposal();
+    if (exists) {
+      await refetchStages();
+      if (stage0Body) await refetchBodyProposal();
+    }
+  };
 
-  // Stage-1 (veto) tally
+  // Stage-1 (veto) tally. `refetch` ignores `enabled`, so the refresh below checks the same gate.
+  const vetoStageReached = exists && proposal.currentStage >= 1;
   const { data: vetoTallyData, refetch: refetchTally } = useReadContract({
     chainId: PUB_CHAIN.id,
     address,
     abi: StagedProposalProcessorAbi,
     functionName: "getProposalTally",
     args: [proposalId, 1],
-    query: { enabled: exists && (proposal?.currentStage ?? 0) >= 1 },
+    query: { enabled: vetoStageReached },
   });
   const vetoTally = vetoTallyData
     ? {
@@ -86,13 +108,14 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
       }
     : undefined;
 
-  // Keep the stage/state fresh (stage transitions and vetoes happen without user action)
+  // Keep an open proposal's stage and state fresh: stage transitions and vetoes happen without
+  // user action.
   useEffect(() => {
-    if (!exists) return;
+    if (!exists || settled) return;
     refetchProposal();
     refetchState();
-    refetchTally();
-  }, [blockNumber, exists]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (vetoStageReached) refetchTally();
+  }, [blockNumber, exists, settled, vetoStageReached]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Metadata URI + creator come from the SPP's ProposalCreated event
   useEffect(() => {
@@ -137,10 +160,12 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     stage0Body,
     subProposalId: subProposalFailed ? undefined : subProposalId,
     subProposalFailed,
+    missing,
     vetoTally,
     metadataUri,
     creator,
     isLoading: proposalLoading,
-    error: proposalError,
+    error: readError,
+    retry,
   };
 }

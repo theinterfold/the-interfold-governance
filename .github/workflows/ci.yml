@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, testnet]
 
 # A new push to the same branch supersedes the previous run.
 concurrency:
@@ -119,7 +119,6 @@ jobs:
           NEXT_PUBLIC_SPP_PRIVATE_ADDRESS: "0x1234567890123456789012345678901234567890"
           NEXT_PUBLIC_SPP_PUBLIC_ADDRESS: "0x1234567890123456789012345678901234567890"
           NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK: 1
-          NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK: 1
           NEXT_PUBLIC_CRISP_SERVER_URL: https://crisp.invalid
           NEXT_PUBLIC_WEB3_ENDPOINT: https://rpc.invalid
           NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID: x

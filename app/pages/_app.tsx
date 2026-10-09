@@ -3,7 +3,9 @@ import { Layout } from "@/components/layout";
 import AlertContainer from "@/components/alert/alert-container";
 import { ErrorBoundary } from "@/components/errorBoundary";
 import "@aragon/ods/index.css";
+import "@/vendor/interfold-design/tokens.css";
 import "@/pages/globals.css";
+import "@/vendor/site-header/styles.css";
 import { PUB_APP_NAME } from "@/constants";
 import Head from "next/head";
 

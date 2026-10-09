@@ -1,17 +1,18 @@
+import { voteEvidence } from "../utils/voteEvidence";
+import { ballotWeightPercentage, chooseBallotWeight, reviewedVote, type BallotWeight } from "../utils/ballotWeight";
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_CRISP_VOTING_PLUGIN_ADDRESS, PUB_VOTING_POWER_SOURCE } from "@/constants";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
 import { iVotesAbi } from "../artifacts/iVotes";
-import { parseAbi, size, type Address } from "viem";
+import { parseAbi, size, type Address, type Hex } from "viem";
 import { publicClient } from "../utils/client";
 import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
-import { formatWeightShare, randomBallotWeight, type WeightConfirmation } from "../utils/ballotWeight";
 import { equalAddresses } from "@/utils/evm";
 import { readServerRejection } from "../utils/readServerRejection";
 import { describeFailure } from "../utils/describeFailure";
@@ -22,11 +23,22 @@ import {
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
+  getRoundSnapshot,
+  getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
 import { usePublishVote } from "./usePublishVote";
 import { useCommitteeKeyCheck } from "./useCommitteeKeyCheck";
 import { decideCommitmentStep, waitForCommitmentDecision, type VoteResponse } from "../utils/commitmentDecision";
+import type { BallotSubmissionResult, PreparedVoteReceipt } from "../utils/ballotSubmission";
+import { usePreparedBallot } from "./usePreparedBallot";
+import {
+  buildPreparedBallot,
+  preparedSenderError,
+  readPreparedBallot,
+  type PreparedBallot,
+} from "../utils/preparedBallot";
+import { sendPreparedBallot } from "../utils/sendPreparedBallot";
 
 /** Limit for one read of a staged ballot's job. */
 const JOB_READ_TIMEOUT_MS = 15_000;
@@ -55,10 +67,110 @@ function toKeyBytes(value: unknown): Uint8Array | undefined {
   return Uint8Array.from(value as number[]);
 }
 
+async function resolveVoteBalance(
+  e3Id: bigint,
+  address: string,
+  roundState: IRoundDetailsResponse,
+  crispProgram?: `0x${string}`
+) {
+  // Ask the plugin which token carries voting power rather than trusting an env constant:
+  // this must match the server's census and the tally exactly, or the voter's leaf will not
+  // match the server's merkle tree. Falls back to the configured source if the read fails.
+  const votingToken = ((await publicClient
+    .readContract({
+      address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+      abi: votingTokenAbi,
+      functionName: "getVotingToken",
+    })
+    .catch(() => undefined)) ?? PUB_VOTING_POWER_SOURCE) as `0x${string}`;
+  const decimals = await publicClient.readContract({
+    address: votingToken,
+    abi: iVotesAbi,
+    functionName: "decimals",
+  });
+  const constant = roundState.credit_mode === CreditsMode.CONSTANT;
+  // Raw token units in one ballot unit: the divisor the CRISP program recorded for the round, never
+  // derived from the token's decimals. The verifier scales by exactly this number.
+  const unit = constant ? 1n : await getVotingPowerDivisor(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+  if (unit === 0n) throw new Error("The CRISP program records no voting-power divisor for this round.");
+
+  let adjustedBalance: bigint;
+  // The full power, in raw token units. Only the review uses it: the share compares the counted
+  // tokens with it, so the remainder that whole ballot units leave out shows too.
+  let power: bigint;
+
+  if (crispProgram) {
+    // An ONCHAIN round takes both the snapshot and the scaling from the contract, which then
+    // verifies the proof against exactly that number. Reading it here — rather than repeating
+    // the `getPastVotes` call and the division below — is what keeps the
+    // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
+    // naming the cause.
+    adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
+    if (constant) {
+      power = adjustedBalance;
+    } else {
+      // The amount that `votingPowerOf` divides: the voting token at the snapshot of the round.
+      power = await publicClient.readContract({
+        address: votingToken,
+        abi: iVotesAbi,
+        functionName: "getPastVotes",
+        args: [address as `0x${string}`, await getRoundSnapshot(publicClient, crispProgram, e3Id)],
+      });
+      // Both reads use the chain head, so they disagree only when the power changed between them.
+      if (power / unit !== adjustedBalance)
+        throw new Error("Your voting power changed while the app read it. Try again.");
+    }
+  } else if (constant && roundState.credits) {
+    adjustedBalance = BigInt(roundState.credits);
+    power = adjustedBalance;
+  } else {
+    // The voting token is timestamp-clocked (EIP-6372, CLOCK_MODE=timestamp), so
+    // getPastVotes expects a *timestamp*, not a block number. The CRISP server snapshots
+    // voting power at `start_time - 1`; we must query the exact same point or our leaf
+    // won't match the server's merkle tree.
+    const snapshotTimestamp = BigInt(roundState.start_time) - 1n;
+
+    // The block the snapshot timepoint falls in. `getBlockAtTimestamp` returns the block at or
+    // *before* the timepoint, whose own timestamp can precede it — reading there reverts with
+    // `ERC5805FutureLookup`, so take the next block.
+    const snapshotBlock = await crispSdk
+      .getBlockAtTimestamp(snapshotTimestamp)
+      .then((r) => snapshotReadBlock(BigInt(r.blockNumber), BigInt(r.timestamp), snapshotTimestamp))
+      .catch(() => undefined);
+
+    const balance = await publicClient.readContract({
+      address: votingToken,
+      abi: iVotesAbi,
+      functionName: "getPastVotes",
+      args: [address as `0x${string}`, snapshotTimestamp],
+      // Evaluated at the snapshot block, not at chain head. `BondedVotes.getPastVotes` mixes a
+      // checkpointed history with a live `_lockedVotes` walk, so the same timepoint answers
+      // differently once the voter's locks change — and a leaf built from today's answer would
+      // not match the tree the server built at the snapshot.
+      ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
+    });
+
+    // Must mirror the CRISP server's scaling exactly (the round's recorded divisor) or our vote
+    // won't match the server's merkle leaf. The divisor also keeps every option total below the
+    // BFV plaintext modulus.
+    adjustedBalance = balance / unit;
+    power = balance;
+  }
+
+  return {
+    available: adjustedBalance,
+    power,
+    unit,
+    decimals: constant ? 0 : decimals,
+  };
+}
+
 /**
  * State of the Crisp server
  */
 interface CrispServerState {
+  /** Draws the weight that a ballot counts, for the voter to review before signing. */
+  getVoteWeight: (randomize: boolean) => Promise<BallotWeight>;
   isLoading: boolean;
   error: string;
   postVote: (
@@ -69,7 +181,7 @@ interface CrispServerState {
     /** Send the vote yourself instead of handing it to the CRISP server to relay. */
     submitOnChain?: boolean,
     options?: PostVoteOptions
-  ) => Promise<void>;
+  ) => Promise<BallotSubmissionResult>;
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
@@ -78,20 +190,28 @@ interface CrispServerState {
   canPublishOnChain: boolean;
   /** Why the on-chain route is unavailable, when it is. */
   onChainBlockedReason?: string;
-  /** A random ballot weight that waits for the voter to accept it, or `null`. */
-  pendingWeight: WeightConfirmation | null;
-  /** Answers `pendingWeight`: `true` continues with that weight, `false` cancels the vote. */
-  answerWeight: (accept: boolean) => void;
+  /** The ballot that this browser holds for another wallet to send, or `null`. */
+  preparedBallot: PreparedBallot | null;
+  /** The vote that a different wallet sent, until the voter chooses to change it. */
+  preparedReceipt: PreparedVoteReceipt | null;
+  changePreparedVote: () => void;
+  /** Sign, stage and save a vote without sending it. Another wallet sends it with `sendPreparedVote`. */
+  prepareVote: (voteOption: bigint, snapshotBlock: bigint, weight: BallotWeight) => Promise<BallotSubmissionResult>;
+  /** Send `preparedBallot` from the connected wallet, which must not be the one that signed it. */
+  sendPreparedVote: () => Promise<BallotSubmissionResult>;
+  discardPreparedVote: () => void;
 }
 
 interface PostVoteOptions {
   /** Mask this slot instead of a random eligible voter's. Ignored for a real vote. */
   maskTarget?: Address;
+  /** The reviewed weight that a vote counts. Required for a vote, ignored for a mask. */
+  weight?: BallotWeight;
   /**
-   * Count a random weight from the top percent of the voting power (`randomBallotWeight`) instead
-   * of all of it. On unless set to `false`. Ignored for a mask, which always weighs zero.
+   * Stage the ballot for the wallet to send, but do not send it. The signed, attested payload is
+   * saved in this browser for `sendPreparedVote`. Only a vote can be deferred, never a mask.
    */
-  randomWeight?: boolean;
+  deferSend?: boolean;
 }
 
 /**
@@ -132,9 +252,23 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     publish: publishVoteOnChain,
     canPublish: canPublishOnChain,
     blockedReason: onChainBlockedReason,
+    commitmentDeadline,
   } = usePublishVote(e3Id);
 
   const resolveCommitteeKey = useCommitteeKeyCheck(e3Id);
+
+  // A ballot that this browser signed and staged, for a different wallet to send. It is keyed by
+  // chain, plugin and round, not by wallet, so it survives the wallet switch.
+  const pending = usePreparedBallot(
+    e3Id === undefined
+      ? undefined
+      : { chainId: PUB_CHAIN.id, plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS, roundId: e3Id.toString() }
+  );
+  const [preparedReceipt, setPreparedReceipt] = useState<PreparedVoteReceipt | null>(null);
+  useEffect(() => {
+    setPreparedReceipt(null);
+  }, [e3Id]);
+  const sendingPrepared = useRef(false);
 
   const [votingStep, setVotingStep] = useState<VotingStep>("idle");
   const [lastActiveStep, setLastActiveStep] = useState<VotingStep | null>(null);
@@ -146,16 +280,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  // `postVote` waits on this answer while the voter reads a drawn weight. An unmount answers
-  // `false`, so no vote goes on from a page that the voter left.
-  const [pendingWeight, setPendingWeight] = useState<WeightConfirmation | null>(null);
-  const weightAnswer = useRef<((accept: boolean) => void) | null>(null);
-  const answerWeight = (accept: boolean) => {
-    weightAnswer.current?.(accept);
-    weightAnswer.current = null;
-    setPendingWeight(null);
-  };
-
   // A wallet prompt must not open from a page that the voter already left. The worker can take
   // minutes to choose who sends a ballot, so the wait can outlive the page.
   const active = useRef(true);
@@ -163,7 +287,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     active.current = true;
     return () => {
       active.current = false;
-      weightAnswer.current?.(false);
     };
   }, []);
 
@@ -240,8 +363,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
     // A mask is still checked against public input 4, so its voting power has to be the number
     // the contract will supply for that slot — not the balance the server recorded. The two
-    // usually coincide, because both scale by the token's decimals, but they diverge the moment a
-    // round names an explicit divisor, and a mask that got it wrong would fail in the verifier.
+    // usually coincide, because both scale by the round's recorded divisor, but a mask that got it
+    // wrong would fail in the verifier.
     const balance = crispProgram
       ? await getOnchainVotingPower(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
       : voter.balance;
@@ -253,92 +376,46 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     };
   };
 
+  const getVoteWeight = useCallback(
+    async (randomize: boolean): Promise<BallotWeight> => {
+      if (e3Id === undefined || !address) throw new Error("Connect your wallet before reviewing a ballot.");
+      const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
+      const program = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
+      const census = await getCensusMode(publicClient, program, e3Id);
+      const { available, power, unit, decimals } = await resolveVoteBalance(
+        e3Id,
+        address,
+        roundState,
+        census === CensusMode.ONCHAIN ? program : undefined
+      );
+      return {
+        roundId: e3Id,
+        voter: address,
+        available,
+        power,
+        counted: chooseBallotWeight(available, randomize),
+        randomize,
+        unit,
+        decimals,
+      };
+    },
+    [e3Id, address]
+  );
+
   const handleVote = async (
     e3Id: bigint,
     voteOption: bigint,
-    blockNumber: bigint,
     numOptions: number,
     roundState: IRoundDetailsResponse,
-    /// Count a random weight from the top percent of the voting power instead of all of it.
-    randomWeight: boolean,
-    /// Set for an ONCHAIN round: the program that will verify the ballot, and the only authority
-    /// on how much weight the slot may spend.
-    crispProgram?: `0x${string}`
+    crispProgram: `0x${string}` | undefined,
+    weight: BallotWeight | undefined
   ): Promise<VoteData> => {
-    // No signing here any more. The ballot digest commits to the ciphertext, so it does not
-    // exist until the vote has been encrypted — the wallet prompt moved into `postVote`, after
-    // `prepareBallot`. Signing a round-scoped message here would authorise any ballot for the
-    // round, which is the binding weakness the digest exists to close.
-    let adjustedBalance: bigint;
-
-    if (crispProgram) {
-      // An ONCHAIN round takes both the snapshot and the scaling from the contract, which then
-      // verifies the proof against exactly that number. Reading it here — rather than repeating
-      // the `getPastVotes` call and the `10 ** (decimals - 1)` division below — is what keeps the
-      // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
-      // naming the cause.
-      adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
-    } else if (roundState.credit_mode === CreditsMode.CONSTANT && roundState.credits) {
-      adjustedBalance = BigInt(roundState.credits);
-    } else {
-      // The voting token is timestamp-clocked (EIP-6372, CLOCK_MODE=timestamp), so
-      // getPastVotes expects a *timestamp*, not a block number. The CRISP server snapshots
-      // voting power at `start_time - 1`; we must query the exact same point or our leaf
-      // won't match the server's merkle tree. `blockNumber` (on-chain snapshotBlock) is unused here.
-      const snapshotTimestamp = BigInt(roundState.start_time) - 1n;
-
-      // The block the snapshot timepoint falls in. `getBlockAtTimestamp` returns the block at or
-      // *before* the timepoint, whose own timestamp can precede it — reading there reverts with
-      // `ERC5805FutureLookup`, so take the next block.
-      const snapshotBlock = await crispSdk
-        .getBlockAtTimestamp(snapshotTimestamp)
-        .then((r) => snapshotReadBlock(BigInt(r.blockNumber), BigInt(r.timestamp), snapshotTimestamp))
-        .catch(() => undefined);
-
-      // Ask the plugin which token carries voting power rather than trusting an env constant:
-      // this must match the server's census and the tally exactly, or the voter's leaf will not
-      // match the server's merkle tree. Falls back to the configured source if the read fails.
-      const votingToken = ((await publicClient
-        .readContract({
-          address: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
-          abi: votingTokenAbi,
-          functionName: "getVotingToken",
-        })
-        .catch(() => undefined)) ?? PUB_VOTING_POWER_SOURCE) as `0x${string}`;
-
-      const balance = await publicClient.readContract({
-        address: votingToken,
-        abi: iVotesAbi,
-        functionName: "getPastVotes",
-        args: [address as `0x${string}`, snapshotTimestamp],
-        // Evaluated at the snapshot block, not at chain head. `BondedVotes.getPastVotes` mixes a
-        // checkpointed history with a live `_lockedVotes` walk, so the same timepoint answers
-        // differently once the voter's locks change — and a leaf built from today's answer would
-        // not match the tree the server built at the snapshot.
-        ...(snapshotBlock !== undefined ? { blockNumber: snapshotBlock } : {}),
-      });
-
-      const decimals = await publicClient.readContract({
-        address: votingToken,
-        abi: iVotesAbi,
-        functionName: "decimals",
-      });
-
-      // Must mirror the CRISP server's scaling exactly (it keeps 1 decimal of precision:
-      // balance / 10^(decimals-1)) or our vote won't match the server's merkle leaf. It also
-      // keeps votes within the BFV per-choice encoding cap (2^33 - 1 for 3 options).
-      adjustedBalance = balance / 10n ** BigInt(decimals - 1);
-    }
-
-    // Only the weight of the chosen option is drawn. `balance` stays the full voting power,
-    // because the proof checks the census leaf or public input 4 against it.
-    const weight = randomWeight ? randomBallotWeight(adjustedBalance) : adjustedBalance;
-    const vote = Array.from({ length: numOptions }, (_, i) => (i === Number(voteOption) ? Number(weight) : 0));
-
+    const { available } = await resolveVoteBalance(e3Id, address!, roundState, crispProgram);
     return {
-      vote,
-      balance: adjustedBalance,
-      slotAddress: address as string,
+      vote: reviewedVote(weight, available, e3Id, address!, Number(voteOption), numOptions),
+      // Eligibility still proves the FULL balance. Only the encrypted choice is reduced.
+      balance: available,
+      slotAddress: address!,
     };
   };
 
@@ -363,17 +440,44 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     isAMask: boolean = false,
     submitOnChain: boolean = false,
     options: PostVoteOptions = {}
-  ) => {
+  ): Promise<BallotSubmissionResult> => {
     setIsLoading(true);
     // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
     setTxHash(null);
+    // A new attempt starts clean: the previous failure must not outlive it.
+    setError("");
+    // A declined prompt is the voter's choice, not a failure: an empty error, nothing to show.
+    const declined = { success: false as const, error: "" };
+    const { weight, deferSend = false } = options;
+    // A deferred vote is staged for the wallet to send, exactly as a wallet send is.
+    const sendFromWallet = submitOnChain || deferSend;
+    const fail = (reason: string, message = reason) => {
+      setError(reason);
+      setVotingStep("error");
+      setStepMessage(message);
+      return { success: false as const, error: reason };
+    };
+
     try {
       if (!address) {
-        setError("No wallet address found");
-        setVotingStep("error");
-        setStepMessage("No wallet address found");
-        return;
+        return fail("No wallet address found");
       }
+      if (deferSend && isAMask) {
+        return fail("A mask cannot be signed for another wallet to send.");
+      }
+      if (!isAMask && (!weight || weight.roundId !== e3Id || !equalAddresses(weight.voter, address))) {
+        return fail("Review your voting power before submitting the ballot.");
+      }
+      if (deferSend && pending.ballot) {
+        return fail("Send or discard your prepared ballot first.");
+      }
+
+      const evidenceScope = {
+        chainId: PUB_CHAIN.id,
+        plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS,
+        roundId: e3Id,
+        voter: address,
+      };
 
       addAlert(`${isAMask ? "Masking" : "Vote"} generation started! Please do not leave the current page.`, {
         timeout: 3000,
@@ -383,23 +487,20 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const roundState = await getRoundState(e3Id);
 
       if (roundState.status !== "Active") {
-        setError("This round is not accepting votes yet. Please wait and try again.");
-        setVotingStep("error");
-        setStepMessage("This round is not accepting votes yet.");
-        return;
+        return fail(
+          "This round is not accepting votes yet. Please wait and try again.",
+          "This round is not accepting votes yet."
+        );
       }
 
       // Bail out before signing and proof generation when the chain stage or input window
       // already blocks on-chain publication. `canPublish` is false while the preconditions are
       // still being read too, in which case there is no reason to report yet.
-      if (submitOnChain && !canPublishOnChain) {
+      if (sendFromWallet && !canPublishOnChain) {
         const reason =
           onChainBlockedReason ??
           "Still checking whether this round accepts on-chain votes. Please try again in a moment.";
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        return fail(reason);
       }
 
       // The committee key comes from `CommitteePublished` logs, falling back to the CRISP server
@@ -410,10 +511,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const resolved = await resolveCommitteeKey(toKeyBytes(roundState.committee_public_key));
       if (!resolved.key || !resolved.presetName) {
         const reason = resolved.reason ?? "The committee public key could not be verified.";
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        return fail(reason);
       }
 
       const publicKey = resolved.key;
@@ -424,8 +522,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       const crispProgram = await resolveCrispProgram(publicClient, PUB_CRISP_VOTING_PLUGIN_ADDRESS, e3Id);
       const censusMode = await getCensusMode(publicClient, crispProgram, e3Id);
       const isOnchainCensus = censusMode === CensusMode.ONCHAIN;
-
-      const randomWeight = options.randomWeight ?? true;
 
       let voteData;
       if (isAMask) {
@@ -439,30 +535,15 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         voteData = await handleVote(
           e3Id,
           voteOption,
-          snapshotBlock,
           Number.parseInt(roundState.num_options),
           roundState,
-          randomWeight,
-          isOnchainCensus ? crispProgram : undefined
+          isOnchainCensus ? crispProgram : undefined,
+          weight
         );
       }
 
-      // The weight the ballot counts: zero for a mask, else a share of `balance`.
-      const weight = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
-
-      // The voter sees a random weight and accepts it before anything is encrypted or signed.
-      if (!isAMask && randomWeight) {
-        setVotingStep("idle");
-        setLastActiveStep(null);
-        setStepMessage("Confirm the voting power of your ballot.");
-        const { promise, resolve } = Promise.withResolvers<boolean>();
-        weightAnswer.current = resolve;
-        setPendingWeight({ weight, power: voteData.balance });
-        if (!(await promise) || !active.current) {
-          setStepMessage("");
-          return;
-        }
-      }
+      // The weight the ballot counts: zero for a mask, else the reviewed share of `balance`.
+      const counted = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
 
       // An on-chain census has no tree: `publishInput` reads each voter's power from the token, so
       // there is no holder list to fetch and no root to prove against. Asking for one would 404 —
@@ -518,9 +599,10 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // to sign with and no wallet prompt.
         proof = await finishMaskProof(prepared, digest);
       } else {
-        // The voter sees the weight before signing: a random share of the voting power, or all of
-        // it when the voter turned the random weight off.
-        const share = formatWeightShare(weight, voteData.balance);
+        // The voter reviewed this weight before signing: a random share of the voting power, or all
+        // of it when the voter turned the random weight off. `handleVote` checked the review against
+        // this round's balance, so its unit and power measure the encrypted weight.
+        const share = ballotWeightPercentage({ ...weight!, counted });
 
         // Step 3: Signing, now that there is a ciphertext to bind to.
         setVotingStep("signing");
@@ -563,7 +645,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // otherwise fail with a bare "invalid signature length".
         if (size(signature) !== 65) {
           throw new Error(
-            "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key, or delegate this account's voting power to one."
+            "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
           );
         }
 
@@ -580,7 +662,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         encoded_proof: encodedProof,
         address: voteData.slotAddress,
         round_id: e3Id.toString(),
-        send_from_wallet: submitOnChain,
+        send_from_wallet: sendFromWallet,
       };
 
       // Step 3: Broadcasting
@@ -618,10 +700,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // whether to wait, retry, or stop — and it is the difference between a rate limit and a
         // closed ballot.
         const reason = await readServerRejection(response);
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        return fail(reason);
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
@@ -633,7 +712,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         setLastActiveStep("confirming");
         setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
         const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView, () => !active.current);
-        if (!active.current) return;
+        if (!active.current) return declined;
         if (decided === null) {
           step = { action: "error", reason: "The server no longer has this ballot. Submit it again." };
         } else if (decided) {
@@ -645,23 +724,47 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       if (step.action === "wait" || step.action === "error") {
         const reason =
           step.action === "error" ? step.reason : "The server has not processed this ballot yet. Try again later.";
-        setError(reason);
-        setVotingStep("error");
-        setStepMessage(reason);
-        return;
+        return fail(reason);
       }
 
       if (step.action === "committed") {
         if (step.txHash) setTxHash(step.txHash);
+        voteEvidence.record(evidenceScope, "submitted", isAMask);
         setVotingStep("complete");
         setStepMessage(`${label} submitted successfully!`);
         addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
-        return;
+        return { success: true, txHash: step.txHash };
       }
 
       // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
       // The voter chose this route, or the server did not relay the ballot.
-      if (!active.current) return;
+      if (!active.current) return declined;
+
+      // Prepare only: keep the attested payload for another wallet to send. Nothing is sent now,
+      // and `buildPreparedBallot` refuses a payload that names another slot than the signer's.
+      if (deferSend) {
+        if (commitmentDeadline === undefined) throw new Error("The voting deadline has not loaded yet. Try again.");
+        pending.save(
+          buildPreparedBallot({
+            scope: { chainId: PUB_CHAIN.id, plugin: PUB_CRISP_VOTING_PLUGIN_ADDRESS, roundId: e3Id.toString() },
+            voter: address,
+            program: crispProgram,
+            attestedPayload: step.payload as Hex,
+            commitmentDeadline,
+          })
+        );
+        setPreparedReceipt(null);
+        setVotingStep("idle");
+        setLastActiveStep(null);
+        setStepMessage("");
+        addAlert("Signed ballot saved", {
+          timeout: 4000,
+          type: "success",
+          description: "Switch to the wallet that will send it.",
+        });
+        return { success: true, txHash: null };
+      }
+
       await putWalletOnVotingChain();
       setStepMessage(
         submitOnChain
@@ -670,9 +773,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       );
       const hash = await publishVoteOnChain(step.payload as `0x${string}`);
       setTxHash(hash);
+      voteEvidence.record(evidenceScope, "confirmed", isAMask);
       setVotingStep("complete");
       setStepMessage(`${label} published on-chain!`);
       addAlert(`${label} published on-chain!`, { timeout: 3000, type: "success" });
+      return { success: true, txHash: hash };
     } catch (error) {
       console.error("Error in postVote:", error);
       // viem's `message` appends the request arguments, and a ballot's calldata is tens of KB of
@@ -684,12 +789,75 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setError(reason ?? "");
       setVotingStep(reason === undefined ? "idle" : "error");
       setStepMessage(reason ?? "");
+      return { success: false, error: reason ?? "" };
     } finally {
       setIsLoading(false);
     }
   };
 
+  const prepareVote = (voteOption: bigint, snapshotBlock: bigint, weight: BallotWeight) => {
+    if (e3Id === undefined) return Promise.resolve({ success: false as const, error: "Proposal unavailable." });
+    return postVote(voteOption, e3Id, snapshotBlock, false, false, { weight, deferSend: true });
+  };
+
+  const sendPreparedVote = async (): Promise<BallotSubmissionResult> => {
+    if (sendingPrepared.current) return { success: false, error: "A ballot is already being sent." };
+    sendingPrepared.current = true;
+    setIsLoading(true);
+    setError("");
+    let ballot = pending.ballot;
+    try {
+      if (!ballot) throw new Error("No prepared ballot is available.");
+      // Reload the saved payload. It is never rebuilt from the sender's address or voting power.
+      ballot = ballot.transactionHash ? ballot : readPreparedBallot(window.localStorage, ballot);
+      if (!ballot) throw new Error("The prepared ballot expired or was removed. Prepare it again.");
+      // A hash that was already broadcast is only checked, so the wallet and its chain do not matter.
+      if (!ballot.transactionHash) await putWalletOnVotingChain();
+      const senderError = preparedSenderError(ballot, address, PUB_CHAIN.id);
+      if (senderError) throw new Error(senderError);
+      setTxHash(ballot.transactionHash ?? null);
+      let sender = ballot.transactionHash ? undefined : address;
+      const hash = await sendPreparedBallot({
+        ballot,
+        sender: address,
+        chainId: PUB_CHAIN.id,
+        publish: publishVoteOnChain,
+        receipt: async (transactionHash) => {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
+          sender = receipt.from;
+          return receipt;
+        },
+        save: (saved) => {
+          if (saved.transactionHash) setTxHash(saved.transactionHash);
+          pending.save(saved);
+        },
+        remove: pending.remove,
+      });
+      setTxHash(hash);
+      voteEvidence.record(
+        { chainId: ballot.chainId, plugin: ballot.plugin, roundId: BigInt(ballot.roundId), voter: ballot.voter },
+        "confirmed"
+      );
+      setPreparedReceipt({ voter: ballot.voter, sender, txHash: hash });
+      addAlert("Vote submitted", {
+        timeout: 4000,
+        type: "success",
+        description: "The vote counts for the wallet that signed it.",
+      });
+      return { success: true, txHash: hash };
+    } catch (cause) {
+      // A declined wallet prompt leaves the ballot saved and shows nothing: the voter chose it.
+      const reason = describeFailure(cause, "Could not send the prepared ballot.") ?? "";
+      setError(reason);
+      return { success: false, error: reason };
+    } finally {
+      sendingPrepared.current = false;
+      setIsLoading(false);
+    }
+  };
+
   return {
+    getVoteWeight,
     postVote,
     error,
     isLoading,
@@ -699,7 +867,16 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
-    pendingWeight,
-    answerWeight,
+    preparedBallot: pending.ballot,
+    preparedReceipt,
+    changePreparedVote: () => setPreparedReceipt(null),
+    prepareVote,
+    sendPreparedVote,
+    discardPreparedVote: () => {
+      if (pending.ballot && !sendingPrepared.current) {
+        pending.remove(pending.ballot);
+        setError("");
+      }
+    },
   };
 }

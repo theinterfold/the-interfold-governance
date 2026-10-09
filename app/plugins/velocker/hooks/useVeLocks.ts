@@ -5,6 +5,7 @@ import { PUB_VE_LOCKER_ADDRESS } from "@/constants";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
 import { escrowAdapterAbi } from "../artifacts/escrowAdapter";
 import { exitQueueAbi } from "../artifacts/exitQueue";
+import { ticketExitDate, type ExitTicket } from "../utils/exitTicket";
 
 export type OwnedLock = {
   tokenId: bigint;
@@ -36,6 +37,7 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
   const [queuedExits, setQueuedExits] = useState<QueuedExit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadedFor, setLoadedFor] = useState<string>();
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -75,6 +77,7 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
           : [];
         if (cancelled) return;
 
+        if (ownedReads.some((read) => read.result === undefined)) throw new Error("Incomplete lock data");
         const owned: OwnedLock[] = ownedIds.map((tokenId, i) => {
           const locked = ownedReads[i * 3]?.result as { amount: bigint; start: number } | undefined;
           return {
@@ -99,15 +102,16 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
           : [];
         if (cancelled) return;
 
+        if (queuedReads.some((read) => read.result === undefined)) throw new Error("Incomplete withdrawal data");
         const queued: QueuedExit[] = escrowHeldIds
           .map((tokenId, i) => {
             const holder = queuedReads[i * 4]?.result as Address | undefined;
-            const ticket = queuedReads[i * 4 + 1]?.result as { holder: Address; exitDate: bigint } | undefined;
+            const ticket = queuedReads[i * 4 + 1]?.result as ExitTicket | undefined;
             const locked = queuedReads[i * 4 + 3]?.result as { amount: bigint; start: number } | undefined;
             return {
               tokenId,
               amount: locked?.amount ?? 0n,
-              exitDate: Number(ticket?.exitDate ?? 0n),
+              exitDate: ticket ? ticketExitDate(ticket) : 0,
               canExit: (queuedReads[i * 4 + 2]?.result as boolean | undefined) ?? false,
               isMine: !!holder && holder.toLowerCase() === address.toLowerCase(),
             };
@@ -120,7 +124,10 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
       } catch {
         if (!cancelled) setError("Could not load your locks");
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setLoadedFor(address.toLowerCase());
+          setIsLoading(false);
+        }
       }
     }
 
@@ -130,5 +137,12 @@ export function useVeLocks(address: Address | undefined, satellites: { queue?: A
     };
   }, [publicClient, address, queue, adapter, refreshKey]);
 
-  return { ownedLocks, queuedExits, isLoading, error, refetch };
+  const currentAccount = !!address && loadedFor === address.toLowerCase();
+  return {
+    ownedLocks: currentAccount ? ownedLocks : [],
+    queuedExits: currentAccount ? queuedExits : [],
+    isLoading: !currentAccount || isLoading,
+    error: currentAccount ? error : null,
+    refetch,
+  };
 }

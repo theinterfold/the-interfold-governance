@@ -121,8 +121,9 @@ set_env "${APP_ENV}" NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK "${DEPLOY_BLOCK}"
 # The DAO's *voting* token and the app's *user* token are not always the same contract.
 #
 # `FOLD_TOKEN_ADDRESS` may be a `BondedVotes` adapter, so that a round counts FOLD bonded as
-# ciphernode collateral as well as FOLD held in a wallet. The adapter is read-only: `delegate()`
-# reverts `DelegationNotSupported` and it emits no `DelegateChanged`. Writing it to
+# ciphernode collateral as well as FOLD held in a wallet. The adapter cannot delegate wallet or
+# escrowed FOLD: `delegate()` reverts `DelegationNotSupported` and it emits no `DelegateChanged`
+# (its own bonded delegation uses other functions and events). Writing it to
 # NEXT_PUBLIC_TOKEN_ADDRESS therefore breaks delegation and empties the members list, while
 # looking entirely correct.
 #
@@ -171,7 +172,7 @@ else
 fi
 # Deployment-derived values this script cannot resolve. Named explicitly, because every address
 # that broke after the last redeploy broke by being silently stale, not by erroring.
-for manual in NEXT_PUBLIC_TOKEN_DEPLOYMENT_BLOCK NEXT_PUBLIC_BRIDGE_ADDRESS; do
+for manual in NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK NEXT_PUBLIC_BRIDGE_ADDRESS; do
   echo "  note: ${manual} is not synced — update it by hand if the deployment changed"
 done
 echo

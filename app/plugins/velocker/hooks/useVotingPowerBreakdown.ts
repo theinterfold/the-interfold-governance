@@ -1,55 +1,39 @@
 import { type Address, isAddress } from "viem";
 import { useReadContract } from "wagmi";
 import { PUB_BONDED_VOTES_ADDRESS, PUB_CHAIN } from "@/constants";
+import { bondedCheckpointsAbi, bondedVotesAbi } from "@/artifacts/bondedVotes";
+import type { BondedDelegation } from "@/hooks/useBondedDelegation";
+import { splitVotingPower, type VotingPowerSplit } from "@/utils/bondedDelegation";
 
-/** The two BondedVotes reads this hook needs: the checkpoints history and its bonded total. */
-const bondedVotesAbi = [
-  {
-    type: "function",
-    name: "checkpoints",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }],
-  },
-] as const;
-
-const checkpointsAbi = [
-  {
-    type: "function",
-    name: "bonded",
-    stateMutability: "view",
-    inputs: [{ type: "address", name: "account" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;
-
-export type VotingPowerBreakdown = {
-  /** Escrow locks whose power is activated by delegation (the adapter's getVotes). */
-  lockedAndDelegated?: bigint;
-  /** FOLD bonded as ciphernode collateral (ticket balance + license bond). */
-  bonded?: bigint;
-  /** Vesting/schedule-locked FOLD counted automatically (the remainder of the total). */
-  vesting?: bigint;
+export type VotingPowerBreakdown = VotingPowerSplit & {
   /** True when the breakdown applies (BondedVotes is the voting-power source). */
   available: boolean;
+  /** The address that votes with the account's own bonded and vesting FOLD, if any. */
+  delegate?: Address;
+  /**
+   * The account's bonded FOLD whoever votes with it. `bonded` is absent while a delegate represents
+   * the account; the FOLD asset overview describes ownership, so it needs this one.
+   */
+  ownBonded?: bigint;
 };
 
 /**
- * Splits an account's total voting power into the three halves BondedVotes sums on-chain:
+ * Splits an account's total voting power into the parts that BondedVotes adds on-chain:
  *
  *   getVotes = adapter.getVotes (locked + delegated)
- *            + checkpoints.bonded (ciphernode collateral)
- *            + lockedVotes (vesting FOLD, capped at the wallet balance)
+ *            + checkpoints.bonded + vesting FOLD   unless a bonded delegate represents the account
+ *            + the bonded weight of each owner that the account represents
  *
- * The first two are read directly; vesting is derived as the remainder so the three rows
- * always sum to exactly the total the page displays. Clamped at zero: the total and the
- * components are read in separate calls, so a bond or claim landing between them could
- * otherwise show a negative remainder for one render.
+ * The locked, bonded and represented parts are read. Vesting is the remainder, so the rows add
+ * up to the total that the page shows. See `splitVotingPower`.
+ *
+ * @param bonded The account's bonded delegation, from `useBondedDelegation`.
  */
 export function useVotingPowerBreakdown(
   address: Address | undefined,
   totalVotes: bigint | undefined,
-  lockVotes: bigint | undefined
+  lockVotes: bigint | undefined,
+  bonded: Pick<BondedDelegation, "delegate" | "representedWeight">
 ): VotingPowerBreakdown {
   const available = isAddress(PUB_BONDED_VOTES_ADDRESS);
 
@@ -61,10 +45,10 @@ export function useVotingPowerBreakdown(
     query: { enabled: available },
   });
 
-  const { data: bonded } = useReadContract({
+  const { data: bondedFold } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: checkpointsAddress,
-    abi: checkpointsAbi,
+    abi: bondedCheckpointsAbi,
     functionName: "bonded",
     args: [address!],
     query: { enabled: available && !!address && !!checkpointsAddress },
@@ -72,12 +56,16 @@ export function useVotingPowerBreakdown(
 
   if (!available) return { available };
 
-  const vesting =
-    totalVotes !== undefined && lockVotes !== undefined && bonded !== undefined
-      ? totalVotes > lockVotes + bonded
-        ? totalVotes - lockVotes - bonded
-        : 0n
-      : undefined;
-
-  return { lockedAndDelegated: lockVotes, bonded, vesting, available };
+  return {
+    ...splitVotingPower({
+      total: totalVotes,
+      lockVotes,
+      bonded: bondedFold,
+      represented: bonded.representedWeight,
+      delegatedAway: !!bonded.delegate,
+    }),
+    available,
+    delegate: bonded.delegate,
+    ownBonded: bondedFold,
+  };
 }

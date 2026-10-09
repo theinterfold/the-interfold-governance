@@ -1,0 +1,157 @@
+.panels {
+  display: grid;
+  gap: var(--power-section-gap, 24px);
+}
+.accountCard,
+.locksCard {
+  min-width: 0;
+}
+.overview {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 48px;
+}
+.votingSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  min-width: 0;
+}
+.votingSummary :global(.power-metric-total dd) {
+  margin-top: 4px;
+  line-height: 1;
+}
+.votingSummary > p {
+  max-width: 40ch;
+  margin: auto 0 0;
+  padding-top: 24px;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.allocation {
+  min-width: 0;
+}
+.allocation h3 {
+  margin-bottom: 16px;
+  font: 600 16px/1.35 var(--font-sans);
+}
+.allocation :global(.fold-allocation) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--allocation-diameter, 115px);
+  align-items: start;
+  gap: 40px;
+}
+.allocation :global(.fold-allocation-chart) {
+  container-type: inline-size;
+  grid-column: 2;
+  grid-row: 1;
+  width: var(--allocation-diameter, 115px);
+  height: var(--allocation-diameter, 115px);
+}
+.allocation :global(.fold-allocation-total) {
+  inset: 20%;
+  gap: 3px;
+}
+.allocation :global(.fold-allocation-total > span) {
+  font-size: clamp(8px, 8cqi, 10px);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.allocation :global(.fold-allocation-total > strong) {
+  font-size: clamp(12px, 14cqi, 18px);
+  line-height: 1.15;
+}
+.allocation :global(.fold-allocation-legend) {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.allocation :global(.fold-allocation-legend > div) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.allocation :global(.fold-allocation-legend dt) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.allocation :global(.fold-allocation-legend dd) {
+  display: flex;
+  align-items: baseline;
+  gap: var(--token-unit-gap);
+  color: var(--ink);
+  font: 500 16px/1.4 var(--font-sans);
+}
+.allocation :global(.fold-allocation-legend dd small) {
+  font: var(--ui-label-font);
+}
+.locksCard .locksHeading {
+  margin-bottom: 0;
+}
+.locksHeading > button {
+  width: var(--action-column-width);
+  min-width: 128px;
+  max-width: 100%;
+}
+.locksCard:global(.power-card) {
+  padding-bottom: 0;
+}
+.locksCard[data-heading-outside="true"] {
+  padding-top: 0;
+}
+.locksCard[data-heading-outside="true"] :global(.power-position-head + .power-position-row) {
+  border-top-left-radius: var(--ui-radius-inner);
+  border-top-right-radius: var(--ui-radius-inner);
+}
+.locksCard :global(.power-position-row:last-child) {
+  border-radius: 0 0 var(--ui-radius-inner) var(--ui-radius-inner);
+}
+/* The card has no block padding, so the empty text takes the size of one lock row. */
+.empty {
+  display: flex;
+  align-items: center;
+  min-height: 76px;
+  margin: 0;
+  padding-block: 12px;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+@media (max-width: 1050px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .allocation {
+    padding-top: 24px;
+    border-top: 1px solid var(--rule);
+  }
+}
+@media (max-width: 680px) {
+  .allocation :global(.fold-allocation) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .allocation :global(.fold-allocation-chart) {
+    container-type: inline-size;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .allocation :global(.fold-allocation-legend > div) {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .locksHeading > button {
+    width: auto;
+  }
+}

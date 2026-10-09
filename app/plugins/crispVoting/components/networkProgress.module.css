@@ -1,0 +1,142 @@
+.network :global(.proposal-disclosure-trigger) {
+  padding-block: var(--ui-space-controls);
+  gap: var(--ui-space-related);
+}
+.network :global(.proposal-disclosure-trigger > span:first-child) {
+  flex: 1;
+  min-width: 0;
+}
+.summary {
+  display: grid;
+  gap: var(--ui-space-related);
+  width: 100%;
+}
+.meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-tight);
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.current {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--ui-space-tight);
+  color: var(--ink);
+  font: var(--ui-section-font);
+}
+.current strong {
+  font-weight: 600;
+}
+.current > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.indicator {
+  width: 7px;
+  height: 7px;
+  margin-inline: 5px 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--if-brand-green);
+}
+.currentLabel {
+  grid-column: 3;
+  font: var(--ui-label-font);
+  color: var(--muted);
+}
+.chevron {
+  grid-column: 4;
+  display: flex;
+  align-items: center;
+}
+.track {
+  display: flex;
+  gap: 4px;
+  height: 4px;
+}
+.track > span {
+  flex: 1;
+  background: var(--rule);
+}
+.track > span[data-state="complete"] {
+  background: var(--ink);
+}
+.track > span[data-state="current"] {
+  position: relative;
+  overflow: hidden;
+  background: var(--if-brand-green);
+}
+/* The existing amount/reflection motion applied only to the waiting step, never its width. */
+.track > span[data-state="current"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--paper) 85%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: waiting-reflection 2400ms var(--interfold-ui-ease) infinite;
+}
+@keyframes waiting-reflection {
+  0%,
+  15% {
+    transform: translateX(-100%);
+  }
+  85%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .track > span[data-state="current"]::after {
+    animation: none;
+    display: none;
+  }
+}
+.body {
+  display: grid;
+  gap: var(--ui-space-controls);
+  padding-bottom: var(--ui-space-section);
+}
+.description {
+  margin: 0;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.steps {
+  display: grid;
+  gap: var(--ui-space-related);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: var(--ui-space-tight);
+  align-items: baseline;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.marker {
+  display: flex;
+  align-items: center;
+  font: var(--ui-label-font);
+  font-variant-numeric: tabular-nums;
+}
+.steps li[data-state="complete"] .marker {
+  color: var(--accent);
+}
+.steps li[data-state="current"] {
+  color: var(--ink);
+}
+.steps li[data-state="current"] .label {
+  font-weight: 600;
+}
+.state {
+  font: var(--ui-label-font);
+}
+.steps li[data-state="current"] .state {
+  font-weight: 600;
+}

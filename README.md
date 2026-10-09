@@ -80,7 +80,9 @@ bun dev                # http://localhost:3000
 The app shows proposals from both SPP processes in one list (tagged **Private** / **Public**), a
 create form with a privacy toggle (the private form has a fee-credit widget and a per-proposal
 voting-duration picker), staged detail pages (stage-0 voting + a stage-1 veto panel), and a
-**Delegation** page (delegate to yourself or others, browse delegates by voting power).
+**Voting power** page. There, a holder delegates wallet or locked FOLD to itself, and an owner can
+give the voting power of its bonded and vesting FOLD to one address. That address must accept, and
+it can represent at most three owners.
 
 ## Contracts (`contracts/`)
 
@@ -138,7 +140,7 @@ foundation window) rather than Sepolia's testing values. Every address in it was
 
 ```bash
 cd contracts
-cp .env.mainnet.example .env.mainnet   # then fill the four TODO(mainnet) entries
+cp .env.mainnet.example .env.mainnet   # then fill the TODO(mainnet) entries
 
 make predeploy ENV_FILE=.env.mainnet
 make deploy    ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
@@ -146,9 +148,10 @@ make sync-env  ENV_FILE=.env.mainnet DEPLOY_LOG=deploy.mainnet.log
 make wire-spp  ENV_FILE=.env.mainnet
 ```
 
-Four things must be filled before phase 1 can run — the template marks each `TODO(mainnet)`:
-`FOLD_TOKEN_ADDRESS`, `FOUNDATION_ADDRESS` (**a multisig, never an EOA**), and — for phase 2 only —
-`INTERFOLD_ADDRESS` and `CRISP_PROGRAM_ADDRESS`.
+The template marks each value that you must fill with `TODO(mainnet)`. Phase 1 needs
+`FOLD_TOKEN_ADDRESS` and `FOUNDATION_ADDRESS` (**a multisig, never an EOA**). Phase 2 also needs
+`CRISP_PROGRAM_ADDRESS`, a new mainnet CRISP program. `INTERFOLD_ADDRESS` is prefilled with the
+mainnet coordinator.
 
 Phase 2 (`publish-crisp-repo` → `prepare-private-process` → `install-private-process`) and phase 3
 (`disarm-admin`) are commands too. **Disarming is never bundled into a deploy or an install** — it
@@ -190,6 +193,87 @@ after and the EOA is what installed the private process.
 explained in [`docs/architecture.md`](docs/architecture.md); the env reference is in
 [`contracts/README.md`](contracts/README.md); the post-deploy security checks are in
 [`SECURITY.md`](SECURITY.md).
+
+## Testnet app on Vercel
+
+The testnet app is a second Vercel project. It builds the `testnet` branch and uses the Sepolia
+deployment, so changes reach it before they reach the production app.
+
+| Vercel project | Production branch | Network |
+| -------------- | ----------------- | ------- |
+| Production     | `main`            | mainnet |
+| Testnet        | `testnet`         | Sepolia |
+
+Each project has its own environment variables, domains and deployments. A change to one project
+does not change the other. Both projects use the Root Directory `app`, so both read
+`app/vercel.json`. In the production project, `testnet` is only a preview branch, and a preview
+deployment does not change the production domain.
+
+### Branch flow
+
+1. Open feature pull requests against `testnet`.
+2. To release to production, open a pull request from `testnet` into `main`.
+3. After a fix merges directly into `main`, merge `main` into `testnet`.
+
+CI runs on each pull request and on each push to `main` or `testnet`.
+
+### Project setup
+
+Do these steps one time in the Vercel dashboard:
+
+1. Import this repository as a new project, with the Root Directory `app`.
+2. Before the first deployment, add the [environment variables](#environment-variables).
+3. In **Settings → Environments → Production → Branch Tracking**, set the branch to `testnet`.
+4. In **Deployments → Create Deployment**, deploy the `testnet` branch.
+5. Add a domain to the project, for example `testnet.<your-domain>`.
+6. In **Settings → Deployment Protection**, make sure that the project uses Standard Protection.
+
+Vercel makes `main` the production branch of a new project, so the first deployment builds `main`.
+Step 4 replaces it with a build of `testnet`. After that, each push to `testnet` deploys the testnet
+app. Standard Protection does not protect production domains, so the testnet domain stays public.
+Step 6 is necessary because a team can set a different default for new projects.
+
+Each push to this repository starts a build in both projects. To build only `testnet` in the
+testnet project, set **Settings → Build and Deployment → Ignored Build Step** to this custom
+command:
+
+```bash
+[ "$VERCEL_GIT_COMMIT_REF" = "testnet" ] && exit 1 || exit 0
+```
+
+Exit code `1` continues the build and exit code `0` cancels it. Without this command, the testnet
+project also builds a Sepolia preview of each pull request.
+
+### Environment variables
+
+The testnet project needs the variables in `app/.env.example`, with Sepolia values. That file is
+the Sepolia template. It sets `NEXT_PUBLIC_CHAIN_NAME=sepolia` and turns on the faucet.
+
+1. After a Sepolia deployment (see [Deploying to Sepolia](#deploying-to-sepolia)), write the app
+   values to their own file. A plain `make sync-env` writes them to `app/.env`, your local
+   configuration.
+
+   ```bash
+   cp app/.env.example app/.env.sepolia            # .gitignore excludes .env.* files
+   cd contracts
+   make sync-env APP_ENV_FILE=app/.env.sepolia     # the path is relative to the repo root
+   ```
+
+2. Set these values by hand:
+   - `NEXT_PUBLIC_CRISP_SERVER_URL`: a CRISP server on Sepolia. One CRISP server serves one chain,
+     and the app also reads chain data through this server.
+   - `WEB3_RPC_URL`: a Sepolia endpoint that allows historical `eth_getLogs`.
+   - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`, `NEXT_PUBLIC_IPFS_ENDPOINTS`, `PINATA_JWT` and
+     `ETHERSCAN_API_KEY`. These values do not depend on the network.
+3. Check each address and block number that `sync-env` did not print, for example
+   `NEXT_PUBLIC_BONDED_VOTES_DEPLOYMENT_BLOCK`. These keep their template values, which must match
+   the current Interfold Sepolia deployment.
+4. In the testnet project, add each value in **Settings → Environment Variables**. Select the
+   Production and Preview environments.
+5. If the WalletConnect project has a domain allowlist, add the testnet domain to it.
+
+Vercel builds the `NEXT_PUBLIC_*` values into the client bundle. After you change one, redeploy the
+project.
 
 ## Linting & formatting
 

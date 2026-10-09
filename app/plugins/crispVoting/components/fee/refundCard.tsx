@@ -103,7 +103,7 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
         {!isReady
           ? "Checking what still needs to happen…"
           : pendingSteps > 1
-            ? `Requires ${pendingSteps} transactions — none of these steps happen automatically.`
+            ? `Requires ${pendingSteps} transactions. None of these steps happen automatically.`
             : "Requires one transaction."}
       </p>
 
@@ -129,7 +129,7 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
         <AlertCard
           variant="critical"
           message="Could not settle the refund"
-          description={`${error} Any steps that already completed are kept — retrying resumes from there.`}
+          description={`${error} Completed steps are kept, and a retry continues from the next step.`}
         />
       )}
 

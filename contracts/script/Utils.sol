@@ -12,7 +12,7 @@ library Utils {
     Vm public constant VM = Vm(address(bytes20(uint160(uint256(keccak256("hevm cheat code"))))));
 
     /// @notice Mainnet refuses the insecure 512-degree parameter set.
-    /// @dev Mirrors `ActiveCryptoConfig.isParamSetSupported`, which accepts SECURE_PARAM_SET(1)
+    /// @dev Mirrors `ActiveCryptoConfig.isParamSetSupported`, which accepts SECURE_PARAM_SET(2)
     ///      only outside Sepolia/local. Caught here so a misconfigured `.env` fails the simulate
     ///      step rather than reverting mid-broadcast with `UnsupportedCryptoConfig`.
     error MainnetRequiresSecureParams(uint8 paramSet);
@@ -63,7 +63,7 @@ library Utils {
     ///      allows both there. Only mainnet is constrained.
     function validateDeploymentPolicy(uint256 chainId, CrispEnvVariables memory config) internal pure {
         if (chainId != 1) return;
-        if (config.paramSet != 1) revert MainnetRequiresSecureParams(config.paramSet);
+        if (config.paramSet != 2) revert MainnetRequiresSecureParams(config.paramSet);
         if (config.committeeSize != IInterfold.CommitteeSize.Small) {
             revert MainnetRequiresSmallCommittee(config.committeeSize);
         }

@@ -22,7 +22,7 @@ const CUSTOM_ERROR_COPY: Record<string, (args: readonly unknown[]) => string> = 
   ProposalAlreadyExists: () =>
     "A proposal with these exact contents already exists. Change the title or actions and try again.",
   ProposalExecutionForbidden: () =>
-    "This proposal can't be executed yet — voting may still be open or it did not pass.",
+    "You cannot execute this proposal yet. Voting is still open, or the proposal did not pass.",
   NonexistentProposal: () => "That proposal doesn't exist.",
   NoVotingPower: () => "You have no voting power for this action.",
   InvalidOptionCount: () => "The proposal has an invalid number of voting options.",
