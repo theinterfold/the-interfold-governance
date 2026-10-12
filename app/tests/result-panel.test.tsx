@@ -37,7 +37,8 @@ describe("Shared public and secret results", () => {
     expect(html).not.toContain("won with");
     expect(html).toContain('data-leading="true"');
     const lowTurnout = render({ status: ProposalStatus.REJECTED, quorum: { ...quorum, reached: false } });
-    expect(lowTurnout).toContain("Vote rejected");
+    expect(lowTurnout).toContain("Quorum not met");
+    expect(lowTurnout).not.toContain("Vote rejected");
     expect(lowTurnout).toContain("Quorum not reached. Participation was below the required minimum.");
     expect(lowTurnout).not.toContain("won with");
   });

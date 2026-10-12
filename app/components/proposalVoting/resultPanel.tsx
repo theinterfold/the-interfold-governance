@@ -140,9 +140,11 @@ export function ResultPanel({
     ? "Confirming result"
     : noVotes
       ? "No votes cast"
-      : lowQuorum || status === ProposalStatus.REJECTED
-        ? "Vote rejected"
-        : "Vote passed";
+      : lowQuorum
+        ? "Quorum not met"
+        : status === ProposalStatus.REJECTED
+          ? "Vote rejected"
+          : "Vote passed";
   const explanation = !resolved
     ? "The final voting outcome is not confirmed yet."
     : noVotes
