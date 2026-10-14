@@ -16,7 +16,6 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUnits, getAddress, isAddress, type Address } from "viem";
 import { Percent } from "@phosphor-icons/react";
 import { FluidHeight } from "@/components/motion/FluidHeight";
-import { Disclosure } from "@/components/motion/Disclosure";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 import { useInert } from "@/components/motion/useInert";
 import VotingStepIndicator from "./voteProgress";
@@ -428,21 +427,7 @@ export const VoteCard = ({
                 option you chose. Choose who receives the cover below.
               </p>
             ),
-            details: (
-              <>
-                {maskRecipient}
-                <Disclosure open={selectedOption !== null}>
-                  <button
-                    type="button"
-                    className="vp-foot-note vp-mode-toggle"
-                    disabled={isDisabled}
-                    onClick={(event) => openReview(event.currentTarget, "mask")}
-                  >
-                    Send only a mask
-                  </button>
-                </Disclosure>
-              </>
-            ),
+            details: maskRecipient,
             onChange: setMaskTool,
           },
         ]
@@ -586,7 +571,8 @@ export const VoteCard = ({
             >
               {!voteDisabled && !isSubmitted && !receipts.vote && (
                 <p className="vp-note">
-                  Choose an option. Your vote stays private, and you can change it before voting closes.
+                  Choose an option, and select it again to clear it. Your vote stays private, and you can change it
+                  before voting closes.
                 </p>
               )}
               {isSubmitted && !isMasking ? (
@@ -606,6 +592,7 @@ export const VoteCard = ({
                   onChange={(choice) => {
                     if (typeof choice === "number") setSelectedOption(choice);
                   }}
+                  onClear={() => setSelectedOption(null)}
                   disabled={isDisabled || isSubmitted}
                   voteDisabled={voteDisabled}
                 />
@@ -757,6 +744,17 @@ export const VoteCard = ({
                     "Select an option"
                   )}
                 </span>
+              </PowerAction>
+            )}
+
+            {/* A mask that is on can also go without the chosen vote, the same as clearing the option. */}
+            {!isSubmitted && !isMasking && includeMask && selectedOption !== null && (
+              <PowerAction
+                className="w-full"
+                disabled={isDisabled}
+                onClick={(event: MouseEvent<HTMLButtonElement>) => openReview(event.currentTarget, "mask")}
+              >
+                Send only the mask
               </PowerAction>
             )}
 

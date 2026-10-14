@@ -176,6 +176,7 @@ export function BallotChoices({
   value,
   currentVote,
   onChange,
+  onClear,
   disabled = false,
   voteDisabled = false,
   maskAsOption = false,
@@ -187,6 +188,8 @@ export function BallotChoices({
   /** The submitted choice remains marked while a different draft option is selected. */
   currentVote?: number | null;
   onChange: (choice: BallotChoice) => void;
+  /** Selecting the chosen option again calls this, so the ballot can return to no choice. */
+  onClear?: () => void;
   disabled?: boolean;
   voteDisabled?: boolean;
   maskAsOption?: boolean;
@@ -222,6 +225,14 @@ export function BallotChoices({
               aria-label={choice.label}
               aria-describedby={isMask ? `${groupId}-mask-hint` : isCurrentVote ? `${groupId}-current-vote` : undefined}
               onChange={() => onChange(choice.value)}
+              // A checked radio fires no change event, so selecting it again by pointer or with the
+              // space key clears the choice instead.
+              onClick={selected ? onClear : undefined}
+              onKeyDown={(event) => {
+                if (!selected || !onClear || event.key !== " ") return;
+                event.preventDefault();
+                onClear();
+              }}
             />
             <span className="label">
               <span className="vote-choice-symbol">
