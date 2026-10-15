@@ -1559,59 +1559,6 @@ label div p.leading-tight {
   color: var(--ink-soft);
   margin: 0;
 }
-.vp-mode-views {
-  position: relative;
-}
-.vp-mode-view {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transition:
-    opacity 180ms ease,
-    transform var(--interfold-ui-duration) var(--interfold-ui-ease),
-    visibility 0s linear 180ms;
-}
-.vp-mode-view[data-active="false"] {
-  position: absolute;
-  inset: 0 0 auto;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-.vp-ballot-view[data-active="false"] {
-  transform: translateX(-12px);
-}
-.vp-mask-view[data-active="false"] {
-  transform: translateX(12px);
-}
-.vp-mode-view[data-active="true"] {
-  position: relative;
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(0);
-  transition-delay: 0s;
-}
-.vp-mask-explanation {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 20px;
-  border: 1px solid var(--rule);
-  background: var(--surface-selected);
-  color: var(--ink-soft);
-  font-size: 15px;
-  line-height: 1.5;
-}
-.vp-mask-explanation p + p {
-  margin-top: 8px;
-  color: var(--muted);
-}
-.vp-mask-symbol {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 28px;
-  line-height: 1;
-}
 .vp-mode-toggle {
   display: flex;
   align-items: center;
@@ -1653,7 +1600,6 @@ label div p.leading-tight {
 @media (prefers-reduced-motion: reduce) {
   .fluid-height,
   .proposal-disclosure,
-  .vp-mode-view,
   .vote-progress * {
     transition: none !important;
   }
@@ -3537,15 +3483,20 @@ label div p.leading-tight,
 .ballot-review-submission strong { font: 600 14px/1.4 var(--font-sans); }
 .ballot-review-submission p { font: 400 13px/1.5 var(--font-sans); color: var(--muted); }
 .ballot-review-body > .power-action { width: 100%; }
-.vp-mask-entry { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 14px 12px; border: 1px dashed var(--rule-strong); border-radius: var(--action-radius); background: var(--surface-muted); color: var(--ink-soft); text-align: left; }
-.vp-mask-entry > svg { flex-shrink: 0; }
-.vp-mask-entry > span { display: flex; flex-direction: column; gap: 4px; }
-.vp-mask-entry strong { font: 600 14px/1.4 var(--font-sans); }
-.vp-mask-entry > span > span { font: 400 12px/1.4 var(--font-sans); color: var(--muted); }
-.vp-mask-entry .vp-mask-entry-arrow { margin-left: auto; }
-.vp-mask-entry:hover:not(:disabled) { border-color: var(--ink); background: var(--surface-hover); }
-.vp-mask-entry:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.vp-mask-entry:disabled { opacity: .5; cursor: not-allowed; }
+/* The ballot's two actions, voting and masking: the "Submission type" switch shows one view at a time. */
+.vp-path { display: flex; flex-direction: column; gap: 14px; }
+.mask-queue { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ui-space-related); }
+.mask-queue-list { display: flex; flex-direction: column; gap: var(--ui-space-related); width: 100%; margin: 0; padding: 0; list-style: none; }
+.mask-queue-entry { display: flex; flex-direction: column; gap: 4px; }
+.mask-queue-entry + .mask-queue-entry { padding-top: var(--ui-space-related); border-top: 1px solid var(--rule); }
+.mask-queue-remove { align-self: flex-start; padding-inline: 0; color: var(--muted); }
+.mask-review-label { color: var(--muted); font: var(--ui-label-font); }
+.mask-review-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--rule); border-radius: var(--action-radius); }
+.mask-review-list > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 12px; font: 500 14px/1.4 var(--font-sans); }
+.mask-review-list > li + li { border-top: 1px solid var(--rule); }
+.mask-review-list > li[data-invalid="true"] { color: #a84932; }
+.mask-review-index { color: var(--muted); font: 400 13px/1.4 var(--font-sans); }
+.mask-receipt-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
 
 /* Proposal detail uses the same outer measure and reading inset as the list. */
 .proposal-page { --proposal-gutter: 32px; padding-block: 24px 80px; }
@@ -3893,8 +3844,6 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .vp-confirmed-choice strong { font: 600 32px/1.25 var(--font-sans); letter-spacing: -.5px; }
 .vp-confirmed-choice .swatch { width: 10px; height: 10px; border-radius: 50%; }
 .proposal-detail-ballot .vp-edit-submission { align-self: flex-start; margin-top: 8px; }
-.proposal-detail-ballot .vp-mask-explanation { border: 0; border-top: 1px solid var(--rule); padding: 18px 0 0; background: transparent; font-size: 14px; }
-.proposal-detail-ballot .vp-mask-symbol { display: none; }
 
 /* Context stays in the voting surface, with technical details folded away. */
 .ballot-voting-power { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px 20px; padding-bottom: 16px; text-align: left; }

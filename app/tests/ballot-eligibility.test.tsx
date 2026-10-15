@@ -65,11 +65,13 @@ describe("Ballot eligibility rendering", () => {
   test("a secret ballot without snapshot eligibility hides vote choices but preserves standalone masking", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={true} canMask={true} />);
     expect(html).toContain("No voting power for this proposal");
-    expect(html).not.toContain('role="radiogroup"');
+    for (const option of ["Yes", "No", "Abstain"]) expect(html).not.toContain(`aria-label="${option}"`);
     expect(html).not.toContain("Submit encrypted ballot");
     expect(html).not.toContain("Select an option");
-    expect(html).toContain("Submit a mask");
-    expect(html).toContain("Add cover for an eligible voter");
+    expect(html).toContain("Review mask");
+    // The wallet cannot vote, so masking is the action it came for: the switch starts on Mask.
+    expect(html).toMatch(/<input[^>]*checked="" value="mask"/);
+    expect(html).not.toMatch(/<input[^>]*checked="" value="vote"/);
   });
 
   test("an unresolved secret ballot shows neither voting nor masking controls", () => {
@@ -83,13 +85,15 @@ describe("Ballot eligibility rendering", () => {
     );
     expect(html).toContain("Checking voting eligibility");
     expect(html).not.toContain('role="radiogroup"');
-    expect(html).not.toContain("Submit a mask");
+    expect(html).not.toContain("Review mask");
   });
 
   test("an eligible secret voter can add a mask independently of the voting choices", () => {
     const html = renderToStaticMarkup(<VoteCard {...privateProps} voteDisabled={false} />);
     for (const option of ["Yes", "No", "Abstain"]) expect(html).toContain(`aria-label="${option}"`);
-    expect(html).not.toContain('value="mask"');
+    // Mask is the switch's second view, never a fourth vote choice, and the switch starts on the ballot.
+    expect(html.match(/value="mask"/g)).toHaveLength(1);
+    expect(html).toMatch(/<input[^>]*checked="" value="vote"/);
     expect(html).toContain('aria-label="Add a mask"');
     expect(html).not.toContain("No voting power for this proposal");
   });

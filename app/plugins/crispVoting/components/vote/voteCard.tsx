@@ -5,7 +5,8 @@ import { exactNumber } from "@/utils/numbers";
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { PUB_CHAIN, PUB_TOKEN_SYMBOL } from "@/constants";
 import { ActionIcon } from "@/components/input/actionIcon";
-import { MaskRecipientPicker } from "./maskRecipientPicker";
+import { MaskRecipientField, type MaskTargetMode } from "./maskRecipientField";
+import { MaskQueue, type MaskEntry } from "./maskQueue";
 import { ChoiceMenu } from "@/components/input/choiceMenu";
 import { AddressText } from "@/components/text/address";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
@@ -16,8 +17,9 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUnits, getAddress, isAddress, type Address } from "viem";
 import { Percent } from "@phosphor-icons/react";
 import { FluidHeight } from "@/components/motion/FluidHeight";
-import { MotionPanel } from "@/components/motion/MotionPanel";
 import { useInert } from "@/components/motion/useInert";
+import { MotionPanel } from "@/components/motion/MotionPanel";
+import { SegmentedControl } from "@/components/input/segmentedControl";
 import VotingStepIndicator from "./voteProgress";
 import {
   BallotPanel,
@@ -40,10 +42,11 @@ import { SignatureData, SignatureDataEntry } from "@/components/proposalVoting/s
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { equalAddresses } from "@/utils/evm";
 import { crispSdk } from "../../utils/crispSdk";
-import { getRandomVoterToMask } from "../../utils/voters";
+import { getRandomVoterToMask, pickMaskRecipients } from "../../utils/voters";
 import {
   randomFirstBallot,
   submitBallotSequence,
+  submitMaskSequence,
   type BallotKind,
   type BallotSubmissionResult,
 } from "../../utils/ballotSubmission";
@@ -138,29 +141,35 @@ export const VoteCard = ({
 }: VoteCardProps) => {
   // A mask adds cover independently of the selected voting option.
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [mode, setMode] = useState<"vote" | "mask">("vote");
   const [submittedMode, setSubmittedMode] = useState<BallotKind | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   // Immediate feedback only: no vote choices, mask counters or history are persisted.
-  const [receipts, setReceipts] = useState<
-    Partial<Record<BallotKind, { txHash: string | null; option: number | null }>>
-  >({});
-  const [editingMode, setEditingMode] = useState<BallotKind | null>(null);
+  const [voteReceipt, setVoteReceipt] = useState<{ txHash: string | null; option: number | null }>();
+  const [maskReceipts, setMaskReceipts] = useState<(string | null)[]>([]);
+  const [editingVote, setEditingVote] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [randomizeWeight, setRandomizeWeight] = useState(true);
   const [reviewWeight, setReviewWeight] = useState<BallotWeight>();
   const [weightError, setWeightError] = useState<string>();
   const [weightAttempt, setWeightAttempt] = useState(0);
   const [reviewMode, setReviewMode] = useState<BallotKind>("vote");
+  // The masks a mask review sends: the "Add a mask" tool's one mask, or the mask list.
+  const [reviewSource, setReviewSource] = useState<"tool" | "queue">("queue");
   const [includeMask, setIncludeMask] = useState(false);
   const [sendFirst, setSendFirst] = useState<BallotKind>("vote");
   const [sendWithAnotherWallet, setSendWithAnotherWallet] = useState(false);
-  const [targetMode, setTargetMode] = useState<"random" | "address">("random");
+  const [targetMode, setTargetMode] = useState<MaskTargetMode>("random");
   const [targetInput, setTargetInput] = useState("");
+  const nextMaskId = useRef(1);
+  const [maskQueue, setMaskQueue] = useState<MaskEntry[]>([{ id: 0, mode: "random", target: "" }]);
+  // The card shows the vote or the mask list. A wallet that cannot vote starts on the masks.
+  const [submissionType, setSubmissionType] = useState<BallotKind>(voteDisabled ? "mask" : "vote");
   const [submitting, setSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string>();
   // The first submission of a vote + mask attempt. Null when the attempt sends one ballot.
   const [combinedFirst, setCombinedFirst] = useState<BallotKind | null>(null);
+  // Progress of masks sent on their own. Null for an attempt that sends the vote.
+  const [maskRun, setMaskRun] = useState<{ total: number; current: number; sent: number } | null>(null);
   const [signatureExpanded, setSignatureExpanded] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
   const signatureTrigger = useRef<HTMLButtonElement>(null);
@@ -172,17 +181,16 @@ export const VoteCard = ({
       mounted.current = false;
     };
   }, []);
-  const isMasking = mode === "mask";
-  const submissionKind = isMasking || (selectedOption === null && includeMask) ? "mask" : "vote";
-  const isSubmitted = !!receipts[mode] && editingMode !== mode;
-  const isChangingVote = !isMasking && !!receipts.vote && !isSubmitted;
+  useEffect(() => setSubmissionType(voteDisabled ? "mask" : "vote"), [voteDisabled]);
+  const submissionKind: BallotKind = selectedOption === null && includeMask ? "mask" : "vote";
+  const isSubmitted = !!voteReceipt && !editingVote;
+  const isChangingVote = !!voteReceipt && !isSubmitted;
   const busy = submitting || isLoading;
-  const ballotRef = useInert(isMasking);
-  const maskRef = useInert(!isMasking);
+  // Only the mask list's own run shows its progress in the "Submit a mask" section.
+  const sendingMasks = submitting && maskRun !== null && reviewSource === "queue";
   const feedbackVisible = showFeedback && (busy || !!attemptError);
   const feedbackRef = useInert(!feedbackVisible);
   const isReviewMasking = reviewMode === "mask";
-  const wantsMask = isReviewMasking || includeMask;
   const crispProgram = useCrispProgram(e3Id);
 
   // The CRISP server's census is what the random pick draws from, and the chain still has the last
@@ -194,19 +202,21 @@ export const VoteCard = ({
   } = useQuery({
     queryKey: ["crisp-mask-candidates", e3Id?.toString()],
     queryFn: () => crispSdk.getEligibleAddresses(e3Id!),
-    enabled: e3Id !== undefined && (includeMask || (reviewOpen && isReviewMasking)),
+    enabled: e3Id !== undefined && (includeMask || submissionType === "mask" || (reviewOpen && isReviewMasking)),
   });
   // The connected wallet stays in the list, so a voter can also mask their own slot.
   const recipients = useMemo<EligibleVoter[] | undefined>(
     () => census?.map((voter) => ({ address: voter.address, balance: BigInt(voter.balance) })),
     [census]
   );
-  const invalidTarget =
-    wantsMask &&
-    (targetMode === "random"
+  const recipientInvalid = (mode: MaskTargetMode, target: string) =>
+    mode === "random"
       ? !recipients?.length
-      : !isAddress(targetInput.trim()) ||
-        !recipients?.some((voter) => equalAddresses(voter.address, targetInput.trim())));
+      : !isAddress(target.trim()) || !recipients?.some((voter) => equalAddresses(voter.address, target.trim()));
+  const toolTargetInvalid = includeMask && recipientInvalid(targetMode, targetInput);
+  const reviewMasks: MaskEntry[] =
+    reviewSource === "tool" ? [{ id: -1, mode: targetMode, target: targetInput }] : maskQueue;
+  const reviewMasksInvalid = reviewMasks.some((entry) => recipientInvalid(entry.mode, entry.target));
 
   useEffect(() => {
     if (!reviewOpen || isReviewMasking) return;
@@ -226,9 +236,10 @@ export const VoteCard = ({
     };
   }, [reviewOpen, isReviewMasking, randomizeWeight, getVoteWeight, weightAttempt]);
 
-  const openReview = (trigger: HTMLElement, kind: BallotKind = mode) => {
+  const openReview = (trigger: HTMLElement, kind: BallotKind, source: "tool" | "queue" = "tool") => {
     triggerRef.current = trigger;
     setReviewMode(kind);
+    setReviewSource(source);
     setReviewWeight(undefined);
     setWeightError(undefined);
     setSignatureExpanded(false);
@@ -236,59 +247,56 @@ export const VoteCard = ({
     setReviewOpen(true);
   };
 
-  const confirmSubmission = async () => {
-    if (
-      submittingRef.current ||
-      isDisabled ||
-      (!isReviewMasking && (voteDisabled || selectedOption === null || !reviewWeight)) ||
-      invalidTarget
-    )
-      return;
+  const startAttempt = () => {
+    submittingRef.current = true;
+    setSubmitting(true);
+    setReviewOpen(false);
+    setAttemptError(undefined);
+    setShowFeedback(true);
+  };
+
+  const confirmVote = async () => {
+    if (submittingRef.current || isDisabled || voteDisabled || selectedOption === null || !reviewWeight) return;
+    if (toolTargetInvalid) return;
     // The recipient is fixed before anything is sent, so a vote and its mask never disagree on it.
-    const target = !wantsMask
+    const target = !includeMask
       ? undefined
       : targetMode === "address"
         ? getAddress(targetInput.trim())
         : getAddress(getRandomVoterToMask(recipients!).address);
-    submittingRef.current = true;
-    setSubmitting(true);
-    setMode(reviewMode);
-    setEditingMode(reviewMode);
-    setReviewOpen(false);
-    setAttemptError(undefined);
-    setCombinedFirst(!isReviewMasking && includeMask ? sendFirst : null);
-    if (wantsMask) setReceipts((previous) => ({ ...previous, mask: undefined }));
-    setShowFeedback(true);
+    startAttempt();
+    setEditingVote(true);
+    setMaskRun(null);
+    setCombinedFirst(includeMask ? sendFirst : null);
     const option = selectedOption;
     try {
       // Prepare only: the vote is signed and saved here, and another wallet sends it. The page then
       // swaps this card for the prepared ballot, so there is no receipt to record.
-      if (!isReviewMasking && sendWithAnotherWallet && onPrepareVote) {
+      if (sendWithAnotherWallet && onPrepareVote) {
         setSubmittedMode("vote");
-        const result = await onPrepareVote(option!, reviewWeight!);
+        const result = await onPrepareVote(option, reviewWeight);
         if (mounted.current && !result.success) setAttemptError(result.error);
         return;
       }
       await submitBallotSequence({
-        vote: isReviewMasking ? undefined : () => onClickVote(option!, reviewWeight!),
-        mask: wantsMask ? () => onClickMask(target) : undefined,
+        vote: () => onClickVote(option, reviewWeight),
+        mask: includeMask ? () => onClickMask(target) : undefined,
         first: sendFirst,
         isCurrent: () => mounted.current,
-        onStart: (kind) => {
-          setSubmittedMode(kind);
-        },
+        onStart: setSubmittedMode,
         onResult: (kind, result) => {
           if (!result.success) {
             setAttemptError(result.error);
             return;
           }
-          setReceipts((previous) => ({
-            ...previous,
-            [kind]: { txHash: result.txHash, option: kind === "vote" ? option : null },
-          }));
-          if (kind === "mask") setIncludeMask(false);
+          if (kind === "mask") {
+            setMaskReceipts((previous) => [...previous, result.txHash]);
+            setIncludeMask(false);
+            return;
+          }
           // A mask sent before the vote does not end the edit of that vote.
-          if (kind === reviewMode) setEditingMode(null);
+          setVoteReceipt({ txHash: result.txHash, option });
+          setEditingVote(false);
         },
       });
     } finally {
@@ -297,14 +305,53 @@ export const VoteCard = ({
     }
   };
 
-  const changeMode = () => {
-    setMode(isMasking ? "vote" : "mask");
-    setShowFeedback(false);
+  const confirmMasks = async () => {
+    if (submittingRef.current || isDisabled || !canMask || reviewMasksInvalid || !recipients) return;
+    const entries = reviewMasks;
+    const source = reviewSource;
+    // Every recipient is fixed before the first mask is sent, and random ones avoid each other.
+    const targets = pickMaskRecipients(
+      entries.map((entry) => (entry.mode === "address" ? entry.target.trim() : undefined)),
+      recipients
+    ).map((address) => getAddress(address));
+    startAttempt();
+    setCombinedFirst(null);
+    setSubmittedMode("mask");
+    setMaskRun({ total: entries.length, current: 0, sent: 0 });
+    try {
+      await submitMaskSequence({
+        masks: targets.map((target) => () => onClickMask(target)),
+        isCurrent: () => mounted.current,
+        onStart: (index) => setMaskRun((run) => run && { ...run, current: index }),
+        onResult: (index, result) => {
+          if (!result.success) {
+            setAttemptError(result.error);
+            return;
+          }
+          setMaskRun((run) => run && { ...run, sent: run.sent + 1 });
+          setMaskReceipts((previous) => [...previous, result.txHash]);
+          if (source === "tool") {
+            setIncludeMask(false);
+            return;
+          }
+          // A sent mask leaves the list, so a failure leaves exactly the masks still to send.
+          setMaskQueue((queue) => {
+            const rest = queue.filter((entry) => entry.id !== entries[index].id);
+            return rest.length ? rest : [{ id: nextMaskId.current++, mode: "random", target: "" }];
+          });
+        },
+      });
+    } finally {
+      submittingRef.current = false;
+      if (mounted.current) setSubmitting(false);
+    }
   };
 
+  const addMask = () => setMaskQueue((queue) => [...queue, { id: nextMaskId.current++, mode: "random", target: "" }]);
+
   const editSubmission = () => {
-    setEditingMode(mode);
-    if (mode === "vote") setSelectedOption(receipts.vote?.option ?? null);
+    setEditingVote(true);
+    setSelectedOption(voteReceipt?.option ?? null);
     setIncludeMask(false);
     setShowFeedback(false);
   };
@@ -326,66 +373,22 @@ export const VoteCard = ({
     if (checked) setIncludeMask(false);
   };
 
-  // The mask tool and the review of a mask sent alone choose the recipient with the same controls.
+  // The "Add a mask" tool's recipient, also shown in a vote review whose recipient cannot be masked.
   const maskRecipient = (
-    <div className="ballot-mask-target">
-      <ChoiceMenu
-        label="Mask recipient"
-        value={targetMode}
-        onChange={setTargetMode}
-        disabled={busy}
-        options={[
-          { value: "random", label: "Random eligible voter" },
-          { value: "address", label: "Specific wallet" },
-        ]}
-      />
-      <FluidHeight>
-        <div className="motion-tab-panels">
-          <MotionPanel active={targetMode === "random"} direction="left">
-            {(recipientError || !recipients || !recipients.length) && (
-              <div className="ballot-mask-address" aria-live="polite">
-                {recipientError ? (
-                  <>
-                    <p className="vp-submission-error" role="alert">
-                      Could not load the eligible voters from the CRISP server.
-                    </p>
-                    <button type="button" className="vp-retry-mask" onClick={() => void reloadRecipients()}>
-                      Try again
-                    </button>
-                  </>
-                ) : !recipients ? (
-                  <span>Choosing an eligible voter…</span>
-                ) : (
-                  <p className="vp-submission-error" role="alert">
-                    No eligible voters are available for this proposal.
-                  </p>
-                )}
-              </div>
-            )}
-          </MotionPanel>
-          <MotionPanel active={targetMode === "address"} direction="right">
-            {recipientError && (
-              <div role="alert">
-                <p className="vp-submission-error">Could not load the eligible voters from the CRISP server.</p>
-                <PowerAction size="compact" onClick={() => void reloadRecipients()}>
-                  Try again
-                </PowerAction>
-              </div>
-            )}
-            <MaskRecipientPicker
-              voters={recipients}
-              loading={!recipients && !recipientError}
-              selected={targetInput}
-              pending={busy}
-              creditMode={creditMode}
-              e3Id={e3Id}
-              onSelect={setTargetInput}
-            />
-          </MotionPanel>
-        </div>
-      </FluidHeight>
+    <MaskRecipientField
+      mode={targetMode}
+      onModeChange={setTargetMode}
+      target={targetInput}
+      onTargetChange={setTargetInput}
+      recipients={recipients}
+      recipientError={!!recipientError}
+      onRetry={() => void reloadRecipients()}
+      pending={busy}
+      creditMode={creditMode}
+      e3Id={e3Id}
+    >
       <p>Adds cover for voters without changing any votes.</p>
-    </div>
+    </MaskRecipientField>
   );
 
   const privacyTools: PrivacyTool[] = [
@@ -509,39 +512,16 @@ export const VoteCard = ({
         })
       : undefined;
 
+  const maskCount = reviewMasks.length;
+  const queueCount = maskQueue.length;
+
   return (
     <BallotPanel
-      title={
-        isMasking
-          ? "Mask ballot"
-          : isSubmitted || voteDisabled
-            ? "Voting"
-            : isChangingVote
-              ? "Change your vote"
-              : "Cast ballot"
-      }
-      mode={mode}
+      title={isSubmitted || voteDisabled ? "Voting" : isChangingVote ? "Change your vote" : "Cast ballot"}
       submitted={isSubmitted}
-      info={(isMasking || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
+      info={(canMask || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
     >
       <div className="vp-body">
-        {!isMasking && isSubmitted && receipts.vote && (
-          <BallotSuccess txHash={receipts.vote.txHash}>
-            Your encrypted vote has been submitted. You can change it before voting closes.
-          </BallotSuccess>
-        )}
-        {!isMasking && (!voteDisabled || isSubmitted) && votingPower}
-        {!isMasking &&
-          voteDisabled &&
-          !isSubmitted &&
-          (notice ? (
-            <p className="vp-foot-note" style={{ textAlign: "left" }}>
-              {notice}
-            </p>
-          ) : (
-            eligibilityNotice
-          ))}
-
         {/* `notice` already states the start time when voting has not opened, so repeating it
             produced two copies of the same sentence. */}
         {notStarted && !notice && (
@@ -561,93 +541,170 @@ export const VoteCard = ({
           </div>
         )}
 
+        {canMask && (
+          <SegmentedControl<BallotKind>
+            label="Submission type"
+            value={submissionType}
+            options={[
+              { value: "vote", label: "Ballot", icon: <ActionIcon name="check" /> },
+              { value: "mask", label: "Mask", icon: <MaskIcon /> },
+            ]}
+            onChange={setSubmissionType}
+          />
+        )}
+
+        {/* A mask is an action of its own, not a step of the vote: each has its own view. */}
         <FluidHeight>
-          <div className="vp-mode-views">
-            <div
-              className="vp-mode-view vp-ballot-view"
-              data-active={!isMasking}
-              aria-hidden={isMasking}
-              ref={ballotRef}
-            >
-              {!voteDisabled && !isSubmitted && !receipts.vote && (
-                <p className="vp-note">
-                  Choose an option, and select it again to clear it. Your vote stays private, and you can change it
-                  before voting closes.
-                </p>
-              )}
-              {isSubmitted && !isMasking ? (
-                <div className="vp-confirmed-choice">
-                  <span
-                    className="swatch"
-                    style={{ background: getColor(receipts.vote?.option ?? 0) }}
-                    aria-hidden="true"
+          <div className="motion-tab-panels">
+            <MotionPanel active={!canMask || submissionType === "vote"} direction="left">
+              <div className="vp-path">
+                {isSubmitted && voteReceipt && (
+                  <BallotSuccess txHash={voteReceipt.txHash}>
+                    Your encrypted vote has been submitted. You can change it before voting closes.
+                  </BallotSuccess>
+                )}
+                {(!voteDisabled || isSubmitted) && votingPower}
+                {voteDisabled &&
+                  !isSubmitted &&
+                  (notice ? (
+                    <p className="vp-foot-note" style={{ textAlign: "left" }}>
+                      {notice}
+                    </p>
+                  ) : (
+                    eligibilityNotice
+                  ))}
+                {!voteDisabled && !isSubmitted && !voteReceipt && (
+                  <p className="vp-note">
+                    Choose an option, and select it again to clear it. Your vote stays private, and you can change it
+                    before voting closes.
+                  </p>
+                )}
+                {isSubmitted ? (
+                  <div className="vp-confirmed-choice">
+                    <span
+                      className="swatch"
+                      style={{ background: getColor(voteReceipt?.option ?? 0) }}
+                      aria-hidden="true"
+                    />
+                    <strong>{options[voteReceipt?.option ?? 0]}</strong>
+                  </div>
+                ) : !voteDisabled ? (
+                  <BallotChoices
+                    options={options}
+                    value={selectedOption}
+                    currentVote={voteReceipt?.option}
+                    onChange={(choice) => {
+                      if (typeof choice === "number") setSelectedOption(choice);
+                    }}
+                    onClear={() => setSelectedOption(null)}
+                    disabled={isDisabled}
+                    voteDisabled={voteDisabled}
                   />
-                  <strong>{options[receipts.vote?.option ?? 0]}</strong>
-                </div>
-              ) : !voteDisabled ? (
-                <BallotChoices
-                  options={options}
-                  value={selectedOption}
-                  currentVote={receipts.vote?.option}
-                  onChange={(choice) => {
-                    if (typeof choice === "number") setSelectedOption(choice);
-                  }}
-                  onClear={() => setSelectedOption(null)}
-                  disabled={isDisabled || isSubmitted}
-                  voteDisabled={voteDisabled}
-                />
-              ) : null}
-              {!isSubmitted && !voteDisabled && <PrivacyTools tools={privacyTools} disabled={isDisabled} />}
-              {canMask && (isSubmitted || voteDisabled) && (
-                <button
-                  type="button"
-                  className="vp-mask-entry"
-                  disabled={isDisabled}
-                  onClick={(event) => openReview(event.currentTarget, "mask")}
-                >
-                  <MaskIcon />
-                  <span>
-                    <strong>Submit a mask</strong>
-                    <span>
-                      {voteDisabled
-                        ? "Add cover for an eligible voter · no voting power"
-                        : "Add cover · no voting power"}
-                    </span>
-                  </span>
-                  <svg
-                    className="vp-mask-entry-arrow"
-                    width="18"
-                    height="18"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    aria-hidden="true"
-                  >
-                    <path d="m7 5 5 5-5 5" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            <div className="vp-mode-view vp-mask-view" data-active={isMasking} aria-hidden={!isMasking} ref={maskRef}>
-              <p className="vp-note">Add cover for other voters with an encrypted, zero-weight ballot.</p>
-              <div className="vp-mask-explanation">
-                <span className="vp-mask-symbol" aria-hidden="true">
-                  <MaskIcon />
-                </span>
-                <div>
-                  <p>A mask adds no voting power.</p>
-                  <p>It does not select Yes, No or Abstain, and does not replace a vote you have already cast.</p>
-                  <p>You can send more than one to add cover. Each on-chain submission costs gas.</p>
-                </div>
+                ) : null}
+                {!isSubmitted && !voteDisabled && <PrivacyTools tools={privacyTools} disabled={isDisabled} />}
+
+                {!voteDisabled && (
+                  <div className="vp-cta">
+                    {isSubmitted ? (
+                      <PowerAction className="vp-edit-submission" disabled={isDisabled} onClick={editSubmission}>
+                        {votingClosed ? "Voting closed" : "Change vote"}
+                      </PowerAction>
+                    ) : (
+                      <PowerAction
+                        className="w-full"
+                        intent={submissionKind === "vote" ? "vote" : "confirm"}
+                        disabled={isDisabled || (submissionKind === "vote" && selectedOption === null)}
+                        onClick={(event: MouseEvent<HTMLButtonElement>) =>
+                          openReview(event.currentTarget, submissionKind)
+                        }
+                      >
+                        <span
+                          className="vp-label-change"
+                          key={busy && !sendingMasks ? "loading" : `${submissionKind}-${selectedOption}`}
+                        >
+                          {busy && !sendingMasks ? (
+                            <PleaseWaitSpinner
+                              fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"}
+                            />
+                          ) : submissionKind === "mask" ? (
+                            "Submit mask ballot"
+                          ) : selectedOption !== null ? (
+                            `${includeMask ? (voteReceipt ? "Review updated vote + mask" : "Review vote + mask") : voteReceipt ? "Update vote" : "Submit encrypted ballot"} · ${options[selectedOption]}`
+                          ) : (
+                            "Select an option"
+                          )}
+                        </span>
+                      </PowerAction>
+                    )}
+
+                    {/* A mask that is on can also go without the chosen vote, the same as clearing the option. */}
+                    {!isSubmitted && includeMask && selectedOption !== null && (
+                      <PowerAction
+                        className="w-full"
+                        disabled={isDisabled}
+                        onClick={(event: MouseEvent<HTMLButtonElement>) => openReview(event.currentTarget, "mask")}
+                      >
+                        Send only the mask
+                      </PowerAction>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            </MotionPanel>
+
+            {canMask && (
+              <MotionPanel active={submissionType === "mask"} direction="right">
+                <div className="vp-path">
+                  <p className="vp-note">
+                    Add cover for eligible voters with encrypted, zero-weight ballots. A mask adds no voting power and
+                    does not change any vote. Add as many masks as you like: each one is a separate submission.
+                  </p>
+                  <MaskQueue
+                    entries={maskQueue}
+                    onChange={setMaskQueue}
+                    onAdd={addMask}
+                    recipients={recipients}
+                    recipientError={!!recipientError}
+                    onRetry={() => void reloadRecipients()}
+                    pending={busy}
+                    creditMode={creditMode}
+                    e3Id={e3Id}
+                  />
+                  <div className="vp-cta">
+                    <PowerAction
+                      className="w-full"
+                      intent="confirm"
+                      disabled={isDisabled}
+                      onClick={(event: MouseEvent<HTMLButtonElement>) =>
+                        openReview(event.currentTarget, "mask", "queue")
+                      }
+                    >
+                      <span className="vp-label-change" key={sendingMasks ? "loading" : `masks-${queueCount}`}>
+                        {sendingMasks && maskRun ? (
+                          <PleaseWaitSpinner
+                            fullMessage={
+                              maskRun.total > 1
+                                ? `Preparing mask ${maskRun.current + 1} of ${maskRun.total}…`
+                                : "Preparing mask…"
+                            }
+                          />
+                        ) : queueCount === 1 ? (
+                          "Review mask"
+                        ) : (
+                          `Review ${queueCount} masks`
+                        )}
+                      </span>
+                    </PowerAction>
+                  </div>
+                </div>
+              </MotionPanel>
+            )}
           </div>
         </FluidHeight>
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
-        {(isMasking || !voteDisabled) && !isSubmitted && (
+        {(canMask || (!voteDisabled && !isSubmitted)) && (
           <div className="flex flex-col gap-y-1 pt-2">
             <label className="flex items-center gap-x-2 text-sm text-neutral-600">
               <input
@@ -669,8 +726,34 @@ export const VoteCard = ({
         )}
 
         <div className="vp-submission-results" aria-live="polite">
-          {(isMasking || combinedFirst !== null) && receipts.mask && (
-            <BallotSuccess title="Mask submitted successfully" txHash={receipts.mask.txHash} />
+          {maskReceipts.length > 0 && (
+            <BallotSuccess
+              title={
+                maskReceipts.length === 1
+                  ? "Mask submitted successfully"
+                  : `${maskReceipts.length} masks submitted successfully`
+              }
+              txHash={maskReceipts.length === 1 ? maskReceipts[0] : undefined}
+            >
+              {maskReceipts.length > 1 && maskReceipts.some((hash) => hash !== null) && (
+                <ol className="mask-receipt-list">
+                  {maskReceipts.map((hash, index) =>
+                    hash ? (
+                      <li key={hash}>
+                        <a
+                          className="ui-text-action"
+                          href={`${PUB_CHAIN.blockExplorers?.default?.url}/tx/${hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Mask {index + 1} transaction
+                        </a>
+                      </li>
+                    ) : null
+                  )}
+                </ol>
+              )}
+            </BallotSuccess>
           )}
           {attemptError && showFeedback && (
             <p className="vp-submission-error" role="alert">
@@ -680,7 +763,9 @@ export const VoteCard = ({
                   ? "Mask not submitted. Your vote was submitted successfully."
                   : combinedFirst === "mask"
                     ? "Mask not submitted. Your vote was not sent."
-                    : "Mask not submitted."}
+                    : maskRun && maskRun.total > 1
+                      ? `Mask ${maskRun.current + 1} of ${maskRun.total} not submitted.${maskRun.sent ? ` ${maskRun.sent} sent before it.` : ""} The masks not sent stay in the list.`
+                      : "Mask not submitted."}
             </p>
           )}
           {attemptError && showFeedback && submittedMode === "mask" && combinedFirst === "vote" && (
@@ -694,90 +779,6 @@ export const VoteCard = ({
             </button>
           )}
         </div>
-
-        {/* Actions */}
-        {(isMasking || !voteDisabled) && (
-          <div className="vp-cta">
-            {isSubmitted ? (
-              <>
-                {isMasking && (
-                  <PowerAction
-                    intent={!voteDisabled && !receipts.vote && !votingClosed ? "vote" : "open"}
-                    affordance="next"
-                    disabled={busy}
-                    onClick={changeMode}
-                  >
-                    {receipts.vote
-                      ? "View your vote"
-                      : !voteDisabled && !votingClosed
-                        ? "Vote on this proposal"
-                        : "Back to proposal"}
-                  </PowerAction>
-                )}
-                <PowerAction
-                  className="vp-edit-submission"
-                  disabled={isDisabled}
-                  onClick={(event: MouseEvent<HTMLButtonElement>) =>
-                    isMasking ? openReview(event.currentTarget, "mask") : editSubmission()
-                  }
-                >
-                  {votingClosed ? "Voting closed" : isMasking ? "Submit another mask" : "Change vote"}
-                </PowerAction>
-              </>
-            ) : (
-              <PowerAction
-                className="w-full"
-                intent={submissionKind === "vote" ? "vote" : "confirm"}
-                disabled={isDisabled || (submissionKind === "vote" && (voteDisabled || selectedOption === null))}
-                onClick={(event: MouseEvent<HTMLButtonElement>) => openReview(event.currentTarget, submissionKind)}
-              >
-                <span className="vp-label-change" key={busy ? "loading" : `${mode}-${selectedOption}`}>
-                  {busy ? (
-                    <PleaseWaitSpinner
-                      fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"}
-                    />
-                  ) : submissionKind === "mask" ? (
-                    "Submit mask ballot"
-                  ) : selectedOption !== null ? (
-                    `${includeMask ? (receipts.vote ? "Review updated vote + mask" : "Review vote + mask") : receipts.vote ? "Update vote" : "Submit encrypted ballot"} · ${options[selectedOption]}`
-                  ) : (
-                    "Select an option"
-                  )}
-                </span>
-              </PowerAction>
-            )}
-
-            {/* A mask that is on can also go without the chosen vote, the same as clearing the option. */}
-            {!isSubmitted && !isMasking && includeMask && selectedOption !== null && (
-              <PowerAction
-                className="w-full"
-                disabled={isDisabled}
-                onClick={(event: MouseEvent<HTMLButtonElement>) => openReview(event.currentTarget, "mask")}
-              >
-                Send only the mask
-              </PowerAction>
-            )}
-
-            {isMasking && !isSubmitted && (
-              <button type="button" disabled={isDisabled} onClick={changeMode} className="vp-foot-note vp-mode-toggle">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m12 5-7 7 7 7M5 12h14" />
-                </svg>
-                {receipts.vote ? "Back to your vote" : "Back to ballot"}
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Feedback grows below the controls, keeping the option and action in place. */}
         <div
@@ -828,25 +829,67 @@ export const VoteCard = ({
         footer={
           <PowerAction
             intent={isReviewMasking ? "confirm" : "vote"}
-            disabled={isDisabled || invalidTarget || (!isReviewMasking && (voteDisabled || !reviewWeight))}
-            onClick={() => void confirmSubmission()}
+            disabled={
+              isDisabled || (isReviewMasking ? reviewMasksInvalid : voteDisabled || !reviewWeight || toolTargetInvalid)
+            }
+            onClick={() => void (isReviewMasking ? confirmMasks() : confirmVote())}
           >
             {isReviewMasking
-              ? "Submit mask ballot"
+              ? maskCount === 1
+                ? "Submit mask ballot"
+                : `Submit ${maskCount} mask ballots`
               : sendWithAnotherWallet
                 ? "Sign and save ballot"
                 : includeMask
                   ? sendFirst === "mask"
                     ? "Mask and vote"
                     : "Vote and mask"
-                  : receipts.vote
+                  : voteReceipt
                     ? "Update vote"
                     : "Submit encrypted ballot"}
           </PowerAction>
         }
       >
-        {isReviewMasking ? (
+        {isReviewMasking && reviewSource === "tool" ? (
+          // The "Add a mask" tool's mask sent alone: its recipient can still change here.
           maskRecipient
+        ) : isReviewMasking ? (
+          <div className="ballot-mask-target">
+            <span className="mask-review-label">
+              {maskCount === 1 ? "Mask recipient" : `${maskCount} mask recipients`}
+            </span>
+            <ol className="mask-review-list">
+              {reviewMasks.map((entry, index) => (
+                <li key={entry.id} data-invalid={recipientInvalid(entry.mode, entry.target)}>
+                  {maskCount > 1 && <span className="mask-review-index">Mask {index + 1}</span>}
+                  {entry.mode === "random" ? (
+                    <span>Random eligible voter</span>
+                  ) : isAddress(entry.target.trim()) ? (
+                    <AddressText>{entry.target.trim()}</AddressText>
+                  ) : (
+                    <span>No wallet selected</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {recipientError ? (
+              <p className="vp-submission-error" role="alert">
+                Could not load the eligible voters from the CRISP server.
+              </p>
+            ) : (
+              reviewMasksInvalid &&
+              recipients && (
+                <p className="vp-submission-error" role="alert">
+                  Choose an eligible wallet for each mask in the list, or remove the mask.
+                </p>
+              )
+            )}
+            <p>
+              {maskCount === 1
+                ? "Adds cover for voters without changing any votes."
+                : "Each mask is a separate submission, sent in this order. Random recipients are chosen when you confirm, each a different voter where the census allows."}
+            </p>
+          </div>
         ) : (
           <PrivacyReview
             rows={
@@ -920,7 +963,7 @@ export const VoteCard = ({
               </div>
             )}
             {/* A recipient that cannot receive the mask is fixed here, without leaving the review. */}
-            {includeMask && invalidTarget && (recipientError || recipients) && maskRecipient}
+            {toolTargetInvalid && (recipientError ?? recipients) && maskRecipient}
             <SubmissionSteps steps={submissionSteps} />
             {includeMask && (
               <div className="ballot-mask-target">
@@ -948,7 +991,7 @@ export const VoteCard = ({
         )}
       </BallotReview>
 
-      {(isMasking || !voteDisabled) && (
+      {(canMask || !voteDisabled) && (
         <div className="privacy">
           <span className="dot" />
           <div>
