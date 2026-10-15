@@ -185,7 +185,8 @@ export const VoteCard = ({
   const isSubmitted = !!voteReceipt && !editingVote;
   const isChangingVote = !!voteReceipt && !isSubmitted;
   const busy = submitting || isLoading;
-  const sendingMasks = submitting && maskRun !== null;
+  // Only the mask list's own run shows its progress in the "Submit a mask" section.
+  const sendingMasks = submitting && maskRun !== null && reviewSource === "queue";
   const feedbackVisible = showFeedback && (busy || !!attemptError);
   const feedbackRef = useInert(!feedbackVisible);
   const isReviewMasking = reviewMode === "mask";
