@@ -69,7 +69,8 @@ describe("Ballot eligibility rendering", () => {
     expect(html).not.toContain("Submit encrypted ballot");
     expect(html).not.toContain("Select an option");
     expect(html).toContain("Submit a mask");
-    expect(html).toContain("Add cover for an eligible voter");
+    // The wallet cannot vote, so masking is the action it came for: the mask section starts open.
+    expect(html).toMatch(/aria-expanded="true"[^>]*><span>Submit a mask<\/span>/);
   });
 
   test("an unresolved secret ballot shows neither voting nor masking controls", () => {

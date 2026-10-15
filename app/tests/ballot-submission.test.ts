@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   submitBallotSequence,
+  submitMaskSequence,
   type BallotKind,
   type BallotSubmissionResult,
 } from "../plugins/crispVoting/utils/ballotSubmission";
+import { pickMaskRecipients } from "../plugins/crispVoting/utils/voters";
 
 const success: BallotSubmissionResult = { success: true, txHash: "0xvote" };
 const failure: BallotSubmissionResult = { success: false, error: "Rejected in wallet" };
@@ -114,5 +116,51 @@ describe("Vote and optional mask", () => {
     events.length = 0;
     await send(failure);
     expect(events).toEqual(["mask", "mask:false"]);
+  });
+});
+
+describe("Masks sent on their own", () => {
+  test("sends every mask in order and stops at the first failure", async () => {
+    const events: string[] = [];
+    const sent: number[] = [];
+    const masks = [success, failure, success].map((result, index) => async () => {
+      sent.push(index);
+      return result;
+    });
+    await submitMaskSequence({
+      masks,
+      isCurrent: () => true,
+      onStart: (index) => events.push(`${index}`),
+      onResult: (index, result) => events.push(`${index}:${result.success}`),
+    });
+    expect(events).toEqual(["0", "0:true", "1", "1:false"]);
+    expect(sent).toEqual([0, 1]);
+  });
+  test("a closed view sends no further mask", async () => {
+    let current = true;
+    let sent = 0;
+    const mask = async () => {
+      sent++;
+      current = false;
+      return success;
+    };
+    await submitMaskSequence({ masks: [mask, mask], isCurrent: () => current, onStart: () => {}, onResult: () => {} });
+    expect(sent).toBe(1);
+  });
+});
+
+describe("Mask recipients", () => {
+  const voters = ["0xa", "0xb", "0xc"].map((address) => ({ address, balance: 1n }));
+  test("random masks cover different voters, and avoid a chosen wallet", () => {
+    for (let round = 0; round < 50; round++) {
+      const picked = pickMaskRecipients(["0xB", undefined, undefined], voters);
+      expect(picked[0]).toBe("0xB");
+      expect(new Set(picked.map((address) => address.toLowerCase())).size).toBe(3);
+    }
+  });
+  test("more random masks than voters still gives every mask a recipient", () => {
+    const picked = pickMaskRecipients([undefined, undefined, undefined, undefined, undefined], voters);
+    expect(picked).toHaveLength(5);
+    expect(new Set(picked).size).toBe(3);
   });
 });

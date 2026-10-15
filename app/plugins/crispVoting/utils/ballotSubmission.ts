@@ -51,3 +51,36 @@ export async function submitBallotSequence({
     if (!result.success) return;
   }
 }
+
+/**
+ * Masks sent on their own, one submission each, in list order. A failure or a changed wallet/view
+ * stops the list, so the masks after a failed one stay unsent and can be sent again.
+ */
+export async function submitMaskSequence({
+  masks,
+  isCurrent,
+  onStart,
+  onResult,
+}: {
+  masks: (() => Promise<BallotSubmissionResult>)[];
+  isCurrent: () => boolean;
+  onStart: (index: number) => void;
+  onResult: (index: number, result: BallotSubmissionResult) => void;
+}) {
+  for (const [index, submit] of masks.entries()) {
+    if (!isCurrent()) return;
+    onStart(index);
+    let result: BallotSubmissionResult;
+    try {
+      result = await submit();
+    } catch (error) {
+      result = {
+        success: false,
+        error: error instanceof Error ? error.message : "Submission failed. Please try again.",
+      };
+    }
+    if (!isCurrent()) return;
+    onResult(index, result);
+    if (!result.success) return;
+  }
+}
