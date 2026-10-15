@@ -3483,9 +3483,8 @@ label div p.leading-tight,
 .ballot-review-submission strong { font: 600 14px/1.4 var(--font-sans); }
 .ballot-review-submission p { font: 400 13px/1.5 var(--font-sans); color: var(--muted); }
 .ballot-review-body > .power-action { width: 100%; }
-/* The ballot's two actions, voting and masking, each in its own disclosure. */
-.vote-panel .vp-section > .proposal-disclosure-trigger { font: 600 15px/1.4 var(--font-sans); }
-.vp-section-body { display: flex; flex-direction: column; gap: 14px; padding-bottom: var(--ui-space-section); }
+/* The ballot's two actions, voting and masking: the "Submission type" switch shows one view at a time. */
+.vp-path { display: flex; flex-direction: column; gap: 14px; }
 .mask-queue { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ui-space-related); }
 .mask-queue-list { display: flex; flex-direction: column; gap: var(--ui-space-related); width: 100%; margin: 0; padding: 0; list-style: none; }
 .mask-queue-entry { display: flex; flex-direction: column; gap: 4px; }
