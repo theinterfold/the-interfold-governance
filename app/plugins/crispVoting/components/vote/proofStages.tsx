@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PROOF_STAGES } from "@crisp-e3/sdk";
 import type { ProofStage } from "@crisp-e3/sdk";
 import { ActionIcon } from "@/components/input/actionIcon";
+import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
 import {
   estimateRemainingMs,
   formatRemaining,
@@ -13,7 +14,10 @@ import styles from "../networkProgress.module.css";
 const stateLabels = { complete: "Complete", current: "Current", pending: "Pending" };
 type StageState = keyof typeof stateLabels;
 
-/** The ballot proof's stages, what each proves, and the time left, in the network-progress style. */
+/**
+ * The ballot proof's stages, what each proves, and the time left, in the network-progress style.
+ * Open by default; closing it leaves the count, the time left, the current stage and the track.
+ */
 export function ProofStages({ progress }: { progress: ProofProgressState }) {
   const { isMask, stageStartedAt } = progress;
   const current = stageStartedAt.length - 1;
@@ -32,29 +36,47 @@ export function ProofStages({ progress }: { progress: ProofProgressState }) {
   }));
 
   return (
-    <div className={styles.summary}>
-      <span className={styles.meta}>
-        <span>
-          Proof {current + 1} of {PROOF_STAGES.length}
-        </span>
-        <span aria-live="polite">{remaining === undefined ? "Estimating time left…" : formatRemaining(remaining)}</span>
-      </span>
-      <span className={styles.track} aria-hidden="true">
-        {stages.map(({ stage, state }) => (
-          <span key={stage} data-state={state} />
-        ))}
-      </span>
-      <ol className={styles.steps} aria-label="Ballot proof stages">
-        {stages.map(({ stage, state }, index) => (
-          <li key={stage} data-state={state} aria-current={state === "current" ? "step" : undefined}>
-            <span className={styles.marker} aria-hidden="true">
-              {state === "complete" ? <ActionIcon name="check" /> : String(index + 1).padStart(2, "0")}
+    <BallotDisclosure
+      defaultOpen
+      className={styles.network}
+      title={(chevron) => (
+        <span className={styles.summary}>
+          <span className={styles.meta}>
+            <span>
+              Proof {current + 1} of {PROOF_STAGES.length}
             </span>
-            <span className={styles.label}>{proofStageLabel(stage, isMask)}</span>
-            <span className={styles.state}>{stateLabels[state]}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
+            <span aria-live="polite">
+              {remaining === undefined ? "Estimating time left…" : formatRemaining(remaining)}
+            </span>
+          </span>
+          <span className={styles.current}>
+            <span className={styles.indicator} aria-hidden="true" />
+            <strong key={current} className="vp-label-change">
+              {proofStageLabel(PROOF_STAGES[current], isMask)}
+            </strong>
+            <span className={styles.chevron}>{chevron}</span>
+          </span>
+          <span className={styles.track} aria-hidden="true">
+            {stages.map(({ stage, state }) => (
+              <span key={stage} data-state={state} />
+            ))}
+          </span>
+        </span>
+      )}
+    >
+      <div className={styles.body}>
+        <ol className={styles.steps} aria-label="Ballot proof stages">
+          {stages.map(({ stage, state }, index) => (
+            <li key={stage} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+              <span className={styles.marker} aria-hidden="true">
+                {state === "complete" ? <ActionIcon name="check" /> : String(index + 1).padStart(2, "0")}
+              </span>
+              <span className={styles.label}>{proofStageLabel(stage, isMask)}</span>
+              <span className={styles.state}>{stateLabels[state]}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </BallotDisclosure>
   );
 }

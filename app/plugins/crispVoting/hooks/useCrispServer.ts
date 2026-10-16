@@ -608,6 +608,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           presetName,
           stageStartedAt: [...(current?.stageStartedAt ?? []).slice(0, index), Date.now()],
         }));
+      // The SDK reports stage 1 only after it has loaded the prover, which on a first proof can take
+      // a while. Show stage 1 as soon as proving starts; its first report replaces this timestamp,
+      // so the load does not skew the estimate.
+      const showFirstStage = () =>
+        setProofProgress({ isMask: isAMask === true, presetName, stageStartedAt: [Date.now()] });
 
       if (isAMask) {
         // A mask carries a real digest and a placeholder signature. It must be indistinguishable
@@ -615,6 +620,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // to sign with and no wallet prompt.
         // Encryption is quick; the proof is the slow part, so say so as it starts, as a vote does.
         setStepMessage("Generating proof for the mask...");
+        showFirstStage();
         proof = await finishMaskProof(prepared, digest, { onProgress });
       } else {
         // The voter reviewed this weight before signing: a random share of the voting power, or all
@@ -668,6 +674,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         setLastActiveStep("generating_proof");
         setStepMessage(`Generating proof for a ballot that counts ${share} of your voting power...`);
 
+        showFirstStage();
         proof = await finishBallotProof(prepared, digest, signature, { onProgress });
       }
 
