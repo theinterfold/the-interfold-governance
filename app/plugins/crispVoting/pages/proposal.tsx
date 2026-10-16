@@ -150,6 +150,7 @@ function ProposalDetailBody({
     votingStep,
     lastActiveStep,
     stepMessage,
+    proofProgress,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
@@ -368,6 +369,7 @@ function ProposalDetailBody({
                           votingStep={votingStep}
                           lastActiveStep={lastActiveStep}
                           stepMessage={stepMessage}
+                          proofProgress={proofProgress}
                           txHash={txHash}
                         />
                       </div>

@@ -130,6 +130,7 @@ export function MaskIcon({ className = "" }: { className?: string }) {
 /** The same voting surface in embedded and full-page, public and secret proposals. */
 export function BallotPanel({
   title,
+  heading,
   mode = "vote",
   className = "",
   submitted = false,
@@ -137,6 +138,8 @@ export function BallotPanel({
   children,
 }: {
   title: string;
+  /** Replaces the title when a control already names the panel's action. */
+  heading?: ReactNode;
   mode?: "vote" | "mask";
   className?: string;
   submitted?: boolean;
@@ -146,11 +149,13 @@ export function BallotPanel({
   return (
     <div className={`vote-panel ${className}`} data-vote-mode={mode} data-vote-submitted={submitted}>
       <div className="vp-head">
-        <h3 aria-live="polite">
-          <span key={title} className="vp-label-change">
-            {title}
-          </span>
-        </h3>
+        {heading ?? (
+          <h3 aria-live="polite">
+            <span key={title} className="vp-label-change">
+              {title}
+            </span>
+          </h3>
+        )}
         {info}
       </div>
       {children}
