@@ -16,7 +16,8 @@ type StageState = keyof typeof stateLabels;
 
 /**
  * The ballot proof's stages, what each proves, and the time left, in the network-progress style.
- * Open by default; closing it leaves the count, the time left, the current stage and the track.
+ * Collapsed by default to the count, the time left, the current stage's text and the track, which
+ * stay visible either way; the full list opens on demand.
  */
 export function ProofStages({ progress }: { progress: ProofProgressState }) {
   const { isMask, stageStartedAt } = progress;
@@ -37,7 +38,6 @@ export function ProofStages({ progress }: { progress: ProofProgressState }) {
 
   return (
     <BallotDisclosure
-      defaultOpen
       className={styles.network}
       title={(chevron) => (
         <span className={styles.summary}>

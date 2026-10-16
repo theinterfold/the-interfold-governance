@@ -39,14 +39,16 @@ export const proofStageLabel = (stage: ProofStage, isMask: boolean): string => {
 };
 
 /**
- * Relative proving time of each stage, measured per parameter set with bun, single-threaded, from
- * one secure-8192 mask. Only the ratios matter: the estimate scales them by how fast this device ran
- * the stages it has already finished. The split differs by preset, because the last two stages
- * verify proofs rather than BFV ciphertexts and barely change with the degree. A preset gaining
- * circuits in `./circuits` needs its own measurement here before it gets an estimate.
+ * Relative proving time of each stage, measured per parameter set with bun, single-threaded
+ * (secure: one mask; insecure: a vote and a mask averaged). Only the ratios matter: the estimate
+ * scales them by how fast this device ran the stages it has already finished. The split differs by
+ * preset, because the last two stages verify proofs rather than BFV ciphertexts and barely change
+ * with the degree. A preset gaining circuits in `./circuits` needs its own measurement here before
+ * it gets an estimate.
  */
 const STAGE_WEIGHTS: Partial<Record<ThresholdBfvParamsPresetName, Record<ProofStage, number>>> = {
   SECURE_THRESHOLD_8192: { encryption_ct0: 66, encryption_ct1: 49, ballot: 115, encryption: 132, fold: 119 },
+  INSECURE_THRESHOLD_512: { encryption_ct0: 6.5, encryption_ct1: 4.5, ballot: 10, encryption: 120, fold: 84 },
 };
 
 /**
