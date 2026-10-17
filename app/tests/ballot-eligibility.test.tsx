@@ -55,6 +55,7 @@ const privateProps: VoteCardProps = {
   votingStep: "idle",
   lastActiveStep: null,
   stepMessage: "",
+  proofProgress: null,
   isCommitteeReady: true,
   txHash: null,
   eligibilityNotice: notice,

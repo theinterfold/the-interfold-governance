@@ -7,7 +7,9 @@ import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
 import { encodeSolidityProof, finishBallotProof, finishMaskProof, getZeroVote } from "@crisp-e3/sdk";
+import type { ProofProgress } from "@crisp-e3/sdk";
 import { ensureCircuits } from "../utils/circuits";
+import type { ProofProgressState } from "../utils/proofProgress";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { parseAbi, size, type Address, type Hex } from "viem";
 import { publicClient } from "../utils/client";
@@ -187,6 +189,8 @@ interface CrispServerState {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  /** The ballot proof's stages so far, while one is being generated. */
+  proofProgress: ProofProgressState | null;
   txHash: string | null;
   /** The round currently satisfies every precondition `publishInput` enforces. */
   canPublishOnChain: boolean;
@@ -274,6 +278,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [votingStep, setVotingStep] = useState<VotingStep>("idle");
   const [lastActiveStep, setLastActiveStep] = useState<VotingStep | null>(null);
   const [stepMessage, setStepMessage] = useState<string>("");
+  const [proofProgress, setProofProgress] = useState<ProofProgressState | null>(null);
 
   const { signTypedDataAsync } = useSignTypedData();
 
@@ -448,6 +453,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setTxHash(null);
     // A new attempt starts clean: the previous failure must not outlive it.
     setError("");
+    setProofProgress(null);
     // A declined prompt is the voter's choice, not a failure: an empty error, nothing to show.
     const declined = { success: false as const, error: "" };
     const { weight, deferSend = false } = options;
@@ -556,7 +562,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // commits to this exact ciphertext, so the ballot has to exist before the voter can sign it.
       setVotingStep("generating_proof");
       setLastActiveStep("generating_proof");
-      setStepMessage("Encrypting vote...");
+      setStepMessage(isAMask ? "Encrypting mask..." : "Encrypting vote...");
 
       const ballotBase = {
         vote: voteData.vote,
@@ -594,12 +600,28 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       );
 
       let proof;
+      // Each stage start is timestamped so the indicator can say what is being proved and estimate
+      // how long is left from how fast this device ran the earlier stages.
+      const onProgress = ({ index }: ProofProgress) =>
+        setProofProgress((current) => ({
+          isMask: isAMask === true,
+          presetName,
+          stageStartedAt: [...(current?.stageStartedAt ?? []).slice(0, index), Date.now()],
+        }));
+      // The SDK reports stage 1 only after it has loaded the prover, which on a first proof can take
+      // a while. Show stage 1 as soon as proving starts; its first report replaces this timestamp,
+      // so the load does not skew the estimate.
+      const showFirstStage = () =>
+        setProofProgress({ isMask: isAMask === true, presetName, stageStartedAt: [Date.now()] });
 
       if (isAMask) {
         // A mask carries a real digest and a placeholder signature. It must be indistinguishable
         // from a real ballot on-chain, and it is cast for someone else's slot, so there is no key
         // to sign with and no wallet prompt.
-        proof = await finishMaskProof(prepared, digest);
+        // Encryption is quick; the proof is the slow part, so say so as it starts, as a vote does.
+        setStepMessage("Generating proof for the mask...");
+        showFirstStage();
+        proof = await finishMaskProof(prepared, digest, { onProgress });
       } else {
         // The voter reviewed this weight before signing: a random share of the voting power, or all
         // of it when the voter turned the random weight off. `handleVote` checked the review against
@@ -652,7 +674,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         setLastActiveStep("generating_proof");
         setStepMessage(`Generating proof for a ballot that counts ${share} of your voting power...`);
 
-        proof = await finishBallotProof(prepared, digest, signature);
+        showFirstStage();
+        proof = await finishBallotProof(prepared, digest, signature, { onProgress });
       }
 
       const encodedProof = encodeSolidityProof(proof);
@@ -863,6 +886,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     votingStep,
     lastActiveStep,
     stepMessage,
+    proofProgress,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,

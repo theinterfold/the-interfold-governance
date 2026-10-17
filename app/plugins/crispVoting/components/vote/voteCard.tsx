@@ -11,6 +11,7 @@ import { ChoiceMenu } from "@/components/input/choiceMenu";
 import { AddressText } from "@/components/text/address";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import type { CreditsMode, EligibleVoter, VotingStep } from "../../utils/types";
+import type { ProofProgressState } from "../../utils/proofProgress";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -90,6 +91,7 @@ export interface VoteCardProps {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  proofProgress: ProofProgressState | null;
   isCommitteeReady: boolean;
   txHash: string | null;
   /** The connected wallet cannot cast a vote on this proposal (or eligibility is still loading). */
@@ -135,6 +137,7 @@ export const VoteCard = ({
   votingStep,
   lastActiveStep,
   stepMessage,
+  proofProgress,
   isCommitteeReady,
   txHash,
   voteDisabled = false,
@@ -515,9 +518,24 @@ export const VoteCard = ({
   const maskCount = reviewMasks.length;
   const queueCount = maskQueue.length;
 
+  const submissionToggle = canMask && (
+    <SegmentedControl<BallotKind>
+      label="Submission type"
+      value={submissionType}
+      options={[
+        { value: "vote", label: "Cast Ballot", icon: <ActionIcon name="check" /> },
+        { value: "mask", label: "Mask Ballots", icon: <MaskIcon /> },
+      ]}
+      onChange={setSubmissionType}
+    />
+  );
+  // While casting, the toggle names the action, so it takes the place of the "Cast ballot" title.
+  const toggleInHead = submissionToggle && !isSubmitted && !voteDisabled && !isChangingVote;
+
   return (
     <BallotPanel
       title={isSubmitted || voteDisabled ? "Voting" : isChangingVote ? "Change your vote" : "Cast ballot"}
+      heading={toggleInHead ? submissionToggle : undefined}
       submitted={isSubmitted}
       info={(canMask || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
     >
@@ -541,17 +559,7 @@ export const VoteCard = ({
           </div>
         )}
 
-        {canMask && (
-          <SegmentedControl<BallotKind>
-            label="Submission type"
-            value={submissionType}
-            options={[
-              { value: "vote", label: "Ballot", icon: <ActionIcon name="check" /> },
-              { value: "mask", label: "Mask", icon: <MaskIcon /> },
-            ]}
-            onChange={setSubmissionType}
-          />
-        )}
+        {!toggleInHead && submissionToggle}
 
         {/* A mask is an action of its own, not a step of the vote: each has its own view. */}
         <FluidHeight>
@@ -624,7 +632,7 @@ export const VoteCard = ({
                         >
                           {busy && !sendingMasks ? (
                             <PleaseWaitSpinner
-                              fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"}
+                              fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Preparing ballot…"}
                             />
                           ) : submissionKind === "mask" ? (
                             "Submit mask ballot"
@@ -794,6 +802,7 @@ export const VoteCard = ({
                   step={votingStep}
                   lastActiveStep={lastActiveStep}
                   message={stepMessage}
+                  proofProgress={proofProgress}
                   txHash={txHash}
                 />
               </FluidHeight>
