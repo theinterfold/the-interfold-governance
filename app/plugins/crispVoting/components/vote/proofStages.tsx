@@ -37,46 +37,54 @@ export function ProofStages({ progress }: { progress: ProofProgressState }) {
   }));
 
   return (
-    <BallotDisclosure
-      className={styles.network}
-      title={(chevron) => (
-        <span className={styles.summary}>
-          <span className={styles.meta}>
-            <span>
-              Proof {current + 1} of {PROOF_STAGES.length}
-            </span>
-            <span aria-live="polite">
-              {remaining === undefined ? "Estimating time left…" : formatRemaining(remaining)}
-            </span>
-          </span>
-          <span className={styles.current}>
-            <span className={styles.indicator} aria-hidden="true" />
-            <strong key={current} className="vp-label-change">
-              {proofStageLabel(PROOF_STAGES[current], isMask)}
-            </strong>
-            <span className={styles.chevron}>{chevron}</span>
-          </span>
-          <span className={styles.track} aria-hidden="true">
-            {stages.map(({ stage, state }) => (
-              <span key={stage} data-state={state} />
-            ))}
-          </span>
-        </span>
-      )}
-    >
-      <div className={styles.body}>
-        <ol className={styles.steps} aria-label="Ballot proof stages">
-          {stages.map(({ stage, state }, index) => (
-            <li key={stage} data-state={state} aria-current={state === "current" ? "step" : undefined}>
-              <span className={styles.marker} aria-hidden="true">
-                {state === "complete" ? <ActionIcon name="check" /> : String(index + 1).padStart(2, "0")}
+    <>
+      {/* Stage changes are announced whether the list is open or closed. This sits outside the
+          disclosure's toggle, where live regions announce unreliably, and leaves out the
+          countdown so its ticks don't repeat the stage. */}
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        Proof {current + 1} of {PROOF_STAGES.length}: {proofStageLabel(PROOF_STAGES[current], isMask)}
+      </span>
+      <BallotDisclosure
+        className={styles.network}
+        title={(chevron) => (
+          <span className={styles.summary}>
+            <span className={styles.meta}>
+              <span>
+                Proof {current + 1} of {PROOF_STAGES.length}
               </span>
-              <span className={styles.label}>{proofStageLabel(stage, isMask)}</span>
-              <span className={styles.state}>{stateLabels[state]}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </BallotDisclosure>
+              <span aria-live="polite">
+                {remaining === undefined ? "Estimating time left…" : formatRemaining(remaining)}
+              </span>
+            </span>
+            <span className={styles.current}>
+              <span className={styles.indicator} aria-hidden="true" />
+              <strong key={current} className="vp-label-change">
+                {proofStageLabel(PROOF_STAGES[current], isMask)}
+              </strong>
+              <span className={styles.chevron}>{chevron}</span>
+            </span>
+            <span className={styles.track} aria-hidden="true">
+              {stages.map(({ stage, state }) => (
+                <span key={stage} data-state={state} />
+              ))}
+            </span>
+          </span>
+        )}
+      >
+        <div className={styles.body}>
+          <ol className={styles.steps} aria-label="Ballot proof stages">
+            {stages.map(({ stage, state }, index) => (
+              <li key={stage} data-state={state} aria-current={state === "current" ? "step" : undefined}>
+                <span className={styles.marker} aria-hidden="true">
+                  {state === "complete" ? <ActionIcon name="check" /> : String(index + 1).padStart(2, "0")}
+                </span>
+                <span className={styles.label}>{proofStageLabel(stage, isMask)}</span>
+                <span className={styles.state}>{stateLabels[state]}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </BallotDisclosure>
+    </>
   );
 }
