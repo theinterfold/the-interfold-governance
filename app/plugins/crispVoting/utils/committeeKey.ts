@@ -31,7 +31,7 @@ export function decodeParamSet(encoded: Hex): ChainBfvParams {
  * Finds the SDK preset whose parameters match the ones the chain published.
  *
  * The commitment is computed from (degree, plaintextModulus, moduli), and the SDK takes those as a
- * named preset. Rather than assume `paramSet === 0` means `INSECURE_THRESHOLD_512`, every preset is
+ * named preset. Rather than assume `paramSet === 0` means `INSECURE_THRESHOLD_64`, every preset is
  * asked for its parameters and compared against the chain. A round whose parameters match no known
  * preset returns `undefined` — the caller must then refuse to validate rather than guess, since a
  * commitment computed under the wrong parameters never matches and would reject a legitimate key.

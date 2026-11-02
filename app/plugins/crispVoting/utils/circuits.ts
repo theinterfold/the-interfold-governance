@@ -13,17 +13,17 @@ import type { ThresholdBfvParamsPresetName } from "@interfold/sdk";
 // the numeric `paramSet` is a registry key, and nothing stops a deployment registering different
 // parameters under it. It also means enabling secure parameters on chain needs no change here.
 const LOADERS: Record<CircuitPreset, () => Promise<{ loadCircuits: () => Promise<CircuitBundle> }>> = {
-  "insecure-512": () => import("@crisp-e3/sdk/insecure-512"),
+  "insecure-64": () => import("@crisp-e3/sdk/insecure-64"),
   "secure-8192": () => import("@crisp-e3/sdk/secure-8192"),
 };
 
 /// The two SDKs name the same parameter sets differently: `@interfold/sdk` resolves a round to a
 /// `ThresholdBfvParamsPresetName`, while `@crisp-e3/sdk` keys its circuit bundles by
 /// `CircuitPreset`. Mapping is total in both directions today; an unmapped name is a new preset
-/// this app has no circuits for, which must refuse rather than silently fall back to 512-degree
+/// this app has no circuits for, which must refuse rather than silently fall back to 64-degree
 /// circuits and produce proofs the verifier rejects.
 const CIRCUIT_PRESET_FOR: Record<ThresholdBfvParamsPresetName, CircuitPreset> = {
-  INSECURE_THRESHOLD_512: "insecure-512",
+  INSECURE_THRESHOLD_64: "insecure-64",
   SECURE_THRESHOLD_8192: "secure-8192",
 };
 

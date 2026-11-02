@@ -53,7 +53,7 @@ describe("lock-for recipient validation", () => {
   });
 });
 
-type CircuitPreset = "insecure-512" | "secure-8192";
+type CircuitPreset = "insecure-64" | "secure-8192";
 
 /** Mirror of `ensureCircuits`' concurrency control, with the dynamic import stubbed. */
 function makeEnsureCircuits() {
@@ -107,7 +107,7 @@ describe("ensureCircuits preset concurrency", () => {
     const { ensure, registrations, registered } = makeEnsureCircuits();
     const first = defer();
 
-    const a = ensure("insecure-512", () => first.promise);
+    const a = ensure("insecure-64", () => first.promise);
     const b = ensure("secure-8192", async () => {}).then(
       () => "resolved",
       (e: Error) => e.message
@@ -118,8 +118,8 @@ describe("ensureCircuits preset concurrency", () => {
     first.resolve();
     await a;
 
-    expect(registrations()).toEqual(["insecure-512"]);
-    expect(registered()).toBe("insecure-512");
+    expect(registrations()).toEqual(["insecure-64"]);
+    expect(registered()).toBe("insecure-64");
   });
 
   test("two concurrent calls for the SAME preset share one load", async () => {
@@ -145,13 +145,13 @@ describe("ensureCircuits preset concurrency", () => {
     ).rejects.toThrow("network");
 
     // The marker must be clear, or every later preset would be refused forever.
-    await ensure("insecure-512", async () => {});
-    expect(registrations()).toEqual(["insecure-512"]);
+    await ensure("insecure-64", async () => {});
+    expect(registrations()).toEqual(["insecure-64"]);
   });
 
   test("refuses a different preset once one is registered", async () => {
     const { ensure } = makeEnsureCircuits();
-    await ensure("insecure-512", async () => {});
+    await ensure("insecure-64", async () => {});
 
     await expect(ensure("secure-8192", async () => {})).rejects.toThrow("already loaded");
   });
