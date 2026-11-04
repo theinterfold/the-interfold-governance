@@ -133,7 +133,7 @@ contract InstallPrivateProcessScript is WireSppScript {
             PluginRepo(vm.envAddress("CRISP_PLUGIN_REPO"))
         );
         PluginSetupRef memory sppRef = PluginSetupRef(
-            PluginRepo.Tag(uint8(vm.envOr("SPP_RELEASE", uint256(1))), uint16(vm.envOr("SPP_BUILD", uint256(1)))),
+            PluginRepo.Tag(uint8(vm.envOr("SPP_RELEASE", uint256(1))), uint16(vm.envOr("SPP_BUILD", uint256(3)))),
             PluginRepo(vm.envAddress("SPP_PLUGIN_REPO"))
         );
 
@@ -245,7 +245,7 @@ contract InstallPrivateProcessScript is WireSppScript {
 
         spp.plugin = vm.envAddress("SPP_PRIVATE_ADDRESS");
         spp.setupRef = PluginSetupRef(
-            PluginRepo.Tag(uint8(vm.envOr("SPP_RELEASE", uint256(1))), uint16(vm.envOr("SPP_BUILD", uint256(1)))),
+            PluginRepo.Tag(uint8(vm.envOr("SPP_RELEASE", uint256(1))), uint16(vm.envOr("SPP_BUILD", uint256(3)))),
             PluginRepo(vm.envAddress("SPP_PLUGIN_REPO"))
         );
         spp.helpersHash = vm.envBytes32("PREPARED_SPP_HELPERS_HASH");

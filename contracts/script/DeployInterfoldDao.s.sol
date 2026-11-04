@@ -209,7 +209,7 @@ contract DeployInterfoldDaoScript is Script {
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(1, 1), crispRepo), data);
     }
 
-    // --- Staged Proposal Processor v1.1 — Aragon canonical repo, referenced by address ---
+    // --- Staged Proposal Processor v1.3 — Aragon canonical repo, referenced by address ---
 
     /// @dev Installed with EMPTY stages; `make wire-spp` configures stages + permissions once
     ///      the body plugin addresses are known. Rules are empty too (anyone can create SPP
@@ -217,7 +217,7 @@ contract DeployInterfoldDaoScript is Script {
     function sppPluginSettings() public view returns (IDAOFactory.PluginSettings memory) {
         PluginRepo sppRepo = PluginRepo(vm.envAddress("SPP_PLUGIN_REPO"));
         uint8 release = uint8(vm.envOr("SPP_RELEASE", uint256(1)));
-        uint16 build = uint16(vm.envOr("SPP_BUILD", uint256(1)));
+        uint16 build = uint16(vm.envOr("SPP_BUILD", uint256(3)));
 
         return IDAOFactory.PluginSettings(PluginSetupRef(PluginRepo.Tag(release, build), sppRepo), SppInstall.encode());
     }
