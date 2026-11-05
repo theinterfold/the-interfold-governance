@@ -113,7 +113,8 @@ contract CrispVotingViewsTest is Test {
     function _deploy(address token, uint32 minParticipation) internal returns (CrispVoting p) {
         p = CrispVoting(
             ProxyLib.deployUUPSProxy(
-                address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, _initParams(token, minParticipation))
+                address(new CrispVoting()),
+                abi.encodeCall(CrispVoting.initialize, (_initParams(token, minParticipation), true))
             )
         );
         dao.grant(address(p), address(spp), p.CREATE_PROPOSAL_PERMISSION_ID());
@@ -423,7 +424,7 @@ contract CrispVotingViewsTest is Test {
 
         address impl = address(new CrispVoting());
         vm.expectRevert(ICrispVoting.ZeroAddress.selector);
-        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, params));
+        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, (params, true)));
     }
 
     /// @notice The E3 program is validated as hard as the interfold reference: it is deliberately
@@ -435,7 +436,7 @@ contract CrispVotingViewsTest is Test {
 
         address impl = address(new CrispVoting());
         vm.expectRevert(ICrispVoting.ZeroAddress.selector);
-        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, params));
+        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, (params, true)));
     }
 
     function test_initializeRevertsWhenMinParticipationExceedsRatioBase() public {
@@ -444,7 +445,7 @@ contract CrispVotingViewsTest is Test {
 
         address impl = address(new CrispVoting());
         vm.expectRevert(abi.encodeWithSelector(ICrispVoting.RatioOutOfBounds.selector, 100, 101));
-        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, params));
+        ProxyLib.deployUUPSProxy(impl, abi.encodeCall(CrispVoting.initialize, (params, true)));
     }
 
     // --- getters --------------------------------------------------------------

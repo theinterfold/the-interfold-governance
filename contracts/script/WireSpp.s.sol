@@ -10,6 +10,9 @@ import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol"
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
+import {hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+
 import {SppInstall} from "./SppInstall.sol";
 
 /// @dev The DAO's permission oracle, for asserting a rotation landed.
@@ -30,6 +33,14 @@ interface IDAOPermissions {
 ///      calldata matches `updateStages(Stage[] calldata)` exactly).
 interface ISpp {
     function updateStages(SppInstall.Stage[] calldata stages) external;
+}
+
+/// @dev Minimal view of the SPP's rule condition, the helper its `prepareInstallation` returns at
+///      `helpers[0]`. The SPP's `CREATE_PROPOSAL_PERMISSION` is granted to `ANY_ADDR` behind it,
+///      and with no rules it admits everyone. `updateRules` needs `UPDATE_RULES_PERMISSION`,
+///      which the SPP setup grants to the DAO.
+interface ISppRuleCondition {
+    function updateRules(RuledCondition.Rule[] calldata rules) external;
 }
 
 /// @dev Minimal view of an OSx 1.4 plugin's target-config setter.
@@ -105,6 +116,35 @@ contract WireSppScript is Script {
     ///      signer cannot execute.
     function adminDriver() internal view returns (address) {
         return vm.envOr("ADMIN_DRIVER_ADDRESS", vm.envAddress("FOUNDATION_ADDRESS"));
+    }
+
+    /// @dev `RuledCondition.CONDITION_RULE_ID` and `Op.EQ`, which are `internal` to that contract.
+    uint8 internal constant CONDITION_RULE_ID = 202;
+    uint8 internal constant OP_EQ = 1;
+
+    /// @notice The action that makes a body's proposer condition the SPP's creation rule: a single
+    ///         rule that defers to `bodyCondition`, the way the Aragon app builds it.
+    /// @dev Without it the SPP is installed with no rules, which admit everyone, and
+    ///      `CrispVoting` does not re-check the proposer for an SPP caller, so nothing would
+    ///      restrict who creates a proposal by voting power.
+    /// @param rulesCondition The SPP's rule condition (`helpers[0]` of the SPP install).
+    /// @param bodyCondition The body's proposer condition (`helpers[0]` of the body install).
+    function creationRuleAction(address rulesCondition, address bodyCondition) internal pure returns (Action memory) {
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] = RuledCondition.Rule({
+            id: CONDITION_RULE_ID, op: OP_EQ, value: uint240(uint160(bodyCondition)), permissionId: bytes32(0)
+        });
+
+        return Action({to: rulesCondition, value: 0, data: abi.encodeCall(ISppRuleCondition.updateRules, (rules))});
+    }
+
+    /// @notice The single helper of a prepared install, checked against the helpers hash the apply
+    ///         step will quote, so a mistyped or stale address fails here instead of wiring a
+    ///         condition that was never part of the install.
+    function singleHelper(address[] memory helpers, bytes32 helpersHash) internal pure returns (address) {
+        require(helpers.length == 1, "expected exactly one prepared helper");
+        require(hashHelpers(helpers) == helpersHash, "prepared helpers do not match the helpers hash");
+        return helpers[0];
     }
 
     /// @notice Prints the `updateStages` calldata for both SPPs under the current env config

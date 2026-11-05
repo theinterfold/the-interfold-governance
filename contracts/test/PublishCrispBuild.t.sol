@@ -2,10 +2,16 @@
 pragma solidity ^0.8.29;
 
 import {Test, Vm} from "forge-std/Test.sol";
+import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import {IPluginSetup} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {ERC1967Proxy} from "../lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
+import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
+import {IInterfold} from "../src/crisp/IInterfold.sol";
+import {MockFeeToken, MockInterfold} from "./mocks/CrispMocks.sol";
+import {MockVotesAndBalanceToken} from "./CrispVotingCondition.t.sol";
 import {PublishCrispBuild} from "../script/PublishCrispBuild.s.sol";
 
 contract PublishCrispBuildTest is Test {
@@ -39,5 +45,94 @@ contract PublishCrispBuildTest is Test {
                 assertNotEq(logs[i].topics[0], keccak256("ReleaseMetadataUpdated(uint8,bytes)"));
             }
         }
+    }
+
+    /// @notice A published build 2 is the setup that deploys the proposal-creation condition: the
+    ///         build 1 setup it follows returns no helpers, so an app reading `helpers[0]` needs
+    ///         this build or later.
+    function test_publishedBuildTwoReturnsTheCreationCondition() public {
+        uint256 key = 0xBEEF;
+        PluginRepo implementation = new PluginRepo();
+        PluginRepo repo = PluginRepo(
+            address(new ERC1967Proxy(address(implementation), abi.encodeCall(PluginRepo.initialize, (vm.addr(key)))))
+        );
+        address firstSetup = address(new CrispVotingSetup(address(new CrispVoting())));
+        vm.prank(vm.addr(key));
+        repo.createVersion(1, firstSetup, bytes(""), bytes("ipfs://r"));
+        vm.setEnv("PRIVATE_KEY", vm.toString(key));
+        vm.setEnv("CRISP_PLUGIN_REPO", vm.toString(address(repo)));
+        vm.setEnv("CRISP_RELEASE", "1");
+        vm.setEnv("CRISP_BUILD_METADATA_URI", "");
+        vm.setEnv("CRISP_RELEASE_METADATA_URI", "");
+
+        new PublishCrispBuild().run();
+
+        PluginRepo.Version memory build2 = repo.getVersion(PluginRepo.Tag(1, 2));
+        MockVotesAndBalanceToken token = new MockVotesAndBalanceToken();
+        ICrispVoting.PluginInitParams memory params = ICrispVoting.PluginInitParams({
+            dao: IDAO(address(0)),
+            token: address(0),
+            interfold: address(new MockInterfold(address(new MockFeeToken()))),
+            committeeSize: IInterfold.CommitteeSize(0),
+            paramSet: 0,
+            crispProgramAddress: address(0xC0FFEE),
+            computeProviderParams: bytes(""),
+            votingSettings: ICrispVoting.VotingSettings({
+                minProposerVotingPower: 1,
+                minVoterVotingPower: 1,
+                minParticipation: 50,
+                supportThreshold: 50,
+                minDuration: 3600
+            })
+        });
+        (, IPluginSetup.PreparedSetupData memory data) = CrispVotingSetup(build2.pluginSetup)
+            .prepareInstallation(makeAddr("dao"), abi.encode(params, address(token), false));
+
+        assertEq(data.helpers.length, 1, "build 2 returns the creation condition at helpers[0]");
+        assertGt(data.helpers[0].code.length, 0);
+    }
+
+    function _repoWithMaintainer(address maintainer) internal returns (PluginRepo repo) {
+        repo = PluginRepo(
+            address(new ERC1967Proxy(address(new PluginRepo()), abi.encodeCall(PluginRepo.initialize, (maintainer))))
+        );
+        vm.setEnv("CRISP_PLUGIN_REPO", vm.toString(address(repo)));
+        vm.setEnv("CRISP_RELEASE", "1");
+        vm.setEnv("CRISP_BUILD_METADATA_URI", "");
+        vm.setEnv("CRISP_RELEASE_METADATA_URI", "");
+    }
+
+    function test_publishRefusesAReleaseThatDoesNotFitInAUint8() public {
+        uint256 key = 0xBEEF;
+        _repoWithMaintainer(vm.addr(key));
+        vm.setEnv("PRIVATE_KEY", vm.toString(key));
+        vm.setEnv("CRISP_RELEASE", "257"); // would wrap to release 1 under a bare uint8 cast
+
+        PublishCrispBuild publisher = new PublishCrispBuild();
+        vm.expectRevert("CRISP_RELEASE does not fit in a uint8");
+        publisher.run();
+    }
+
+    /// @notice A sender without MAINTAINER_PERMISSION is refused before anything is deployed.
+    function test_publishRefusesASenderWithoutTheMaintainerPermission() public {
+        PluginRepo repo = _repoWithMaintainer(vm.addr(0xBEEF));
+        vm.setEnv("PRIVATE_KEY", vm.toString(uint256(0xBAD)));
+
+        PublishCrispBuild publisher = new PublishCrispBuild();
+        vm.expectRevert("the sender does not hold MAINTAINER_PERMISSION on the repo");
+        publisher.run();
+        assertEq(repo.buildCount(1), 0, "nothing was published");
+    }
+
+    /// @notice On mainnet the EOA publisher only targets the canonical CRISP repo.
+    function test_publishOnMainnetRefusesANonCanonicalRepo() public {
+        uint256 key = 0xBEEF;
+        _repoWithMaintainer(vm.addr(key));
+        vm.setEnv("PRIVATE_KEY", vm.toString(key));
+        vm.chainId(1);
+
+        PublishCrispBuild publisher = new PublishCrispBuild();
+        vm.expectRevert("CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
+        publisher.run();
     }
 }

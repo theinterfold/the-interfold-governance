@@ -6,12 +6,24 @@ assume knowledge of the work that produced the batch.
 
 The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
-The qualified v0.19 publication file has SHA-256
-`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`.
-It deploys implementation `0x8153c6dce903b3A4a886399D310668FB8c97cEC6` and setup
-`0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`, with empty build and release metadata.
-Confirm `buildCount(1) == 2` before signing. Reject older copies with different addresses or
-placeholder metadata. A newly generated file needs its own qualification if its checksum differs.
+**Status (read on chain at generation):** `buildCount(1)` is 3. The v0.19 batch (SHA-256
+`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`, implementation
+`0x8153c6dce903b3A4a886399D310668FB8c97cEC6`, setup `0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`)
+was executed: build 3 is that setup. The file at the path above is now the **regenerated, unsigned**
+batch for the next build. Its setup returns the proposal-creation condition at `helpers[0]` (see
+[Creation condition in the setup helpers](#creation-condition-in-the-setup-helpers)).
+
+| What                | Value                                                                             |
+| ------------------- | --------------------------------------------------------------------------------- |
+| SHA-256 of the file | `956d15e5935a13b76f5e8b36c5729e3f22400e900b7e0b2fa793516d34fa92ca`                |
+| `CrispVoting` impl  | `0xD20a3dC4B45247d21620bc870a1C296313e4f851` (CREATE2, salt `interfold-crisp-v1`) |
+| `CrispVotingSetup`  | `0x825491a1A09A12FCdb089ffa5AB27e7BC297D81C`                                      |
+| Expected build      | 4 (`buildCount(1)` is 3 before, 4 after)                                          |
+
+It is a changed payload: it has **not** been through the bytecode check, the standard-JSON
+reproduction or the Safe rehearsal that the build 3 file passed, and must have its own before it is
+signed. Reject any copy whose addresses differ from the table, unless you regenerated it yourself.
+The addresses depend on the compiler input, including the directory the build ran in.
 
 ---
 
@@ -20,11 +32,12 @@ placeholder metadata. A newly generated file needs its own qualification if its 
 The batch publishes the next build of **release 1** into the repo at
 `interfold-crisp.plugin.dao.eth`. A build is a new `CrispVotingSetup` and the `CrispVoting`
 implementation that it pins.
-Build 3 is expected next, not reserved. Read the actual build number from the publication receipt.
+The next build number is expected, not reserved (it is 4 while `buildCount(1)` is 3). Read the actual
+build number from the publication receipt.
 
 The batch does **not** install anything. Each installed plugin is a proxy that points at its own
-implementation, so the installed private process stays on build 2. The DAO installs build 3 in a
-separate step (see [After execution](#after-execution)).
+implementation, so an installed private process keeps the build it was installed from. The DAO
+installs the new build in a separate step (see [After execution](#after-execution)).
 
 The batch does **not** mint a repo. The repo exists (see the warning below).
 
@@ -57,6 +70,51 @@ Interfold v0.19 protocol, for two reasons.
 Build 3 needs the Interfold v0.19 cutover (see [Open items](#open-items-outside-this-batch)). If the
 protocol changes its circuit version again, new requests stop until the DAO installs a new build.
 
+## Creation condition in the setup helpers
+
+`prepareInstallation` of the first build returned no helper. Later builds return the
+proposal-creation condition.
+
+`preparedSetupData.helpers` is `[CrispProposerCondition]` in both install shapes (standalone and SPP
+body), at the position where `TokenVotingSetup` returns its `VotingPowerCondition`. The condition is
+bound to the new plugin and answers `plugin.isProposerEligible(who)`: the voting power of `who` at
+the token's previous timepoint (`getPastVotes`) against `minProposerVotingPower()`, read on every
+call. It is the rule a direct creator already faces, so a later governance change to the minimum
+applies at once, and tokens borrowed within the transaction, or a balance without delegated votes,
+do not qualify. The setup grants the condition to nobody, so its permissions are unchanged.
+
+In a staged process the condition is the only voting-power restriction on who creates a CRISP
+proposal, because `CrispVoting` does not re-check the proposer for an SPP caller. It must be wired
+as the SPP's creation rule. The SPP installs with no rules, which admit everyone, so the private
+install batch contains an `updateRules` action on the SPP's rule condition (see
+[`private-install-runbook.md`](./private-install-runbook.md#step-4-generate-the-one-transaction-that-the-foundation-signs)).
+
+The install records its shape in the plugin (`isStagedBody`, from `grantExecuteOnDao`). Only a
+staged body trusts the SPP attestation in the proposal metadata to name the fee payer. On a
+standalone install `CREATE_PROPOSAL` belongs to `ANY_ADDR`, and every caller there is a direct
+creator who pays for itself and must clear the minimum. `CrispVoting.initialize` takes the flag as
+a second argument; the setup's install data is unchanged.
+
+- The install data ABI is unchanged, `(PluginInitParams, address token, bool grantExecuteOnDao)`.
+- `applyInstallation` takes the helpers hash from the `InstallationPrepared` event, and
+  `make read-prepared` now also records the helper addresses as `<PREFIX>_HELPERS`.
+- A later uninstall must quote the helper back in `currentHelpers`; the `PluginSetupProcessor`
+  enforces this. The setup does not inspect the list, as in `TokenVotingSetup`.
+- There is no update path. The setup is a non-upgradeable `PluginSetup` (`prepareUpdate` reverts
+  `NonUpgradeablePlugin`), and the proxies are pinned at install: an update would swap in a new
+  implementation with no `initializeFrom` or storage-layout check. A body installed from an
+  earlier build gets the condition only by a new install.
+
+The build number is assigned by the repo at `createVersion`, not by the script. The expected
+number is `buildCount(1) + 1`; read it from the `VersionCreated` event.
+
+The EOA script `PublishCrispBuild` refuses to run on chain 1 against a repo other than
+`0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1`, refuses a release above 255, and checks that the
+sender holds `MAINTAINER_PERMISSION` before it deploys anything. The Safe generator applies the
+first two checks.
+
+---
+
 ## Do not use `make safe-create-repo` for this
 
 `createPluginRepoWithFirstVersion` mints an ENS subdomain. The subdomain
@@ -74,14 +132,15 @@ calls `createVersion` on the repo.
 
 ## Addresses
 
-| What                                 | Address                                      |
-| ------------------------------------ | -------------------------------------------- |
-| CRISP plugin repo                    | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
-| Foundation Safe (signer)             | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
-| CREATE2 deployer                     | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
-| New `CrispVoting` implementation     | Read the checked generator output            |
-| New `CrispVotingSetup`               | Read the checked generator output            |
-| Current `CrispVotingSetup` (build 2) | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
+| What                             | Address                                      |
+| -------------------------------- | -------------------------------------------- |
+| CRISP plugin repo                | `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1` |
+| Foundation Safe (signer)         | `0x8B43b2852fc5031D01DDfCDF702973D93A2FF593` |
+| CREATE2 deployer                 | `0x4e59b44847b379578588920cA78FbF26c0B4956C` |
+| New `CrispVoting` implementation | Read the checked generator output            |
+| New `CrispVotingSetup`           | Read the checked generator output            |
+| `CrispVotingSetup` (build 2)     | `0xEB4086d0Ce4dfB0E6110577CEDe45CFB53F1767B` |
+| `CrispVotingSetup` (build 3)     | `0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A` |
 
 The repo address is not in a receipt. It was resolved from ENS:
 
@@ -177,11 +236,11 @@ check both before you sign.
 
 3. **The release is 1.** A different release starts a parallel line instead of the next build.
 
-4. **The current state is release 1, build 2.** Thus this batch publishes build 3:
+4. **The current state is release 1, build 3.** Thus this batch publishes build 4:
 
    ```bash
    cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 \
-     'buildCount(uint8)(uint16)' 1 --rpc-url "$RPC_URL"   # expect 2 before, 3 after
+     'buildCount(uint8)(uint16)' 1 --rpc-url "$RPC_URL"   # expect 3 before, 4 after
    ```
 
 5. **The implementation pins circuit version `interfold-bfv-v5`.** tx0 carries the `CrispVoting`
@@ -222,7 +281,7 @@ That record does not qualify a different creation payload or the 71 FOLD install
 ## After execution
 
 1. **Read the new build number** from the `VersionCreated` event in the receipt. Expect
-   `release 1, build 3`. Confirm on chain:
+   `release 1, build 4`. Confirm on chain:
 
    ```bash
    cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 \
@@ -233,7 +292,7 @@ That record does not qualify a different creation payload or the 71 FOLD install
 
 3. **Set `CRISP_BUILD` to the actual published build** in `contracts/.env.mainnet`.
 
-4. **Install build 3 into the DAO** with [`private-install-runbook.md`](./private-install-runbook.md).
+4. **Install the new build into the DAO** with [`private-install-runbook.md`](./private-install-runbook.md).
    The install needs `CRISP_PROGRAM_ADDRESS`, which must be the new CRISP program (see
    [Open items](#open-items-outside-this-batch)).
 

@@ -104,6 +104,13 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @notice The ABI encoded compute provider parameters
     bytes private computeProviderParams;
 
+    /// @notice Whether this plugin is a body of a Staged Proposal Processor, fixed at install.
+    /// @dev Only a staged body treats `abi.encode(spp, sppProposalId, stageId)` metadata as an SPP
+    ///      attestation (see `_resolvePayer`). A standalone install grants `CREATE_PROPOSAL` to
+    ///      `ANY_ADDR`, so any contract could otherwise name itself as the SPP and nominate a
+    ///      victim as the fee payer.
+    bool public isStagedBody;
+
     /// @notice Disables the initializers on the implementation contract to prevent
     /// it from being left uninitialized.
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -113,8 +120,11 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
 
     /// @notice Initializes the plugin
     /// @param _params The plugin initialization parameters
-    function initialize(PluginInitParams calldata _params) external initializer {
+    /// @param _isStagedBody Whether the plugin is installed as a body of an SPP (as opposed to a
+    ///        standalone process); it decides how `createProposal` resolves the fee payer.
+    function initialize(PluginInitParams calldata _params, bool _isStagedBody) external initializer {
         __PluginUUPSUpgradeable_init(_params.dao);
+        isStagedBody = _isStagedBody;
 
         // The E3 program is validated as hard as the interfold reference: it is deliberately not
         // updatable later (see `updateE3Settings`), so a zero program would brick every tally
@@ -383,6 +393,13 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @inheritdoc ICrispVoting
     function minProposerVotingPower() public view returns (uint256) {
         return votingSettings.minProposerVotingPower;
+    }
+
+    /// @inheritdoc ICrispVoting
+    /// @dev Snapshotted a timepoint back, matching how the proposal itself snapshots voting power:
+    ///      reading the live balance would let a proposer borrow tokens within the transaction.
+    function isProposerEligible(address _who) public view returns (bool) {
+        return votingToken.getPastVotes(_who, _tokenClock() - 1) >= votingSettings.minProposerVotingPower;
     }
 
     /// @inheritdoc ICrispVoting
@@ -789,21 +806,23 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @dev Two shapes, distinguished by the metadata and the caller — never by a caller-supplied
     ///     flag, so neither path can be used to spend someone else's credit:
     ///
-    ///     - STAGED: the SPP calls sub-bodies with `metadata = abi.encode(spp, sppProposalId,
+    ///     - STAGED (only when `isStagedBody`): the SPP calls sub-bodies with `metadata = abi.encode(spp, sppProposalId,
     ///       stageId)`. The payer is the SPP proposal's CREATOR as attested by the SPP itself.
     ///       Proposer eligibility was already enforced by the SPP's rule condition, and the
     ///       direct caller (the SPP) holds no voting power, so checking it here would always fail.
     ///
-    ///     - DIRECT: anything else. The caller is the creator, pays from their own escrow, and
-    ///       must clear `minProposerVotingPower` themselves — nothing else enforces it in this
-    ///       shape, and `CREATE_PROPOSAL_PERMISSION` is granted to ANY_ADDR on a standalone
-    ///       install, so without this check the setting would be decorative.
+    ///     - DIRECT: anything else, and EVERY call on a standalone install. The caller is the
+    ///       creator, pays from their own escrow, and must clear `minProposerVotingPower`
+    ///       themselves — nothing else enforces it in this shape, and `CREATE_PROPOSAL_PERMISSION`
+    ///       is granted to ANY_ADDR on a standalone install, so without this check the setting
+    ///       would be decorative. A standalone install never takes the staged branch: any
+    ///       contract could otherwise name itself as the SPP and bill a victim's credit.
     ///
     /// @param _metadata The proposal metadata: SPP-encoded in the staged shape, the metadata URI
     ///     in the direct one.
     /// @return payer The account whose escrowed credit funds the E3 fee.
     function _resolvePayer(bytes memory _metadata) internal view returns (address payer) {
-        if (_metadata.length == 96) {
+        if (isStagedBody && _metadata.length == 96) {
             (address spp, uint256 sppProposalId,) = abi.decode(_metadata, (address, uint256, uint16));
 
             // Only treats this as staged when the caller IS the SPP it names. A direct caller
@@ -821,10 +840,7 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
 
         payer = _msgSender();
 
-        // Snapshotted a timepoint back, matching how the proposal itself snapshots voting power:
-        // reading the live balance would let a proposer borrow tokens within the transaction.
-        uint256 proposerVotingPower = votingToken.getPastVotes(payer, _tokenClock() - 1);
-        if (proposerVotingPower < votingSettings.minProposerVotingPower) {
+        if (!isProposerEligible(payer)) {
             revert ProposalCreationForbidden(payer);
         }
     }
@@ -848,5 +864,5 @@ contract CrispVoting is PluginUUPSUpgradeable, ProposalUpgradeable, MetadataExte
     /// @notice This empty reserved space is put in place to allow future versions to add new variables
     ///         without shifting down storage in the inheritance chain
     ///         (see [OpenZeppelin's guide about storage gaps](https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps)).
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

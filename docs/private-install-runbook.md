@@ -226,6 +226,11 @@ make read-prepared ENV_FILE=.env.mainnet TX=0x<tx-of-22> PLUGIN_PREFIX=CRISP    
 make read-prepared ENV_FILE=.env.mainnet TX=0x<tx-of-23> PLUGIN_PREFIX=SPP_PRIVATE  >> .env.mainnet
 ```
 
+Besides the helpers hash, each command writes `<PREFIX>_HELPERS`, the helper addresses behind it.
+The next step needs two of them: `CRISP_HELPERS` holds the body's proposer condition
+(`CrispProposerCondition`) and `SPP_PRIVATE_HELPERS` holds the SPP's rule condition. The generator
+checks both lists against the hashes and stops if they do not match.
+
 The prepare transactions are public. You can also get the hashes from a block explorer.
 
 ### Step 4: generate the ONE transaction that the foundation signs
@@ -244,12 +249,16 @@ The command writes **`safe-actions/24-install-and-wire-private-process.json`**. 
    DAO.
 4. Revoke ROOT from the PSP. This closes the install window.
 5. `updateStages` on the new SPP, with the 5-day vote and the 5-day approval.
-6. Grant `CREATE_PROPOSAL` on the new body to the new SPP **only** (INV-3).
-7. Point the new body at the delegatecall Executor `0x56ce4D8006292Abf418291FaE813C1E3769240A4`
+6. `updateRules` on the SPP's rule condition (`SPP_PRIVATE_HELPERS[0]`): one rule that defers to the
+   body's `CrispProposerCondition` (`CRISP_HELPERS[0]`). The SPP is installed with no rules, which
+   admit everyone, and the body does not re-check the proposer for an SPP caller. Without this
+   action nothing restricts who creates a proposal by voting power.
+7. Grant `CREATE_PROPOSAL` on the new body to the new SPP **only** (INV-3).
+8. Point the new body at the delegatecall Executor `0x56ce4D8006292Abf418291FaE813C1E3769240A4`
    (INV-5).
-8. Revoke `EXECUTE` on the DAO from the old SPP.
-9. Revoke `CREATE_PROPOSAL` on the old SPP from `ANY_ADDR`.
-10. Revoke `CREATE_PROPOSAL` on the old body from the old SPP.
+9. Revoke `EXECUTE` on the DAO from the old SPP.
+10. Revoke `CREATE_PROPOSAL` on the old SPP from `ANY_ADDR`.
+11. Revoke `CREATE_PROPOSAL` on the old body from the old SPP.
 
 **This must stay one transaction.** If you split it, the new SPP can hold `EXECUTE` on the DAO with
 no stage configuration. Also, two private processes can execute on the DAO at the same time. The
@@ -261,7 +270,7 @@ DAO, or `CREATE_PROPOSAL` on the old body. It also stops if only one `RETIRED_*`
 
 Give the JSON to the foundation for the Safe Transaction Builder. The command also prints the same
 `to` and `data` to the console, so the signers can compare the raw calldata with the file. To read
-the ten actions, decode the file:
+the eleven actions, decode the file:
 
 ```bash
 cast decode-calldata 'executeProposal(bytes,(address,uint256,bytes)[],uint256)' \
@@ -285,6 +294,16 @@ cancelable, editable)`. Each body is `(addr, isManual, tryAdvance, resultType)`.
 - Stage 1: `([(0x8B43b2852fc5031D01DDfCDF702973D93A2FF593, true, false, 1)], 432000, 0, 0, 1, 0, false, false)`.
 
 Do not sign if a value is different.
+
+Decode the rule in action 6 (index 5) the same way. Its target must be `SPP_PRIVATE_HELPERS[0]`, and
+the single rule must be `(202, 1, <CRISP_HELPERS[0] as a number>, 0x00…00)`: a condition rule, the
+`EQ` operation, the body's condition address and no permission override:
+
+```bash
+A5=$(cast decode-calldata 'executeProposal(bytes,(address,uint256,bytes)[],uint256)' "$D" --json \
+  | jq -r '.[1][5][2]')
+cast decode-calldata 'updateRules((uint8,uint8,uint240,bytes32)[])' "$A5"
+```
 
 Each revoke decodes with `cast decode-calldata 'revoke(address,address,bytes32)' <data>`. The
 permission ids are:
@@ -331,6 +350,12 @@ Also make sure of these items:
 - New body: `minVoterVotingPower()` is `71000000000000000000` (71 FOLD).
 - New body: `getE3Settings()` is `(2, 2, <OpenVM parameters>)`, and `getTargetConfig()` is
   (`0x56ce…40A4`, DelegateCall).
+- New SPP: the rule condition (`SPP_PRIVATE_HELPERS[0]`) has exactly one rule, set in action 6 of
+  Step 4. Read it with `cast call <rule condition> 'getRules()((uint8,uint8,uint240,bytes32)[])'`.
+  Expect `(202, 1, <body condition>, 0x00…00)`, where the body condition is `CRISP_HELPERS[0]`.
+  Then check that the rule bites: `cast call <body condition> 'isGranted(address,address,bytes32,bytes)(bool)'
+$NEW_SPP <account> $CREATE 0x` is `false` for an account with no voting power and `true` for a
+  holder at or above `minProposerVotingPower`. With no rules, anyone could create a proposal.
 - New SPP: stage 0 has `minAdvance` 0 (INV-9). Stage 1 has `vetoThreshold` 0, which is approval
   mode (INV-10).
 - Old body: `getProposal` still answers for its 3 proposals.
@@ -410,6 +435,8 @@ Later scripts, for example `printUpdateStages()`, read these two values.
 ## Rehearsal record
 
 This record predates the 71 FOLD voter-minimum change. It is not qualification of that new policy.
+It also predates the creation rule (action 6 of Step 4) and the `CrispProposerCondition` helper, so
+the batch it describes had 10 actions (7 for a first install). The current batch has 11 (8).
 
 On 2026-10-09, the publish batch and Steps 1 to 5 ran on a mainnet fork at block 26156057. The fork
 used a stand-in program address, because the new program does not exist yet. `.env.mainnet` was a

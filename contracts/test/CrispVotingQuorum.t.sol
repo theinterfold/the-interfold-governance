@@ -82,7 +82,7 @@ contract CrispVotingQuorumTest is Test {
         });
 
         plugin = CrispVoting(
-            ProxyLib.deployUUPSProxy(address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, params))
+            ProxyLib.deployUUPSProxy(address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, (params, true)))
         );
 
         sppAddr = address(spp);

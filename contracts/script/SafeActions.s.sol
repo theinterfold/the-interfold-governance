@@ -63,6 +63,7 @@ contract SafeActionsScript is WireSppScript {
         PluginSetupRef setupRef;
         PermissionLib.MultiTargetPermission[] permissions;
         bytes32 helpersHash;
+        address[] helpers;
     }
 
     /// @dev Deliberately not under `out/`: that is forge's build directory, so `forge clean`
@@ -339,7 +340,7 @@ contract SafeActionsScript is WireSppScript {
         IPlugin.TargetConfig memory delegateExecutor =
             IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
 
-        Action[] memory actions = new Action[](retiredSpp == address(0) ? 7 : 10);
+        Action[] memory actions = new Action[](retiredSpp == address(0) ? 8 : 11);
         actions[0] =
             Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.grant, (dao, psp, ROOT_PERMISSION_ID))});
         actions[1] = Action({
@@ -375,27 +376,32 @@ contract SafeActionsScript is WireSppScript {
             value: 0,
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(crisp.plugin, foundation, true)))
         });
-        actions[5] = Action({
+        // The SPP is installed with no creation rules, which admit everyone, and the body does not
+        // re-check the proposer for an SPP caller: the body's condition must be the SPP's rule.
+        actions[5] = creationRuleAction(
+            singleHelper(spp.helpers, spp.helpersHash), singleHelper(crisp.helpers, crisp.helpersHash)
+        );
+        actions[6] = Action({
             to: dao,
             value: 0,
             data: abi.encodeCall(IDAOPermissions.grant, (crisp.plugin, spp.plugin, CREATE_PROPOSAL_PERMISSION_ID))
         });
-        actions[6] = Action({
+        actions[7] = Action({
             to: crisp.plugin, value: 0, data: abi.encodeCall(IPluginTarget.setTargetConfig, (delegateExecutor))
         });
 
         if (retiredSpp != address(0)) {
-            actions[7] = Action({
+            actions[8] = Action({
                 to: dao,
                 value: 0,
                 data: abi.encodeCall(IDAOPermissions.revoke, (dao, retiredSpp, EXECUTE_PERMISSION_ID))
             });
-            actions[8] = Action({
+            actions[9] = Action({
                 to: dao,
                 value: 0,
                 data: abi.encodeCall(IDAOPermissions.revoke, (retiredSpp, ANY_ADDR, CREATE_PROPOSAL_PERMISSION_ID))
             });
-            actions[9] = Action({
+            actions[10] = Action({
                 to: dao,
                 value: 0,
                 data: abi.encodeCall(IDAOPermissions.revoke, (retiredBody, retiredSpp, CREATE_PROPOSAL_PERMISSION_ID))
@@ -409,11 +415,12 @@ contract SafeActionsScript is WireSppScript {
                 : "Replace the private process (CRISP + SPP)",
             retiredSpp == address(0)
                 ? "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
-                "revoked, then the private stages, the SPP's sole CREATE_PROPOSAL on the body, and "
-                "the delegatecall Executor target. Does NOT disarm the Admin bootstrap."
+                "revoked, then the private stages, the SPP's creation rule (the body's proposer "
+                "condition), the SPP's sole CREATE_PROPOSAL on the body, and the delegatecall "
+                "Executor target. Does NOT disarm the Admin bootstrap."
                 : "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
-                "revoked, the private stages, the SPP's sole CREATE_PROPOSAL on the body and the "
-                "delegatecall Executor target, then the retired pair loses EXECUTE on the DAO and "
+                "revoked, the private stages, the SPP's creation rule (the body's proposer condition), "
+                "the SPP's sole CREATE_PROPOSAL on the body and the delegatecall Executor target, then the retired pair loses EXECUTE on the DAO and "
                 "both CREATE_PROPOSAL grants. Does NOT disarm the Admin bootstrap.",
             actions
         );
@@ -458,6 +465,9 @@ contract SafeActionsScript is WireSppScript {
             PluginRepo(repo)
         );
         p.helpersHash = vm.envBytes32(string.concat(prefix, "_HELPERS_HASH"));
+        // The helper addresses behind the hash. Only an install whose wiring uses a helper needs
+        // them (the private process's creation rule); it checks them against the hash.
+        p.helpers = vm.envOr(string.concat(prefix, "_HELPERS"), ",", new address[](0));
 
         // Permissions come back as five parallel arrays, because forge's env readers cannot
         // decode an array of structs. They must be in the SAME order prepareInstallation
@@ -663,8 +673,13 @@ contract SafeActionsScript is WireSppScript {
         address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         bytes32 salt = vm.envOr("CRISP_STACK_SALT", bytes32("interfold-crisp-v1"));
         address repo = vm.envAddress("CRISP_PLUGIN_REPO");
-        uint8 release = uint8(vm.envOr("CRISP_RELEASE", uint256(1)));
+        uint256 releaseNumber = vm.envOr("CRISP_RELEASE", uint256(1));
+        require(releaseNumber <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
+        uint8 release = uint8(releaseNumber);
         require(repo != address(0), "CRISP_PLUGIN_REPO not set");
+        if (block.chainid == 1) {
+            require(repo == Utils.MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
+        }
 
         bytes memory implCode = type(CrispVoting).creationCode;
         address impl = vm.computeCreate2Address(salt, keccak256(implCode), deployer);
