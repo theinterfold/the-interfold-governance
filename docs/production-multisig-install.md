@@ -175,7 +175,9 @@ action. A process wired halfway is broken in a way chain state does not make obv
 no grant means nobody can create proposals, a grant with no stages means proposals go nowhere.
 Bundling them into a single `executeProposal` makes the wiring all-or-nothing.
 
-Set `WITH_PRIVATE=false` to wire only the public process.
+Set `WITH_PRIVATE=false` to wire only the public process. The private wiring makes the CRISP
+proposer condition the private SPP's creation rule, so it needs `CRISP_HELPERS`,
+`SPP_PRIVATE_HELPERS` and their `_HELPERS_HASH` values, which `read-prepared` writes in step 3.
 
 This never disarms the Admin bootstrap. That stays its own deliberate action, so a wiring that
 needs a retry is not entangled with an irreversible revoke.

@@ -243,6 +243,62 @@ contract SafeActionsPreparedTest is Test {
         assertEq(actions[5].value, 0);
     }
 
+    /// @notice The Safe installer builds its own batch, separate from `InstallPrivateProcess`, so
+    ///         its file must carry the same creation rule: the CRISP body's proposer condition set
+    ///         on the SPP's rule condition, before the SPP is granted CREATE_PROPOSAL on the body.
+    function test_safePrivateInstallFileSetsTheBodyConditionAsTheSppCreationRule() public {
+        _seedCommandAddresses();
+        vm.setEnv("SPP_PRIVATE_VOTE_DURATION", "432000");
+        vm.setEnv("MINIMUM_DURATION", "432000");
+        vm.setEnv("RETIRED_CRISP_VOTING_PLUGIN_ADDRESS", vm.toString(address(0)));
+        vm.setEnv("RETIRED_SPP_PRIVATE_ADDRESS", vm.toString(address(0)));
+        address crisp = address(0xC215);
+        address spp = address(0x5151);
+        _seedPrivateInstall("CRISP", crisp, CRISP_CONDITION);
+        _seedPrivateInstall("SPP_PRIVATE", spp, SPP_RULES);
+
+        string memory path = "safe-actions/24-install-and-wire-private-process.json";
+        harness.installPrivate();
+        bytes memory call = vm.parseJsonBytes(vm.readFile(path), ".transactions[0].data");
+        vm.removeFile(path);
+        (, Action[] memory actions,) = abi.decode(_withoutSelector(call), (bytes, Action[], uint256));
+
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] = RuledCondition.Rule({
+            id: 202, // CONDITION_RULE_ID
+            op: 1, // EQ
+            value: uint240(uint160(CRISP_CONDITION)),
+            permissionId: bytes32(0)
+        });
+
+        assertEq(actions.length, 8);
+        assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
+        assertEq(actions[5].data, abi.encodeCall(ISppRuleCondition.updateRules, (rules)));
+        assertEq(
+            actions[6].data,
+            abi.encodeWithSignature(
+                "grant(address,address,bytes32)", crisp, spp, keccak256("CREATE_PROPOSAL_PERMISSION")
+            ),
+            "the SPP is granted CREATE_PROPOSAL on the body after its rule is set"
+        );
+    }
+
+    /// @dev The `<PREFIX>_*` env `read-prepared.sh` writes for one prepared install with one helper.
+    function _seedPrivateInstall(string memory prefix, address plugin, address helper) internal {
+        _seed(prefix);
+        vm.setEnv(string.concat(prefix, "_PLUGIN_ADDRESS"), vm.toString(plugin));
+        vm.setEnv(string.concat(prefix, "_PERM_CONDITIONS"), "");
+        vm.setEnv(string.concat(prefix, "_HELPERS"), vm.toString(helper));
+        vm.setEnv(string.concat(prefix, "_HELPERS_HASH"), vm.toString(hashHelpers(_one(helper))));
+    }
+
+    function _withoutSelector(bytes memory call) internal pure returns (bytes memory args) {
+        args = new bytes(call.length - 4);
+        for (uint256 i = 0; i < args.length; i++) {
+            args[i] = call[i + 4];
+        }
+    }
+
     /// @notice A helper address that was not part of the prepared install is refused before any
     ///         action is built.
     function test_privateInstallBatchRejectsHelpersThatDoNotMatchTheHash() public {

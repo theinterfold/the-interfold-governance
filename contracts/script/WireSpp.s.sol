@@ -79,20 +79,24 @@ interface ICrispFee {
  *         Actions, in order:
  *           1. sppPrivate.updateStages([crisp approval, foundation veto])     (private only)
  *           2. sppPublic.updateStages([tokenVoting approval, foundation veto])
- *           3. grant  CREATE_PROPOSAL on crisp        -> sppPrivate           (private only)
- *           4. grant  CREATE_PROPOSAL on tokenVoting  -> sppPublic
- *           5. crisp.setTargetConfig(executor, DelegateCall)                  (private only)
- *           6. tokenVoting.setTargetConfig(executor, DelegateCall)
- *           7. revoke EXECUTE on DAO from tokenVoting   <- closes the veto bypass
- *           8. revoke EXECUTE on DAO from adminPlugin    <- disarms the bootstrap; MUST be last
+ *           3. sppPrivate rule condition: the CRISP proposer condition        (private only)
+ *           4. grant  CREATE_PROPOSAL on crisp        -> sppPrivate           (private only)
+ *           5. grant  CREATE_PROPOSAL on tokenVoting  -> sppPublic
+ *           6. crisp.setTargetConfig(executor, DelegateCall)                  (private only)
+ *           7. tokenVoting.setTargetConfig(executor, DelegateCall)
+ *           8. revoke EXECUTE on DAO from tokenVoting   <- closes the veto bypass
+ *           9. revoke EXECUTE on DAO from adminPlugin    <- disarms the bootstrap; MUST be last
  *              (this batch still runs under the Admin plugin's EXECUTE permission)
  *
- *         5/6 make sub-proposal execution delegatecall the stateless Executor, so the SPP's
+ *         3 reads the two helpers from `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS`, checked
+ *         against `CRISP_HELPERS_HASH` and `SPP_PRIVATE_HELPERS_HASH`.
+ *
+ *         6/7 make sub-proposal execution delegatecall the stateless Executor, so the SPP's
  *         `reportProposalResult` callback sees the BODY as msg.sender (and the bodies no
  *         longer need — or have — execute rights on the DAO).
  *
  *         Two env flags shape the batch (both default to the single-phase Sepolia behaviour):
- *           DEPLOY_PRIVATE_PROCESS (default true)  — false drops the three private actions.
+ *           DEPLOY_PRIVATE_PROCESS (default true)  — false drops the four private actions.
  *           DISARM_ADMIN           (default true)  — false KEEPS the Admin plugin armed so a
  *             later phase can install plugins without a vote. This leaves an EOA able to
  *             execute anything on the DAO: `make install-private-process` performs the disarm
@@ -459,7 +463,7 @@ contract WireSppScript is Script {
 
     /// @notice Builds the wiring batch from the current env. Split out of `run()` so the exact
     ///         action set can be asserted in tests without broadcasting (WireSppStages.t.sol).
-    /// @param withPrivate include the three private-process actions.
+    /// @param withPrivate include the four private-process actions.
     /// @param shouldDisarmAdmin append the Admin disarm as the final action.
     function buildWiringActions(bool withPrivate, bool shouldDisarmAdmin)
         internal
@@ -481,17 +485,22 @@ contract WireSppScript is Script {
         // Only read/require the private addresses when the private process exists.
         address crisp;
         address sppPrivate;
+        address crispCondition;
+        address sppRuleCondition;
         if (withPrivate) {
             crisp = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
             sppPrivate = vm.envAddress("SPP_PRIVATE_ADDRESS");
             require(crisp != address(0) && sppPrivate != address(0), "missing private address env");
+            crispCondition = singleHelper(vm.envAddress("CRISP_HELPERS", ","), vm.envBytes32("CRISP_HELPERS_HASH"));
+            sppRuleCondition =
+                singleHelper(vm.envAddress("SPP_PRIVATE_HELPERS", ","), vm.envBytes32("SPP_PRIVATE_HELPERS_HASH"));
         }
 
         IPlugin.TargetConfig memory delegateExecutor =
             IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
 
-        // 4 public actions, +3 for the private process, +1 for the Admin disarm.
-        actions = new Action[]((withPrivate ? 7 : 4) + (shouldDisarmAdmin ? 1 : 0));
+        // 4 public actions, +4 for the private process, +1 for the Admin disarm.
+        actions = new Action[]((withPrivate ? 8 : 4) + (shouldDisarmAdmin ? 1 : 0));
         uint256 n;
 
         if (withPrivate) {
@@ -505,6 +514,9 @@ contract WireSppScript is Script {
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(tokenVoting, foundation, false)))
         });
         if (withPrivate) {
+            // The SPP is installed with no creation rules, which admit everyone, and the body does
+            // not re-check the proposer for an SPP caller: the body's condition must be the rule.
+            actions[n++] = creationRuleAction(sppRuleCondition, crispCondition);
             actions[n++] = Action({
                 to: dao,
                 value: 0,

@@ -49,6 +49,20 @@ SPP_PUBLIC="$(addr_for 'SPP plugin (PUBLIC process):')"
 EXECUTOR="$(addr_for 'Executor (delegatecall target):')"
 ADMIN_PLUGIN="$(addr_for 'Admin plugin (bootstrap):')"
 
+# The private pair's prepared helpers (comma-separated) and their hash, under the same keys
+# `read-prepared.sh` writes for the Safe flow. `wire-spp` makes the CRISP helper the private SPP's
+# creation rule, and checks each list against its hash first.
+helpers_for() {
+  grep -F "$1" "${LOG_FILE}" 2>/dev/null | tail -1 | grep -oE '0x[a-fA-F0-9]{40}' | paste -sd, - || true
+}
+hash_for() {
+  grep -F "$1" "${LOG_FILE}" 2>/dev/null | tail -1 | grep -oE '0x[a-fA-F0-9]{64}' || true
+}
+CRISP_HELPERS="$(helpers_for 'CRISP helpers (PRIVATE body):')"
+CRISP_HELPERS_HASH="$(hash_for 'CRISP helpers hash (PRIVATE body):')"
+SPP_PRIVATE_HELPERS="$(helpers_for 'SPP helpers (PRIVATE process):')"
+SPP_PRIVATE_HELPERS_HASH="$(hash_for 'SPP helpers hash (PRIVATE process):')"
+
 # Deployment block: smallest receipt blockNumber (hex) in the latest broadcast.
 # Newest run-latest.json under a chainId dir (excluding dry-run), by mtime.
 RUN_JSON=""
@@ -182,6 +196,10 @@ set_env "${CONTRACTS_ENV}" DAO_ADDRESS "${DAO_ADDRESS}"
 set_env "${CONTRACTS_ENV}" CRISP_VOTING_PLUGIN_ADDRESS "${CRISP_PLUGIN}"
 set_env "${CONTRACTS_ENV}" TOKEN_VOTING_PLUGIN_ADDRESS "${TOKEN_VOTING_PLUGIN}"
 set_env "${CONTRACTS_ENV}" SPP_PRIVATE_ADDRESS "${SPP_PRIVATE}"
+set_env "${CONTRACTS_ENV}" CRISP_HELPERS "${CRISP_HELPERS}"
+set_env "${CONTRACTS_ENV}" CRISP_HELPERS_HASH "${CRISP_HELPERS_HASH}"
+set_env "${CONTRACTS_ENV}" SPP_PRIVATE_HELPERS "${SPP_PRIVATE_HELPERS}"
+set_env "${CONTRACTS_ENV}" SPP_PRIVATE_HELPERS_HASH "${SPP_PRIVATE_HELPERS_HASH}"
 set_env "${CONTRACTS_ENV}" SPP_PUBLIC_ADDRESS "${SPP_PUBLIC}"
 set_env "${CONTRACTS_ENV}" EXECUTOR_ADDRESS "${EXECUTOR}"
 set_env "${CONTRACTS_ENV}" ADMIN_PLUGIN_ADDRESS "${ADMIN_PLUGIN}"

@@ -4,9 +4,11 @@ pragma solidity ^0.8.29;
 import {Test} from "forge-std/Test.sol";
 
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
+import {hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
 
 import {SppInstall} from "../script/SppInstall.sol";
-import {WireSppScript} from "../script/WireSpp.s.sol";
+import {ISppRuleCondition, WireSppScript} from "../script/WireSpp.s.sol";
 
 /// @dev Exposes the script's internal stage builder so the wiring invariants can be asserted
 ///      without broadcasting. `stagesFor` reads its knobs from the environment, so each test
@@ -50,6 +52,8 @@ contract WireSppStagesTest is Test {
     address internal constant SPP_PRIVATE = address(0x5B21);
     address internal constant EXECUTOR = address(0xE1EC);
     address internal constant ADMIN = address(0xAD11);
+    address internal constant CRISP_CONDITION = address(0xC0D1);
+    address internal constant SPP_RULES = address(0x5B2C);
 
     bytes32 internal constant EXECUTE_PERMISSION = keccak256("EXECUTE_PERMISSION");
 
@@ -198,15 +202,17 @@ contract WireSppStagesTest is Test {
 
         // Single-phase (the Sepolia default): both processes, Admin disarmed last.
         Action[] memory full = harness.wiringActions(true, true);
-        assertEq(full.length, 8, "single-phase wiring is 8 actions");
+        assertEq(full.length, 9, "single-phase wiring is 9 actions");
         _assertDisarmIsLast(full);
+        _assertSetsTheCrispConditionAsTheCreationRule(full);
 
         // Phase 1 of the phased rollout: public only, bootstrap deliberately left armed.
         Action[] memory publicOnly = harness.wiringActions(false, false);
-        assertEq(publicOnly.length, 4, "public-only wiring drops the 3 private actions and the disarm");
+        assertEq(publicOnly.length, 4, "public-only wiring drops the 4 private actions and the disarm");
         for (uint256 i = 0; i < publicOnly.length; i++) {
             assertTrue(publicOnly[i].to != CRISP, "public-only wiring must never touch the CRISP body");
             assertTrue(publicOnly[i].to != SPP_PRIVATE, "public-only wiring must never touch the private SPP");
+            assertTrue(publicOnly[i].to != SPP_RULES, "public-only wiring must never touch the private SPP's rules");
         }
         // No action may revoke the Admin plugin's EXECUTE when the disarm is opted out of.
         bytes memory disarmCalldata =
@@ -220,7 +226,15 @@ contract WireSppStagesTest is Test {
 
         // The disarm stays the final action whenever it is included at all.
         _assertDisarmIsLast(harness.wiringActions(false, true));
-        assertEq(harness.wiringActions(true, false).length, 7, "private wiring without the disarm is 7 actions");
+        Action[] memory privateArmed = harness.wiringActions(true, false);
+        assertEq(privateArmed.length, 8, "private wiring without the disarm is 8 actions");
+        _assertSetsTheCrispConditionAsTheCreationRule(privateArmed);
+
+        // A helper that is not the one the install prepared is refused before anything is wired.
+        vm.setEnv("CRISP_HELPERS", vm.toString(address(0xBAD)));
+        vm.expectRevert("prepared helpers do not match the helpers hash");
+        harness.wiringActions(true, true);
+        vm.setEnv("CRISP_HELPERS", vm.toString(CRISP_CONDITION));
     }
 
     /// @notice Rotating the bootstrap must move `EXECUTE_PROPOSAL_PERMISSION` on the Admin
@@ -279,6 +293,31 @@ contract WireSppStagesTest is Test {
         );
     }
 
+    /// @dev The private SPP is installed with no creation rules, which admit everyone, and CRISP
+    ///      does not re-check the proposer for an SPP caller. The wiring must make the CRISP
+    ///      proposer condition the SPP's only rule, on the SPP's rule condition.
+    function _assertSetsTheCrispConditionAsTheCreationRule(Action[] memory actions) internal pure {
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] = RuledCondition.Rule({
+            id: 202, // CONDITION_RULE_ID
+            op: 1, // EQ
+            value: uint240(uint160(CRISP_CONDITION)),
+            permissionId: bytes32(0)
+        });
+        bytes32 ruleCall = keccak256(abi.encodeCall(ISppRuleCondition.updateRules, (rules)));
+
+        uint256 found;
+        for (uint256 i = 0; i < actions.length; i++) {
+            if (actions[i].to == SPP_RULES && keccak256(actions[i].data) == ruleCall) found++;
+        }
+        assertEq(found, 1, "the private SPP's creation rule must be the CRISP proposer condition");
+    }
+
+    function _one(address a) internal pure returns (address[] memory list) {
+        list = new address[](1);
+        list[0] = a;
+    }
+
     function _setWiringEnv() internal {
         vm.setEnv("DAO_ADDRESS", vm.toString(DAO));
         vm.setEnv("TOKEN_VOTING_PLUGIN_ADDRESS", vm.toString(TOKEN_VOTING));
@@ -288,5 +327,9 @@ contract WireSppStagesTest is Test {
         vm.setEnv("EXECUTOR_ADDRESS", vm.toString(EXECUTOR));
         vm.setEnv("FOUNDATION_ADDRESS", vm.toString(FOUNDATION));
         vm.setEnv("ADMIN_PLUGIN_ADDRESS", vm.toString(ADMIN));
+        vm.setEnv("CRISP_HELPERS", vm.toString(CRISP_CONDITION));
+        vm.setEnv("CRISP_HELPERS_HASH", vm.toString(hashHelpers(_one(CRISP_CONDITION))));
+        vm.setEnv("SPP_PRIVATE_HELPERS", vm.toString(SPP_RULES));
+        vm.setEnv("SPP_PRIVATE_HELPERS_HASH", vm.toString(hashHelpers(_one(SPP_RULES))));
     }
 }

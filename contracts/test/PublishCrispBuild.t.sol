@@ -3,6 +3,8 @@ pragma solidity ^0.8.29;
 
 import {Test, Vm} from "forge-std/Test.sol";
 import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
+import {IPermissionCondition} from "@aragon/osx-commons-contracts/src/permission/condition/IPermissionCondition.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IPluginSetup} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {ERC1967Proxy} from "../lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -77,7 +79,11 @@ contract PublishCrispBuildTest is Test {
             .prepareInstallation(makeAddr("dao"), abi.encode(params, address(token), false));
 
         assertEq(data.helpers.length, 1, "build 2 returns the creation condition at helpers[0]");
-        assertGt(data.helpers[0].code.length, 0);
+        assertGt(data.helpers[0].code.length, 0, "the creation condition must be deployed");
+        assertTrue(
+            IERC165(data.helpers[0]).supportsInterface(type(IPermissionCondition).interfaceId),
+            "the creation condition must be an IPermissionCondition"
+        );
     }
 
     /// @dev Explicit inputs, not `vm.setEnv`: the environment is shared by tests that run in

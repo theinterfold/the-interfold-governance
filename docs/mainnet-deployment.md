@@ -412,9 +412,9 @@ all history are untouched.
 
 > **The mainnet DAO already has a private process.** It was installed on 2026-09-18 from CRISP
 > build 2, and it cannot run on Interfold v0.19. To replace it, use
-> [private-install-runbook.md](./private-install-runbook.md). The foundation Safe installs build 3
-> and removes the powers of the old pair in one transaction. The steps below are for a first
-> install from an EOA.
+> [private-install-runbook.md](./private-install-runbook.md). The foundation Safe installs the new
+> build (expected build 4) and removes the powers of the old pair in one transaction. The steps
+> below are for a first install from an EOA.
 
 ### Preconditions
 
@@ -429,7 +429,8 @@ all history are untouched.
       app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server
       requests E3s against**.
 - [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
-      Build 3 is expected next, not reserved. Confirm the actual publication receipt before preparing.
+      Build 4 is expected next, not reserved. Build 3 returns no proposal-creation condition, so
+      the install cannot use it. Confirm the actual publication receipt before preparing.
 - [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
       and `PARAM_SET=2` (secure-8192): the mainnet policy rejects other values.
 - [ ] `COMPUTE_PROVIDER_PARAMS` names the OpenVM compute provider.

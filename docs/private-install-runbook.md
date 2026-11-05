@@ -9,8 +9,9 @@ with CRISP. It has two stages, like the public process:
 2. **A 5-day Interfold Foundation approval window.** Approved proposals execute on the DAO.
 
 The DAO already has a private process from 2026-09-18. That pair (a CRISP build 2 body and its SPP)
-cannot run on the Interfold v0.19 protocol. This runbook installs a new pair from CRISP build 3. The
-same transaction removes the powers of the old pair.
+cannot run on the Interfold v0.19 protocol. This runbook installs a new pair from the CRISP build
+that [publish-crisp-build.md](./publish-crisp-build.md) publishes (expected build 4). The same
+transaction removes the powers of the old pair.
 
 All `make` commands run from `contracts/` with `ENV_FILE=.env.mainnet`. Make that file a fresh copy
 of the committed `.env.mainnet.install` (Step 1). The Safe files go to `contracts/safe-actions/`.
@@ -88,7 +89,7 @@ Complete stable v0.19.0 CI and software publication before the Safe executes the
 | --- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Interfold repository         | Deploy the new OpenVM CRISP program with deferred wiring ([details](./publish-crisp-build.md#new-crisp-program))              |
 | 2   | Interfold repository         | Run `upgrade:v19`. The foundation Safe executes the cutover batch. Then run `upgrade:v19:validate`                            |
-| 3   | This repository              | The foundation Safe executes `safe-actions/12-publish-crisp-build.json` (build 3). This step does not depend on steps 1 and 2 |
+| 3   | This repository              | The foundation Safe executes `safe-actions/12-publish-crisp-build.json` (expected build 4). This step does not depend on steps 1 and 2 |
 | 4   | This repository              | Steps 0 to 5 of this runbook: prepare, install the new pair, retire the old pair, verify                                      |
 | 5   | Infrastructure and app       | Point the CRISP server, the program server and the app at the new contracts ([Step 6](#step-6-servers-and-app))               |
 | 6   | Operators and Interfold repo | Ciphernodes restart on the release. Run `upgrade:v19:refresh`, then `upgrade:v19:resume -- --ciphernodes-restarted`           |
@@ -147,7 +148,7 @@ cast call 0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1 'buildCount(uint8)(uint16)'
    | ------------------------------------- | --------------------------------------------------------------------- |
    | `CRISP_PROGRAM_ADDRESS`               | The new OpenVM CRISP program                                          |
    | `FOLD_TOKEN_ADDRESS`                  | `0x6Cd2976AD3d908E503c6D93A5E010392E25DcFB6`                          |
-   | `CRISP_BUILD`                         | `3`                                                                   |
+   | `CRISP_BUILD`                         | The build that step 3 published, from its `VersionCreated` event (expected `4`) |
    | `PARAM_SET`                           | `2`                                                                   |
    | `COMMITTEE_SIZE`                      | `2`                                                                   |
    | `MINIMUM_DURATION`                    | `432000`                                                              |
@@ -353,8 +354,9 @@ Also make sure of these items:
 - New SPP: the rule condition (`SPP_PRIVATE_HELPERS[0]`) has exactly one rule, set in action 6 of
   Step 4. Read it with `cast call <rule condition> 'getRules()((uint8,uint8,uint240,bytes32)[])'`.
   Expect `(202, 1, <body condition>, 0x00…00)`, where the body condition is `CRISP_HELPERS[0]`.
-  Then check that the rule bites: `cast call <body condition> 'isGranted(address,address,bytes32,bytes)(bool)'
-$NEW_SPP <account> $CREATE 0x` is `false` for an account with no voting power and `true` for a
+  Then check the body condition: `cast call <body condition> 'isGranted(address,address,bytes32,bytes)(bool)'
+$NEW_SPP <account> $CREATE 0x`. With `minProposerVotingPower` at 0, as in this install, it is `true`
+  for every account. Above 0, it is `false` for an account with no voting power and `true` for a
   holder at or above `minProposerVotingPower`. With no rules, anyone could create a proposal.
 - New SPP: stage 0 has `minAdvance` 0 (INV-9). Stage 1 has `vetoThreshold` 0, which is approval
   mode (INV-10).

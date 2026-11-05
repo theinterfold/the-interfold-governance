@@ -466,10 +466,9 @@ contract CrispVotingViewsTest is Test {
         assertTrue(plugin.supportsInterface(type(IERC165).interfaceId), "IERC165");
         assertTrue(plugin.supportsInterface(type(IProposal).interfaceId), "IProposal");
 
-        bytes4 crispId = plugin.initialize.selector ^ plugin.minProposerVotingPower.selector
-            ^ plugin.minVoterVotingPower.selector ^ plugin.totalVotingPower.selector ^ plugin.getVotingToken.selector
-            ^ plugin.minParticipation.selector ^ plugin.minDuration.selector ^ plugin.getProposal.selector;
-        assertTrue(plugin.supportsInterface(crispId), "CRISP_VOTING_INTERFACE_ID");
+        // Pinned, not derived: deriving it the way the contract does would accept any change to
+        // the interface. Update it only with an intentional interface change.
+        assertTrue(plugin.supportsInterface(0x5453e1db), "CRISP_VOTING_INTERFACE_ID");
 
         assertFalse(plugin.supportsInterface(0xdeadbeef), "unknown interface");
     }
