@@ -30,8 +30,37 @@ import {Utils} from "./Utils.sol";
 ///     Requires MAINTAINER_PERMISSION_ID on the repo. Mainnet uses the Foundation Safe publisher.
 ///     Use this EOA publisher only when the configured key holds that permission.
 contract PublishCrispBuild is Script {
+    /// @notice What `publish` acts on, read from the env by `run`.
+    /// @param repo The existing CRISP plugin repo.
+    /// @param release The release to append the build to, bounded to a uint8 by `publish`.
+    /// @param privateKey The key that signs; it must hold the repo's `MAINTAINER_PERMISSION`.
+    /// @param buildMetadata The build metadata URI, as bytes.
+    /// @param releaseMetadata The release metadata URI, as bytes; empty keeps the existing entry.
+    struct Config {
+        address repo;
+        uint256 release;
+        uint256 privateKey;
+        bytes buildMetadata;
+        bytes releaseMetadata;
+    }
+
     function run() public {
-        address repoAddress = vm.envAddress("CRISP_PLUGIN_REPO");
+        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
+        publish(
+            Config({
+                repo: vm.envAddress("CRISP_PLUGIN_REPO"),
+                release: vm.envOr("CRISP_RELEASE", uint256(1)),
+                privateKey: vm.envUint("PRIVATE_KEY"),
+                buildMetadata: buildMetadata,
+                releaseMetadata: releaseMetadata
+            })
+        );
+    }
+
+    /// @notice Publishes a build from `config`. Split from `run` so that callers which run in
+    ///     parallel, such as tests, do not share the process environment.
+    function publish(Config memory config) public {
+        address repoAddress = config.repo;
         require(repoAddress != address(0), "CRISP_PLUGIN_REPO not set");
 
         // Mainnet publishes through the Foundation Safe (`make safe-publish-crisp-build`). This EOA
@@ -41,23 +70,21 @@ contract PublishCrispBuild is Script {
             require(repoAddress == Utils.MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
         }
 
-        // Read as a uint256 and bounded before the cast: `uint8(256)` would silently publish
-        // release 0, which `createVersion` rejects only after the deployments have been paid for.
-        uint256 releaseNumber = vm.envOr("CRISP_RELEASE", uint256(1));
-        require(releaseNumber <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
-        uint8 release = uint8(releaseNumber);
+        // Bounded before the cast: `uint8(256)` would silently publish release 0, which
+        // `createVersion` rejects only after the deployments have been paid for.
+        require(config.release <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
+        uint8 release = uint8(config.release);
 
         PluginRepo repo = PluginRepo(repoAddress);
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
 
         // `createVersion` reverts for a sender without the maintainer permission, but only after
         // the implementation and setup have been deployed and paid for.
         require(
-            repo.isGranted(repoAddress, vm.addr(privateKey), repo.MAINTAINER_PERMISSION_ID(), ""),
+            repo.isGranted(repoAddress, vm.addr(config.privateKey), repo.MAINTAINER_PERMISSION_ID(), ""),
             "the sender does not hold MAINTAINER_PERMISSION on the repo"
         );
 
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast(config.privateKey);
 
         // A fresh implementation alongside the setup: the setup pins the implementation its
         // proxies point at, so publishing a setup built from this source against an
@@ -67,8 +94,7 @@ contract PublishCrispBuild is Script {
 
         CrispVotingSetup setup = new CrispVotingSetup(crispVoting);
 
-        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
-        repo.createVersion(release, address(setup), buildMetadata, releaseMetadata);
+        repo.createVersion(release, address(setup), config.buildMetadata, config.releaseMetadata);
 
         vm.stopBroadcast();
 
