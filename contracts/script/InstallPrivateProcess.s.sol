@@ -73,6 +73,7 @@ contract InstallPrivateProcessScript is WireSppScript {
         address plugin;
         PluginSetupRef setupRef;
         bytes32 helpersHash;
+        address[] helpers;
         PermissionLib.MultiTargetPermission[] permissions;
     }
 
@@ -152,7 +153,7 @@ contract InstallPrivateProcessScript is WireSppScript {
         console2.log("CRISP plugin (PRIVATE body):  ", crispPlugin);
         console2.log("SPP plugin (PRIVATE process): ", sppPlugin);
         console2.log("");
-        console2.log("Copy ALL SIX values into the env, then run the apply step.");
+        console2.log("Copy ALL EIGHT values into the env, then run the apply step.");
         console2.log("applyInstallation re-derives the setup id from the permissions and helpers");
         console2.log("and reverts on any mismatch, so paste these verbatim.");
         console2.log("");
@@ -162,6 +163,10 @@ contract InstallPrivateProcessScript is WireSppScript {
         console2.logBytes32(hashHelpers(crispSetupData.helpers));
         console2.log("PREPARED_SPP_HELPERS_HASH=");
         console2.logBytes32(hashHelpers(sppSetupData.helpers));
+        // The addresses themselves, because the wiring needs them: the CRISP body's proposer
+        // condition becomes the SPP's creation rule, set on the SPP's own rule condition.
+        console2.log("PREPARED_CRISP_HELPERS=%s", Utils.csv(crispSetupData.helpers));
+        console2.log("PREPARED_SPP_HELPERS=%s", Utils.csv(sppSetupData.helpers));
         console2.log("PREPARED_CRISP_PERMISSIONS=");
         console2.logBytes(abi.encode(crispSetupData.permissions));
         console2.log("PREPARED_SPP_PERMISSIONS=");
@@ -242,6 +247,7 @@ contract InstallPrivateProcessScript is WireSppScript {
             PluginRepo(vm.envAddress("CRISP_PLUGIN_REPO"))
         );
         crisp.helpersHash = vm.envBytes32("PREPARED_CRISP_HELPERS_HASH");
+        crisp.helpers = vm.envAddress("PREPARED_CRISP_HELPERS", ",");
 
         spp.plugin = vm.envAddress("SPP_PRIVATE_ADDRESS");
         spp.setupRef = PluginSetupRef(
@@ -249,6 +255,7 @@ contract InstallPrivateProcessScript is WireSppScript {
             PluginRepo(vm.envAddress("SPP_PLUGIN_REPO"))
         );
         spp.helpersHash = vm.envBytes32("PREPARED_SPP_HELPERS_HASH");
+        spp.helpers = vm.envAddress("PREPARED_SPP_HELPERS", ",");
 
         require(
             crisp.plugin != address(0) && spp.plugin != address(0),
@@ -277,7 +284,7 @@ contract InstallPrivateProcessScript is WireSppScript {
         IPlugin.TargetConfig memory delegateExecutor =
             IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
 
-        actions = new Action[](7);
+        actions = new Action[](8);
 
         // 1. Temporary ROOT for the PSP so it can apply the setups' permission changes.
         actions[0] =
@@ -312,18 +319,23 @@ contract InstallPrivateProcessScript is WireSppScript {
         // 4. Hand ROOT back immediately. MUST stay paired with action 1.
         actions[3] =
             Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.revoke, (dao, psp, ROOT_PERMISSION_ID))});
-        // 5-7. The same wiring wire-spp applies to the private process (INV-1, INV-3, INV-5).
+        // 5-8. The same wiring wire-spp applies to the private process (INV-1, INV-3, INV-5), plus
+        //      the creation rule.
         actions[4] = Action({
             to: spp.plugin,
             value: 0,
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(crisp.plugin, foundation, true)))
         });
-        actions[5] = Action({
+        // The SPP's creation rule (see `creationRuleAction`).
+        actions[5] = creationRuleAction(
+            singleHelper(spp.helpers, spp.helpersHash), singleHelper(crisp.helpers, crisp.helpersHash)
+        );
+        actions[6] = Action({
             to: dao,
             value: 0,
             data: abi.encodeCall(IDAOPermissions.grant, (crisp.plugin, spp.plugin, CREATE_PROPOSAL_PERMISSION_ID))
         });
-        actions[6] = Action({
+        actions[7] = Action({
             to: crisp.plugin, value: 0, data: abi.encodeCall(IPluginTarget.setTargetConfig, (delegateExecutor))
         });
         // NOTE: disarming the Admin bootstrap is deliberately NOT part of this batch. It is a

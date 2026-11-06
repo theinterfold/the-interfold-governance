@@ -10,7 +10,9 @@ import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 import {PluginRepoFactory} from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import {PluginSetupProcessor} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
+import {PluginSetupRef, hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import {IPluginSetup} from "@aragon/osx-commons-contracts/src/plugin/setup/IPluginSetup.sol";
 import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
 import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/GovernanceWrappedERC20.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
@@ -54,6 +56,9 @@ contract DeployInterfoldDaoScript is Script {
     IDAOFactory public daoFactory;
     string public nameWithEntropy;
     address[] public installedPlugins;
+    /// @dev The helpers each install prepared, in install order. `wire-spp` needs the private
+    ///      pair's: the CRISP proposer condition and the private SPP's rule condition.
+    address[][] internal preparedHelpers;
 
     function setUp() public {
         pluginRepoFactory = vm.envAddress("PLUGIN_REPO_FACTORY_ADDRESS");
@@ -113,11 +118,17 @@ contract DeployInterfoldDaoScript is Script {
         vm.recordLogs();
         address createdDAO = daoFactory.createDao(getDAOSettings(), pluginSettings);
 
-        // 4. Recover the installed plugin addresses (emission order == pluginSettings order).
+        // 4. Recover the installed plugin addresses and their helpers (emission order ==
+        //    pluginSettings order).
         Vm.Log[] memory logEntries = vm.getRecordedLogs();
         for (uint256 i = 0; i < logEntries.length; i++) {
             if (logEntries[i].topics[0] == keccak256("InstallationApplied(address,address,bytes32,bytes32)")) {
                 installedPlugins.push(address(uint160(uint256(logEntries[i].topics[2]))));
+            } else if (logEntries[i].topics[0] == PluginSetupProcessor.InstallationPrepared.selector) {
+                (,,,, IPluginSetup.PreparedSetupData memory prepared) = abi.decode(
+                    logEntries[i].data, (bytes32, PluginRepo.Tag, bytes, address, IPluginSetup.PreparedSetupData)
+                );
+                preparedHelpers.push(prepared.helpers);
             }
         }
 
@@ -139,7 +150,7 @@ contract DeployInterfoldDaoScript is Script {
     ///      matches them literally — do not reword them without updating that script.
     function logInstalledPlugins(bool withPrivate, PluginRepo crispRepo, CrispVotingSetup crispSetup) internal view {
         uint256 expected = withPrivate ? 5 : 3;
-        if (installedPlugins.length != expected) {
+        if (installedPlugins.length != expected || preparedHelpers.length != expected) {
             console2.log("WARNING: expected installations:", expected);
             console2.log("         recovered:             ", installedPlugins.length);
             for (uint256 i = 0; i < installedPlugins.length; i++) {
@@ -156,6 +167,8 @@ contract DeployInterfoldDaoScript is Script {
             console2.log("SPP plugin (PRIVATE process): ", installedPlugins[2]);
             console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[3]);
             console2.log("Admin plugin (bootstrap):     ", installedPlugins[4]);
+            logHelpers("CRISP helpers (PRIVATE body):", "CRISP helpers hash (PRIVATE body):", preparedHelpers[0]);
+            logHelpers("SPP helpers (PRIVATE process):", "SPP helpers hash (PRIVATE process):", preparedHelpers[2]);
         } else {
             console2.log("TokenVoting plugin (PUBLIC body): ", installedPlugins[0]);
             console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[1]);
@@ -164,6 +177,15 @@ contract DeployInterfoldDaoScript is Script {
             console2.log("  Phase 2 installs them into this DAO (make install-private-process).");
         }
         console2.log("NEXT STEP: run `make sync-env` then `make wire-spp` (no vote needed)");
+    }
+
+    /// @dev Logs a prepared install's helpers as one comma-separated list, then their hash, the
+    ///      way `read-prepared.sh` reports them for the Safe flow. `wire-spp` checks the list
+    ///      against the hash before it wires a helper.
+    function logHelpers(string memory label, string memory hashLabel, address[] memory helpers) internal pure {
+        string memory list = Utils.csv(helpers);
+        console2.log(string.concat(label, " ", list));
+        console2.log(string.concat(hashLabel, " ", vm.toString(hashHelpers(helpers))));
     }
 
     // --- CRISP (private) ---

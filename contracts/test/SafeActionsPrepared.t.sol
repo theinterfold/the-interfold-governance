@@ -3,9 +3,14 @@ pragma solidity ^0.8.29;
 
 import {Test} from "forge-std/Test.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
+import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
+import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
+import {PluginSetupRef, hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
 import {InstallPrivateProcessScript} from "../script/InstallPrivateProcess.s.sol";
+import {ISppRuleCondition} from "../script/WireSpp.s.sol";
 import {Utils} from "../script/Utils.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
@@ -22,6 +27,13 @@ contract PreparedCrispFloor {
 contract SafeActionsHarness is SafeActionsScript {
     function loadPrepared(string memory prefix) external view returns (Prepared memory) {
         return _loadPrepared(prefix);
+    }
+}
+
+/// @dev Exposes the private install's action builder.
+contract InstallPrivateProcessHarness is InstallPrivateProcessScript {
+    function build(Prepared memory crisp, Prepared memory spp, address dao) external view returns (Action[] memory) {
+        return buildActions(crisp, spp, dao);
     }
 }
 
@@ -44,6 +56,8 @@ contract SafeActionsPreparedTest is Test {
     address internal constant PLUGIN = 0x1111111111111111111111111111111111111111;
     address internal constant REPO = 0x2222222222222222222222222222222222222222;
     address internal constant CONDITION = 0x3333333333333333333333333333333333333333;
+    address internal constant CRISP_CONDITION = 0x6666666666666666666666666666666666666666;
+    address internal constant SPP_RULES = 0x7777777777777777777777777777777777777777;
 
     function setUp() public {
         harness = new SafeActionsHarness();
@@ -162,10 +176,12 @@ contract SafeActionsPreparedTest is Test {
         PreparedCrispFloor plugin = new PreparedCrispFloor();
         vm.setEnv("CRISP_VOTING_PLUGIN_ADDRESS", vm.toString(address(plugin)));
         vm.setEnv("CRISP_PLUGIN_REPO", "0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1");
-        vm.setEnv("PREPARED_CRISP_HELPERS_HASH", vm.toString(keccak256("crisp helpers")));
+        vm.setEnv("PREPARED_CRISP_HELPERS_HASH", vm.toString(hashHelpers(_one(CRISP_CONDITION))));
+        vm.setEnv("PREPARED_CRISP_HELPERS", vm.toString(CRISP_CONDITION));
         vm.setEnv("SPP_PRIVATE_ADDRESS", vm.toString(address(0x5151)));
         vm.setEnv("SPP_PLUGIN_REPO", vm.toString(REPO));
-        vm.setEnv("PREPARED_SPP_HELPERS_HASH", vm.toString(keccak256("spp helpers")));
+        vm.setEnv("PREPARED_SPP_HELPERS_HASH", vm.toString(hashHelpers(_one(SPP_RULES))));
+        vm.setEnv("PREPARED_SPP_HELPERS", vm.toString(SPP_RULES));
         PermissionLib.MultiTargetPermission[] memory permissions = new PermissionLib.MultiTargetPermission[](0);
         vm.setEnv("PREPARED_CRISP_PERMISSIONS", vm.toString(abi.encode(permissions)));
         vm.setEnv("PREPARED_SPP_PERMISSIONS", vm.toString(abi.encode(permissions)));
@@ -178,6 +194,123 @@ contract SafeActionsPreparedTest is Test {
 
         plugin.setMinimum(71 ether);
         installer.printProposalActions();
+    }
+
+    function _one(address a) internal pure returns (address[] memory list) {
+        list = new address[](1);
+        list[0] = a;
+    }
+
+    function _prepared(address plugin, address helper, bytes32 helpersHash)
+        internal
+        pure
+        returns (InstallPrivateProcessScript.Prepared memory p)
+    {
+        p.plugin = plugin;
+        p.setupRef = PluginSetupRef(PluginRepo.Tag(1, 1), PluginRepo(REPO));
+        p.helpers = _one(helper);
+        p.helpersHash = helpersHash;
+    }
+
+    /// @dev `updateRules` with the single rule that defers to `CRISP_CONDITION`
+    ///      (`CONDITION_RULE_ID` 202, `EQ` operation).
+    function _creationRuleCall() internal pure returns (bytes memory) {
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] =
+            RuledCondition.Rule({id: 202, op: 1, value: uint240(uint160(CRISP_CONDITION)), permissionId: bytes32(0)});
+        return abi.encodeCall(ISppRuleCondition.updateRules, (rules));
+    }
+
+    /// @notice The SPP is installed with no creation rules, so the install batch must set the
+    ///         CRISP body's proposer condition as its rule, on the SPP's rule condition, before the
+    ///         SPP is granted CREATE_PROPOSAL on the body.
+    function test_privateInstallBatchSetsTheBodyConditionAsTheSppCreationRule() public {
+        _seedCommandAddresses();
+        vm.setEnv("SPP_PRIVATE_VOTE_DURATION", "432000");
+        vm.setEnv("MINIMUM_DURATION", "432000");
+        InstallPrivateProcessHarness installer = new InstallPrivateProcessHarness();
+        address crisp = address(0xC215);
+        address spp = address(0x5151);
+
+        Action[] memory actions = installer.build(
+            _prepared(crisp, CRISP_CONDITION, hashHelpers(_one(CRISP_CONDITION))),
+            _prepared(spp, SPP_RULES, hashHelpers(_one(SPP_RULES))),
+            address(0xDA0)
+        );
+
+        assertEq(actions.length, 8);
+        assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
+        assertEq(actions[5].data, _creationRuleCall());
+        assertEq(actions[5].value, 0);
+    }
+
+    /// @notice The Safe installer builds its own batch, separate from `InstallPrivateProcess`, so
+    ///         its file must carry the same creation rule: the CRISP body's proposer condition set
+    ///         on the SPP's rule condition, before the SPP is granted CREATE_PROPOSAL on the body.
+    function test_safePrivateInstallFileSetsTheBodyConditionAsTheSppCreationRule() public {
+        _seedCommandAddresses();
+        vm.setEnv("SPP_PRIVATE_VOTE_DURATION", "432000");
+        vm.setEnv("MINIMUM_DURATION", "432000");
+        vm.setEnv("RETIRED_CRISP_VOTING_PLUGIN_ADDRESS", vm.toString(address(0)));
+        vm.setEnv("RETIRED_SPP_PRIVATE_ADDRESS", vm.toString(address(0)));
+        address crisp = address(0xC215);
+        address spp = address(0x5151);
+        _seedPrivateInstall("CRISP", crisp, CRISP_CONDITION);
+        _seedPrivateInstall("SPP_PRIVATE", spp, SPP_RULES);
+
+        string memory path = "safe-actions/24-install-and-wire-private-process.json";
+        harness.installPrivate();
+        bytes memory call = vm.parseJsonBytes(vm.readFile(path), ".transactions[0].data");
+        vm.removeFile(path);
+        (, Action[] memory actions,) = abi.decode(_withoutSelector(call), (bytes, Action[], uint256));
+
+        assertEq(actions.length, 8);
+        assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
+        assertEq(actions[5].data, _creationRuleCall());
+        assertEq(
+            actions[6].data,
+            abi.encodeWithSignature(
+                "grant(address,address,bytes32)", crisp, spp, keccak256("CREATE_PROPOSAL_PERMISSION")
+            ),
+            "the SPP is granted CREATE_PROPOSAL on the body after its rule is set"
+        );
+    }
+
+    /// @dev The `<PREFIX>_*` env `read-prepared.sh` writes for one prepared install with one helper.
+    function _seedPrivateInstall(string memory prefix, address plugin, address helper) internal {
+        _seed(prefix);
+        vm.setEnv(string.concat(prefix, "_PLUGIN_ADDRESS"), vm.toString(plugin));
+        vm.setEnv(string.concat(prefix, "_PERM_CONDITIONS"), "");
+        vm.setEnv(string.concat(prefix, "_HELPERS"), vm.toString(helper));
+        vm.setEnv(string.concat(prefix, "_HELPERS_HASH"), vm.toString(hashHelpers(_one(helper))));
+    }
+
+    function _withoutSelector(bytes memory call) internal pure returns (bytes memory args) {
+        args = new bytes(call.length - 4);
+        for (uint256 i = 0; i < args.length; i++) {
+            args[i] = call[i + 4];
+        }
+    }
+
+    /// @notice A helper address that was not part of the prepared install is refused before any
+    ///         action is built.
+    function test_privateInstallBatchRejectsHelpersThatDoNotMatchTheHash() public {
+        _seedCommandAddresses();
+        vm.setEnv("SPP_PRIVATE_VOTE_DURATION", "432000");
+        vm.setEnv("MINIMUM_DURATION", "432000");
+        InstallPrivateProcessHarness installer = new InstallPrivateProcessHarness();
+
+        InstallPrivateProcessScript.Prepared memory crisp =
+            _prepared(address(0xC215), address(0xBAD), hashHelpers(_one(CRISP_CONDITION)));
+        InstallPrivateProcessScript.Prepared memory spp =
+            _prepared(address(0x5151), SPP_RULES, hashHelpers(_one(SPP_RULES)));
+
+        vm.expectRevert("prepared helpers do not match the helpers hash");
+        installer.build(crisp, spp, address(0xDA0));
+
+        crisp.helpers = new address[](2);
+        vm.expectRevert("expected exactly one prepared helper");
+        installer.build(crisp, spp, address(0xDA0));
     }
 
     function _seedCommandAddresses() internal {

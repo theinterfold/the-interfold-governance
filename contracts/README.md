@@ -60,7 +60,7 @@ cp .env.example .env   # framework + Interfold + canonical repo addresses prefil
 make predeploy         # simulate (no broadcast)
 make deploy            # broadcast: 5-plugin DAO + Executor; logs every address
 make sync-env          # parse deploy.log → write contracts/.env + app/.env
-make wire-spp          # Admin executes the wiring in one tx (stages, grants, delegatecall, disarm)
+make wire-spp          # Admin executes the wiring in one tx (stages, creation rule, grants, delegatecall, disarm)
 ```
 
 `make deploy` logs the DAO, FOLD, the CRISP `PluginRepo`, the `Executor`, and the five installed
@@ -113,4 +113,5 @@ instead. All timing is changeable later by the DAO via `updateStages`.
 | Deployment block (from logs) | `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK`     |
 
 (`Executor` and `Admin plugin` are written to `contracts/.env` only — they're used by `wire-spp`,
-not the frontend.)
+not the frontend. So are `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS` with their hashes: `wire-spp`
+makes the CRISP proposer condition the private SPP's creation rule.)

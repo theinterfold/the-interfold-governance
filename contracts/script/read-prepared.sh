@@ -85,6 +85,9 @@ conditioned = [p for p in perms if int(p[3], 16) != 0]
 
 print(f"{prefix}_PLUGIN_ADDRESS={plugin}")
 print(f"{prefix}_HELPERS_HASH={helpers_hash}")
+# The addresses behind the hash. The wiring of the private process needs two of them (the
+# proposer condition of the body and the rule condition of the SPP) and checks them against the hash.
+print(f"{prefix}_HELPERS=" + ",".join(helpers))
 print(f"{prefix}_PERM_OPS=" + ",".join(str(p[0]) for p in perms))
 print(f"{prefix}_PERM_WHERE=" + ",".join(p[1] for p in perms))
 print(f"{prefix}_PERM_WHO=" + ",".join(p[2] for p in perms))

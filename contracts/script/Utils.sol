@@ -42,6 +42,13 @@ library Utils {
         releaseMetadata = bytes(VM.envOr("CRISP_RELEASE_METADATA_URI", string("")));
     }
 
+    /// @notice Comma-separated addresses, the shape `vm.envAddress(name, ",")` reads back.
+    function csv(address[] memory addresses) internal pure returns (string memory out) {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            out = string.concat(out, i == 0 ? "" : ",", VM.toString(addresses[i]));
+        }
+    }
+
     struct CrispEnvVariables {
         address interfold;
         address crispProgramAddress;

@@ -4,11 +4,7 @@ pragma solidity ^0.8.29;
 
 import {Script, console2} from "forge-std/Script.sol";
 
-import {IDAO} from "@aragon/osx/core/dao/DAO.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
-import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
-import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/GovernanceWrappedERC20.sol";
 
 import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {CrispVotingSetup} from "../src/crisp/setup/CrispVotingSetup.sol";
@@ -25,17 +21,69 @@ import {Utils} from "./Utils.sol";
 ///     published build MUST go out as a new build — an app updated ahead of the publish will fail
 ///     to install against the old one, and vice versa.
 ///
+///     The build number is assigned by the repo (`createVersion` appends to the release). The setup
+///     published here returns the proposal-creation `CrispProposerCondition` as `helpers[0]`;
+///     build 1 returned no helpers. Installed plugins keep their build — the setup has no update
+///     path — so the condition reaches a DAO only through a new install.
+///
 ///     Requires MAINTAINER_PERMISSION_ID on the repo. Mainnet uses the Foundation Safe publisher.
 ///     Use this EOA publisher only when the configured key holds that permission.
 contract PublishCrispBuild is Script {
+    /// @notice What `publish` acts on, read from the env by `run`.
+    /// @param repo The existing CRISP plugin repo.
+    /// @param release The release to append the build to, bounded to a uint8 by `publish`.
+    /// @param privateKey The key that signs; it must hold the repo's `MAINTAINER_PERMISSION`.
+    /// @param buildMetadata The build metadata URI, as bytes.
+    /// @param releaseMetadata The release metadata URI, as bytes; empty keeps the existing entry.
+    struct Config {
+        address repo;
+        uint256 release;
+        uint256 privateKey;
+        bytes buildMetadata;
+        bytes releaseMetadata;
+    }
+
     function run() public {
-        address repoAddress = vm.envAddress("CRISP_PLUGIN_REPO");
+        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
+        publish(
+            Config({
+                repo: vm.envAddress("CRISP_PLUGIN_REPO"),
+                release: vm.envOr("CRISP_RELEASE", uint256(1)),
+                privateKey: vm.envUint("PRIVATE_KEY"),
+                buildMetadata: buildMetadata,
+                releaseMetadata: releaseMetadata
+            })
+        );
+    }
+
+    /// @notice Publishes a build from `config`. Split from `run` so that callers which run in
+    ///     parallel, such as tests, do not share the process environment.
+    function publish(Config memory config) public {
+        address repoAddress = config.repo;
         require(repoAddress != address(0), "CRISP_PLUGIN_REPO not set");
 
-        PluginRepo repo = PluginRepo(repoAddress);
-        uint8 release = uint8(vm.envOr("CRISP_RELEASE", uint256(1)));
+        // Mainnet publishes through the Foundation Safe (`make safe-publish-crisp-build`). This EOA
+        // path may still run there, but only against the canonical repo: a mistyped repo address
+        // would otherwise publish a build into a repo nobody installs from.
+        if (block.chainid == 1) {
+            require(repoAddress == Utils.MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
+        }
 
-        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        // Bounded before the cast: `uint8(256)` would silently publish release 0, which
+        // `createVersion` rejects only after the deployments have been paid for.
+        require(config.release <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
+        uint8 release = uint8(config.release);
+
+        PluginRepo repo = PluginRepo(repoAddress);
+
+        // `createVersion` reverts for a sender without the maintainer permission, but only after
+        // the implementation and setup have been deployed and paid for.
+        require(
+            repo.isGranted(repoAddress, vm.addr(config.privateKey), repo.MAINTAINER_PERMISSION_ID(), ""),
+            "the sender does not hold MAINTAINER_PERMISSION on the repo"
+        );
+
+        vm.startBroadcast(config.privateKey);
 
         // A fresh implementation alongside the setup: the setup pins the implementation its
         // proxies point at, so publishing a setup built from this source against an
@@ -45,8 +93,7 @@ contract PublishCrispBuild is Script {
 
         CrispVotingSetup setup = new CrispVotingSetup(crispVoting);
 
-        (bytes memory buildMetadata, bytes memory releaseMetadata) = Utils.crispBuildMetadata();
-        repo.createVersion(release, address(setup), buildMetadata, releaseMetadata);
+        repo.createVersion(release, address(setup), config.buildMetadata, config.releaseMetadata);
 
         vm.stopBroadcast();
 
@@ -59,5 +106,6 @@ contract PublishCrispBuild is Script {
         console2.log("Published build:       ", latest.build);
         console2.log("");
         console2.log("Next: set crispPlugin.installVersion in the Aragon app to this release/build.");
+        console2.log("Installs of this build return the creation condition at preparedSetupData.helpers[0].");
     }
 }

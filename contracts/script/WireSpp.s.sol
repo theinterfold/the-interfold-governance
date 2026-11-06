@@ -10,6 +10,9 @@ import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol"
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
+import {hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+
 import {SppInstall} from "./SppInstall.sol";
 
 /// @dev The DAO's permission oracle, for asserting a rotation landed.
@@ -30,6 +33,14 @@ interface IDAOPermissions {
 ///      calldata matches `updateStages(Stage[] calldata)` exactly).
 interface ISpp {
     function updateStages(SppInstall.Stage[] calldata stages) external;
+}
+
+/// @dev Minimal view of the SPP's rule condition, the helper its `prepareInstallation` returns at
+///      `helpers[0]`. The SPP's `CREATE_PROPOSAL_PERMISSION` is granted to `ANY_ADDR` behind it,
+///      and with no rules it admits everyone. `updateRules` needs `UPDATE_RULES_PERMISSION`,
+///      which the SPP setup grants to the DAO.
+interface ISppRuleCondition {
+    function updateRules(RuledCondition.Rule[] calldata rules) external;
 }
 
 /// @dev Minimal view of an OSx 1.4 plugin's target-config setter.
@@ -68,20 +79,24 @@ interface ICrispFee {
  *         Actions, in order:
  *           1. sppPrivate.updateStages([crisp approval, foundation veto])     (private only)
  *           2. sppPublic.updateStages([tokenVoting approval, foundation veto])
- *           3. grant  CREATE_PROPOSAL on crisp        -> sppPrivate           (private only)
- *           4. grant  CREATE_PROPOSAL on tokenVoting  -> sppPublic
- *           5. crisp.setTargetConfig(executor, DelegateCall)                  (private only)
- *           6. tokenVoting.setTargetConfig(executor, DelegateCall)
- *           7. revoke EXECUTE on DAO from tokenVoting   <- closes the veto bypass
- *           8. revoke EXECUTE on DAO from adminPlugin    <- disarms the bootstrap; MUST be last
+ *           3. sppPrivate rule condition: the CRISP proposer condition        (private only)
+ *           4. grant  CREATE_PROPOSAL on crisp        -> sppPrivate           (private only)
+ *           5. grant  CREATE_PROPOSAL on tokenVoting  -> sppPublic
+ *           6. crisp.setTargetConfig(executor, DelegateCall)                  (private only)
+ *           7. tokenVoting.setTargetConfig(executor, DelegateCall)
+ *           8. revoke EXECUTE on DAO from tokenVoting   <- closes the veto bypass
+ *           9. revoke EXECUTE on DAO from adminPlugin    <- disarms the bootstrap; MUST be last
  *              (this batch still runs under the Admin plugin's EXECUTE permission)
  *
- *         5/6 make sub-proposal execution delegatecall the stateless Executor, so the SPP's
+ *         3 reads the two helpers from `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS`, checked
+ *         against `CRISP_HELPERS_HASH` and `SPP_PRIVATE_HELPERS_HASH`.
+ *
+ *         6/7 make sub-proposal execution delegatecall the stateless Executor, so the SPP's
  *         `reportProposalResult` callback sees the BODY as msg.sender (and the bodies no
  *         longer need — or have — execute rights on the DAO).
  *
  *         Two env flags shape the batch (both default to the single-phase Sepolia behaviour):
- *           DEPLOY_PRIVATE_PROCESS (default true)  — false drops the three private actions.
+ *           DEPLOY_PRIVATE_PROCESS (default true)  — false drops the four private actions.
  *           DISARM_ADMIN           (default true)  — false KEEPS the Admin plugin armed so a
  *             later phase can install plugins without a vote. This leaves an EOA able to
  *             execute anything on the DAO: `make install-private-process` performs the disarm
@@ -105,6 +120,35 @@ contract WireSppScript is Script {
     ///      signer cannot execute.
     function adminDriver() internal view returns (address) {
         return vm.envOr("ADMIN_DRIVER_ADDRESS", vm.envAddress("FOUNDATION_ADDRESS"));
+    }
+
+    /// @dev `RuledCondition.CONDITION_RULE_ID` and `Op.EQ`, which are `internal` to that contract.
+    uint8 internal constant CONDITION_RULE_ID = 202;
+    uint8 internal constant OP_EQ = 1;
+
+    /// @notice The action that makes a body's proposer condition the SPP's creation rule: a single
+    ///         rule that defers to `bodyCondition`, the way the Aragon app builds it.
+    /// @dev Without it the SPP is installed with no rules, which admit everyone, and
+    ///      `CrispVoting` does not re-check the proposer for an SPP caller, so nothing would
+    ///      restrict who creates a proposal by voting power.
+    /// @param rulesCondition The SPP's rule condition (`helpers[0]` of the SPP install).
+    /// @param bodyCondition The body's proposer condition (`helpers[0]` of the body install).
+    function creationRuleAction(address rulesCondition, address bodyCondition) internal pure returns (Action memory) {
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] = RuledCondition.Rule({
+            id: CONDITION_RULE_ID, op: OP_EQ, value: uint240(uint160(bodyCondition)), permissionId: bytes32(0)
+        });
+
+        return Action({to: rulesCondition, value: 0, data: abi.encodeCall(ISppRuleCondition.updateRules, (rules))});
+    }
+
+    /// @notice The single helper of a prepared install, checked against the helpers hash the apply
+    ///         step will quote, so a mistyped or stale address fails here instead of wiring a
+    ///         condition that was never part of the install.
+    function singleHelper(address[] memory helpers, bytes32 helpersHash) internal pure returns (address) {
+        require(helpers.length == 1, "expected exactly one prepared helper");
+        require(hashHelpers(helpers) == helpersHash, "prepared helpers do not match the helpers hash");
+        return helpers[0];
     }
 
     /// @notice Prints the `updateStages` calldata for both SPPs under the current env config
@@ -419,7 +463,7 @@ contract WireSppScript is Script {
 
     /// @notice Builds the wiring batch from the current env. Split out of `run()` so the exact
     ///         action set can be asserted in tests without broadcasting (WireSppStages.t.sol).
-    /// @param withPrivate include the three private-process actions.
+    /// @param withPrivate include the four private-process actions.
     /// @param shouldDisarmAdmin append the Admin disarm as the final action.
     function buildWiringActions(bool withPrivate, bool shouldDisarmAdmin)
         internal
@@ -441,17 +485,22 @@ contract WireSppScript is Script {
         // Only read/require the private addresses when the private process exists.
         address crisp;
         address sppPrivate;
+        address crispCondition;
+        address sppRuleCondition;
         if (withPrivate) {
             crisp = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
             sppPrivate = vm.envAddress("SPP_PRIVATE_ADDRESS");
             require(crisp != address(0) && sppPrivate != address(0), "missing private address env");
+            crispCondition = singleHelper(vm.envAddress("CRISP_HELPERS", ","), vm.envBytes32("CRISP_HELPERS_HASH"));
+            sppRuleCondition =
+                singleHelper(vm.envAddress("SPP_PRIVATE_HELPERS", ","), vm.envBytes32("SPP_PRIVATE_HELPERS_HASH"));
         }
 
         IPlugin.TargetConfig memory delegateExecutor =
             IPlugin.TargetConfig({target: executor, operation: IPlugin.Operation.DelegateCall});
 
-        // 4 public actions, +3 for the private process, +1 for the Admin disarm.
-        actions = new Action[]((withPrivate ? 7 : 4) + (shouldDisarmAdmin ? 1 : 0));
+        // 4 public actions, +4 for the private process, +1 for the Admin disarm.
+        actions = new Action[]((withPrivate ? 8 : 4) + (shouldDisarmAdmin ? 1 : 0));
         uint256 n;
 
         if (withPrivate) {
@@ -465,6 +514,8 @@ contract WireSppScript is Script {
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(tokenVoting, foundation, false)))
         });
         if (withPrivate) {
+            // The SPP's creation rule (see `creationRuleAction`).
+            actions[n++] = creationRuleAction(sppRuleCondition, crispCondition);
             actions[n++] = Action({
                 to: dao,
                 value: 0,
