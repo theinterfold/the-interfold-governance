@@ -183,10 +183,7 @@ contract DeployInterfoldDaoScript is Script {
     ///      way `read-prepared.sh` reports them for the Safe flow. `wire-spp` checks the list
     ///      against the hash before it wires a helper.
     function logHelpers(string memory label, string memory hashLabel, address[] memory helpers) internal pure {
-        string memory list;
-        for (uint256 i = 0; i < helpers.length; i++) {
-            list = string.concat(list, i == 0 ? "" : ",", vm.toString(helpers[i]));
-        }
+        string memory list = Utils.csv(helpers);
         console2.log(string.concat(label, " ", list));
         console2.log(string.concat(hashLabel, " ", vm.toString(hashHelpers(helpers))));
     }

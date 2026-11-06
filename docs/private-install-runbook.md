@@ -354,10 +354,11 @@ Also make sure of these items:
 - New SPP: the rule condition (`SPP_PRIVATE_HELPERS[0]`) has exactly one rule, set in action 6 of
   Step 4. Read it with `cast call <rule condition> 'getRules()((uint8,uint8,uint240,bytes32)[])'`.
   Expect `(202, 1, <body condition>, 0x00…00)`, where the body condition is `CRISP_HELPERS[0]`.
-  Then check the body condition: `cast call <body condition> 'isGranted(address,address,bytes32,bytes)(bool)'
-$NEW_SPP <account> $CREATE 0x`. With `minProposerVotingPower` at 0, as in this install, it is `true`
-  for every account. Above 0, it is `false` for an account with no voting power and `true` for a
-  holder at or above `minProposerVotingPower`. With no rules, anyone could create a proposal.
+  Then check the body condition with `isGranted(<new SPP>, <account>, $CREATE, 0x)`
+  (`cast call <body condition> 'isGranted(address,address,bytes32,bytes)(bool)' ...`). With
+  `minProposerVotingPower` at 0, as in this install, it is `true` for every account. Above 0, it is
+  `false` for an account with no voting power and `true` for a holder at or above
+  `minProposerVotingPower`. With no rules, anyone could create a proposal.
 - New SPP: stage 0 has `minAdvance` 0 (INV-9). Stage 1 has `vetoThreshold` 0, which is approval
   mode (INV-10).
 - Old body: `getProposal` still answers for its 3 proposals.

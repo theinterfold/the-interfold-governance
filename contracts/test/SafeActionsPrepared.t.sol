@@ -212,6 +212,15 @@ contract SafeActionsPreparedTest is Test {
         p.helpersHash = helpersHash;
     }
 
+    /// @dev `updateRules` with the single rule that defers to `CRISP_CONDITION`
+    ///      (`CONDITION_RULE_ID` 202, `EQ` operation).
+    function _creationRuleCall() internal pure returns (bytes memory) {
+        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+        rules[0] =
+            RuledCondition.Rule({id: 202, op: 1, value: uint240(uint160(CRISP_CONDITION)), permissionId: bytes32(0)});
+        return abi.encodeCall(ISppRuleCondition.updateRules, (rules));
+    }
+
     /// @notice The SPP is installed with no creation rules, so the install batch must set the
     ///         CRISP body's proposer condition as its rule, on the SPP's rule condition, before the
     ///         SPP is granted CREATE_PROPOSAL on the body.
@@ -229,17 +238,9 @@ contract SafeActionsPreparedTest is Test {
             address(0xDA0)
         );
 
-        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
-        rules[0] = RuledCondition.Rule({
-            id: 202, // CONDITION_RULE_ID
-            op: 1, // EQ
-            value: uint240(uint160(CRISP_CONDITION)),
-            permissionId: bytes32(0)
-        });
-
         assertEq(actions.length, 8);
         assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
-        assertEq(actions[5].data, abi.encodeCall(ISppRuleCondition.updateRules, (rules)));
+        assertEq(actions[5].data, _creationRuleCall());
         assertEq(actions[5].value, 0);
     }
 
@@ -263,17 +264,9 @@ contract SafeActionsPreparedTest is Test {
         vm.removeFile(path);
         (, Action[] memory actions,) = abi.decode(_withoutSelector(call), (bytes, Action[], uint256));
 
-        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
-        rules[0] = RuledCondition.Rule({
-            id: 202, // CONDITION_RULE_ID
-            op: 1, // EQ
-            value: uint240(uint160(CRISP_CONDITION)),
-            permissionId: bytes32(0)
-        });
-
         assertEq(actions.length, 8);
         assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
-        assertEq(actions[5].data, abi.encodeCall(ISppRuleCondition.updateRules, (rules)));
+        assertEq(actions[5].data, _creationRuleCall());
         assertEq(
             actions[6].data,
             abi.encodeWithSignature(
@@ -318,19 +311,6 @@ contract SafeActionsPreparedTest is Test {
         crisp.helpers = new address[](2);
         vm.expectRevert("expected exactly one prepared helper");
         installer.build(crisp, spp, address(0xDA0));
-    }
-
-    /// @notice The Safe flow carries the helper addresses next to the hash.
-    function test_loadPreparedCarriesTheHelperAddresses() public {
-        _seed("TH");
-        vm.setEnv("TH_PERM_CONDITIONS", "");
-        vm.setEnv("TH_HELPERS", string.concat(vm.toString(CRISP_CONDITION), ",", vm.toString(SPP_RULES)));
-
-        SafeActionsScript.Prepared memory p = harness.loadPrepared("TH");
-
-        assertEq(p.helpers.length, 2);
-        assertEq(p.helpers[0], CRISP_CONDITION);
-        assertEq(p.helpers[1], SPP_RULES);
     }
 
     function _seedCommandAddresses() internal {

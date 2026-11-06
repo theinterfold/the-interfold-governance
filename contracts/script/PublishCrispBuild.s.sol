@@ -21,11 +21,10 @@ import {Utils} from "./Utils.sol";
 ///     published build MUST go out as a new build — an app updated ahead of the publish will fail
 ///     to install against the old one, and vice versa.
 ///
-///     The build number is assigned by the repo (`createVersion` appends to the release), so the
-///     first run against a repo with only the original build publishes build 2. The setup
-///     published here deploys the proposal-creation `VotingPowerCondition` and returns it as
-///     `helpers[0]`; build 1 returned no helpers. Installed plugins keep their build — the
-///     setup has no update path — so the condition reaches a DAO only through a new install.
+///     The build number is assigned by the repo (`createVersion` appends to the release). The setup
+///     published here returns the proposal-creation `CrispProposerCondition` as `helpers[0]`;
+///     build 1 returned no helpers. Installed plugins keep their build — the setup has no update
+///     path — so the condition reaches a DAO only through a new install.
 ///
 ///     Requires MAINTAINER_PERMISSION_ID on the repo. Mainnet uses the Foundation Safe publisher.
 ///     Use this EOA publisher only when the configured key holds that permission.

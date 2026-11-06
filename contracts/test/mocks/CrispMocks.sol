@@ -101,6 +101,45 @@ contract MockVotesToken {
     }
 }
 
+/// @dev IVotes- and ERC20-shaped token whose live voting power (`getVotes`), snapshot voting power
+///      (`getPastVotes`) and balance are settable independently, so the condition can be shown to
+///      read only the snapshot. Like OpenZeppelin's, `getPastVotes` reverts on a timepoint that is
+///      not in the past.
+contract MockVotesAndBalanceToken {
+    mapping(address => uint256) public liveVotes;
+    mapping(address => uint256) public pastVotes;
+    mapping(address => uint256) public balanceOf;
+
+    error FutureLookup(uint256 timepoint, uint256 clock);
+
+    /// @dev Voting power at the snapshot a new proposal would use.
+    function setVotes(address who, uint256 amount) external {
+        pastVotes[who] = amount;
+    }
+
+    /// @dev Voting power held right now, not yet in any snapshot (e.g. just borrowed).
+    function setLiveVotes(address who, uint256 amount) external {
+        liveVotes[who] = amount;
+    }
+
+    function setBalance(address who, uint256 amount) external {
+        balanceOf[who] = amount;
+    }
+
+    function getVotes(address who) external view returns (uint256) {
+        return liveVotes[who];
+    }
+
+    function getPastVotes(address who, uint256 timepoint) external view returns (uint256) {
+        if (timepoint >= block.number) revert FutureLookup(timepoint, block.number);
+        return pastVotes[who];
+    }
+
+    function getPastTotalSupply(uint256) external pure returns (uint256) {
+        return 1000 ether;
+    }
+}
+
 /// @notice Pays the whole configured refund to msg.sender, like E3RefundManager.claimRequesterRefund.
 contract MockRefundManager {
     MockFeeToken internal immutable feeToken;

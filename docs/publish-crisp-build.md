@@ -72,16 +72,14 @@ protocol changes its circuit version again, new requests stop until the DAO inst
 
 ## Creation condition in the setup helpers
 
-`prepareInstallation` of the first build returned no helper. Later builds return the
-proposal-creation condition.
-
-`preparedSetupData.helpers` is `[CrispProposerCondition]` in both install shapes (standalone and SPP
-body), at the position where `TokenVotingSetup` returns its `VotingPowerCondition`. The condition is
-bound to the new plugin and answers `plugin.isProposerEligible(who)`: the voting power of `who` at
-the token's previous timepoint (`getPastVotes`) against `minProposerVotingPower()`, read on every
-call. It is the rule a direct creator already faces, so a later governance change to the minimum
-applies at once, and tokens borrowed within the transaction, or a balance without delegated votes,
-do not qualify. The setup grants the condition to nobody, so its permissions are unchanged.
+`prepareInstallation` of build 1 returned no helper. Later builds return the proposal-creation
+condition: `preparedSetupData.helpers` is `[CrispProposerCondition]` in both install shapes
+(standalone and SPP body), where `TokenVotingSetup` returns its `VotingPowerCondition`. The
+condition is bound to the new plugin and answers `plugin.isProposerEligible(who)`: the voting power
+of `who` at the token's previous timepoint (`getPastVotes`) against `minProposerVotingPower()`, read
+on every call. It is the rule a direct creator already faces, so a later governance change to the
+minimum applies at once, and tokens borrowed within the transaction, or a balance without delegated
+votes, do not qualify. The setup grants the condition to nobody, so its permissions are unchanged.
 
 In a staged process the condition is the only voting-power restriction on who creates a CRISP
 proposal, because `CrispVoting` does not re-check the proposer for an SPP caller. It must be wired
@@ -93,11 +91,11 @@ The install records its shape in the plugin (`isStagedBody`, from `grantExecuteO
 staged body trusts the SPP attestation in the proposal metadata to name the fee payer. On a
 standalone install `CREATE_PROPOSAL` belongs to `ANY_ADDR`, and every caller there is a direct
 creator who pays for itself and must clear the minimum. `CrispVoting.initialize` takes the flag as
-a second argument; the setup's install data is unchanged.
+a second argument; the install data ABI, `(PluginInitParams, address token, bool
+grantExecuteOnDao)`, is unchanged.
 
-- The install data ABI is unchanged, `(PluginInitParams, address token, bool grantExecuteOnDao)`.
 - `applyInstallation` takes the helpers hash from the `InstallationPrepared` event, and
-  `make read-prepared` now also records the helper addresses as `<PREFIX>_HELPERS`.
+  `make read-prepared` also records the helper addresses as `<PREFIX>_HELPERS`.
 - A later uninstall must quote the helper back in `currentHelpers`; the `PluginSetupProcessor`
   enforces this. The setup does not inspect the list, as in `TokenVotingSetup`.
 - There is no update path. The setup is a non-upgradeable `PluginSetup` (`prepareUpdate` reverts
@@ -105,8 +103,8 @@ a second argument; the setup's install data is unchanged.
   implementation with no `initializeFrom` or storage-layout check. A body installed from an
   earlier build gets the condition only by a new install.
 
-The build number is assigned by the repo at `createVersion`, not by the script. The expected
-number is `buildCount(1) + 1`; read it from the `VersionCreated` event.
+The build number is assigned by the repo at `createVersion`; the expected number is
+`buildCount(1) + 1`, and the `VersionCreated` event has the actual one.
 
 The EOA script `PublishCrispBuild` refuses to run on chain 1 against a repo other than
 `0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1`, refuses a release above 255, and checks that the

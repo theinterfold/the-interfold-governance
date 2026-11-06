@@ -165,8 +165,8 @@ contract InstallPrivateProcessScript is WireSppScript {
         console2.logBytes32(hashHelpers(sppSetupData.helpers));
         // The addresses themselves, because the wiring needs them: the CRISP body's proposer
         // condition becomes the SPP's creation rule, set on the SPP's own rule condition.
-        console2.log("PREPARED_CRISP_HELPERS=%s", _csv(crispSetupData.helpers));
-        console2.log("PREPARED_SPP_HELPERS=%s", _csv(sppSetupData.helpers));
+        console2.log("PREPARED_CRISP_HELPERS=%s", Utils.csv(crispSetupData.helpers));
+        console2.log("PREPARED_SPP_HELPERS=%s", Utils.csv(sppSetupData.helpers));
         console2.log("PREPARED_CRISP_PERMISSIONS=");
         console2.logBytes(abi.encode(crispSetupData.permissions));
         console2.log("PREPARED_SPP_PERMISSIONS=");
@@ -229,13 +229,6 @@ contract InstallPrivateProcessScript is WireSppScript {
     }
 
     // --- internals ---
-
-    /// @dev Comma-separated addresses, the shape `vm.envAddress(name, ",")` reads back.
-    function _csv(address[] memory addresses) internal pure returns (string memory out) {
-        for (uint256 i = 0; i < addresses.length; i++) {
-            out = string.concat(out, i == 0 ? "" : ",", vm.toString(addresses[i]));
-        }
-    }
 
     /// @dev Rebuilds both `Prepared` structs from the env written after `prepare()`.
     function loadPrepared()
@@ -327,14 +320,13 @@ contract InstallPrivateProcessScript is WireSppScript {
         actions[3] =
             Action({to: dao, value: 0, data: abi.encodeCall(IDAOPermissions.revoke, (dao, psp, ROOT_PERMISSION_ID))});
         // 5-8. The same wiring wire-spp applies to the private process (INV-1, INV-3, INV-5), plus
-        //      the creation rule (step 6).
+        //      the creation rule.
         actions[4] = Action({
             to: spp.plugin,
             value: 0,
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(crisp.plugin, foundation, true)))
         });
-        // The SPP is installed with no creation rules, which admit everyone. The body does not
-        // re-check the proposer for an SPP caller, so the body's condition must be the SPP's rule.
+        // The SPP's creation rule (see `creationRuleAction`).
         actions[5] = creationRuleAction(
             singleHelper(spp.helpers, spp.helpersHash), singleHelper(crisp.helpers, crisp.helpersHash)
         );

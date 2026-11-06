@@ -489,9 +489,10 @@ make publish-crisp-repo ENV_FILE=.env.mainnet
 
 # 2. prepareInstallation for the CRISP body and the private SPP (EOA; DAO still untouched).
 make prepare-private-process ENV_FILE=.env.mainnet
-#    -> record ALL SIX printed values:
+#    -> record ALL EIGHT printed values:
 #       CRISP_VOTING_PLUGIN_ADDRESS  SPP_PRIVATE_ADDRESS
 #       PREPARED_CRISP_HELPERS_HASH  PREPARED_SPP_HELPERS_HASH
+#       PREPARED_CRISP_HELPERS       PREPARED_SPP_HELPERS
 #       PREPARED_CRISP_PERMISSIONS   PREPARED_SPP_PERMISSIONS
 
 # 3. Admin applies both installs and wires the private process — one tx, no vote.
@@ -504,28 +505,29 @@ recomputed precisely so a hand-rolled copy cannot drift from the setup contracts
 
 Step 3 executes, in order:
 
-| #   | Action                                                                   |
-| --- | ------------------------------------------------------------------------ |
-| 1   | `dao.grant(dao, PSP, ROOT_PERMISSION)` — temporary                       |
-| 2   | `psp.applyInstallation(dao, <CRISP params>)`                             |
-| 3   | `psp.applyInstallation(dao, <SPP-private params>)`                       |
-| 4   | `dao.revoke(dao, PSP, ROOT_PERMISSION)` — **must not be omitted**        |
-| 5   | `sppPrivate.updateStages(stagesFor(crisp, foundation, isPrivate: true))` |
-| 6   | `dao.grant(crisp, sppPrivate, CREATE_PROPOSAL_PERMISSION)`               |
-| 7   | `crisp.setTargetConfig({target: executor, operation: DelegateCall})`     |
+| #   | Action                                                                           |
+| --- | -------------------------------------------------------------------------------- |
+| 1   | `dao.grant(dao, PSP, ROOT_PERMISSION)` — temporary                               |
+| 2   | `psp.applyInstallation(dao, <CRISP params>)`                                     |
+| 3   | `psp.applyInstallation(dao, <SPP-private params>)`                               |
+| 4   | `dao.revoke(dao, PSP, ROOT_PERMISSION)` — **must not be omitted**                |
+| 5   | `sppPrivate.updateStages(stagesFor(crisp, foundation, isPrivate: true))`         |
+| 6   | `sppPrivate`'s rule condition `updateRules`: the CRISP body's proposer condition |
+| 7   | `dao.grant(crisp, sppPrivate, CREATE_PROPOSAL_PERMISSION)`                       |
+| 8   | `crisp.setTargetConfig({target: executor, operation: DelegateCall})`             |
 
 The CRISP body installs with `grantExecuteOnDao: false`. **This is load-bearing**: a body holding
 EXECUTE could execute straight from stage 0 and skip the foundation entirely
 ([INV-2](../AGENTS.md#governance-structure)).
 
-Action 7 points the CRISP body at the **phase-1 Executor** (already deployed; `EXECUTOR_ADDRESS` in
+Action 8 points the CRISP body at the **phase-1 Executor** (already deployed; `EXECUTOR_ADDRESS` in
 `.env.mainnet`) so `reportProposalResult` reaches the SPP as the body
 ([INV-5](../AGENTS.md#governance-structure)). Never repoint it at the DAO.
 
 There is **no disarm action in this batch** — see [Phase 3](#phase-3--disarm-the-bootstrap).
 
 > **If the Admin bootstrap was already disarmed**, step 3 cannot run. Use
-> `make print-private-actions ENV_FILE=.env.mainnet` to emit the same seven actions as calldata, and
+> `make print-private-actions ENV_FILE=.env.mainnet` to emit the same eight actions as calldata, and
 > submit them as a proposal on the public SPP instead — voted through, then approved by the
 > foundation at stage 1.
 
@@ -587,7 +589,7 @@ Only once this passes is the deployment complete. Announce the DAO address, and 
 | Parent proposal created, sub-proposal missing          | Gas estimation. The SPP wraps sub-proposal creation in try/catch, so an under-estimated limit silently swallows `SubProposalNotCreated` and leaves a dead parent. Both create hooks pass explicit gas limits — keep them. |
 | Proposal passes stage 0 but never advances             | Approval mode with no foundation approval — silence _is_ the rejection. Check the multisig can actually reach threshold.                                                                                                  |
 | Proposal reads `Expired` instead of `Vetoed`           | Expected at the chain level; the UI maps it. See `getSppStatusOverride`.                                                                                                                                                  |
-| `install-private-process` reverts on the apply         | The `PREPARED_*` values do not match the preparation. Re-run `prepare-private-process` and copy all six again; `applyInstallation` validates them by hash.                                                                |
+| `install-private-process` reverts on the apply         | The `PREPARED_*` values do not match the preparation. Re-run `prepare-private-process` and copy all eight again; `applyInstallation` validates them by hash.                                                              |
 | `PluginAlreadyInstalled`                               | The install already applied — check whether an earlier attempt partially succeeded before retrying.                                                                                                                       |
 | `SetupApplicationUnauthorized`                         | The batch is not executing as the DAO, or the Admin bootstrap was already disarmed. Use `make print-private-actions` and go through a proposal.                                                                           |
 | Admin still holds EXECUTE after `disarm-admin`         | The tx reverted. Re-check before announcing — this is INV-29.                                                                                                                                                             |

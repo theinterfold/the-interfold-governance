@@ -514,8 +514,7 @@ contract WireSppScript is Script {
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(tokenVoting, foundation, false)))
         });
         if (withPrivate) {
-            // The SPP is installed with no creation rules, which admit everyone, and the body does
-            // not re-check the proposer for an SPP caller: the body's condition must be the rule.
+            // The SPP's creation rule (see `creationRuleAction`).
             actions[n++] = creationRuleAction(sppRuleCondition, crispCondition);
             actions[n++] = Action({
                 to: dao,

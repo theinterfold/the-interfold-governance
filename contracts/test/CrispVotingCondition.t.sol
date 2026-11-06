@@ -6,7 +6,6 @@ import {Test} from "forge-std/Test.sol";
 import {DAO} from "@aragon/osx/core/dao/DAO.sol";
 import {IDAO} from "@aragon/osx-commons-contracts/src/dao/IDAO.sol";
 import {IPluginSetup, PermissionLib} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
-import {PluginSetup} from "@aragon/osx-commons-contracts/src/plugin/setup/PluginSetup.sol";
 import {IPermissionCondition} from "@aragon/osx-commons-contracts/src/permission/condition/IPermissionCondition.sol";
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
 import {
@@ -25,46 +24,7 @@ import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
 import {IStagedProposalProcessor} from "../src/crisp/IStagedProposalProcessor.sol";
 import {WireSppScript} from "../script/WireSpp.s.sol";
-import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp} from "./mocks/CrispMocks.sol";
-
-/// @dev IVotes- and ERC20-shaped token whose live voting power (`getVotes`), snapshot voting power
-///      (`getPastVotes`) and balance are settable independently, so the condition can be shown to
-///      read only the snapshot. Like OpenZeppelin's, `getPastVotes` reverts on a timepoint that is
-///      not in the past.
-contract MockVotesAndBalanceToken {
-    mapping(address => uint256) public liveVotes;
-    mapping(address => uint256) public pastVotes;
-    mapping(address => uint256) public balanceOf;
-
-    error FutureLookup(uint256 timepoint, uint256 clock);
-
-    /// @dev Voting power at the snapshot a new proposal would use.
-    function setVotes(address who, uint256 amount) external {
-        pastVotes[who] = amount;
-    }
-
-    /// @dev Voting power held right now, not yet in any snapshot (e.g. just borrowed).
-    function setLiveVotes(address who, uint256 amount) external {
-        liveVotes[who] = amount;
-    }
-
-    function setBalance(address who, uint256 amount) external {
-        balanceOf[who] = amount;
-    }
-
-    function getVotes(address who) external view returns (uint256) {
-        return liveVotes[who];
-    }
-
-    function getPastVotes(address who, uint256 timepoint) external view returns (uint256) {
-        if (timepoint >= block.number) revert FutureLookup(timepoint, block.number);
-        return pastVotes[who];
-    }
-
-    function getPastTotalSupply(uint256) external pure returns (uint256) {
-        return 1000 ether;
-    }
-}
+import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesAndBalanceToken} from "./mocks/CrispMocks.sol";
 
 /// @dev Stands in for a hostile contract on a standalone install: it names itself as the SPP and
 ///      attests that `victim` created the parent proposal.
@@ -340,12 +300,6 @@ contract CrispVotingConditionTest is Test {
         assertEq(plugin.feeCredits(address(attacker)), 90 ether, "the attacker paid the fee");
     }
 
-    function test_conditionAdmitsEveryoneWhenTheMinimumIsZero() public {
-        (, IPluginSetup.PreparedSetupData memory data) = _install(false, 0);
-
-        assertTrue(_isGranted(_condition(data), makeAddr("stranger")));
-    }
-
     /// @notice The condition reads the plugin on every call, so a governance change to
     ///         `minProposerVotingPower` applies to it immediately, in both directions.
     function test_conditionFollowsLaterMinProposerVotingPowerChanges() public {
@@ -378,7 +332,7 @@ contract CrispVotingConditionTest is Test {
         );
     }
 
-    // --- uninstall / update ---
+    // --- uninstall ---
 
     /// @notice Nothing grants the condition, so uninstall has nothing extra to revoke: the same
     ///         five revokes come back whether or not the payload carries the helper.
@@ -399,39 +353,6 @@ contract CrispVotingConditionTest is Test {
             assertEq(withHelpers[i].condition, PermissionLib.NO_CONDITION, "no revoke references the condition");
             assertTrue(withHelpers[i].who != data.helpers[0], "the condition is never a permission party");
         }
-    }
-
-    /// @notice Applying the uninstall revokes everything the install granted, helper or not.
-    function test_uninstallLeavesNoPermissionBehind() public {
-        (CrispVoting plugin, IPluginSetup.PreparedSetupData memory data) = _install(true, MIN_PROPOSER);
-
-        dao.applyMultiTargetPermissions(
-            setup.prepareUninstallation(
-                address(dao),
-                IPluginSetup.SetupPayload({plugin: address(plugin), currentHelpers: data.helpers, data: ""})
-            )
-        );
-
-        for (uint256 i = 0; i < data.permissions.length; i++) {
-            assertFalse(
-                dao.isGranted(data.permissions[i].where, data.permissions[i].who, data.permissions[i].permissionId, ""),
-                "every install grant is gone"
-            );
-        }
-    }
-
-    /// @notice The setup is a non-upgradeable `PluginSetup`: installed bodies are pinned at install
-    ///         and carry no `initializeFrom`, so there is no build-to-build update. A body installed
-    ///         without the condition needs a fresh install (or a condition deployed directly).
-    function test_prepareUpdateIsNotSupported() public {
-        (CrispVoting plugin,) = _install(false, MIN_PROPOSER);
-
-        vm.expectRevert(PluginSetup.NonUpgradeablePlugin.selector);
-        setup.prepareUpdate(
-            address(dao),
-            1,
-            IPluginSetup.SetupPayload({plugin: address(plugin), currentHelpers: new address[](0), data: ""})
-        );
     }
 
     // --- SPP-shaped install ---

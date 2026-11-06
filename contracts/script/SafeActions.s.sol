@@ -376,8 +376,7 @@ contract SafeActionsScript is WireSppScript {
             value: 0,
             data: abi.encodeCall(ISpp.updateStages, (stagesFor(crisp.plugin, foundation, true)))
         });
-        // The SPP is installed with no creation rules, which admit everyone, and the body does not
-        // re-check the proposer for an SPP caller: the body's condition must be the SPP's rule.
+        // The SPP's creation rule (see `creationRuleAction`).
         actions[5] = creationRuleAction(
             singleHelper(spp.helpers, spp.helpersHash), singleHelper(crisp.helpers, crisp.helpersHash)
         );
@@ -420,7 +419,8 @@ contract SafeActionsScript is WireSppScript {
                 "Executor target. Does NOT disarm the Admin bootstrap."
                 : "One atomic execution: temporary ROOT to the PSP, both applyInstallations, ROOT "
                 "revoked, the private stages, the SPP's creation rule (the body's proposer condition), "
-                "the SPP's sole CREATE_PROPOSAL on the body and the delegatecall Executor target, then the retired pair loses EXECUTE on the DAO and "
+                "the SPP's sole CREATE_PROPOSAL on the body and the delegatecall Executor target, "
+                "then the retired pair loses EXECUTE on the DAO and "
                 "both CREATE_PROPOSAL grants. Does NOT disarm the Admin bootstrap.",
             actions
         );
