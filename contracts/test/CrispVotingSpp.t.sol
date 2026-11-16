@@ -258,7 +258,7 @@ contract CrispVotingSppTest is Test {
         });
 
         plugin = CrispVoting(
-            ProxyLib.deployUUPSProxy(address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, params))
+            ProxyLib.deployUUPSProxy(address(new CrispVoting()), abi.encodeCall(CrispVoting.initialize, (params, true)))
         );
 
         // The SPP is the only grantee of CREATE_PROPOSAL (the wiring proposal does this on-chain).
