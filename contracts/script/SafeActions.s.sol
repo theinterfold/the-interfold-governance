@@ -306,11 +306,13 @@ contract SafeActionsScript is WireSppScript {
     ///           4. revoke ROOT on the DAO from PSP         closes the install window
     ///           5. spp.updateStages(private stages)        an SPP with no stages must never sit
     ///                                                      applied-but-unwired holding EXECUTE
-    ///           6. grant CREATE_PROPOSAL on body -> SPP    only the SPP may open sub-proposals (INV-3)
-    ///           7. body.setTargetConfig(Executor, delegatecall)  INV-5
-    ///           8. revoke EXECUTE on the DAO from the retired SPP          only when RETIRED_* is set:
-    ///           9. revoke CREATE_PROPOSAL on the retired SPP from ANY_ADDR  the private pair this
-    ///          10. revoke CREATE_PROPOSAL on the retired body from its SPP  install replaces
+    ///           6. rules.updateRules(CRISP proposer condition)  the SPP's creation rule: without it
+    ///                                                      the SPP admits every proposer
+    ///           7. grant CREATE_PROPOSAL on body -> SPP    only the SPP may open sub-proposals (INV-3)
+    ///           8. body.setTargetConfig(Executor, delegatecall)  INV-5
+    ///           9. revoke EXECUTE on the DAO from the retired SPP          only when RETIRED_* is set:
+    ///          10. revoke CREATE_PROPOSAL on the retired SPP from ANY_ADDR  the private pair this
+    ///          11. revoke CREATE_PROPOSAL on the retired body from its SPP  install replaces
     ///
     ///      Deliberately ONE `admin.executeProposal`, like the public install: splitting the
     ///      applies from the wiring leaves a window where the applied SPP holds EXECUTE with no
@@ -673,13 +675,8 @@ contract SafeActionsScript is WireSppScript {
         address deployer = vm.envOr("CREATE2_DEPLOYER", address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         bytes32 salt = vm.envOr("CRISP_STACK_SALT", bytes32("interfold-crisp-v1"));
         address repo = vm.envAddress("CRISP_PLUGIN_REPO");
-        uint256 releaseNumber = vm.envOr("CRISP_RELEASE", uint256(1));
-        require(releaseNumber <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
-        uint8 release = uint8(releaseNumber);
         require(repo != address(0), "CRISP_PLUGIN_REPO not set");
-        if (block.chainid == 1) {
-            require(repo == Utils.MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
-        }
+        uint8 release = Utils.crispPublishRelease(repo, vm.envOr("CRISP_RELEASE", uint256(1)));
 
         bytes memory implCode = type(CrispVoting).creationCode;
         address impl = vm.computeCreate2Address(salt, keccak256(implCode), deployer);

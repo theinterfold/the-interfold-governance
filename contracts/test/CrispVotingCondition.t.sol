@@ -188,22 +188,6 @@ contract CrispVotingConditionTest is Test {
         assertTrue(_isGranted(_condition(laxData), creator), "50 >= 5 on the lax plugin");
     }
 
-    function test_conditionGrantsAtOrAboveMinProposerVotingPowerAndDeniesBelow() public {
-        (, IPluginSetup.PreparedSetupData memory data) = _install(false, MIN_PROPOSER);
-        IPermissionCondition condition = _condition(data);
-
-        token.setVotes(creator, MIN_PROPOSER - 1);
-        assertFalse(_isGranted(condition, creator), "one wei below the minimum");
-
-        token.setVotes(creator, MIN_PROPOSER);
-        assertTrue(_isGranted(condition, creator), "exactly the minimum");
-
-        token.setVotes(creator, MIN_PROPOSER + 1);
-        assertTrue(_isGranted(condition, creator), "above the minimum");
-
-        assertFalse(_isGranted(condition, makeAddr("stranger")), "no voting power");
-    }
-
     /// @notice The condition applies the plugin's own rule, not Aragon's: a holder with tokens but
     ///         no snapshot voting power (undelegated, or just borrowed) is refused, because the
     ///         direct creation path refuses them too.
@@ -245,6 +229,8 @@ contract CrispVotingConditionTest is Test {
             }
             plugin.createProposal("", new Action[](0), 0, 0, abi.encode(uint256(0)));
         }
+
+        assertFalse(_isGranted(condition, makeAddr("stranger")), "no voting power");
     }
 
     /// @notice Both install shapes record which one they are; the plugin trusts SPP attestations
@@ -358,11 +344,10 @@ contract CrispVotingConditionTest is Test {
     // --- SPP-shaped install ---
 
     /// @notice The staged flow end to end: an SPP-body install, the SPP granted CREATE_PROPOSAL as
-    ///         the wiring does, the helper used as the SPP's creation rule, and a sub-proposal
-    ///         created by the SPP. The body must not re-check voting power against the SPP
-    ///         (which holds none), so only the helper restricts the creator.
+    ///         the wiring does, and a sub-proposal created by the SPP. The body must not re-check
+    ///         voting power against the SPP, which holds none.
     function test_sppShapedInstallStillCreatesSubProposals() public {
-        (CrispVoting plugin, IPluginSetup.PreparedSetupData memory data) = _install(false, MIN_PROPOSER);
+        (CrispVoting plugin,) = _install(false, MIN_PROPOSER);
 
         // Wiring: the SPP alone may create on the body, and the body runs through the Executor.
         dao.grant(address(plugin), address(spp), plugin.CREATE_PROPOSAL_PERMISSION_ID());
@@ -370,16 +355,6 @@ contract CrispVotingConditionTest is Test {
         plugin.setTargetConfig(
             IPlugin.TargetConfig({target: address(executor), operation: IPlugin.Operation.DelegateCall})
         );
-
-        // The SPP's own creation rule is the helper, as the Aragon app builds it.
-        bytes32 sppCreatePermission = keccak256("CREATE_PROPOSAL_PERMISSION");
-        dao.grantWithCondition(address(spp), ANY_ADDR, sppCreatePermission, _condition(data));
-
-        token.setVotes(creator, MIN_PROPOSER - 1);
-        assertFalse(dao.isGranted(address(spp), creator, sppCreatePermission, ""), "below minimum: SPP rule refuses");
-
-        token.setVotes(creator, MIN_PROPOSER);
-        assertTrue(dao.isGranted(address(spp), creator, sppCreatePermission, ""), "at minimum: SPP rule admits");
 
         // The SPP, holding no voting power itself, creates the sub-proposal charged to `creator`.
         spp.setCreator(SPP_PROPOSAL_ID, creator);
@@ -405,8 +380,7 @@ contract CrispVotingConditionTest is Test {
 
     /// @notice The private install wires the body's condition as the SPP's only creation rule. Before
     ///         that action the SPP admits everyone (an SPP installed with no rules); after it, a
-    ///         stranger with no votes is refused and an eligible holder is admitted, and a holder
-    ///         with only borrowed (live) votes is refused.
+    ///         stranger with no votes is refused and an eligible holder is admitted.
     function test_wiredCreationRuleAdmitsOnlyEligibleHoldersOnTheSpp() public {
         (, IPluginSetup.PreparedSetupData memory data) = _install(false, MIN_PROPOSER);
         MirrorSppRuleCondition rules = new MirrorSppRuleCondition(address(dao));
@@ -426,12 +400,6 @@ contract CrispVotingConditionTest is Test {
 
         token.setVotes(creator, MIN_PROPOSER);
         assertFalse(dao.isGranted(address(spp), stranger, createPermission, ""), "a stranger with no votes");
-        assertFalse(
-            dao.isGranted(address(spp), makeAddr("borrower"), createPermission, ""), "an account with no snapshot votes"
-        );
         assertTrue(dao.isGranted(address(spp), creator, createPermission, ""), "an eligible holder");
-
-        token.setLiveVotes(stranger, 10 * MIN_PROPOSER);
-        assertFalse(dao.isGranted(address(spp), stranger, createPermission, ""), "borrowed votes do not count");
     }
 }

@@ -11,7 +11,7 @@ import {IPlugin} from "@aragon/osx-commons-contracts/src/plugin/IPlugin.sol";
 import {PluginRepoFactory} from "@aragon/osx/framework/plugin/repo/PluginRepoFactory.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 import {PluginSetupProcessor} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessor.sol";
-import {PluginSetupRef, hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import {PluginSetupRef} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
 import {IPluginSetup} from "@aragon/osx-commons-contracts/src/plugin/setup/IPluginSetup.sol";
 import {GovernanceERC20} from "@aragon/token-voting-plugin/erc20/GovernanceERC20.sol";
 import {GovernanceWrappedERC20} from "@aragon/token-voting-plugin/erc20/GovernanceWrappedERC20.sol";
@@ -152,7 +152,8 @@ contract DeployInterfoldDaoScript is Script {
         uint256 expected = withPrivate ? 5 : 3;
         if (installedPlugins.length != expected || preparedHelpers.length != expected) {
             console2.log("WARNING: expected installations:", expected);
-            console2.log("         recovered:             ", installedPlugins.length);
+            console2.log("         recovered plugins:     ", installedPlugins.length);
+            console2.log("         recovered helpers:     ", preparedHelpers.length);
             for (uint256 i = 0; i < installedPlugins.length; i++) {
                 console2.log("Installed plugin:    ", installedPlugins[i]);
             }
@@ -167,8 +168,8 @@ contract DeployInterfoldDaoScript is Script {
             console2.log("SPP plugin (PRIVATE process): ", installedPlugins[2]);
             console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[3]);
             console2.log("Admin plugin (bootstrap):     ", installedPlugins[4]);
-            logHelpers("CRISP helpers (PRIVATE body):", "CRISP helpers hash (PRIVATE body):", preparedHelpers[0]);
-            logHelpers("SPP helpers (PRIVATE process):", "SPP helpers hash (PRIVATE process):", preparedHelpers[2]);
+            console2.log(string.concat("CRISP helpers (PRIVATE body): ", Utils.csv(preparedHelpers[0])));
+            console2.log(string.concat("SPP helpers (PRIVATE process): ", Utils.csv(preparedHelpers[2])));
         } else {
             console2.log("TokenVoting plugin (PUBLIC body): ", installedPlugins[0]);
             console2.log("SPP plugin (PUBLIC process):  ", installedPlugins[1]);
@@ -177,15 +178,6 @@ contract DeployInterfoldDaoScript is Script {
             console2.log("  Phase 2 installs them into this DAO (make install-private-process).");
         }
         console2.log("NEXT STEP: run `make sync-env` then `make wire-spp` (no vote needed)");
-    }
-
-    /// @dev Logs a prepared install's helpers as one comma-separated list, then their hash, the
-    ///      way `read-prepared.sh` reports them for the Safe flow. `wire-spp` checks the list
-    ///      against the hash before it wires a helper.
-    function logHelpers(string memory label, string memory hashLabel, address[] memory helpers) internal pure {
-        string memory list = Utils.csv(helpers);
-        console2.log(string.concat(label, " ", list));
-        console2.log(string.concat(hashLabel, " ", vm.toString(hashHelpers(helpers))));
     }
 
     // --- CRISP (private) ---

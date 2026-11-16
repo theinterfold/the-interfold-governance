@@ -23,8 +23,9 @@ import {Utils} from "./Utils.sol";
 ///
 ///     The build number is assigned by the repo (`createVersion` appends to the release). The setup
 ///     published here returns the proposal-creation `CrispProposerCondition` as `helpers[0]`;
-///     build 1 returned no helpers. Installed plugins keep their build — the setup has no update
-///     path — so the condition reaches a DAO only through a new install.
+///     build 3 returned no helper, and the build after it returns the condition. Installed plugins
+///     keep their build — the setup has no update path — so the condition reaches a DAO only
+///     through a new install.
 ///
 ///     Requires MAINTAINER_PERMISSION_ID on the repo. Mainnet uses the Foundation Safe publisher.
 ///     Use this EOA publisher only when the configured key holds that permission.
@@ -62,17 +63,9 @@ contract PublishCrispBuild is Script {
         address repoAddress = config.repo;
         require(repoAddress != address(0), "CRISP_PLUGIN_REPO not set");
 
-        // Mainnet publishes through the Foundation Safe (`make safe-publish-crisp-build`). This EOA
-        // path may still run there, but only against the canonical repo: a mistyped repo address
-        // would otherwise publish a build into a repo nobody installs from.
-        if (block.chainid == 1) {
-            require(repoAddress == Utils.MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
-        }
-
-        // Bounded before the cast: `uint8(256)` would silently publish release 0, which
-        // `createVersion` rejects only after the deployments have been paid for.
-        require(config.release <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
-        uint8 release = uint8(config.release);
+        // Mainnet publishes through the Foundation Safe (`make safe-publish-crisp-build`); this
+        // EOA path may still run there, but `crispPublishRelease` pins it to the canonical repo.
+        uint8 release = Utils.crispPublishRelease(repoAddress, config.release);
 
         PluginRepo repo = PluginRepo(repoAddress);
 

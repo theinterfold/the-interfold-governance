@@ -4,11 +4,10 @@ pragma solidity ^0.8.29;
 import {Test} from "forge-std/Test.sol";
 
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
-import {hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
+import {creationRuleCall} from "./mocks/CrispMocks.sol";
 
 import {SppInstall} from "../script/SppInstall.sol";
-import {ISppRuleCondition, WireSppScript} from "../script/WireSpp.s.sol";
+import {WireSppScript} from "../script/WireSpp.s.sol";
 
 /// @dev Exposes the script's internal stage builder so the wiring invariants can be asserted
 ///      without broadcasting. `stagesFor` reads its knobs from the environment, so each test
@@ -230,9 +229,9 @@ contract WireSppStagesTest is Test {
         assertEq(privateArmed.length, 8, "private wiring without the disarm is 8 actions");
         _assertSetsTheCrispConditionAsTheCreationRule(privateArmed);
 
-        // A helper that is not the one the install prepared is refused before anything is wired.
-        vm.setEnv("CRISP_HELPERS", vm.toString(address(0xBAD)));
-        vm.expectRevert("prepared helpers do not match the helpers hash");
+        // A setup that returns no single helper (or several) is refused before anything is wired.
+        vm.setEnv("CRISP_HELPERS", string.concat(vm.toString(CRISP_CONDITION), ",", vm.toString(address(0xBAD))));
+        vm.expectRevert("expected exactly one prepared helper");
         harness.wiringActions(true, true);
         vm.setEnv("CRISP_HELPERS", vm.toString(CRISP_CONDITION));
     }
@@ -297,25 +296,13 @@ contract WireSppStagesTest is Test {
     ///      does not re-check the proposer for an SPP caller. The wiring must make the CRISP
     ///      proposer condition the SPP's only rule, on the SPP's rule condition.
     function _assertSetsTheCrispConditionAsTheCreationRule(Action[] memory actions) internal pure {
-        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
-        rules[0] = RuledCondition.Rule({
-            id: 202, // CONDITION_RULE_ID
-            op: 1, // EQ
-            value: uint240(uint160(CRISP_CONDITION)),
-            permissionId: bytes32(0)
-        });
-        bytes32 ruleCall = keccak256(abi.encodeCall(ISppRuleCondition.updateRules, (rules)));
+        bytes32 ruleCall = keccak256(creationRuleCall(CRISP_CONDITION));
 
         uint256 found;
         for (uint256 i = 0; i < actions.length; i++) {
             if (actions[i].to == SPP_RULES && keccak256(actions[i].data) == ruleCall) found++;
         }
         assertEq(found, 1, "the private SPP's creation rule must be the CRISP proposer condition");
-    }
-
-    function _one(address a) internal pure returns (address[] memory list) {
-        list = new address[](1);
-        list[0] = a;
     }
 
     function _setWiringEnv() internal {
@@ -328,8 +315,6 @@ contract WireSppStagesTest is Test {
         vm.setEnv("FOUNDATION_ADDRESS", vm.toString(FOUNDATION));
         vm.setEnv("ADMIN_PLUGIN_ADDRESS", vm.toString(ADMIN));
         vm.setEnv("CRISP_HELPERS", vm.toString(CRISP_CONDITION));
-        vm.setEnv("CRISP_HELPERS_HASH", vm.toString(hashHelpers(_one(CRISP_CONDITION))));
         vm.setEnv("SPP_PRIVATE_HELPERS", vm.toString(SPP_RULES));
-        vm.setEnv("SPP_PRIVATE_HELPERS_HASH", vm.toString(hashHelpers(_one(SPP_RULES))));
     }
 }

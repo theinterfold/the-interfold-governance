@@ -88,8 +88,8 @@ interface ICrispFee {
  *           9. revoke EXECUTE on DAO from adminPlugin    <- disarms the bootstrap; MUST be last
  *              (this batch still runs under the Admin plugin's EXECUTE permission)
  *
- *         3 reads the two helpers from `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS`, checked
- *         against `CRISP_HELPERS_HASH` and `SPP_PRIVATE_HELPERS_HASH`.
+ *         3 reads the two helpers from `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS` and requires each
+ *         list to hold exactly one address.
  *
  *         6/7 make sub-proposal execution delegatecall the stateless Executor, so the SPP's
  *         `reportProposalResult` callback sees the BODY as msg.sender (and the bodies no
@@ -142,13 +142,20 @@ contract WireSppScript is Script {
         return Action({to: rulesCondition, value: 0, data: abi.encodeCall(ISppRuleCondition.updateRules, (rules))});
     }
 
-    /// @notice The single helper of a prepared install, checked against the helpers hash the apply
-    ///         step will quote, so a mistyped or stale address fails here instead of wiring a
-    ///         condition that was never part of the install.
-    function singleHelper(address[] memory helpers, bytes32 helpersHash) internal pure returns (address) {
+    /// @notice The single helper of a prepared install; a setup that returns none (or several)
+    ///         is not the build this wiring expects.
+    function onlyHelper(address[] memory helpers) internal pure returns (address) {
         require(helpers.length == 1, "expected exactly one prepared helper");
-        require(hashHelpers(helpers) == helpersHash, "prepared helpers do not match the helpers hash");
         return helpers[0];
+    }
+
+    /// @notice `onlyHelper`, additionally checked against the helpers hash the apply step will
+    ///         quote, so a mistyped or stale address fails here instead of wiring a condition
+    ///         that was never part of the install.
+    function singleHelper(address[] memory helpers, bytes32 helpersHash) internal pure returns (address) {
+        address helper = onlyHelper(helpers);
+        require(hashHelpers(helpers) == helpersHash, "prepared helpers do not match the helpers hash");
+        return helper;
     }
 
     /// @notice Prints the `updateStages` calldata for both SPPs under the current env config
@@ -491,9 +498,8 @@ contract WireSppScript is Script {
             crisp = vm.envAddress("CRISP_VOTING_PLUGIN_ADDRESS");
             sppPrivate = vm.envAddress("SPP_PRIVATE_ADDRESS");
             require(crisp != address(0) && sppPrivate != address(0), "missing private address env");
-            crispCondition = singleHelper(vm.envAddress("CRISP_HELPERS", ","), vm.envBytes32("CRISP_HELPERS_HASH"));
-            sppRuleCondition =
-                singleHelper(vm.envAddress("SPP_PRIVATE_HELPERS", ","), vm.envBytes32("SPP_PRIVATE_HELPERS_HASH"));
+            crispCondition = onlyHelper(vm.envAddress("CRISP_HELPERS", ","));
+            sppRuleCondition = onlyHelper(vm.envAddress("SPP_PRIVATE_HELPERS", ","));
         }
 
         IPlugin.TargetConfig memory delegateExecutor =

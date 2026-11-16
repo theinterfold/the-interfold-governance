@@ -4,13 +4,12 @@ pragma solidity ^0.8.29;
 import {Test} from "forge-std/Test.sol";
 import {PermissionLib} from "@aragon/osx-commons-contracts/src/permission/PermissionLib.sol";
 import {Action} from "@aragon/osx-commons-contracts/src/executors/IExecutor.sol";
-import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
 import {PluginSetupRef, hashHelpers} from "@aragon/osx/framework/plugin/setup/PluginSetupProcessorHelpers.sol";
 import {PluginRepo} from "@aragon/osx/framework/plugin/repo/PluginRepo.sol";
 
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
 import {InstallPrivateProcessScript} from "../script/InstallPrivateProcess.s.sol";
-import {ISppRuleCondition} from "../script/WireSpp.s.sol";
+import {creationRuleCall} from "./mocks/CrispMocks.sol";
 import {Utils} from "../script/Utils.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
@@ -212,15 +211,6 @@ contract SafeActionsPreparedTest is Test {
         p.helpersHash = helpersHash;
     }
 
-    /// @dev `updateRules` with the single rule that defers to `CRISP_CONDITION`
-    ///      (`CONDITION_RULE_ID` 202, `EQ` operation).
-    function _creationRuleCall() internal pure returns (bytes memory) {
-        RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
-        rules[0] =
-            RuledCondition.Rule({id: 202, op: 1, value: uint240(uint160(CRISP_CONDITION)), permissionId: bytes32(0)});
-        return abi.encodeCall(ISppRuleCondition.updateRules, (rules));
-    }
-
     /// @notice The SPP is installed with no creation rules, so the install batch must set the
     ///         CRISP body's proposer condition as its rule, on the SPP's rule condition, before the
     ///         SPP is granted CREATE_PROPOSAL on the body.
@@ -240,7 +230,7 @@ contract SafeActionsPreparedTest is Test {
 
         assertEq(actions.length, 8);
         assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
-        assertEq(actions[5].data, _creationRuleCall());
+        assertEq(actions[5].data, creationRuleCall(CRISP_CONDITION));
         assertEq(actions[5].value, 0);
     }
 
@@ -266,7 +256,7 @@ contract SafeActionsPreparedTest is Test {
 
         assertEq(actions.length, 8);
         assertEq(actions[5].to, SPP_RULES, "the rules live on the SPP's rule condition, not the SPP");
-        assertEq(actions[5].data, _creationRuleCall());
+        assertEq(actions[5].data, creationRuleCall(CRISP_CONDITION));
         assertEq(
             actions[6].data,
             abi.encodeWithSignature(

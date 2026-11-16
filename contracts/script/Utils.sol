@@ -42,6 +42,19 @@ library Utils {
         releaseMetadata = bytes(VM.envOr("CRISP_RELEASE_METADATA_URI", string("")));
     }
 
+    /// @notice The release to publish into `repo`, checked before anything is deployed.
+    /// @dev Bounded before the cast: `uint8(256)` would silently publish release 0, which
+    ///      `createVersion` rejects only after the deployments have been paid for. On mainnet only
+    ///      the canonical repo is accepted, so a mistyped address cannot publish a build into a repo
+    ///      nobody installs from.
+    function crispPublishRelease(address repo, uint256 release) internal view returns (uint8) {
+        require(release <= type(uint8).max, "CRISP_RELEASE does not fit in a uint8");
+        if (block.chainid == 1) {
+            require(repo == MAINNET_CRISP_REPO, "CRISP_PLUGIN_REPO is not the mainnet CRISP repo");
+        }
+        return uint8(release);
+    }
+
     /// @notice Comma-separated addresses, the shape `vm.envAddress(name, ",")` reads back.
     function csv(address[] memory addresses) internal pure returns (string memory out) {
         for (uint256 i = 0; i < addresses.length; i++) {

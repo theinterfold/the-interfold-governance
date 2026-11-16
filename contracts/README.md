@@ -113,5 +113,5 @@ instead. All timing is changeable later by the DAO via `updateStages`.
 | Deployment block (from logs) | `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK`     |
 
 (`Executor` and `Admin plugin` are written to `contracts/.env` only — they're used by `wire-spp`,
-not the frontend. So are `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS` with their hashes: `wire-spp`
-makes the CRISP proposer condition the private SPP's creation rule.)
+not the frontend. So are `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS`: `wire-spp` makes the CRISP
+proposer condition the private SPP's creation rule.)

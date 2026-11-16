@@ -72,9 +72,10 @@ protocol changes its circuit version again, new requests stop until the DAO inst
 
 ## Creation condition in the setup helpers
 
-`prepareInstallation` of build 1 returned no helper. Later builds return the proposal-creation
-condition: `preparedSetupData.helpers` is `[CrispProposerCondition]` in both install shapes
-(standalone and SPP body), where `TokenVotingSetup` returns its `VotingPowerCondition`. The
+`prepareInstallation` of build 3, the latest published, returns no helper. The setup in this batch,
+the next build, returns the proposal-creation condition: `preparedSetupData.helpers` is
+`[CrispProposerCondition]` in both install shapes (standalone and SPP body), where
+`TokenVotingSetup` returns its `VotingPowerCondition`. The
 condition is bound to the new plugin and answers `plugin.isProposerEligible(who)`: the voting power
 of `who` at the token's previous timepoint (`getPastVotes`) against `minProposerVotingPower()`, read
 on every call. It is the rule a direct creator already faces, so a later governance change to the
@@ -105,11 +106,6 @@ grantExecuteOnDao)`, is unchanged.
 
 The build number is assigned by the repo at `createVersion`; the expected number is
 `buildCount(1) + 1`, and the `VersionCreated` event has the actual one.
-
-The EOA script `PublishCrispBuild` refuses to run on chain 1 against a repo other than
-`0x3C9F0aBb016Da5C1cCF944dDDFD2A04DD43415A1`, refuses a release above 255, and checks that the
-sender holds `MAINTAINER_PERMISSION` before it deploys anything. The Safe generator applies the
-first two checks.
 
 ---
 

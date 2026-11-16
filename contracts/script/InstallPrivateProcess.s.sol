@@ -49,8 +49,9 @@ import {WireSppScript, IDAOPermissions, ISpp, IPluginTarget, IAdmin} from "./Wir
  *                                    3. psp.applyInstallation(SPP private)
  *                                    4. revoke ROOT on DAO from PSP
  *                                    5. sppPrivate.updateStages([crisp approval, foundation])
- *                                    6. grant  CREATE_PROPOSAL on crisp -> sppPrivate
- *                                    7. crisp.setTargetConfig(executor, DelegateCall)
+ *                                    6. sppRules.updateRules(CRISP proposer condition)
+ *                                    7. grant  CREATE_PROPOSAL on crisp -> sppPrivate
+ *                                    8. crisp.setTargetConfig(executor, DelegateCall)
  *
  *         `applyInstallation` authorizes on `msg.sender == dao` (PluginSetupProcessor._canApply),
  *         so the DAO executing it needs no APPLY_INSTALLATION_PERMISSION. It does need the PSP to
