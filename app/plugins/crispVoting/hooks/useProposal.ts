@@ -4,6 +4,7 @@ import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
+import { proposalMetadataState } from "@/utils/proposalMetadataState";
 import { getAbiItem, fromHex } from "viem";
 import { publicClient } from "../utils/client";
 import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
@@ -212,9 +213,14 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
   // JSON metadata
   const {
     data: metadata,
-    isLoading: metadataLoading,
+    isSuccess: metadataSuccess,
     error: metadataError,
-  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri);
+    refetch: retryMetadata,
+  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri, {
+    retry: 2,
+    enabled: !!(override?.metadataUri ?? metadataUri),
+  });
+  const metadataState = proposalMetadataState(metadata, { isSuccess: metadataSuccess, error: metadataError });
 
   const proposal = useMemo(
     () =>
@@ -241,6 +247,8 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
 
   return {
     proposal,
+    retry: refetchProposal,
+    retryMetadata,
     networkProgress,
     isCommitteeReady,
     totalVotingPower,
@@ -251,9 +259,9 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
       proposalError,
-      metadataReady: !metadataError && !metadataLoading && !!metadata,
-      metadataLoading,
-      metadataError: metadataError !== undefined,
+      metadataReady: metadataState === "ready",
+      metadataLoading: metadataState === "loading",
+      metadataError: metadataState === "unavailable",
     },
   };
 }
@@ -276,7 +284,7 @@ function arrangeProposalData(
     tally,
     allowFailureMap: proposalData.allowFailureMap,
     creator: creatorOverride ?? creationEvent?.creator ?? "",
-    title: metadata?.title ?? "",
+    title: typeof metadata?.title === "string" ? metadata.title : "",
     summary: metadata?.summary ?? "",
     description: metadata?.description ?? "",
     resources: metadata?.resources ?? [],

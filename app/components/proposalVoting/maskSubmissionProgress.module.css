@@ -1,0 +1,9 @@
+.context { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:var(--ui-space-tight); margin-bottom:var(--ui-space-related); font:400 12px/1.5 var(--font-sans); color:var(--muted); }
+.context strong { color:var(--ink); font-size:14px; font-weight:600; }
+.progress { display:flex; gap:4px; list-style:none; padding:0; margin:0 0 var(--ui-space-section); }
+.progress > li { flex:1; min-width:0; }
+.segment { display:block; width:100%; height:6px; background:var(--rule); transition:background-color var(--interfold-ui-duration) var(--interfold-ui-ease); }
+.progress > li[data-state="current"] .segment { background:var(--ink); }
+.progress > li[data-state="confirmed"] .segment { background:var(--if-brand-green); }
+.progress > li[data-state="error"] .segment { background:var(--if-negative); }
+@media (prefers-reduced-motion:reduce) { .segment { transition:none; } }

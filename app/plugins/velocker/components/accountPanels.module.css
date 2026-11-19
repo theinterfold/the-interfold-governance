@@ -31,6 +31,7 @@
   font: var(--ui-label-font);
 }
 .allocation {
+  container: fold-allocation / inline-size;
   min-width: 0;
 }
 .allocation h3 {
@@ -41,7 +42,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--allocation-diameter, 115px);
   align-items: start;
-  gap: 40px;
+  gap: 24px;
 }
 .allocation :global(.fold-allocation-chart) {
   container-type: inline-size;
@@ -134,7 +135,7 @@
     border-top: 1px solid var(--rule);
   }
 }
-@media (max-width: 680px) {
+@container fold-allocation (max-width: 359px) {
   .allocation :global(.fold-allocation) {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
@@ -155,3 +156,49 @@
     width: auto;
   }
 }
+
+/* Compact bonded summary inside the shared panel surface. */
+.delegationSummary { display:grid; grid-template-columns:minmax(0, 1fr) 215px 230px; align-items:center; gap:16px 24px; width:100%; }
+.delegationSummary[data-amount="false"] { grid-template-columns:minmax(0,1fr) auto; }
+.delegationAmount { display:grid; gap:6px; min-width:0; flex:1; }
+.delegationLabel { display:flex; align-items:center; gap:6px; margin:0; color:var(--muted); font:var(--ui-label-font); }
+.delegationState { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font:var(--ui-body-font); color:var(--muted); }
+.delegationState[data-active="true"] { color:var(--vote-action); }
+.delegationDetails { display:grid; gap:12px; grid-column:2 / -1; }
+.delegationNote { margin:0; color:var(--muted); font:var(--ui-body-font); }
+.inlineDelegation:global(.power-disclosure) { margin:0; border:0; }
+.inlineDelegation :global(.power-disclosure-header) { padding-top:0; }
+.inlineDelegation :global(.power-disclosure-main) { display:block; }
+@media(max-width:850px) {
+ .delegationSummary { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+ .delegationAmount { flex-basis:100%; }
+ .delegationSummary > button { margin-left:auto; }
+}
+@media(max-width:460px) {
+ .delegationSummary > button { margin-left:0; }
+ .delegationState { width:100%; }
+}
+
+/* Activation and an existing delegate are properties of Your locks, not a separate panel. */
+.lockVotingStatus { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px 24px; padding-block:16px; }
+.lockVotingCopy { display:grid; gap:8px; min-width:0; }
+.locksCard[data-voting-status="true"] :global(.power-position-head + .power-position-row) { border-start-start-radius:0; border-start-end-radius:0; }
+
+.lockVotingStatus > :global(.power-disclosure) { width:100%; }
+:global([data-record-table]) .lockVotingStatus { padding:16px; }
+
+/* One outer frame, with distinct internal groups for voting locks and withdrawals. */
+.lockGroups { display:grid; gap:var(--ui-space-section); background:var(--paper); border:1px solid var(--rule); border-radius:var(--ui-radius); }
+.lockGroups > .locksCard:global(.power-card) { border:0; border-radius:0; }
+.lockGroups > .locksCard:global(.power-card):first-child { border-start-start-radius:var(--ui-radius-inner); border-start-end-radius:var(--ui-radius-inner); }
+.lockGroups > .locksCard:global(.power-card):last-child { border-end-start-radius:var(--ui-radius-inner); border-end-end-radius:var(--ui-radius-inner); }
+.lockGroups > .locksCard + .withdrawalCard .withdrawalHeading { border-top:1px solid var(--rule); padding-top:var(--ui-space-section); }
+.lockGroups > .locksCard:not(:last-child) :global(.power-position-row:last-child) { border-radius:0; }
+.withdrawalCard:global(.power-card) { padding-block:0; }
+.withdrawalHeading { padding-block:var(--ui-space-controls); border-bottom:1px solid var(--rule); }
+.withdrawalTitle { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:var(--ui-space-tight) var(--ui-space-controls); }
+.withdrawalTitle h3 { margin:0; font:var(--ui-section-font); color:var(--ink); }
+.withdrawalHeading p { margin:var(--ui-space-tight) 0 0; font:var(--ui-label-font); color:var(--muted); }
+
+.delegationSummary[data-custom-summary="true"] { display:grid; grid-template-columns:minmax(0,1fr) max-content; gap:12px; }
+.delegationSummary[data-custom-summary="true"] > button { width:auto; margin:0; }

@@ -1,8 +1,8 @@
 import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
-import { blockieDataUrl } from "@/utils/blockies";
 import { WalletButton } from "@/components/input/walletButton";
-import { useWalletModal } from "@/hooks/useWalletModal";
+import { openWalletAccountPanel } from "@/components/walletAccountPanel";
+import { useWalletPanel } from "@/hooks/useWalletPanel";
 import { useEffect } from "react";
 import { createClient, http } from "viem";
 import { createConfig, useAccount, useEnsName, useSwitchChain } from "wagmi";
@@ -22,9 +22,9 @@ const config = createConfig({
   },
 });
 
-// TODO: update with ODS wallet module - [https://linear.app/aragon/issue/RD-198/create-ods-walletmodule]
-const WalletContainer = () => {
-  const { open } = useWalletModal();
+export type WalletContainerProps = { placement?: "header" | "mobile" };
+const WalletContainer = ({ placement }: WalletContainerProps) => {
+  const openPanel = useWalletPanel();
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
 
@@ -33,10 +33,6 @@ const WalletContainer = () => {
     chainId: mainnet.id,
     address: address,
   });
-
-  // Always the blockie, matching how explorers render an address (Etherscan never substitutes an
-  // ENS avatar). Synchronous, so it is correct from the first paint and never swaps.
-  const blockie = blockieDataUrl(address);
 
   useEffect(() => {
     if (!chainId) return;
@@ -47,10 +43,15 @@ const WalletContainer = () => {
 
   return (
     <WalletButton
+      placement={placement}
       address={isConnected ? address : undefined}
-      avatar={blockie}
       label={isConnected && address ? (ensName ?? formatHexString(address)) : "Connect wallet"}
-      onClick={() => open()}
+      onClick={(event) => {
+        const trigger = event.currentTarget;
+        trigger.focus({ preventScroll: true });
+        if (isConnected && placement !== "mobile") openWalletAccountPanel(trigger);
+        else openPanel(trigger);
+      }}
     />
   );
 };

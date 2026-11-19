@@ -43,7 +43,7 @@ export const NavLink: React.FC<INavLinkProps> = (props) => {
   const anchorClasses = classNames(
     // `interfold-top-nav-link` owns the horizontal padding on purpose — the
     // underline insets by the same custom property, so the two cannot drift.
-    "site-header-link interfold-top-nav-link",
+    "site-header-link interfold-top-nav-link group",
     { "is-active": selected }
   );
 

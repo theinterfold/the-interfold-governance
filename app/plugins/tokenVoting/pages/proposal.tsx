@@ -56,9 +56,11 @@ const VOTE_NO_VALUE = 3;
 export default function ProposalDetail({
   index: sppProposalId,
   embedded = false,
+  readingOnly = false,
 }: {
   index: bigint;
   embedded?: boolean;
+  readingOnly?: boolean;
 }) {
   const spp = useSppProposal("public", sppProposalId);
 
@@ -93,7 +95,18 @@ export default function ProposalDetail({
       />
     );
   }
-  if (spp.subProposalId === undefined) {
+  if (!spp.metadataUri && spp.metadataError) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not load this proposal’s content. Try loading it again."
+        embedded={embedded}
+        onRetry={() => void spp.retryMetadata()}
+      />
+    );
+  }
+  if (spp.subProposalId === undefined || !spp.metadataUri) {
     return (
       <section className="flex w-full min-w-0">
         <PleaseWaitSpinner />
@@ -102,7 +115,7 @@ export default function ProposalDetail({
   }
 
   return (
-    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} />
+    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} readingOnly={readingOnly} />
   );
 }
 
@@ -111,11 +124,13 @@ function ProposalDetailBody({
   sppProposalId,
   spp,
   embedded,
+  readingOnly,
 }: {
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
   embedded: boolean;
+  readingOnly: boolean;
 }) {
   const { address } = useAccount();
   const { open: openWallet } = useWalletModal();
@@ -141,7 +156,7 @@ function ProposalDetailBody({
         : previousVote === ABSTAIN_VALUE
           ? 2
           : undefined;
-  const { proposal, status: proposalFetchStatus } = useProposal(proposalIdx, true, {
+  const { proposal, retry: retryProposal, retryMetadata, status: proposalFetchStatus } = useProposal(proposalIdx, true, {
     metadataUri: spp.metadataUri,
     creator: spp.creator,
   });
@@ -155,7 +170,7 @@ function ProposalDetailBody({
       failed={snapshot.isError}
     />
   );
-  const votes = useProposalVoteList(
+  const voteList = useProposalVoteList(
     proposalIdx,
     proposal,
     voteTransaction.isConfirmed ? voteTransaction.hash : undefined
@@ -261,7 +276,7 @@ function ProposalDetailBody({
         strategy: "Token voting",
         options: "Vote",
       },
-      votes: votes.map(
+      votes: voteList.votes.map(
         ({ voter, voteOption: opt, votingPower }) =>
           ({
             address: voter,
@@ -278,6 +293,30 @@ function ProposalDetailBody({
   const hasBalance = !!balance && balance > ZERO;
   const delegatingToSomeoneElse = !!delegatesTo && delegatesTo !== address && delegatesTo !== ADDRESS_ZERO;
   const delegatedToZero = !!delegatesTo && delegatesTo === ADDRESS_ZERO;
+
+  if (!proposal && proposalFetchStatus.proposalError) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not load this public proposal. Check your connection and try again."
+        embedded={embedded}
+        onRetry={() => void retryProposal()}
+      />
+    );
+  }
+
+  if (!proposal?.title?.trim() && proposalFetchStatus.metadataError) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not read this proposal’s content. Try loading it again."
+        embedded={embedded}
+        onRetry={() => void retryMetadata()}
+      />
+    );
+  }
 
   if (!proposal || showProposalLoading) {
     return (
@@ -310,6 +349,8 @@ function ProposalDetailBody({
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
       <div className={embedded ? "w-full" : "proposal-page"}>
         <ProposalDetailLayout
+          proposalHref={`/plugins/proposals/#/proposals/public/${sppProposalId}`}
+          readingOnly={readingOnly}
           breadcrumb={!embedded && <ProposalBreadcrumb identifier={shortProposalId(proposalIdx)} />}
           header={!embedded && <ProposalHeader proposal={proposal} presentation={presentation} />}
           description={proposal.description || "No description was provided"}
@@ -332,12 +373,17 @@ function ProposalDetailBody({
                   key={`${proposalIdx}:${address}`}
                   stage={proposalStage[0]}
                   proposalTitle={proposal.title}
+                  votingPowerNotice={!PUB_ENABLE_LOCKING && delegationNotice}
                   votingPower={
-                    <VotingPower
-                      votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
-                      snapshotTimepoint={proposal.parameters.snapshotTimepoint}
-                      compact={true}
-                    />
+                    <UncountedFoldNotice address={PUB_ENABLE_LOCKING ? address : undefined} delegatesTo={delegatesTo}>
+                      {(warning) => <VotingPower
+                        votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}
+                        snapshotTimepoint={proposal.parameters.snapshotTimepoint}
+                        compact={true}
+                        usedInVote={canVote === true && votingOpen}
+                        warning={warning}
+                      />}
+                    </UncountedFoldNotice>
                   }
                   submittedOption={submittedOption}
                   canVote={canVote === true && votingOpen}
@@ -354,7 +400,6 @@ function ProposalDetailBody({
                   txHash={voteTransaction.isConfirmed ? voteTransaction.hash : undefined}
                 />
               )}
-              {delegationNotice}
             </>
           }
           personalVote={
@@ -366,7 +411,15 @@ function ProposalDetailBody({
               />
             ) : undefined
           }
-          activity={<PublicVotes votes={proposalStage[0].votes ?? []} />}
+          activity={
+            <PublicVotes
+              votes={proposalStage[0].votes ?? []}
+              isLoading={voteList.isLoading}
+              isError={voteList.isError}
+              hasLoaded={voteList.hasLoaded}
+              onRetry={() => void voteList.retry()}
+            />
+          }
           methodDetails={
             <VotingDetails
               startDate={startDate}
@@ -435,6 +488,7 @@ function getShowProposalLoading(
   proposal: ReturnType<typeof useProposal>["proposal"],
   status: ReturnType<typeof useProposal>["status"]
 ) {
+  if (proposal?.title?.trim()) return false;
   if (!proposal && status.proposalLoading) return true;
   else if (status.metadataLoading && !status.metadataError) return true;
   else if (!proposal?.title && !status.metadataError) return true;

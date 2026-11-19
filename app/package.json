@@ -13,7 +13,8 @@
     "prepare": "husky",
     "test": "bun test",
     "design:sync": "node scripts/sync-design.cjs",
-    "design:check": "node scripts/sync-design.cjs --check"
+    "design:check": "node scripts/sync-design.cjs --check",
+    "motion:build": "node scripts/build-govern-motion.mjs"
   },
   "lint-staged": {
     "*.{js, jsx,ts,tsx}": [
@@ -36,9 +37,9 @@
     "@tanstack/query-sync-storage-persister": "^5.52.0",
     "@tanstack/react-query": "^5.52.0",
     "@tanstack/react-query-persist-client": "^5.52.0",
-    "@web3modal/wagmi": "^5.1.11",
     "blockies-ts": "^1.0.0",
     "classnames": "^2.5.1",
+    "connectkit": "1.9.1",
     "dayjs": "^1.11.13",
     "dompurify": "^3.4.17",
     "framer-motion": "^11.18.2",
@@ -52,6 +53,9 @@
     "react-hook-form": "^7.52.1",
     "viem": "^2.19.8",
     "wagmi": "2.12.7"
+  },
+  "patchedDependencies": {
+    "connectkit@1.9.1": "patches/connectkit@1.9.1.patch"
   },
   "devDependencies": {
     "@aragon/osx-commons-configs": "^0.2.0",
@@ -75,7 +79,8 @@
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.5.13",
     "tailwindcss": "^3.4.10",
-    "typescript": "^5.4.3"
+    "typescript": "^5.4.3",
+    "esbuild": "0.21.5"
   },
   "prettier": {
     "printWidth": 120,

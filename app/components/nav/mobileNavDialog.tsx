@@ -4,7 +4,7 @@ import { type IDialogRootProps } from "@aragon/ods";
 import { type INavLink } from "./navLink";
 import { PUB_PROJECT_URL } from "@/constants";
 import { useRouter } from "next/router";
-import WalletContainer from "@/components/WalletContainer";
+import { ExternalArrowSlide } from "@/vendor/site-header/motion";
 
 interface IMobileNavDialogProps extends IDialogRootProps {
   navLinks: INavLink[];
@@ -23,11 +23,10 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
   const { navLinks, open, onOpenChange } = props;
   const { query } = useRouter();
   const dialogRef = useMobileMenuBehavior(!!open, onOpenChange);
-
   if (!open) return null;
 
   const titleBase =
-    "site-header-menu-link interfold-menu-item font-[family-name:var(--font-serif)] capitalize tracking-[-1.08px] transition-colors";
+    "site-header-menu-link interfold-menu-item group capitalize tracking-[-1.08px] transition-colors";
   // The site caps the size but lets it shrink with the viewport so the longest
   // label always holds one line.
   const titleStyle = {
@@ -44,51 +43,53 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
       role="dialog"
       aria-modal="true"
       aria-label="Menu"
+      aria-owns="governance-mobile-controls"
+      data-menu-footer=""
     >
       <p
-        className="interfold-menu-item absolute top-6 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[1px] text-[var(--muted)]"
+        className="site-header-menu-label interfold-menu-item absolute top-6 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[1px] text-[var(--muted)]"
         style={{ animationDelay: "0ms" }}
       >
         Menu
       </p>
 
-      <div className="flex w-full flex-col items-center gap-y-2 px-6">
-        {navLinks.map((navLink, i) => (
-          <Link
-            key={navLink.id}
-            href={navLink.path}
-            aria-current={query.id === navLink.id ? "page" : undefined}
-            onClick={close}
-            className={`${titleBase} site-header-menu-primary`}
-            style={{
-              ...titleStyle,
-              // The site drops word-spacing by -0.1em, but sets its one two-word
-              // label without it — at this size it eats 4px of a 6.76px space and
-              // "Voting power" reads as a single word.
-              wordSpacing: navLink.name.includes(" ") ? "normal" : "-0.1em",
-              animationDelay: `${80 + i * 80}ms`,
-            }}
-          >
-            {navLink.name}
-          </Link>
-        ))}
+      <div className="site-header-menu-content">
+        <div className="flex w-full flex-col items-center gap-y-2 px-6">
+          {navLinks.map((navLink, i) => (
+            <Link
+              key={navLink.id}
+              href={navLink.path}
+              aria-current={query.id === navLink.id ? "page" : undefined}
+              onClick={close}
+              className={`${titleBase} site-header-menu-primary`}
+              style={{
+                ...titleStyle,
+                // The site drops word-spacing by -0.1em, but sets its one two-word
+                // label without it — at this size it eats 4px of a 6.76px space and
+                // "Voting power" reads as a single word.
+                wordSpacing: navLink.name.includes(" ") ? "normal" : "-0.1em",
+                animationDelay: `${i * 80}ms`,
+              }}
+            >
+              <span>{navLink.name}</span>
+            </Link>
+          ))}
 
-        <Link
-          href={PUB_PROJECT_URL}
-          onClick={close}
-          // Carries the titles' size and is told apart by colour alone, as on the site.
-          className={`${titleBase} text-[var(--muted-2)]`}
-          style={{ ...titleStyle, wordSpacing: "normal", animationDelay: `${80 + navLinks.length * 80}ms` }}
-        >
-          {/* Labelled by destination: this goes to theinterfold.com, not to
-              governance — the same mislabel the footer carried. */}
-          The Interfold
-        </Link>
-        {/* Hand off to the wallet dialog instead of leaving the menu above it. */}
-        <div className="mt-10" onClick={close}>
-          <WalletContainer />
+          <Link
+            href={PUB_PROJECT_URL}
+            onClick={close}
+            // Carries the titles' size and is told apart by colour alone, as on the site.
+            className={`${titleBase} text-[var(--muted-2)]`}
+            style={{ ...titleStyle, wordSpacing: "normal", animationDelay: `${navLinks.length * 80}ms` }}
+          >
+            {/* Labelled by destination: this goes to theinterfold.com, not to
+                governance — the same mislabel the footer carried. */}
+            <span>The Interfold</span>
+            <ExternalArrowSlide className="site-nav-arrow" rowClassName="site-nav-arrow-row" />
+          </Link>
         </div>
       </div>
+
     </div>
   );
 };

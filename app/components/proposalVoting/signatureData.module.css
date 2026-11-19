@@ -111,3 +111,10 @@
     transition: none;
   }
 }
+
+.quietEntry { display:inline-flex; align-items:center; gap:8px; min-height:36px; padding:4px 0; background:transparent; color:var(--muted); font:var(--ui-label-font); cursor:pointer; }
+.quietEntry:hover span { text-decoration:underline; text-underline-offset:3px; }
+.quietEntry:focus-visible { outline:2px solid var(--ink); outline-offset:3px; border-radius:var(--ui-radius); }
+
+/* A quiet direct link follows the equal-height facts, before the action footer. */
+.quietEntry { min-height:40px; align-self:flex-start; font:400 12px/1.5 var(--font-sans); }

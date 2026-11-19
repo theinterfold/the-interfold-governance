@@ -1,0 +1,108 @@
+.requests {
+  margin-top: var(--power-section-gap, 72px);
+}
+.rowsOnly {
+  --power-card-block-inset: 0px;
+  padding-block: 0;
+  overflow: visible;
+}
+.rowsOnly .list {
+  margin-top: 0;
+  margin-bottom: 0;
+  border-top: 0;
+}
+.rowsOnly .list > :first-child {
+  border-start-start-radius: var(--ui-radius-inner);
+  border-start-end-radius: var(--ui-radius-inner);
+}
+.identity {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 36px;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.status[data-state="active"] {
+  color: var(--vote-action);
+}
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+.breakdown > span {
+  white-space: nowrap;
+}
+.capacity {
+  margin: 0;
+  padding-block: 16px;
+  color: var(--muted);
+  font: var(--ui-body-font);
+  border-bottom: 1px solid var(--rule);
+}
+.capacitySummary {
+  flex-shrink: 0;
+  color: var(--muted);
+  font: var(--ui-label-font);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: calc(16px - var(--power-card-block-inset));
+  padding-bottom: 16px;
+}
+.summaryLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.summary + .list {
+  margin-top: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.requestForm { display:grid; gap:16px; }
+.requestFields { display:flex; align-items:flex-end; gap:12px; }
+.requestFields > :first-child { flex:1; min-width:0; }
+.requestFields > button { flex-shrink:0; }
+.ownerParty { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px 24px; margin-top:24px; padding-top:24px; border-top:1px solid var(--rule); }
+.ownerParty > dl { flex:1; min-width:0; }
+@media(max-width:600px) {
+ .requestFields { align-items:stretch; flex-direction:column; }
+ .ownerParty { align-items:flex-start; flex-direction:column; }
+}
+
+.ownerBreakdown { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; color:var(--muted); font:var(--ui-label-font); }
+.ownerBreakdown strong { font-weight:500; color:var(--ink); }
+
+/* These rows contain actions; the whole row is not a clickable target. */
+.list > :global(.power-delegate-row):is(:hover, :focus-within) { background:var(--paper); }
+
+/* Status groups share the same panel heading and row boundaries as Your locks. */
+.groupRequests { margin-top:24px; }
+.groupCard { padding:0; --power-card-block-inset:0px; }
+.groupCard .list { margin:0; border-top:0; }
+.groupCard .summary { margin:0; padding:20px 32px; border-bottom:1px solid var(--rule); }
+.groupCard .summary + .list { border-top:0; }
+.groupCard .capacity, .emptyGroup { margin:0; padding:20px 32px; }
+.emptyGroup { color:var(--muted); font:var(--ui-body-font); }
+@media(max-width:600px) {
+ .groupCard .summary, .groupCard .capacity, .emptyGroup { padding:20px; }
+}
+
+.headingTotal { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }

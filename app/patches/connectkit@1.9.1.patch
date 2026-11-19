@@ -1,0 +1,11 @@
+diff --git a/build/index.es.js b/build/index.es.js
+--- a/build/index.es.js
++++ b/build/index.es.js
+@@ -2058,6 +2058,7 @@
+     `}
+ `;
+ const ModalHeading = styled(motion.div) `
++  &, & * { font-family: var(--if-ck-heading-font-family, var(--ck-font-family)); }
+   z-index: 3;
+   pointer-events: none;
+   user-select: none;

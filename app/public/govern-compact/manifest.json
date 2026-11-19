@@ -1,0 +1,13 @@
+{
+  "version": "640983323b339853",
+  "count": 26490,
+  "pointFraction": 0.8,
+  "files": {
+    "boot.js": 11681,
+    "points.bin.gz": 74890,
+    "geometry.json": 3638,
+    "worker.js": 175771,
+    "renderer.js": 8678
+  },
+  "totalBytes": 274658
+}

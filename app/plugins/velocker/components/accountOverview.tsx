@@ -36,14 +36,13 @@ export function AccountOverview({
       <div className={styles.overview}>
         <div className={styles.votingSummary}>
           {children}
-          <p>From active locks delegated to you, bonded and vesting {PUB_TOKEN_SYMBOL}.</p>
+          <p>Voting power available to this wallet, including power you represent.</p>
         </div>
         <div ref={allocationRef} className={styles.allocation} aria-label="Balance composition">
           <h3>{PUB_TOKEN_SYMBOL} balance</h3>
           <FoldBalanceBreakdown
             allocation={allocation}
             grouped={true}
-            includeVestingInLocked={true}
             interactive={true}
           />
         </div>

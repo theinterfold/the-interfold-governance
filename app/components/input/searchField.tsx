@@ -1,5 +1,5 @@
 import { forwardRef, useId } from "react";
-import { MagnifyingGlass, X } from "@phosphor-icons/react";
+import { MagnifyingGlass, Wallet, X } from "@phosphor-icons/react";
 
 export const SearchField = forwardRef<
   HTMLInputElement,
@@ -9,9 +9,12 @@ export const SearchField = forwardRef<
     value: string;
     onChange: (value: string) => void;
     message?: string;
+    invalid?: boolean;
+    describedBy?: string;
+    kind?: "search" | "address";
     className?: string;
   }
->(({ label, placeholder, value, onChange, message, className = "" }, ref) => {
+>(({ label, placeholder, value, onChange, message, invalid, describedBy, kind = "search", className = "" }, ref) => {
   const id = useId();
   return (
     <div className={`ui-search-field ${className}`}>
@@ -19,23 +22,24 @@ export const SearchField = forwardRef<
         {label}
       </label>
       <div className="ui-search-control">
-        <MagnifyingGlass size={16} weight="regular" aria-hidden="true" />
+        {kind === "address" ? <Wallet size={16} aria-hidden="true" /> : <MagnifyingGlass size={16} weight="regular" aria-hidden="true" />}
         <input
           ref={ref}
           id={id}
-          type="search"
+          type={kind === "address" ? "text" : "search"}
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
-          aria-describedby={message ? `${id}-status` : undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy ?? (message ? `${id}-status` : undefined)}
         />
         {value && (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={kind === "address" ? "Clear address" : "Clear search"}
             onClick={() => {
               onChange("");
               document.getElementById(id)?.focus();

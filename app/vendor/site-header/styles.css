@@ -1,22 +1,55 @@
+/* Editorial CTA extracted from the website's FoldAuctionPage. */
+.site-cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  padding-inline: 24px;
+  border-radius: 6px;
+  background: #82f5ad;
+  color: #3a5e3c;
+  font: 400 14px/1.075 var(--site-cta-font, "ABC_Gramercy", Georgia, serif);
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 150ms cubic-bezier(.4, 0, .2, 1), color 150ms cubic-bezier(.4, 0, .2, 1);
+}
+.site-cta-link[data-variant="secondary"] { background: rgba(193, 217, 191, .8); }
+.site-cta-link:is(:hover, :focus) { background: #3a5e3c; color: #82f5ad; }
+.site-cta-link:focus-visible { outline: 2px solid #3a5e3c; outline-offset: 4px; }
+.site-cta-label, .site-cta-arrow { font: inherit; color: inherit; }
+.site-cta-arrow { line-height: 1; }
+@media (min-width: 768px) {
+  .site-cta-link { height: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-cta-link { transition: none; }
+}
+
 /* Extracted from Header.tsx and SiteMobileHeader.tsx. Both sites consume this
    block, including its breakpoints, font, wordmark and symbol dimensions. */
 :root {
+  --site-nav-type-size: 24px;
+  --site-action-radius: 6px;
   --site-symbol-width: 32px;
   --site-symbol-height: 28px;
   --site-chrome-ink: #3a5e3c;
   --site-chrome-hover: #173e23;
+  --site-governance-ink: rgb(58 94 60 / 65%);
   --site-content-width: 1052px;
+  --site-chrome-width: 1440px;
+  --site-chrome-gutter: 16px;
   --site-content-gutter: 16px;
 }
 @media (min-width: 768px) {
-  :root { --site-content-gutter: 32px; }
+  :root { --site-content-gutter: 32px; --site-chrome-gutter: 24px; }
 }
 /* The header and footer always share a single content frame. */
 .site-header-grid,
 .site-footer-grid {
   box-sizing: border-box;
-  width: calc(100% - 2 * var(--site-content-gutter));
-  max-width: var(--site-content-width);
+  width: 100%;
+  max-width: var(--site-chrome-width);
+  padding-inline: var(--site-chrome-gutter);
   margin-inline: auto;
 }
 .site-header-chrome,
@@ -24,6 +57,7 @@
   --site-chrome-font: "ABC_Gramercy", "ABC Gramercy", Georgia, serif;
 }
 .site-header-chrome {
+  --site-nav-type-size: var(--site-study-type-size, 24px);
   width: 100%;
   height: 60px;
   color: var(--site-chrome-ink);
@@ -37,14 +71,14 @@
 }
 .site-header-brand-slot {
   position: absolute;
-  left: 0;
+  left: var(--site-chrome-gutter);
 }
 .site-header-brand {
   display: block;
   color: var(--site-chrome-ink);
   white-space: nowrap;
-  font: 400 22px/1.05 var(--site-chrome-font);
-  letter-spacing: -0.66px;
+  font: 400 var(--site-nav-type-size)/1.05 var(--site-chrome-font);
+  letter-spacing: calc(var(--site-nav-type-size) * -.03);
   font-feature-settings:
     "liga" 1,
     "clig" 1;
@@ -71,7 +105,8 @@
   width: calc(112px * 237 / 120.421);
 }
 .site-header-governance {
-  fill: currentColor;
+  fill: var(--site-governance-ink);
+  transition: fill 200ms;
   font-family: var(--site-chrome-font);
   font-weight: 400;
   font-style: normal;
@@ -97,8 +132,8 @@
   align-items: center;
   justify-self: end;
   gap: 0;
-  font: 400 22px/1.05 var(--site-chrome-font);
-  letter-spacing: -0.66px;
+  font: 400 var(--site-nav-type-size)/1.05 var(--site-chrome-font);
+  letter-spacing: calc(var(--site-nav-type-size) * -.03);
   color: var(--site-chrome-ink);
 }
 .site-header-links {
@@ -121,17 +156,30 @@
   white-space: nowrap;
   transition: color 200ms;
 }
+/* Explicit type prevents host-app link weights and editorial fonts leaking into the menu. */
+.site-header-menu-link {
+  font-family: "ABC_Gramercy", "ABC Gramercy", Georgia, serif;
+  font-weight: 400;
+  font-style: normal;
+}
 .site-header-menu-primary {
-  color: #121718;
+  color: var(--site-menu-primary-ink, #121718);
+}
+.interfold-mobile-menu-overlay[data-menu-theme="interfold"] {
+  --site-menu-primary-ink: #3a5e3c;
+  --site-menu-hover-ink: #82f5ad;
 }
 .site-header-link:hover,
-.site-header-link:focus-visible,
-.site-header-menu-link:hover,
-.site-header-menu-link:focus-visible {
+.site-header-link:focus-visible {
   color: var(--site-chrome-hover);
 }
 .site-header-menu-link:hover,
 .site-header-menu-link:focus-visible {
+  color: var(--site-menu-hover-ink, var(--site-chrome-hover));
+}
+/* Decorate only the stationary label, never the rolling arrow or chevron. */
+.site-header-menu-link { text-decoration: none; }
+.site-header-menu-link:is(:hover, :focus-visible) > span:first-child:not(.interfold-arrow-slide) {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: .15em;
@@ -142,8 +190,8 @@
   flex-shrink: 0;
 }
 .site-header-pill-type {
-  font: 400 22px/1.05 var(--site-chrome-font);
-  letter-spacing: -0.66px;
+  font: 400 var(--site-nav-type-size)/1.05 var(--site-chrome-font);
+  letter-spacing: calc(var(--site-nav-type-size) * -.03);
   white-space: nowrap;
 }
 .site-header-pill {
@@ -154,14 +202,74 @@
   box-sizing: border-box;
   padding: 9px 13px 9px 16px;
 }
+/* Network navigation has a compact trigger and subordinate destinations. */
+/* The trigger keeps its geometry; the menu is a separate anchored surface. */
+.site-header-network-trigger {
+  min-width: 180px;
+  height: 44px;
+  font-size: 20px;
+  letter-spacing: -.025em;
+  border-radius: var(--site-action-radius);
+  background: #121718;
+  color: #d9fce8;
+  transition: background-color 150ms;
+}
+.site-header-network-trigger:is(:hover, [aria-expanded="true"]) {
+  background: #2b373b;
+}
+.site-header-network-trigger:focus-visible {
+  outline: 2px solid #82f5ad;
+  outline-offset: -3px;
+}
+.site-header-dropdown-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, #d9fce8 14%, #121718);
+  border-radius: var(--site-action-radius);
+  background: #121718;
+  box-shadow: 0 6px 16px rgb(18 23 24 / 12%);
+  transform-origin: top center;
+}
+.site-header-network-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: max(0px, calc(var(--site-action-radius) - 2px));
+  font: 400 18px/1.2 var(--site-chrome-font);
+  letter-spacing: -.02em;
+  white-space: nowrap;
+  color: color-mix(in srgb, #d9fce8 85%, #121718);
+  transition: color 150ms, background-color 150ms;
+}
+.site-header-network-item:is(:hover, :focus-visible) {
+  background-color: #2b373b;
+  color: #82f5ad;
+  outline-offset: -2px;
+}
 .site-header-menu-trigger {
   position: fixed;
-  right: max(var(--site-content-gutter), calc((100% - var(--site-content-width)) / 2));
+  right: max(var(--site-chrome-gutter), calc((100% - var(--site-chrome-width)) / 2 + var(--site-chrome-gutter)));
   top: 28px;
   z-index: 70;
   width: 28px;
   height: 16px;
   transform: translateY(-50%);
+}
+.site-header-menu-action {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
 }
 .site-header-menu-trigger .hamburger-react {
   position: absolute !important;
@@ -203,17 +311,46 @@
 }
 /* Persistent homepage link arrows; animation follows their containing link. */
 .interfold-arrow-slide { position: relative; display: inline-block; overflow: hidden; flex-shrink: 0; }
+/* Navbar arrows use the website's existing glyph size and optical alignment. */
+.site-nav-arrow {
+  width: 1em;
+  height: 1em;
+  font-size: 14px;
+  line-height: 1;
+  top: -.0875em;
+}
+.site-nav-arrow-row { display: block; width: 1em; height: 1em; line-height: 1; }
+/* Centre the label itself. Trailing icons retain their baseline and hover
+   motion, but contribute no width to the centred flex item. */
+.site-header-menu-link { display: inline-flex; align-items: baseline; gap: 0; }
+.site-header-menu-link > .site-nav-arrow {
+  font-size: .63636em;
+  top: -.106em;
+  margin-left: 4px;
+  margin-right: calc(-1em - 4px);
+}
+.site-header-menu-link > .interfold-chevron {
+  margin-left: 4px;
+  margin-right: calc(-1 * var(--chevron-width) - 4px);
+}
 .interfold-arrow-slide__track {
   display: flex;
   flex-direction: column;
   transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
 }
+.site-header-governance-track { display: inline; }
 .group:hover .interfold-arrow-slide__track,
-.group:focus-visible .interfold-arrow-slide__track { transform: translateY(-50%); }
+.group:focus-visible .interfold-arrow-slide__track,
+.site-header-brand:hover .site-header-governance-track,
+.site-header-brand:focus-visible .site-header-governance-track {
+  transform: translateY(var(--interfold-roll-offset, -50%));
+}
 @media (prefers-reduced-motion: reduce) {
   .interfold-arrow-slide__track { transition: none; }
   .group:hover .interfold-arrow-slide__track,
-  .group:focus-visible .interfold-arrow-slide__track { transform: none; }
+  .group:focus-visible .interfold-arrow-slide__track,
+  .site-header-brand:hover .site-header-governance-track,
+  .site-header-brand:focus-visible .site-header-governance-track { transform: none; }
 }
 @media (min-width: 1280px) {
   :root {
@@ -251,9 +388,86 @@
   }
 }
 @media (max-width: 639px) {
-  .site-header-chrome[data-extended-brand] .site-header-symbol-slot {
+  .site-header-chrome[data-extended-brand]:not(:has(.site-header-wordmark[data-governance])) .site-header-symbol-slot {
     visibility: hidden;
   }
+}
+
+/* Lockup alternatives are owned here, identically in both applications. The
+   centre is free; navigation occupies the right edge of the existing frame. */
+.site-header-chrome[data-layout]:not([data-layout="current"]) .site-header-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+/* Keep the same nodes mounted while the review changes composition. */
+.site-header-identity { display: contents; }
+.site-header-identity .site-header-brand-slot { order: -1; }
+/* No partial original-layout paint before URL/session state is resolved. */
+.site-header-chrome[data-ready="false"] .site-header-grid { visibility: hidden; }
+.site-header-menu-trigger[data-ready="false"] { visibility: hidden; }
+
+/* One coordinate frame from the official 1000 × 122 lockup. The symbol's
+   native top inset is inside its SVG; do not independently centre the artwork. */
+.site-header-chrome[data-layout]:not([data-layout="current"]) {
+  --site-lockup-wordmark-width: calc(var(--site-nav-type-size) * 120.421 / 22);
+  --site-symbol-width: calc(var(--site-lockup-wordmark-width) * 139.644 / 811.979);
+  --site-symbol-height: calc(var(--site-lockup-wordmark-width) * 122 / 811.979);
+  --site-lockup-gap: calc(var(--site-lockup-wordmark-width) * 48.377 / 811.979);
+}
+.site-header-lockup {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  gap: var(--site-lockup-gap);
+}
+.site-header-lockup .site-header-brand-slot { position: static; }
+.site-header-chrome[data-layout]:not([data-layout="current"]) .site-header-symbol-slot {
+  visibility: visible;
+  flex-shrink: 0;
+}
+.site-header-chrome[data-layout]:not([data-layout="current"]) .site-header-wordmark {
+  width: var(--site-lockup-wordmark-width);
+  height: calc(var(--site-lockup-wordmark-width) * 115.99 / 811.979);
+}
+.site-header-chrome[data-layout]:not([data-layout="current"]) .site-header-wordmark[data-governance] {
+  width: calc(var(--site-lockup-wordmark-width) * 237 / 120.421);
+}
+/* The product occupies the rightmost 112.3 units of the 237-unit wordmark.
+   Aligning the SVG to that edge keeps its baseline and rolling label intact. */
+@media (width < 1280px) {
+  .site-header-chrome[data-variant]:not([data-variant="desktop"]) .site-header-brand .site-header-wordmark[data-governance] {
+    height: calc(var(--site-nav-type-size) * 17.202 / 22);
+    width: calc(var(--site-nav-type-size) * 112.3 / 22);
+  }
+  .site-header-chrome:not([data-variant="desktop"]) .site-header-wordmark[data-governance] > path {
+    display: none;
+  }
+  .site-header-chrome:not([data-variant="desktop"]) .site-header-wordmark[data-governance] {
+    --site-governance-ink: currentColor;
+  }
+}
+/* Explicit type studies also keep the original composition's wordmark in scale. */
+:root[data-navbar-type-size] .site-header-chrome[data-layout="current"] .site-header-wordmark {
+  width: calc(var(--site-nav-type-size) * 120.421 / 22);
+  height: calc(var(--site-nav-type-size) * 17.239 / 22);
+}
+:root[data-navbar-type-size] .site-header-chrome[data-layout="current"] .site-header-wordmark[data-governance] {
+  width: calc(var(--site-nav-type-size) * 237 / 22);
+}
+/* Compact scales the entire typographic system, never the symbol alone. */
+.site-header-chrome[data-layout="compact"] { --site-nav-type-size: var(--site-study-type-size, 20px); }
+.site-header-chrome[data-layout="divided"] .site-header-brand-slot {
+  border-left: 1px solid currentColor;
+  padding-left: var(--site-lockup-gap);
+  padding-block: 5px;
+}
+.site-header-chrome[data-layout="divided"] .site-header-symbol-slot { padding-block: 5px; }
+@media (max-width: 359px) {
+  .site-header-chrome[data-layout]:not([data-layout="current"]) { --site-nav-type-size: min(var(--site-study-type-size, 19px), 19px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header-brand, .site-header-symbol, .site-header-link, .site-header-governance { transition: none; }
 }
 
 /* One motion source for homepage menus and governance disclosures. Each arm
@@ -300,57 +514,38 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
   .interfold-chevron-arm { transition: none; }
 }
 
-@keyframes interfold-top-nav-line-in {
-  from {
-    opacity: 1;
-    transform: scaleX(0);
-  }
-
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-/* Link and underline padding share one value. The compact navigation stays
-   inside its column without covering the central symbol. */
+/* Hover changes colour; only the current page keeps an underline. */
 .interfold-top-nav-link {
-  --nav-link-pad: .5rem;
-  padding-inline: var(--nav-link-pad);
   position: relative;
+  padding-inline: 8px;
   text-decoration: none;
 }
-
-.interfold-top-nav-link::after {
-  background: currentColor;
-  bottom: -5px;
-  content: "";
-  height: 1px;
-  left: var(--nav-link-pad);
-  opacity: 0;
-  position: absolute;
-  right: var(--nav-link-pad);
-  transform: scaleX(0);
-  transform-origin: left center;
+.site-header-link { text-decoration: none; }
+@keyframes interfold-top-nav-line-in {
+  from { opacity: 1; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
 }
-
 .interfold-top-nav-link.is-active::after {
-  animation: interfold-top-nav-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1)
-    120ms both;
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 8px;
+  right: 8px;
+  height: 1px;
+  background: currentColor;
+  transform-origin: left center;
+  animation: interfold-top-nav-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
 }
-.interfold-top-nav-link:not(.is-active):hover::after,
-.interfold-top-nav-link:not(.is-active):focus-visible::after {
-  animation: interfold-top-nav-line-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .interfold-top-nav-link.is-active::after,
-  .interfold-top-nav-link:not(.is-active):hover::after,
-  .interfold-top-nav-link:not(.is-active):focus-visible::after {
-    animation: none;
-    opacity: 1;
-    transform: scaleX(1);
-  }
+  .interfold-top-nav-link.is-active::after { animation: none; }
+}
+.site-header-brand:hover .site-header-governance,
+.site-header-brand:focus-visible .site-header-governance { fill: var(--site-governance-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .site-header-brand,
+  .site-header-symbol,
+  .site-header-link,
+  .site-header-governance { transition: none; }
 }
 
 /* Footer and newsletter extracted from the main website, shared by both apps. */
@@ -428,7 +623,7 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
 }
 .site-footer-grid > * { min-width: 0; }
 .site-footer .site-footer-wordmark {
-  margin: 0;
+  margin: 0 0 0 -8px;
   color: inherit;
   font: 400 40px/.87 var(--site-chrome-font);
   letter-spacing: -1.92px;
@@ -437,7 +632,7 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
 }
 .site-footer-wordmark span { display: block; }
 .site-footer-wordmark span + span { padding-left: 8px; }
-.site-footer-group { display: flex; flex-direction: column; gap: 8px; }
+.site-footer-group { display: flex; flex-direction: column; gap: 0; }
 .site-footer .site-footer-label,
 .interfold-ghost-signup .site-footer-label {
   margin: 0;
@@ -468,11 +663,25 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
   position: relative;
   margin-inline: -12px;
   padding: 8px 12px;
-  transition: background-color 300ms;
 }
-.interfold-ghost-signup:hover { background: rgba(193,217,191,.2); }
-.interfold-ghost-signup:focus-within { background: rgba(193,217,191,.34); }
 .interfold-ghost-signup .interfold-ghost-signup__label { margin-bottom: 12px; }
+/* Approved A2 footer: discreet labels and equal 28px line rhythm. */
+.site-footer :is(.site-footer-group .site-footer-label, .interfold-ghost-signup__label) {
+  font-size: 11px;
+  line-height: 28px;
+  color: #687d71;
+  letter-spacing: .08em;
+}
+.site-footer-links a {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 400;
+  letter-spacing: -.025em;
+  /* Continuation lines visibly belong to the same link. */
+  padding-inline-start: .75em;
+  text-indent: -.75em;
+}
+/* Match the published homepage: four columns from 768px, no tablet reflow. */
 @media (min-width: 768px) {
   .site-footer-grid {
     min-height: 412px;
@@ -481,7 +690,7 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
     gap: 40px 32px;
   }
   .site-footer-brand { grid-area: 1 / 1; }
-  .site-footer .site-footer-wordmark { font-size: 64px; }
+  .site-footer .site-footer-wordmark { font-size: 64px; margin-left: -12px; }
   .site-footer-wordmark span + span { padding-left: 12px; }
   .site-footer-legal { grid-area: 1 / 3; }
   .site-footer-social { grid-area: 1 / 4; }
@@ -492,4 +701,99 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
 }
 @media (min-width: 1280px) {
   .interfold-footer-signup { grid-area: 2 / 4; }
+}
+
+/* Both consumers use the original website entrance; app wrappers do not animate it again. */
+.interfold-mobile-menu-overlay { height: 100vh; min-height: 100vh; }
+@supports (height: 100lvh) {
+  .interfold-mobile-menu-overlay { height: 100lvh; min-height: 100lvh; }
+}
+/* Optional application action slot. Navigation owns the flexible middle;
+   account controls stay within the visible viewport, including browser chrome. */
+.interfold-mobile-menu-overlay[data-menu-footer] {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: stretch;
+  justify-content: stretch;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  padding-top: 72px;
+}
+.site-header-menu-label {
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+}
+.site-header-menu-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: 24px;
+}
+.site-header-menu-content > :first-child { margin-block: auto; }
+.site-header-menu-footer {
+  width: 100%;
+  max-width: var(--site-chrome-width);
+  margin-inline: auto;
+  padding: 16px var(--site-chrome-gutter) max(16px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ui-stroke, rgb(58 94 60 / .16));
+}
+@keyframes interfold-menu-item-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.interfold-menu-item {
+  animation: interfold-menu-item-in 600ms cubic-bezier(.22,1,.36,1) both;
+  animation-delay: calc(var(--site-menu-item-index, 0) * 80ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .interfold-menu-item { animation: none; }
+}
+@keyframes site-header-arrive {
+  from { transform: translate3d(0, -100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes site-header-reveal {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes site-header-menu-reveal {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+.site-header-menu-trigger[data-entrance="playing"] {
+  animation: site-header-menu-reveal 450ms cubic-bezier(.22,1,.36,1) 950ms both;
+}
+.site-header-menu-trigger:focus-within { animation: none; }
+.site-header-chrome { animation: site-header-arrive 950ms cubic-bezier(.16,1,.3,1) 160ms both; }
+.site-header-brand-slot, .site-header-symbol-slot,
+.site-header-navigation .site-header-link, .site-header-action {
+  animation: site-header-reveal 450ms cubic-bezier(.22,1,.36,1) 750ms both;
+}
+.site-header-symbol-slot { animation-delay: 850ms; }
+.site-header-navigation .site-header-link { animation-delay: 950ms; }
+.site-header-navigation > .site-header-link:nth-child(2),
+.site-header-links > li:nth-child(2) .site-header-link { animation-delay: 1050ms; }
+.site-header-navigation > .site-header-link:nth-child(3),
+.site-header-links > li:nth-child(3) .site-header-link { animation-delay: 1150ms; }
+.site-header-action { animation-delay: 1250ms; }
+.site-header-chrome[data-entrance="static"],
+.site-header-chrome[data-entrance="static"] .site-header-brand-slot,
+.site-header-chrome[data-entrance="static"] .site-header-symbol-slot,
+.site-header-chrome[data-entrance="static"] .site-header-link,
+.site-header-chrome[data-entrance="static"] .site-header-action,
+.site-header-chrome[data-entrance="static"] .is-active::after { animation: none; }
+.site-header-chrome :focus-visible { animation: none; }
+.interfold-symbol-motion { opacity: 0; pointer-events: none; }
+.interfold-symbol-playing .interfold-symbol-motion { opacity: 1; }
+.interfold-symbol-pending .interfold-symbol-rest { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .site-header-chrome, .site-header-brand-slot, .site-header-symbol-slot,
+  .site-header-navigation .site-header-link, .site-header-action,
+  .site-header-menu-trigger[data-entrance="playing"] { animation: none; }
+  .interfold-symbol-motion { display: none; }
+  .interfold-symbol .interfold-symbol-rest { opacity: 1; }
 }

@@ -29,6 +29,8 @@ export type BondedDelegation = {
   maxOwners?: number;
   /** The bonded voting power of the account: the weight that a delegate takes while one represents the account. */
   ownWeight?: bigint;
+  ownBonded?: bigint;
+  ownVesting?: bigint;
   /** The address that the account asked to represent it, while that address has not answered. */
   pendingDelegate?: Address;
   /** The address that represents the account now. Undefined while the account keeps its weight. */
@@ -333,6 +335,8 @@ export function useBondedDelegation(address: Address | undefined, onChanged?: ()
     countsVesting,
     maxOwners: probe.data === undefined ? undefined : Number(probe.data),
     ownWeight: address ? weights.get(address.toLowerCase())?.weight : undefined,
+    ownBonded: address ? weights.get(address.toLowerCase())?.bonded : undefined,
+    ownVesting: address ? weights.get(address.toLowerCase())?.vesting : undefined,
     pendingDelegate: pending && !isAddressEqual(pending, zeroAddress) ? pending : undefined,
     delegate: current && !isAddressEqual(current, zeroAddress) ? current : undefined,
     owners,

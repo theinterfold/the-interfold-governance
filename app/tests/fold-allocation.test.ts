@@ -37,32 +37,31 @@ describe("FOLD asset allocation", () => {
     ]);
     expect(parts).toEqual([
       { kind: "wallet", amount: 1n },
-      { kind: "locked", amount: large + 14n },
+      { kind: "locked", amount: large + 21n },
       { kind: "bonded", amount: 6n },
-      { kind: "vesting", amount: 7n },
     ]);
     expect(parts.reduce((sum, part) => sum + part.amount, 0n)).toBe(large + 28n);
   });
 
-  test("account summary includes vesting in locked funds without increasing spendable funds or changing the total", () => {
+  test("account summary includes vesting in locked funds while retaining its detail and the ownership total", () => {
     const allocation = foldAllocation(input);
     if (allocation.status !== "ready") throw new Error("Missing allocation");
-    const parts = foldHoldingParts(allocation.parts, { includeVestingInLocked: true });
+    const parts = foldHoldingParts(allocation.parts);
     expect(parts).toEqual([
       { kind: "wallet", amount: 2_500n },
       { kind: "locked", amount: 165_000n },
       { kind: "bonded", amount: 10_000n },
     ]);
+    expect(allocation.parts).toContainEqual({ kind: "vesting", amount: 15_000n });
     expect(parts.reduce((sum, part) => sum + part.amount, 0n)).toBe(allocation.total);
     expect(unvestedBalance(input.walletBalance, 2_500n)).toBe(input.vesting);
   });
 
-  test("an empty overview keeps all four categories at zero", () => {
+  test("an empty overview keeps all three categories at zero", () => {
     expect(foldHoldingParts([])).toEqual([
       { kind: "wallet", amount: 0n },
       { kind: "locked", amount: 0n },
       { kind: "bonded", amount: 0n },
-      { kind: "vesting", amount: 0n },
     ]);
   });
 

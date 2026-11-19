@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export function CooldownTime({ endsAt, observedAt }: { endsAt: number; observedAt: number }) {
+export function CooldownTime({ endsAt, observedAt, compact = false }: { endsAt: number; observedAt: number; compact?: boolean }) {
   const [now, setNow] = useState(observedAt);
   useEffect(() => {
     const tick = () => setNow(Math.floor(Date.now() / 1000));
@@ -22,8 +22,8 @@ export function CooldownTime({ endsAt, observedAt }: { endsAt: number; observedA
   const end = new Date(endsAt * 1000);
   return (
     <span className="power-cooldown-time">
-      <span aria-hidden="true">·</span>
-      <time dateTime={end.toISOString()}>{relative}</time>
+      {!compact && <span aria-hidden="true">·</span>}
+      <time dateTime={end.toISOString()}>{compact && remaining ? `${count}${unit.label[0]}` : relative}</time>
     </span>
   );
 }

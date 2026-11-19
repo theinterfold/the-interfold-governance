@@ -1,10 +1,13 @@
+import { useContext, type ReactNode } from "react";
+import { BallotPowerPreviewContext, useBallotPresentation } from "@/components/proposalVoting/ballotPresentation";
 import { useAccount } from "wagmi";
 import { formatUnits, type Address } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
-import { compactNumber } from "@/utils/numbers";
+import { compactNumber, displayNumber } from "@/utils/numbers";
 import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
+import { BallotPowerSummary } from "@/components/proposalVoting/ballotPowerSummary";
 
 /**
  * Shows the connected account's voting power and the total, both at the proposal's snapshot.
@@ -21,13 +24,19 @@ export function VotingPower({
   votingPlugin,
   showTotal = true,
   compact = false,
+  usedInVote = false,
+  warning,
 }: {
   snapshotTimepoint?: bigint;
   votingPlugin: Address;
   showTotal?: boolean;
   compact?: boolean;
+  usedInVote?: boolean;
+  warning?: ReactNode;
 }) {
   const { address } = useAccount();
+  const preview = useContext(BallotPowerPreviewContext);
+  const { power: presentation } = useBallotPresentation();
 
   const { votingPower: yours, total } = useSnapshotVotingPower(votingPlugin, snapshotTimepoint, showTotal && !compact);
 
@@ -36,23 +45,34 @@ export function VotingPower({
     decimals === undefined || v === undefined ? "-" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   if (compact) {
+    const info = <PowerInfo label={warning ? "About your voting power — some FOLD does not count" : "About your voting power for this proposal"}
+      compact={true} tone={warning ? "warning" : "neutral"} interactive={!!warning} contentClassName={warning ? "ballot-power-help" : ""}>
+      <dl className="power-info-values"><div>
+        <dt>Your voting power (at snapshot)</dt><dd>{address ? fmt(yours) : "-"}</dd>
+      </div></dl>
+      <p>Only your snapshot voting power counts for this proposal.</p>
+      {warning}
+    </PowerInfo>;
+    const grouped = preview && presentation !== "original";
+    const total = <div className="ballot-voting-power">
+      <span className="ballot-voting-power-label"><span className="ui-label-with-info">
+        <span>Your voting power</span>{info}
+      </span></span>
+      <strong>{address ? fmt(yours) : "-"}</strong>
+    </div>;
+    if (!grouped) {
+      if (presentation === "single" && usedInVote) return <div className="ballot-power-group">
+        <BallotPowerSummary amount={address && yours !== undefined && decimals !== undefined ? fmt(yours).replace(/\.00(?=[KMBT]? )/, "") : undefined} warning={warning}>
+          <p>Only your snapshot voting power counts for this proposal. This public vote uses all of it.</p>
+          <dl className="power-info-values"><div><dt>Your voting power (at snapshot)</dt><dd>{address && yours !== undefined && decimals !== undefined ? `${displayNumber(formatUnits(yours, decimals))} ${PUB_TOKEN_SYMBOL}` : "Calculating…"}</dd></div></dl>
+        </BallotPowerSummary>
+      </div>;
+      return total;
+    }
     return (
-      <div className="ballot-voting-power">
-        <span className="ballot-voting-power-label">
-          <span className="ui-label-with-info">
-            <span>Your voting power</span>
-            <PowerInfo label="About your voting power for this proposal" compact={true}>
-              <dl className="power-info-values">
-                <div>
-                  <dt>Your voting power (at snapshot)</dt>
-                  <dd>{address ? fmt(yours) : "-"}</dd>
-                </div>
-              </dl>
-              <p>Only your snapshot voting power counts for this proposal.</p>
-            </PowerInfo>
-          </span>
-        </span>
-        <strong>{address ? fmt(yours) : "-"}</strong>
+      <div className="ballot-power-group" data-power-presentation={presentation}>
+        {presentation === "paired" && total}
+        {preview(address ? fmt(yours) : "-", info, warning)}
       </div>
     );
   }

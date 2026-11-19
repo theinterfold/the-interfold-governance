@@ -10,6 +10,16 @@ export function exactNumber(input: string, maxDecimals?: number): string {
   return `${normalizedWhole}.${normalizedFraction}`;
 }
 
+/** Group the integer digits for display, preserving the exact fraction and any unit suffix. */
+export function groupThousands(input: string): string {
+  return input.replace(/^-?\d+/, whole => whole.replace(/\B(?=(\d{3})+(?!\d))/g, ","));
+}
+
+/** Read-only amounts: group whole digits and omit redundant fractional zeros without Number conversion. */
+export function displayNumber(input: string, maxDecimals?: number): string {
+  return groupThousands(exactNumber(input, maxDecimals).replace(/\.?0+$/, ""));
+}
+
 export function compactNumber(input: number | string, decimalPlaces: number = 2): string {
   const num = typeof input === "string" ? parseFloat(input) : input;
 

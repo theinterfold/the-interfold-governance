@@ -1,7 +1,6 @@
-import { useWeb3Modal, useWeb3ModalState } from "@web3modal/wagmi/react";
+import { useModal } from "connectkit";
 
 export function useWalletModal() {
-  const modal = useWeb3Modal();
-  const { open: isOpen } = useWeb3ModalState();
-  return { ...modal, isOpen };
+  const modal = useModal();
+  return { open: () => modal.setOpen(true), isOpen: modal.open };
 }

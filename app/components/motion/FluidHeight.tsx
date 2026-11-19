@@ -26,6 +26,7 @@ export function FluidHeight({
   const targetHeight = useRef<number>();
   const heightAnimation = useRef<Animation>();
   const [height, setHeight] = useState<number>();
+  const [followingContentMotion, setFollowingContentMotion] = useState(false);
 
   useClientLayoutEffect(() => {
     const content = contentRef.current;
@@ -40,19 +41,24 @@ export function FluidHeight({
       if (!content.getClientRects().length) return;
       // A disclosure already owns its intermediate layout heights. Following it
       // directly prevents a second full-duration animation from restarting each frame.
-      const contentMotion =
-        layoutKey === undefined
-          ? []
-          : content
-              .getAnimations({ subtree: true })
-              .filter(
-                (animation) =>
-                  animation.playState === "running" &&
-                  animation.effect instanceof KeyframeEffect &&
-                  animation.effect
-                    .getKeyframes()
-                    .some((frame) => heightProperties.some((property) => property in frame))
-              );
+      const contentMotion = content
+        .getAnimations({ subtree: true })
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect instanceof KeyframeEffect &&
+            animation.effect
+              .getKeyframes()
+              .some((frame) => heightProperties.some((property) => property in frame))
+        );
+      // Every wrapper must follow a disclosure directly, including wrappers
+      // without a layout key. Otherwise each resize restarts its CSS transition
+      // and the clipping surface falls behind the content it contains.
+      setFollowingContentMotion(contentMotion.length > 0 || settle);
+      if (contentMotion.length) {
+        heightAnimation.current?.cancel();
+        heightAnimation.current = undefined;
+      }
       contentMotion.forEach((animation) => {
         if (observedMotion.has(animation)) return;
         observedMotion.add(animation);
@@ -125,7 +131,7 @@ export function FluidHeight({
       {...props}
       ref={surfaceRef}
       className={`fluid-height ${className}`}
-      data-animate={animate && layoutKey === undefined}
+      data-animate={animate && layoutKey === undefined && !followingContentMotion}
       style={{ ...style, height: visibleHeight }}
     >
       <div ref={contentRef} className="fluid-height-content">

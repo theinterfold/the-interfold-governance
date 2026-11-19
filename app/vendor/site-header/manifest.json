@@ -1,0 +1,15 @@
+{
+  "sourceSha256": "bbffbe9d7cf1a9a10b2391412a0b0ece3fcab6ab3fd08f18949979e4a4c11fef",
+  "files": {
+    "index.js": "13a2366fff227446d87c42387fe2deb4f3b1747611cf99c1117eaf2d8e515d03",
+    "motion.js": "43582eb3a870b42388d476cb587d07d9e58d371c32cc4e49a52308ea2d000a9b",
+    "styles.css": "4b251c4f752fbe1098f2f9455af8567c6127402472a6bb0e4ea0932f08374725",
+    "index.d.ts": "6485cae9f3a87e725b6fad535bd2eb963371eb8b5ad4a11ca18f62ed589b24c0",
+    "motion.d.ts": "192215509469f8b3022873d6cd0a07cbd877c13cbae079d1c170be2bcbc9c86a",
+    "package.json": "971f6aec32f17130a2e85ab4fba74eb133493400c24d4c1a92552d0c3d1d362f",
+    "verify.cjs": "977ff479c969be26753967d6c47539d617b33ed60fdb783f193424edcddef200"
+  },
+  "assets": {
+    "interfold-symbol-fold.svg": "70d47344b921e8f0666d67d2f0788cfa2436699ad7449015ef90b02e48d78b49"
+  }
+}

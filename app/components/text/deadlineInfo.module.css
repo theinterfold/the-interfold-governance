@@ -21,3 +21,9 @@
   font: 400 12px/1.5 var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
+.withDescription:global(.power-info-popover) {
+  width: 280px;
+}
+.description {
+  margin-top: var(--ui-space-controls);
+}

@@ -8,6 +8,7 @@ export function PanelHeader({
   description,
   action,
   className = "",
+  animate = true,
 }: {
   id: string;
   title: string;
@@ -15,9 +16,11 @@ export function PanelHeader({
   description?: string;
   action?: ReactNode;
   className?: string;
+  animate?: boolean;
 }) {
+  const Frame = animate ? ScrollFadeIn : "header";
   return (
-    <ScrollFadeIn as="header" className={`ui-panel-header ${className}`}>
+    <Frame {...(animate ? {as: "header" as const} : {})} className={`ui-panel-header ${className}`}>
       <div className="ui-panel-heading-copy">
         <h2 id={id}>
           {title}
@@ -30,6 +33,6 @@ export function PanelHeader({
         {description && <p>{description}</p>}
       </div>
       {action}
-    </ScrollFadeIn>
+    </Frame>
   );
 }

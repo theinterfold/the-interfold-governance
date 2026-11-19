@@ -36,13 +36,13 @@ function proposalRoute(hash: string) {
     // A detail link into a process that is not installed (phased rollout, or a link carried
     // over from another deployment) — explain, rather than render a detail page over nothing.
     if (!isAddress(PUB_CRISP_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
-    const id = hash.replace("#/proposals/private/", "");
-    return /^\d+$/.test(id) ? <CrispProposalDetail key={id} index={BigInt(id)} /> : <NotFound />;
+    const match = /^#\/proposals\/private\/(\d+)(\/read)?$/.exec(hash);
+    return match ? <CrispProposalDetail key={match[1]} index={BigInt(match[1])} readingOnly={!!match[2]} /> : <NotFound />;
   }
   if (hash.startsWith("#/proposals/public/")) {
     if (!isAddress(PUB_TOKEN_VOTING_PLUGIN_ADDRESS)) return <NotFound message={NOT_INSTALLED} />;
-    const id = hash.replace("#/proposals/public/", "");
-    return /^\d+$/.test(id) ? <TokenProposalDetail key={id} index={BigInt(id)} /> : <NotFound />;
+    const match = /^#\/proposals\/public\/(\d+)(\/read)?$/.exec(hash);
+    return match ? <TokenProposalDetail key={match[1]} index={BigInt(match[1])} readingOnly={!!match[2]} /> : <NotFound />;
   }
 
   return <NotFound />;

@@ -16,6 +16,7 @@ export function PowerInfo({
   contentClassName = "",
   children,
   interactive = false,
+  tone = "neutral",
 }: {
   label: string;
   compact?: boolean;
@@ -25,8 +26,10 @@ export function PowerInfo({
   contentClassName?: string;
   children: ReactNode;
   interactive?: boolean;
+  tone?: "neutral" | "warning";
 }) {
   const [open, setOpen] = useState(false);
+  const [container, setContainer] = useState<HTMLElement | null>(null);
   const popoverId = useId();
   const closeTimer = useRef<ReturnType<typeof setTimeout>>();
   const openTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -42,6 +45,8 @@ export function PowerInfo({
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
     claimPopover();
+    // A modal's focus boundary must also contain its interactive disclosures.
+    setContainer(previewTrigger.current?.closest<HTMLElement>('[role="dialog"]') ?? null);
     setOpen(true);
   };
   const enterPreview = () => {
@@ -70,6 +75,15 @@ export function PowerInfo({
     if (disabled) setOpen(false);
   }, [disabled]);
 
+  const triggerClassName = trigger ? "power-preview-trigger" : `power-info-toggle${compact ? " power-info-toggle--compact" : ""}`;
+  const triggerContent = trigger ?? (
+    <svg viewBox="0 0 24 24" width={compact ? 16 : 24} height={compact ? 16 : 24} fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M12 11v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="12" cy="7.5" r=".9" fill="currentColor" />
+    </svg>
+  );
+
   if (interactive)
     return (
       <Popper.Root>
@@ -77,7 +91,8 @@ export function PowerInfo({
           <button
             ref={previewTrigger}
             type="button"
-            className="power-preview-trigger"
+            className={triggerClassName}
+            data-tone={tone === "warning" ? tone : undefined}
             disabled={disabled}
             aria-label={label}
             aria-expanded={open && !disabled}
@@ -90,16 +105,20 @@ export function PowerInfo({
               if (["ArrowDown", "Enter", " "].includes(event.key)) {
                 event.preventDefault();
                 keepPreviewOpen();
-                requestAnimationFrame(() =>
-                  previewContent.current?.querySelector<HTMLButtonElement>("button")?.focus()
-                );
+                requestAnimationFrame(() => {
+                  const content = previewContent.current;
+                  const first = content?.querySelector<HTMLElement>(
+                    'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+                  );
+                  (first ?? content)?.focus({ preventScroll: true });
+                });
               }
             }}
           >
-            {trigger}
+            {triggerContent}
           </button>
         </Popper.Anchor>
-        <Portal>
+        <Portal container={container}>
           <Presence present={open && !disabled}>
             <DismissableLayer
               asChild={true}
@@ -120,6 +139,7 @@ export function PowerInfo({
                 onPointerLeave={leavePreview}
                 id={popoverId}
                 role="dialog"
+                tabIndex={-1}
                 aria-label={label}
                 className={`power-info-popover ${contentClassName}`}
                 data-state={open && !disabled ? "open" : "closed"}
@@ -146,9 +166,8 @@ export function PowerInfo({
       <Tooltip.Root open={open && !disabled} onOpenChange={setOpen}>
         <Tooltip.Trigger
           type="button"
-          className={
-            trigger ? "power-preview-trigger" : `power-info-toggle${compact ? " power-info-toggle--compact" : ""}`
-          }
+          className={triggerClassName}
+          data-tone={tone === "warning" ? tone : undefined}
           disabled={disabled}
           aria-label={label}
           aria-expanded={open}
@@ -161,19 +180,7 @@ export function PowerInfo({
             setOpen(event.detail === 0 ? !open : !openOnPointerDown.current);
           }}
         >
-          {trigger ?? (
-            <svg
-              viewBox="0 0 24 24"
-              width={compact ? 16 : 24}
-              height={compact ? 16 : 24}
-              fill="none"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M12 11v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              <circle cx="12" cy="7.5" r=".9" fill="currentColor" />
-            </svg>
-          )}
+          {triggerContent}
         </Tooltip.Trigger>
         <Tooltip.Portal>
           <Tooltip.Content

@@ -1,0 +1,180 @@
+/* Shared compact account records. Geometry approved in the Dashboard comparison. */
+[data-record-table] {
+  --record-list-rule: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  --record-list-head: color-mix(in srgb, var(--surface-muted) 50%, var(--paper));
+  --record-shared-status-width: 160px;
+  --record-shared-action-width: 156px;
+  --record-status-width: var(--record-shared-status-width);
+  --record-action-track-width: var(--record-shared-action-width);
+  --action-column-width: var(--record-shared-action-width);
+  --record-row-inset: 12px;
+  --record-row-gap: 12px;
+}
+[data-record-table=delegations] {
+  --action-column-width: 96px;
+  --record-status-width: 100px;
+  --record-action-track-width: 96px;
+}
+[data-record-table] > [data-record-collection] {
+  container: account-records / inline-size;
+  display: grid;
+  gap: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--record-list-rule) !important;
+  border-radius: var(--ui-radius) !important;
+  background: var(--paper) !important;
+}
+[data-record-table] [data-record-following] { margin-top: 0 !important; }
+[data-record-table] :is([data-record-group-heading],[data-status-group]) { display: none !important; }
+[data-record-table] [data-record-state] { display: inline-flex !important; align-items: center; }
+[data-record-table] [data-record-group],
+[data-record-table] [data-record-group] .power-card {
+  margin: 0; padding: 0 !important; border: 0 !important;
+  border-radius: 0 !important; box-shadow: none !important; background: transparent !important;
+}
+[data-record-table] [data-record-group] :is(.power-position-list,.power-delegate-list) {
+  display: block !important; margin: 0 !important; border: 0 !important; background: transparent !important;
+}
+[data-record-table] [data-record-group] :is(.power-position-row,.power-delegate-row) {
+  box-sizing: border-box;
+  min-height: 68px !important;
+  padding: 12px var(--record-row-inset) !important;
+  border: 0 !important;
+  border-top: 1px solid var(--record-list-rule) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  transition: background-color 180ms ease;
+}
+[data-record-table] [data-record-group] :is(.power-position-row,.power-delegate-row):is(:hover,:focus-within) {
+  background: var(--surface-muted) !important;
+}
+[data-record-table] [data-record-columns] {
+  display: grid !important;
+  gap: var(--record-row-gap);
+  align-items: center;
+  padding: 12px var(--record-row-inset);
+  border-radius: var(--ui-radius-inner) var(--ui-radius-inner) 0 0;
+  background: var(--record-list-head);
+  color: var(--muted);
+  font: var(--ui-label-font);
+}
+[data-record-table] [data-record-columns]>span:last-child { text-align: right; }
+[data-record-table] :is(.ui-list-token-amount,.power-position-amount) { font: 500 14px/1.4 var(--font-sans); }
+[data-record-table] .power-position-unit { font: 400 13px/1.5 var(--font-sans); }
+[data-record-table] .ui-row-identifier { font: 400 11px/1.5 var(--font-sans); }
+[data-record-table] .power-position-amount { align-items: center; gap: 10px; }
+[data-record-table] .ui-list-token-amount { white-space: nowrap; }
+[data-record-table] [data-record-state]>.power-preview-trigger { min-height: 28px; }
+[data-record-table] [data-record-group] :is(.power-position-action button,.power-delegate-data>button) { font-size: 12px; }
+
+/* Compact records keep status with identity and reserve a separate action area.
+   Long lock actions move below only when the two areas cannot both fit. */
+[data-record-table] [data-record-columns] { display: none !important; }
+[data-record-table] [data-record-group] .power-position-row {
+  grid-template-columns: minmax(0,1fr) !important;
+  grid-template-rows: auto auto;
+  gap: 8px !important;
+  padding-block: 12px !important;
+}
+[data-record-table] .power-position-summary { display:flex; flex-wrap:nowrap; align-items:center; gap:4px 8px; min-width:0; grid-column:1; grid-row:1; container:record-identity / inline-size; }
+[data-record-table] .power-position-id { flex:none; width:24px; }
+[data-record-table] .power-position-holding { min-width:0; flex:none; }
+[data-record-table] [data-record-group] .power-position-status { flex:none; justify-self:start; justify-content:flex-start; padding:0; flex-wrap:nowrap; }
+[data-record-table] [data-record-group] .power-position-action { grid-column:1 / -1 !important; grid-row:2 !important; align-self:center; justify-self:stretch; }
+[data-record-table] [data-record-group] .power-position-action button { width:100%; min-height:44px; }
+
+[data-record-table] [data-record-group] .power-delegate-row {
+  grid-template-columns: minmax(0,1fr) var(--record-action-track-width); grid-template-rows: auto auto;
+  gap: 8px; padding-block: 12px !important;
+}
+[data-record-table] .power-delegate-data { display: contents; }
+/* In the compact composition, status describes the wallet. Keep it with the
+   identity; reserve the other column exclusively for the row action. */
+[data-record-table] .power-delegate-identity { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px 8px; grid-column: 1; grid-row: 1; container:record-identity / inline-size; }
+[data-record-table] .power-delegate-identity>:not([data-record-state]) { grid-column: 1; grid-row: 1; min-width: 0; flex: 0 1 auto; }
+[data-record-table] .power-delegate-identity>[data-record-state] { flex: none; justify-self: start; }
+[data-record-table] .power-delegate-identity button { max-width: 100%; font-size: 14px; font-weight: 500; }
+[data-record-table] .power-delegate-identity img { width: 24px; height: 24px; }
+[data-record-table] .power-delegate-votes { grid-column: 1; grid-row: 2; align-self: center; padding: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+[data-record-table] .power-delegate-votes>.ui-list-token-amount { flex: none; }
+[data-record-table] .power-delegate-votes>div { font-size: 11px; line-height: 1.5; }
+[data-record-table] [data-record-group] .power-delegate-data>button { grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: end; width: var(--action-column-width); min-width: 0; min-height: 44px; margin: 0; padding-inline: 12px; }
+
+/* The full withdrawal label needs more room than Accept/Return. */
+@container account-records (min-width:352px) {
+  [data-record-table] [data-record-group] .power-position-row {
+    grid-template-columns: minmax(0,1fr) var(--record-action-track-width) !important;
+    grid-template-rows:auto;
+  }
+  [data-record-table] [data-record-group] .power-position-action { grid-column:2 !important; grid-row:1 !important; }
+}
+/* Measured minimum: ID + amount + longest status + compact action, including insets. */
+@container account-records (min-width:540px) {
+  [data-record-table=locks] [data-record-columns] { display: grid !important; }
+  [data-record-table=locks] [data-record-columns],
+  [data-record-table] [data-record-group] .power-position-row {
+    grid-template-columns: 24px minmax(0,1fr) var(--record-status-width) var(--record-action-track-width) !important;
+    grid-template-rows: auto; gap: 8px !important; padding-block: 12px !important;
+  }
+  [data-record-table] .power-position-summary { display:contents; }
+  [data-record-table=locks] [data-record-columns]>span:nth-child(2) { padding-left: 26px; }
+  [data-record-table] .power-position-holding { grid-column: 2 !important; }
+  [data-record-table] [data-record-group] .power-position-status { grid-column: 3 !important; grid-row: 1 !important; padding: 0; }
+  [data-record-table] [data-record-group] .power-position-action { grid-column: 4 !important; grid-row: 1 !important; }
+  [data-record-table] [data-record-group] .power-position-action button { width: var(--action-column-width); }
+}
+@container account-records (min-width:552px) {
+  [data-record-table=delegations] [data-record-columns] { display: grid !important; }
+  [data-record-table] [data-record-columns=delegations],
+  [data-record-table] [data-record-group] .power-delegate-row { grid-template-columns: minmax(148px,1fr) minmax(160px,1.8fr) var(--record-status-width) var(--record-action-track-width); grid-template-rows: auto; gap: 8px; padding-block: 12px !important; }
+  [data-record-table] .power-delegate-identity { display: contents; }
+  [data-record-table] .power-delegate-identity>:not([data-record-state]) { grid-column: 1; }
+  [data-record-table] .power-delegate-identity>[data-record-state] { grid-column: 3; grid-row: 1; }
+  [data-record-table] .power-delegate-votes { grid-column: 2; grid-row: 1; }
+  [data-record-table] [data-record-group] .power-delegate-data>button { grid-column: 4; grid-row: 1; align-self: center; }
+}
+@container account-records (min-width:860px) {
+  /* Related desktop tables share both column guides and compact button widths.
+     Below this width, keep more space for wallet names and power breakdowns. */
+  [data-record-table] :is([data-record-columns],[data-record-group]) {
+    --record-row-inset: 16px;
+    --record-row-gap: 16px;
+    --record-status-width: var(--record-shared-status-width);
+    --record-action-track-width: var(--record-shared-action-width);
+    --action-column-width: var(--record-shared-action-width);
+  }
+  [data-record-table] [data-record-columns],
+  [data-record-table] [data-record-group] :is(.power-position-row,.power-delegate-row) { gap: 16px !important; }
+}
+@media(pointer:coarse) {
+  [data-record-table] [data-record-group] :is(.power-position-action button,.power-delegate-data>button) { min-height: 44px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  [data-record-table] [data-record-group] :is(.power-position-row,.power-delegate-row) { transition: none; }
+}
+
+/* Shared row status and icon roles. The helper remains a real keyboard trigger. */
+[data-record-table] :is([data-record-status],.lock-status-badge) {height:24px;padding:0 10px;border-radius:var(--ui-radius);gap:var(--ui-space-tight);font:var(--ui-status-font)}
+[data-record-table] [data-record-status].accepted {background:var(--if-brand-mint-shade)}
+[data-record-table] [data-record-position-icon] {display:inline-flex;align-items:center;justify-content:center;flex:none;width:16px;height:16px;padding:0;background:transparent}
+[data-record-table] [data-record-position-icon]>svg {width:16px;height:16px}
+[data-record-table] [data-record-group] {margin:0!important}
+[data-record-table] [data-record-collection] :is([role=alert],[role=status]) {padding:16px}
+[data-record-table] [data-record-group] > p {padding:16px}
+
+/* State never wraps away from identity. Named inner containers select a shorter
+   representation without shrinking labels, buttons or touch targets. */
+[data-responsive-status] { white-space:nowrap; }
+[data-responsive-status] [data-status-part] { align-items:center; gap:var(--ui-space-tight); }
+[data-responsive-status] [data-status-part="full"] { display:inline-flex; }
+[data-responsive-status] :is([data-status-part="short"],[data-status-part="icon"]) { display:none; }
+@container record-identity (max-width:308px) {
+  [data-responsive-status] [data-status-part="full"] { display:none; }
+  [data-responsive-status] [data-status-part="short"] { display:inline-flex; }
+}
+@container record-identity (max-width:220px) {
+  [data-responsive-status] { padding-inline:6px; }
+  [data-responsive-status] [data-status-part="short"] { display:none; }
+  [data-responsive-status] [data-status-part="icon"] { display:inline-flex; }
+  [data-record-position-icon] { display:none!important; }
+}

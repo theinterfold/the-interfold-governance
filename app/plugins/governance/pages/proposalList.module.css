@@ -1,4 +1,5 @@
 .panel {
+  container: proposal-list / inline-size;
   --proposal-gutter: 32px;
   padding-top: 32px;
 }
@@ -8,7 +9,8 @@
   align-items: flex-end;
   gap: 8px;
   flex-shrink: 0;
-  width: var(--proposal-action-width);
+  /* The primary creation CTA keeps its original width, independent of row actions. */
+  width: 260px;
   max-width: 100%;
 }
 .create > :global(.power-action) {

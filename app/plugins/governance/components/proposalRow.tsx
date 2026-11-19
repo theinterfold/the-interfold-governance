@@ -209,6 +209,7 @@ export function ProposalRow(props: ProposalRowProps) {
             ref={toggleRef}
             type="button"
             intent={votingOpen && !expanded ? "vote" : "open"}
+            size="compact"
             className="proposal-row-action"
             data-proposal-part="list-action"
             aria-expanded={expanded}
@@ -247,6 +248,7 @@ export function ProposalRow(props: ProposalRowProps) {
                 </Link>
                 <ActionButton
                   type="button"
+                  size="compact"
                   className="proposal-row-action"
                   onClick={collapse}
                   aria-expanded={expanded}

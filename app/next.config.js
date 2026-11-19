@@ -27,6 +27,7 @@ const nextConfig = {
 // The main Interfold Markdown owns the palette; validate it before loading the app.
 const { syncDesign, watchDesign } = require("./scripts/sync-design.cjs");
 module.exports = (phase) => {
+  require("./scripts/check-header.cjs")();
   syncDesign();
   if (phase === "phase-development-server") watchDesign();
   return nextConfig;
