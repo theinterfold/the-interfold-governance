@@ -108,10 +108,14 @@ export function SubmissionSummary({
     <div className="vp-submission-blocks" aria-live="polite">
       {order.map((kind) => {
         if (kind === "vote" ? !includeVote : !includeMask) return null;
-        const maskTotal = busy ? (maskRun?.total ?? 1) : maskReceipts.length;
+        const maskTotal = maskRun?.total ?? Math.max(1, maskReceipts.length);
         const complete = kind === "vote" ? !!voteReceipt : maskReceipts.length >= maskTotal;
+        const stopped = !busy && kind === "mask" && !complete;
         const pending = busy && activeKind === kind && !complete;
-        const state = complete ? "submitted" : pending ? "pending" : "waiting";
+        const state = complete ? "submitted" : stopped ? "incomplete" : pending ? "pending" : "waiting";
+        const stoppedMaskTitle = maskReceipts.length
+          ? `${maskReceipts.length} of ${maskTotal} masks submitted`
+          : maskTotal === 1 ? "Mask not submitted" : "Masks not submitted";
         const title =
           kind === "vote"
             ? complete
@@ -129,8 +133,8 @@ export function SubmissionSummary({
                 ? maskTotal === 1
                   ? "Submitting mask"
                   : "Submitting masks"
-                : "Mask waiting";
-        const message = complete
+                : stopped ? stoppedMaskTitle : "Mask waiting";
+        const message = complete || stopped
           ? undefined
           : pending
             ? detail
@@ -171,7 +175,7 @@ export function SubmissionSummary({
             {message && <p className="vp-submission-detail">{message}</p>}
             {kind === "mask" && !complete && maskTotal > 1 && maskReceipts.length > 0 && (
               <>
-                {!pending && (
+                {!pending && !stopped && (
                   <p className="vp-submission-detail">
                     {maskReceipts.length} of {maskTotal} submitted
                   </p>

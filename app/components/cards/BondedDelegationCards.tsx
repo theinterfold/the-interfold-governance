@@ -21,7 +21,7 @@ import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { PowerDisclosure } from "@/plugins/velocker/components/powerDisclosure";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import panelStyles from "@/plugins/velocker/components/accountPanels.module.css";
-import { bondedDelegateTarget } from "@/utils/bondedDelegation";
+import { bondedDelegateTarget, bondedOwnerView } from "@/utils/bondedDelegation";
 import { compactNumber } from "@/utils/numbers";
 import { ScrollFadeIn } from "@/vendor/site-header/motion";
 
@@ -72,9 +72,8 @@ export function BondedDelegationCards({
 
   if (!bonded.supported) return null;
 
-  const noOwnedPower = bonded.ownBonded === 0n && bonded.ownVesting === 0n;
-  const showOwner = !noOwnedPower && (section === "all" || section === "owner") && (
-    !!bonded.delegate || !!bonded.pendingDelegate || (bonded.ownWeight !== undefined && bonded.ownWeight > 0n));
+  const ownerView = bondedOwnerView(bonded);
+  const showOwner = ownerView !== "hidden" && (section === "all" || section === "owner");
   const showDelegate = section !== "owner" && (groupRepresentation || bonded.owners.length > 0 || bonded.requests.length > 0);
   if (!showOwner && !showDelegate) return null;
 
@@ -138,7 +137,7 @@ export function BondedDelegationCards({
           {outside && ownerHeading}
           <OwnerPanel {...(animateOwnerEntrance ? { as: "section" as const, amount: "some" as const } : {})} className="power-card" aria-labelledby={headingPlacement === "none" ? undefined : "bonded-owner-heading"} aria-label={headingPlacement === "none" ? "Bonded and vesting delegation" : undefined}>
             {!outside && headingPlacement !== "none" && ownerHeading}
-            <PowerDisclosure
+            {ownerView === "delegate" && <PowerDisclosure
               className={panelStyles.inlineDelegation}
               title="Delegate voting power"
               renderHeading={(toggle) => <div className={panelStyles.delegationSummary} data-amount={showOwnerAmount && !ownerSummary} data-custom-summary={!!ownerSummary}>
@@ -197,8 +196,8 @@ export function BondedDelegationCards({
                 <FieldError id={delegateErrorId} message={problem} role="alert" />
                 {target && bonded.pendingDelegate && !bonded.delegate && <p className="power-help" role="status">A new request replaces the request that you sent before.</p>}
               </form>
-            </PowerDisclosure>
-            {(bonded.delegate || bonded.pendingDelegate) && <div className={styles.ownerParty}>
+            </PowerDisclosure>}
+            {(bonded.delegate || bonded.pendingDelegate) && <div className={styles.ownerParty} data-management-only={ownerView === "manage" || undefined}>
                 {bonded.delegate && (
                   <BondedParty
                     label="Votes through"
@@ -252,7 +251,7 @@ export function BondedDelegationCards({
           <GroupPanel {...(GroupPanel === ScrollFadeIn ? {as:"section" as const, amount:"some" as const} : {})} data-record-group className={`power-card ${groupRepresentation ? styles.groupCard : headingPlacement !== "inside" && bonded.owners.length === 1 ? styles.rowsOnly : ""}`} aria-labelledby={recordLayout || headingPlacement === "none" ? undefined : "bonded-represented-heading"} aria-label={recordLayout || headingPlacement === "none" ? "Wallets you represent" : undefined}>
             {groupRepresentation && !recordLayout && <StatusGroupHeading id="bonded-represented-heading" title="Accepted" tone="positive" icon={<Check size={20} aria-hidden="true"/>} count={bonded.owners.length} description="Included in your voting power" trailing={bonded.owners.length > 1 ? <div className={styles.headingTotal}>{representedSummary}</div> : undefined} />}
             {!groupRepresentation && !outside && headingPlacement !== "none" && delegateHeading}
-            {groupRepresentation && bonded.owners.length === 0 && <p className={styles.emptyGroup}>No accepted delegations yet.</p>}
+            {groupRepresentation && <DelegationListFeedback group="owners" bonded={bonded} />}
             {!groupRepresentation && bonded.owners.length > 1 && <div className={styles.summary}>{representedSummary}</div>}
             {bonded.owners.length > 0 && (
               <OwnerList
@@ -291,7 +290,7 @@ export function BondedDelegationCards({
                   description="Accept a request to represent that wallet. Its voting power counts only after acceptance." />}
                 <GroupPanel {...(GroupPanel === ScrollFadeIn ? {as:"section" as const, amount:"some" as const} : {})} data-record-group className={`power-card ${groupRepresentation ? styles.groupCard : styles.rowsOnly}`} aria-labelledby={recordLayout ? undefined : "bonded-requests-heading"} aria-label={recordLayout ? "Delegation requests" : undefined}>
                   {groupRepresentation && !recordLayout && <StatusGroupHeading id="bonded-requests-heading" title="Pending requests" icon={<Hourglass size={20} aria-hidden="true"/>} count={bonded.requests.length} description="Not counted until you accept" />}
-                  {groupRepresentation && bonded.requests.length === 0 && <p className={styles.emptyGroup}>No pending requests.</p>}
+                  {groupRepresentation && <DelegationListFeedback group="requests" bonded={bonded} />}
                   {full && bonded.requests.length > 0 && <p className={styles.capacity}>All slots are filled. Return voting power to an owner before accepting another request.</p>}
               <OwnerList
                 label="Delegation requests"
@@ -307,7 +306,7 @@ export function BondedDelegationCards({
                     affordance="check"
                     aria-label={`Accept the request of ${name}`}
                     isLoading={bonded.pendingAction === `accept:${owner.address}`}
-                    disabled={busy || full}
+                    disabled={busy || full || bonded.ownersState !== "success"}
                     onClick={() => void bonded.accept(owner.address)}
                   >
                     Accept
@@ -331,6 +330,21 @@ export function BondedDelegationCards({
   ) : (
     cards
   );
+}
+
+function DelegationListFeedback({ group, bonded }: { group: "owners" | "requests"; bonded: BondedDelegation }) {
+  const owners = group === "owners";
+  const label = owners ? "accepted delegations" : "pending requests";
+  const state = owners ? bonded.ownersState : bonded.requestsState;
+  if (state === "error") {
+    return <p className={styles.emptyGroup} role="alert">
+      Could not load {label}.{" "}
+      <button type="button" className="ui-text-action" onClick={owners ? bonded.retryOwners : bonded.retryRequests}>Try again</button>
+    </p>;
+  }
+  if (state === "pending") return <p className={styles.emptyGroup} role="status">Loading {label}…</p>;
+  if (bonded[group].length) return null;
+  return <p className={styles.emptyGroup}>{owners ? "No accepted delegations yet." : "No pending requests."}</p>;
 }
 
 /** One delegate of the account's bonded voting power, with the control that ends the relationship. */

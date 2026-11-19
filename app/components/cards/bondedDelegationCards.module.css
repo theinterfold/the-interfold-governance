@@ -81,6 +81,7 @@
 .requestFields > :first-child { flex:1; min-width:0; }
 .requestFields > button { flex-shrink:0; }
 .ownerParty { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px 24px; margin-top:24px; padding-top:24px; border-top:1px solid var(--rule); }
+.ownerParty[data-management-only] { margin-top:0; padding-top:0; border-top:0; }
 .ownerParty > dl { flex:1; min-width:0; }
 @media(max-width:600px) {
  .requestFields { align-items:stretch; flex-direction:column; }

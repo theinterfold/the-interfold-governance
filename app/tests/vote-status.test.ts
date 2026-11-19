@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { publicVoteStatus } from "../components/proposalVoting/voteStatus";
+import { decideCommitmentStep } from "../plugins/crispVoting/utils/commitmentDecision";
 import { createVoteEvidenceStore } from "../plugins/crispVoting/utils/voteEvidence";
 
 describe("public vote status", () => {
@@ -97,6 +98,15 @@ describe("refresh-safe private participation receipts", () => {
     expect(tab.data.size).toBe(0);
     createVoteEvidenceStore(() => tab).record(scope, "submitted");
     expect(createVoteEvidenceStore(() => tab).get(scope)).toBe("submitted");
+  });
+  test("a relayed private ballot keeps its explorer transaction after refresh", () => {
+    const tab = storage();
+    const step = decideCommitmentStep({ status: "pending_availability", tx_hash: hash, message: null });
+    if (step.action !== "committed") throw new Error("Expected a relayed commitment");
+    createVoteEvidenceStore(() => tab).record(scope, "submitted", false, step.txHash);
+    const refreshed = createVoteEvidenceStore(() => tab);
+    expect(refreshed.get(scope)).toBe("submitted");
+    expect(refreshed.transaction(scope)).toBe(hash);
   });
   test("malformed records and invalid hashes cannot become confirmed", () => {
     const tab = storage();

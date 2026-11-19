@@ -2,7 +2,7 @@ import { PUB_CHAIN } from "@/constants";
 import { formatHexString } from "@/utils/evm";
 import { WalletButton } from "@/components/input/walletButton";
 import { openWalletAccountPanel } from "@/components/walletAccountPanel";
-import { useWalletPanel } from "@/hooks/useWalletPanel";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { useEffect } from "react";
 import { createClient, http } from "viem";
 import { createConfig, useAccount, useEnsName, useSwitchChain } from "wagmi";
@@ -24,7 +24,7 @@ const config = createConfig({
 
 export type WalletContainerProps = { placement?: "header" | "mobile" };
 const WalletContainer = ({ placement }: WalletContainerProps) => {
-  const openPanel = useWalletPanel();
+  const { open } = useWalletModal();
   const { address, isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
 
@@ -50,7 +50,7 @@ const WalletContainer = ({ placement }: WalletContainerProps) => {
         const trigger = event.currentTarget;
         trigger.focus({ preventScroll: true });
         if (isConnected && placement !== "mobile") openWalletAccountPanel(trigger);
-        else openPanel(trigger);
+        else open();
       }}
     />
   );

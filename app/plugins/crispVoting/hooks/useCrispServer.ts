@@ -307,6 +307,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setVotingStep("idle");
     setLastActiveStep(null);
     setStepMessage("");
+    setProofProgress(null);
   }, [address, e3Id, body]);
   useEffect(() => {
     active.current = true;
@@ -637,12 +638,14 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       let proof;
       // Each stage start is timestamped so the indicator can say what is being proved and estimate
       // how long is left from how fast this device ran the earlier stages.
-      const onProgress = ({ index }: ProofProgress) =>
+      const onProgress = ({ index }: ProofProgress) => {
+        if (!isCurrent()) return;
         setProofProgress((current) => ({
           isMask: isAMask === true,
           presetName,
           stageStartedAt: [...(current?.stageStartedAt ?? []).slice(0, index), Date.now()],
         }));
+      };
       // The SDK reports stage 1 only after it has loaded the prover, which on a first proof can take
       // a while. Show stage 1 as soon as proving starts; its first report replaces this timestamp,
       // so the load does not skew the estimate.
@@ -792,7 +795,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       if (step.action === "committed") {
         if (step.txHash) setTxHash(step.txHash);
-        voteEvidence.record(evidenceScope, "submitted", isAMask);
+        voteEvidence.record(evidenceScope, "submitted", isAMask, step.txHash);
         setVotingStep("complete");
         setStepMessage(`${label} submitted successfully!`);
         addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });

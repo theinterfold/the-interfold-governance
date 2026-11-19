@@ -62,6 +62,7 @@ export default function ProposalDetail({
   embedded?: boolean;
   readingOnly?: boolean;
 }) {
+  const { address } = useAccount();
   const spp = useSppProposal("public", sppProposalId);
 
   if (spp.missing) {
@@ -115,26 +116,35 @@ export default function ProposalDetail({
   }
 
   return (
-    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} readingOnly={readingOnly} />
+    <ProposalDetailBody
+      key={`${spp.subProposalId}:${address ?? ""}`}
+      address={address}
+      proposalIdx={spp.subProposalId}
+      sppProposalId={sppProposalId}
+      spp={spp}
+      embedded={embedded}
+      readingOnly={readingOnly}
+    />
   );
 }
 
 function ProposalDetailBody({
+  address,
   proposalIdx,
   sppProposalId,
   spp,
   embedded,
   readingOnly,
 }: {
+  address?: Address;
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
   embedded: boolean;
   readingOnly: boolean;
 }) {
-  const { address } = useAccount();
   const { open: openWallet } = useWalletModal();
-  const voteTransaction = useProposalVoting(proposalIdx);
+  const voteTransaction = useProposalVoting(proposalIdx, address);
   const { voteProposal } = voteTransaction;
   const {
     data: previousVote,
@@ -370,7 +380,6 @@ function ProposalDetailBody({
                 />
               ) : (
                 <ProposalVoting
-                  key={`${proposalIdx}:${address}`}
                   stage={proposalStage[0]}
                   proposalTitle={proposal.title}
                   votingPowerNotice={!PUB_ENABLE_LOCKING && delegationNotice}

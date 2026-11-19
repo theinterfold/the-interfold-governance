@@ -54,6 +54,10 @@
 .art:not([data-ready="true"]) canvas {
   visibility: hidden;
 }
+/* Match the canvas viewport when the device cannot render the animation. */
+.art[data-ready="false"] {
+  background: url("/images/govern-pointillism.webp") center / contain no-repeat;
+}
 .controller { display: contents; }
 .hero[data-govern-cursor="true"] { cursor: none; }
 .story {

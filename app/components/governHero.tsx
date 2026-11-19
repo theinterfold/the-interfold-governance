@@ -19,6 +19,9 @@ export function GovernHeroArtwork() {
     const url = motionBootUrl;
     void import(/* webpackIgnore: true */ url).then((module) => {
       if (!cancelled && root.current) instance = module.mountHero(root.current);
+    }).catch(() => {
+      const art = root.current?.querySelector<HTMLElement>("[data-art]");
+      if (!cancelled && art) art.dataset.ready = "false";
     });
     return () => { cancelled = true; instance?.dispose(); };
   }, []);

@@ -34,7 +34,7 @@ export function mountHero(root){
       const created=await createGovernHero(canvas,reduced.matches,{signal:abort.signal,onError(){leave();renderer=null;active=false;cancelAnimationFrame(frame);setReady(false);}});
       if(disposed||current!==token||abort.signal.aborted){created.dispose();return;}
       renderer=created;elapsed=0;renderer.resize();renderer.render(0);setReady(true);playback();
-    }catch(error){if(error.name!=='AbortError'){canvas.dataset.failed='true';canvas.dataset.failureReason=error.message;}}
+    }catch(error){if(error.name!=='AbortError'){setReady(false);canvas.dataset.failed='true';canvas.dataset.failureReason=error.message;}}
     finally{if(current===token){loading=false;controller=null;}}
   }
   function pointer(event){

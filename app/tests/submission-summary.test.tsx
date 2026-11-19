@@ -74,6 +74,23 @@ describe("Independent ballot and mask status", () => {
     expect(renderToStaticMarkup(<VoteChangeAction disabled votingClosed={false} onChange={() => {}} />)).toBe("");
     expect(renderToStaticMarkup(<VoteChangeAction disabled={false} votingClosed onChange={() => {}} />)).toBe("");
   });
+  test.each([0, 1])("a stopped three-mask run shows the vote and only the %i submitted masks", (sent) => {
+    const html = renderToStaticMarkup(<SubmissionSummary
+      {...defaults}
+      busy={false}
+      activeKind="mask"
+      first="vote"
+      voteReceipt={{ txHash: voteHash, option: 0 }}
+      maskReceipts={sent ? [maskHash] : []}
+      maskRun={{ total: 3, current: sent, sent }}
+    />);
+    expect(html).toContain("Vote submitted");
+    expect(html).toContain(voteHash);
+    expect(html).toContain(sent ? "1 of 3 masks submitted" : "Masks not submitted");
+    expect(html).toContain('data-kind="mask" data-state="incomplete"');
+    expect(html.includes(maskHash)).toBe(sent > 0);
+    expect(html).not.toContain("Starts after");
+  });
   test("a confirmed No is labelled as the vote choice, with editing inside the success state", () => {
     const html = renderToStaticMarkup(<SubmissionSummary
       {...defaults}

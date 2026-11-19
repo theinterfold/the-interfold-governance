@@ -1,5 +1,6 @@
 import { cloneElement } from "react";
 import NextDocument, { Html, Head as NextHead, Main, NextScript } from "next/document";
+import { INITIAL_MENU_INTENT } from "@/components/nav/initialMenuIntent";
 import { HEADER_ENTRANCE_BOOTSTRAP } from "@/vendor/site-header";
 
 // Only the production homepage reserves a short download window for artwork.
@@ -77,7 +78,7 @@ export default class Document extends NextDocument {
             width. An inline script blocks the parser until the stylesheets load, as other browsers do. */}
           <script dangerouslySetInnerHTML={{ __html: "0" }} />
           <Main />
-          <script dangerouslySetInnerHTML={{ __html: HEADER_ENTRANCE_BOOTSTRAP }} />
+          <script dangerouslySetInnerHTML={{ __html: INITIAL_MENU_INTENT + HEADER_ENTRANCE_BOOTSTRAP }} />
           <NextScript />
         </body>
       </Html>

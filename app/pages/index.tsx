@@ -1,3 +1,4 @@
+import { VOTING_POWER_URL } from "@/constants";
 import { GovernHeroArtwork } from "@/components/governHero";
 import Link from "next/link";
 import styles from "@/components/governHero.module.css";
@@ -22,7 +23,7 @@ export default function StandardHome() {
               <SiteCtaLink as={Link} href="/plugins/proposals/#/">
                 Explore proposals
               </SiteCtaLink>
-              <SiteCtaLink as={Link} href="/plugins/lock/#/" variant="secondary">
+              <SiteCtaLink as={Link} href={VOTING_POWER_URL} variant="secondary">
                 Manage voting power
               </SiteCtaLink>
             </ScrollFadeIn>

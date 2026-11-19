@@ -1,7 +1,7 @@
 import WalletContainer from "@/components/WalletContainer";
 import { plugins } from "@/plugins";
 import Link from "next/link";
-import { useState, useSyncExternalStore, type AnchorHTMLAttributes } from "react";
+import { useEffect, useState, useSyncExternalStore, type AnchorHTMLAttributes } from "react";
 import { FaucetStrip } from "./faucetStrip";
 import { MobileNavDialog } from "./mobileNavDialog";
 import { NavLink, type INavLink } from "./navLink";
@@ -20,6 +20,10 @@ const isDesktop = () => window.matchMedia(desktopQuery).matches;
 
 export const Navbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
+
+  useEffect(() => {
+    if (window.takeGovernMenuIntent?.()) setShowMenu(true);
+  }, []);
 
   const desktop = useSyncExternalStore(subscribeWidth, isDesktop, () => true);
   const navLinks: INavLink[] = plugins.map((p) => ({

@@ -19,6 +19,16 @@ export function bondedWeight(bonded: bigint, vesting?: { locked: bigint; held: b
   return bonded + (unbonded < vesting.held ? unbonded : vesting.held);
 }
 
+/** A relationship survives a zero balance and can still be stopped or withdrawn. */
+export function bondedOwnerView({ ownWeight, delegate, pendingDelegate }: {
+  ownWeight?: bigint;
+  delegate?: Address;
+  pendingDelegate?: Address;
+}): "delegate" | "manage" | "hidden" {
+  if (ownWeight !== undefined && ownWeight > 0n) return "delegate";
+  return delegate || pendingDelegate ? "manage" : "hidden";
+}
+
 export type VotingPowerSplit = {
   /** Escrow locks delegated to the account: the adapter's `getVotes`. */
   lockedAndDelegated?: bigint;
