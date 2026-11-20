@@ -170,9 +170,9 @@ export function ProposalRow(props: ProposalRowProps) {
               )}
             </Link>
           </h2>
-          <p className="summary line-clamp-2" data-proposal-part="summary">
+          <p className="summary" data-proposal-part="summary">
             <FadingLoading visible={!!props.metadataPending} inline><ProposalPlaceholder part="summary" /></FadingLoading>
-            {!props.metadataPending && <span className="proposal-content-arrival">{props.summary}</span>}
+            {!props.metadataPending && <span className="proposal-content-arrival line-clamp-2">{props.summary}</span>}
           </p>
           <div className="author" data-proposal-part="author">
             <em>By</em>

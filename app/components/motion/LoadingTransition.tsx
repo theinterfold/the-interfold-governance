@@ -21,7 +21,7 @@ export function FadingLoading({ visible, inline = false, children }: { visible: 
     if (!node) return;
     node.inert = exiting;
     if (!exiting) return;
-    const fade = node.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === "proposal-context-out");
+    const fade = node.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === "loading-rise-out");
     if (!fade) {
       setRetained(false);
       return;
