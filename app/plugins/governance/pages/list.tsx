@@ -1,6 +1,7 @@
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ActionButton } from "@/components/input/actionButton";
 import { SlidersHorizontal } from "@phosphor-icons/react";
+import { FadingLoading, LoadingBoundary } from "@/components/motion/LoadingTransition";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
 import { SearchField } from "@/components/input/searchField";
@@ -237,6 +238,7 @@ export default function Proposals() {
       {!canCreate && <p id="proposal-create-requirement" className="ui-body">{ineligibleReason}</p>}
     </div>
   );
+  const loadingList = !entries.length && isLoading && !listError && !noVotingPlugins;
   const filterButton = entries.length > 0 && (
     <ActionButton size="compact" aria-controls="proposal-filters" aria-expanded={filtersOpen}
       onClick={() => setFiltersPreference(!filtersOpen)}>
@@ -252,9 +254,9 @@ export default function Proposals() {
         description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
       />
       <section aria-labelledby="proposal-list-heading">
-        {mobile && entries.length > 0 ? (
+        {mobile && (loadingList || entries.length > 0) ? (
           <div className={styles.mobileHeading}>
-            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"} <span>{matchCount}</span></h2>
+            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"}{!loadingList && <> <span>{matchCount}</span></>}</h2>
             {filterButton}
           </div>
         ) : (
@@ -262,23 +264,24 @@ export default function Proposals() {
             description="Open a proposal to vote or review its results." className={styles.heading}
             action={!mobile && <div className={styles.headingActions}>{filterButton}{createAction}</div>} />
         )}
-        <ScrollFadeIn amount="some" className={`ui-panel ${styles.panel}`}>
+        <ScrollFadeIn amount="some" className={`ui-panel loading-slot ${styles.panel}`}>
+          <FadingLoading visible={loadingList}>
+            <div className={styles.feedback} role="status"><MissingContentView>Loading proposals…</MissingContentView></div>
+          </FadingLoading>
           <If not={entries.length}>
             <Then>
-              <div className={styles.feedback}>
+              {!loadingList && <div className={styles.feedback}>
                 <MissingContentView>
                   {noVotingPlugins
                     ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
-                    : listError ?? (isLoading
-                      ? "Loading proposals…"
-                      : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created.")}
+                    : listError ?? "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
                 </MissingContentView>
                 {listError && (
                   <button type="button" className="ui-text-action" onClick={retryLoad}>
                     Try again
                   </button>
                 )}
-              </div>
+              </div>}
             </Then>
             <Else>
               {error && (
@@ -358,13 +361,15 @@ export default function Proposals() {
                   const hidden = !visible(e);
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
-                      {e.kind === "private" ? (
-                        <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
-                          <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
-                        </PrivatePairProvider>
-                      ) : (
-                        <PublicRow proposalId={e.id} {...rowHandlers[key]} />
-                      )}
+                      <LoadingBoundary>
+                        {e.kind === "private" ? (
+                          <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
+                            <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                          </PrivatePairProvider>
+                        ) : (
+                          <PublicRow proposalId={e.id} {...rowHandlers[key]} />
+                        )}
+                      </LoadingBoundary>
                     </Disclosure>
                   );
                 })}

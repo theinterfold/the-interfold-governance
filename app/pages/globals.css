@@ -4237,6 +4237,23 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   max-width: 100%;
   vertical-align: top;
 }
+.loading-slot,
+.proposal-item :is(h2, .summary, .proposal-result) { position: relative; }
+.loading-layer[data-exiting] {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .loading-layer[data-exiting] { animation: proposal-context-out var(--interfold-ui-duration) ease-in-out both; }
+  .loading-slot:has(> .loading-layer[data-exiting]) > :not(.loading-layer) {
+    animation: proposal-context-in var(--proposal-arrival-duration, var(--interfold-ui-duration)) ease-in-out both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-layer[data-exiting] { display: none; }
+}
 .proposal-placeholder {
   display: inline-block;
   max-width: 100%;

@@ -3,6 +3,7 @@
   --proposal-gutter: 32px;
   padding-top: 32px;
 }
+.panel > :global(.loading-layer[data-exiting]) { top: auto; }
 .create {
   display: flex;
   flex-direction: column;
@@ -52,6 +53,7 @@
 
 .filters { margin-inline: var(--proposal-gutter); }
 .mobileHeading {
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;

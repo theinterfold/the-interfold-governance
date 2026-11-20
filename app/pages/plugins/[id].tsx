@@ -1,5 +1,6 @@
 import React, { useEffect, useState, type FC } from "react";
 import { useRouter } from "next/router";
+import { FadingLoading } from "@/components/motion/LoadingTransition";
 import { PleaseWaitSpinner } from "@/components/please-wait";
 import { resolveQueryParam } from "@/utils/query";
 import { NotFound } from "@/components/not-found";
@@ -36,21 +37,20 @@ const PluginLoader: FC = () => {
     };
   }, [pluginId]);
 
-  if (!loaded?.PageComponent || loaded.id !== pluginId) {
-    if (!pluginId || loaded?.id !== pluginId) {
-      return (
+  const pending = !pluginId || loaded?.id !== pluginId;
+  const PageComponent = loaded?.PageComponent;
+  return (
+    <div className="loading-slot">
+      <FadingLoading visible={pending}>
         <MainSection>
-          <div className="flex h-24 w-full items-center justify-center">
+          <div className="flex h-24 w-full items-center justify-center" role="status">
             <PleaseWaitSpinner />
           </div>
         </MainSection>
-      );
-    }
-    return <NotFound />;
-  }
-
-  const PageComponent = loaded.PageComponent;
-  return <PageComponent />;
+      </FadingLoading>
+      {!pending && (PageComponent ? <PageComponent /> : <NotFound />)}
+    </div>
+  );
 };
 
 export default PluginLoader;

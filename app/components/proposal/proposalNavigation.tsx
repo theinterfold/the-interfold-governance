@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { LoadingBoundary } from "../motion/LoadingTransition";
 import { flushSync } from "react-dom";
 import { proposalTransitionStyles, type ProposalPartPosition } from "./proposalTransition";
 
@@ -92,6 +93,7 @@ export function ProposalNavigation({
           elements.unshift({ element: scope as HTMLElement, part: (scope as HTMLElement).dataset.proposalPart! });
         // Read all geometry before assigning names, avoiding a style/layout flush per fact.
         const visible = elements.filter(({ element, part }) => {
+          if (element.closest(".loading-layer[data-exiting]")) return false;
           const rect = element.getBoundingClientRect();
           if (!rect.width || !rect.height) return false;
           const style = getComputedStyle(element);
@@ -203,7 +205,7 @@ export function ProposalNavigation({
             {list}
           </div>
         )}
-        {!isList(shown) && <div data-proposal-route="detail" tabIndex={-1}>{detail(shown)}</div>}
+        {!isList(shown) && <div data-proposal-route="detail" tabIndex={-1}><LoadingBoundary key={shown}>{detail(shown)}</LoadingBoundary></div>}
       </div>
     </NavigationContext.Provider>
   );
