@@ -695,7 +695,7 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
 }
 .interfold-ghost-signup .interfold-ghost-signup__label { margin-bottom: 12px; }
 /* Approved A2 footer: discreet labels and equal 28px line rhythm. */
-.site-footer :is(.site-footer-group .site-footer-label, .interfold-ghost-signup__label) {
+.site-footer .site-footer-label {
   font-size: 11px;
   line-height: 28px;
   color: #687d71;

@@ -12,7 +12,7 @@ See [the component catalogue](interface-catalogue.md) and the local `/design-sys
 - Header and footer come from the main website's shared `site-header` package. `SiteFooter`
   supplies the actual website structure and brand typography instead of a local approximation.
   Content uses shared props: Governance links to The Interfold, DAO Constitution, Documentation, X and Telegram,
-  with its own copyright and no Updates newsletter. The main site's default content remains.
+  and hides the Updates newsletter. Both sites use the shared copyright at the same size as the footer section labels.
   The Governance navbar and footer use `--page-ground-shade`; background is the only per-site
   aesthetic difference. All future
   aesthetic changes to either header or footer must be made in the canonical source and synced
