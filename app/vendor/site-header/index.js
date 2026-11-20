@@ -152,7 +152,9 @@ function installHeaderEntranceRuntime() {
         });
       }
     }
-    for (const symbol of header.querySelectorAll("[data-symbol-animated]")) {
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const symbols = revision && variant !== "mobile" && desktop.matches ? header.querySelectorAll("[data-symbol-animated]") : [];
+    for (const symbol of symbols) {
       const image = symbol.querySelector(".interfold-symbol-motion");
       if (!image)
         continue;
@@ -171,22 +173,28 @@ function installHeaderEntranceRuntime() {
         symbol.classList.add("interfold-symbol-playing");
         later(restore, 4010 / 3);
       };
+      const stopOnMobile = () => {
+        if (!desktop.matches)
+          restore();
+      };
+      desktop.addEventListener("change", stopOnMobile);
       image.addEventListener("load", loaded);
       image.addEventListener("error", restore);
       cleanups.push(() => {
+        desktop.removeEventListener("change", stopOnMobile);
         image.removeEventListener("load", loaded);
         image.removeEventListener("error", restore);
         restore();
       });
-      if (revision) {
-        symbol.classList.add("interfold-symbol-pending");
-        later(() => {
-          if (settled)
-            return;
-          image.setAttribute("href", `/brand/interfold-symbol-fold.svg${replay ? `?play=${Date.now()}` : ""}`);
-          timeout = later(restore, 5000);
-        }, 1100);
-      }
+      symbol.classList.add("interfold-symbol-pending");
+      later(() => {
+        if (settled)
+          return;
+        if (!desktop.matches)
+          return restore();
+        image.setAttribute("href", `/brand/interfold-symbol-fold.svg${replay ? `?play=${Date.now()}` : ""}`);
+        timeout = later(restore, 5000);
+      }, 1100);
     }
     const dispose = () => {
       disposed = true;

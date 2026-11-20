@@ -803,6 +803,10 @@ select:open + .interfold-chevron > .interfold-chevron-right { transform: rotate(
   animation: site-header-reveal 450ms cubic-bezier(.22,1,.36,1) 750ms both;
 }
 .site-header-symbol-slot { animation-delay: 850ms; }
+.site-header-chrome[data-variant="mobile"] .site-header-symbol-slot { animation: none; }
+@media not all and (min-width: 1280px) {
+  .site-header-chrome .site-header-symbol-slot { animation: none; }
+}
 .site-header-navigation .site-header-link { animation-delay: 950ms; }
 .site-header-navigation > .site-header-link:nth-child(2),
 .site-header-links > li:nth-child(2) .site-header-link { animation-delay: 1050ms; }

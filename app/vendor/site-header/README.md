@@ -152,8 +152,9 @@ The derived navbar asset retains its discrete samples and masks, rounds path
 coordinates to 0.1 units (under 0.004 CSS px here), crops the artboard to the mark,
 and uses the existing mint/green palette. The original reference stays untouched.
 Both headers currently use mint; the paper faces of this asset match that ground.
-The animation starts after the header arrives and returns to the official static
-path when complete. Reduced motion uses the static path without requesting the asset.
+On desktop, the symbol folds after the first header entrance in a tab, then returns
+to its static path. The mobile header, viewports below 1280px and reduced motion
+use the static symbol from the first paint. Resizing to mobile stops a pending or playing fold.
 The local comparison can replay both through the validated review bridge; switching
 sites preserves the current motion state (manual Replay remains available). Assets distribute through sync:header to both apps.
 
