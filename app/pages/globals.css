@@ -4248,17 +4248,33 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   pointer-events: none;
 }
 @media (prefers-reduced-motion: no-preference) {
-  /* Match the site's 16px upward reveal. Translate independently of scroll and disclosure transforms. */
+  /* The site's upward reveal moves independently of scroll and disclosure transforms. */
+  .loading-layer[data-exiting] {
+    --loading-fade: proposal-context-out;
+    --loading-rise: loading-rise-out;
+  }
+  .loading-layer[data-exiting] ~ :not(.loading-layer) {
+    --loading-fade: proposal-context-in;
+    --loading-rise: loading-rise-in;
+  }
   .loading-layer[data-exiting],
   .loading-layer[data-exiting] ~ :not(.loading-layer) {
+    animation-name: var(--loading-fade), var(--loading-rise);
     animation-duration: var(--proposal-arrival-duration, 600ms);
     animation-timing-function: var(--interfold-ui-ease);
     animation-fill-mode: both;
   }
-  .loading-layer[data-exiting] { animation-name: loading-rise-out; }
-  .loading-layer[data-exiting] ~ :not(.loading-layer) { animation-name: loading-rise-in; }
-  @keyframes loading-rise-out { to { opacity: 0; translate: 0 -16px; } }
-  @keyframes loading-rise-in { from { opacity: 0; translate: 0 16px; } }
+  /* The breadcrumb is shared by the skeleton and the proposal. Lift only the panels below it. */
+  .loading-layer[data-exiting]:has([data-proposal-loading]),
+  .loading-layer[data-exiting]:has([data-proposal-loading]) ~ :not(.loading-layer) {
+    animation-name: var(--loading-fade);
+  }
+  .loading-layer[data-exiting] [data-proposal-loading] > .proposal-detail-main,
+  .loading-layer[data-exiting]:has([data-proposal-loading]) ~ :not(.loading-layer) .proposal-detail-main {
+    animation: var(--loading-rise) var(--proposal-arrival-duration, 600ms) var(--interfold-ui-ease) both;
+  }
+  @keyframes loading-rise-out { to { translate: 0 -16px; } }
+  @keyframes loading-rise-in { from { translate: 0 16px; } }
 }
 @media (prefers-reduced-motion: reduce) {
   .loading-layer[data-exiting] { display: none; }
