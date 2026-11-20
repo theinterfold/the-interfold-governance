@@ -174,7 +174,7 @@ async function resolveVoteBalance(
  */
 interface CrispServerState {
   /** Draws the weight that a ballot counts, for the voter to review before signing. */
-  getVoteWeight: (randomize: boolean) => Promise<BallotWeight>;
+  getVoteWeight: (randomize: boolean, percentage?: number) => Promise<BallotWeight>;
   isLoading: boolean;
   error: string;
   postVote: (
@@ -289,6 +289,26 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   // A wallet prompt must not open from a page that the voter already left. The worker can take
   // minutes to choose who sends a ballot, so the wait can outlive the page.
   const active = useRef(true);
+  // This hook survives wallet changes, unlike the ballot card. Invalidate work immediately so
+  // an older encryption/proof cannot open a prompt or send from the newly connected account.
+  const operationScope = useRef({ address, e3Id, body });
+  if (
+    operationScope.current.address !== address ||
+    operationScope.current.e3Id !== e3Id ||
+    operationScope.current.body !== body
+  ) {
+    operationScope.current = { address, e3Id, body };
+  }
+  useEffect(() => {
+    // An already-started prepared send owns its own lifecycle across account changes.
+    setIsLoading(sendingPrepared.current);
+    setError("");
+    setTxHash(null);
+    setVotingStep("idle");
+    setLastActiveStep(null);
+    setStepMessage("");
+    setProofProgress(null);
+  }, [address, e3Id, body]);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -383,7 +403,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   };
 
   const getVoteWeight = useCallback(
-    async (randomize: boolean): Promise<BallotWeight> => {
+    async (randomize: boolean, percentage?: number): Promise<BallotWeight> => {
       if (e3Id === undefined || !address) throw new Error("Connect your wallet before reviewing a ballot.");
       const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
       const program = await resolveCrispProgram(publicClient, body, e3Id);
@@ -400,8 +420,9 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         voter: address,
         available,
         power,
-        counted: chooseBallotWeight(available, randomize),
+        counted: chooseBallotWeight(available, randomize, percentage),
         randomize,
+        percentage,
         unit,
         decimals,
       };
@@ -448,6 +469,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     submitOnChain: boolean = false,
     options: PostVoteOptions = {}
   ): Promise<BallotSubmissionResult> => {
+    const scope = operationScope.current;
+    const isCurrent = () => active.current && operationScope.current === scope;
+    const cancelled = new Error("Ballot operation is no longer current.");
+    const ensureCurrent = () => {
+      if (!isCurrent()) throw cancelled;
+    };
     setIsLoading(true);
     // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
     setTxHash(null);
@@ -493,6 +520,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       });
 
       const roundState = await getRoundState(e3Id);
+      ensureCurrent();
 
       if (roundState.status !== "Active") {
         return fail(
@@ -517,6 +545,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // relayer or log spammer — can substitute a key they hold the secret for and decrypt the
       // ballot. Resolved BEFORE anything is encrypted to it.
       const resolved = await resolveCommitteeKey(toKeyBytes(roundState.committee_public_key));
+      ensureCurrent();
       if (!resolved.key || !resolved.presetName) {
         const reason = resolved.reason ?? "The committee public key could not be verified.";
         return fail(reason);
@@ -528,7 +557,9 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // Resolved before the ballot is built: an ONCHAIN round takes its weight from this contract
       // rather than from a census, so the program has to be known first.
       const crispProgram = await resolveCrispProgram(publicClient, body, e3Id);
+      ensureCurrent();
       const censusMode = await getCensusMode(publicClient, crispProgram, e3Id);
+      ensureCurrent();
       const isOnchainCensus = censusMode === CensusMode.ONCHAIN;
 
       let voteData;
@@ -549,6 +580,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           weight
         );
       }
+      ensureCurrent();
 
       // The weight the ballot counts: zero for a mask, else the reviewed share of `balance`.
       const counted = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
@@ -557,6 +589,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // there is no holder list to fetch and no root to prove against. Asking for one would 404 —
       // the coordinator never builds it for these rounds.
       const merkleLeaves = isOnchainCensus ? [] : await getTokenHoldersHashes(e3Id);
+      ensureCurrent();
 
       // Step 2: Encrypt the ballot. Split from proving because the signature covers a digest that
       // commits to this exact ciphertext, so the ballot has to exist before the voter can sign it.
@@ -578,6 +611,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // circuits with no change here. Loaded lazily so the ~3MB artifacts only download when
       // voting.
       await ensureCircuits(presetName);
+      ensureCurrent();
 
       // The SDK's own prepareBallot (not the standalone one): it resolves the slot's head —
       // previous ciphertext plus its tree index — from the server and threads the pair into the
@@ -587,6 +621,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           ? { e3Id, ...ballotBase, censusMode: "onchain", votingPower: voteData.balance }
           : { e3Id, ...ballotBase, censusMode: "merkle", merkleLeaves, balance: voteData.balance }
       );
+      ensureCurrent();
 
       // The digest comes from the contract that will verify the ballot, not from a struct rebuilt
       // here. `publishInput` recomputes it and the circuit proves the signature covers it, so a
@@ -598,16 +633,19 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         voteData.slotAddress as `0x${string}`,
         prepared.ctCommitment
       );
+      ensureCurrent();
 
       let proof;
       // Each stage start is timestamped so the indicator can say what is being proved and estimate
       // how long is left from how fast this device ran the earlier stages.
-      const onProgress = ({ index }: ProofProgress) =>
+      const onProgress = ({ index }: ProofProgress) => {
+        if (!isCurrent()) return;
         setProofProgress((current) => ({
           isMask: isAMask === true,
           presetName,
           stageStartedAt: [...(current?.stageStartedAt ?? []).slice(0, index), Date.now()],
         }));
+      };
       // The SDK reports stage 1 only after it has loaded the prover, which on a first proof can take
       // a while. Show stage 1 as soon as proving starts; its first report replaces this timestamp,
       // so the load does not skew the estimate.
@@ -623,8 +661,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         showFirstStage();
         proof = await finishMaskProof(prepared, digest, { onProgress });
       } else {
-        // The voter reviewed this weight before signing: a random share of the voting power, or all
-        // of it when the voter turned the random weight off. `handleVote` checked the review against
+        // The voter reviewed this weight before signing: a random or custom share, or the full
+        // voting power. `handleVote` checked the review against
         // this round's balance, so its unit and power measure the encrypted weight.
         const share = ballotWeightPercentage({ ...weight!, counted });
 
@@ -632,6 +670,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         setVotingStep("signing");
         setLastActiveStep("signing");
         await putWalletOnVotingChain();
+        ensureCurrent();
         // Name the connection, so the voter knows where the request went. A WalletConnect session
         // sends it to the wallet app on the phone, not to a browser extension.
         const walletName =
@@ -650,7 +689,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
         // A wallet can accept a request and never show it. After a delay, say where to look.
         const stillWaiting = setTimeout(() => {
-          if (!active.current) return;
+          if (!isCurrent()) return;
           setStepMessage(
             `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
           );
@@ -660,6 +699,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
         // one, and every ballot would fail looking like a bad signature.
         const signature = await signTypedDataAsync(request).finally(() => clearTimeout(stillWaiting));
+        ensureCurrent();
 
         // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
         // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
@@ -677,6 +717,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         showFirstStage();
         proof = await finishBallotProof(prepared, digest, signature, { onProgress });
       }
+      ensureCurrent();
 
       const encodedProof = encodeSolidityProof(proof);
 
@@ -708,6 +749,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         },
         body: JSON.stringify(voteBody),
       });
+      ensureCurrent();
 
       // The relay answers 200 only when this exact statement already has a completed durable job,
       // and 202 when it staged fresh work — the normal path for a new vote, because Avail
@@ -722,10 +764,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         // whether to wait, retry, or stop — and it is the difference between a rate limit and a
         // closed ballot.
         const reason = await readServerRejection(response);
+        ensureCurrent();
         return fail(reason);
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
+      ensureCurrent();
       const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
 
       let step = decideCommitmentStep(voteResponse);
@@ -733,8 +777,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         setVotingStep("confirming");
         setLastActiveStep("confirming");
         setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
-        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView, () => !active.current);
-        if (!active.current) return declined;
+        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView, () => !isCurrent());
+        ensureCurrent();
         if (decided === null) {
           step = { action: "error", reason: "The server no longer has this ballot. Submit it again." };
         } else if (decided) {
@@ -751,7 +795,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       if (step.action === "committed") {
         if (step.txHash) setTxHash(step.txHash);
-        voteEvidence.record(evidenceScope, "submitted", isAMask);
+        voteEvidence.record(evidenceScope, "submitted", isAMask, step.txHash);
         setVotingStep("complete");
         setStepMessage(`${label} submitted successfully!`);
         addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
@@ -760,7 +804,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
       // The voter chose this route, or the server did not relay the ballot.
-      if (!active.current) return declined;
+      ensureCurrent();
 
       // Prepare only: keep the attested payload for another wallet to send. Nothing is sent now,
       // and `buildPreparedBallot` refuses a payload that names another slot than the signer's.
@@ -788,19 +832,24 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       }
 
       await putWalletOnVotingChain();
+      ensureCurrent();
       setStepMessage(
         submitOnChain
           ? "Publishing your vote on-chain..."
           : "The server did not relay this ballot. Confirm the transaction in your wallet to submit it."
       );
       const hash = await publishVoteOnChain(step.payload as `0x${string}`);
+      // The transaction may already be confirmed when the account changes. Keep its evidence
+      // with the original signer, while leaving the new wallet's visible operation untouched.
+      voteEvidence.record(evidenceScope, "confirmed", isAMask, hash);
+      ensureCurrent();
       setTxHash(hash);
-      voteEvidence.record(evidenceScope, "confirmed", isAMask);
       setVotingStep("complete");
       setStepMessage(`${label} published on-chain!`);
       addAlert(`${label} published on-chain!`, { timeout: 3000, type: "success" });
       return { success: true, txHash: hash };
     } catch (error) {
+      if (!isCurrent() || error === cancelled) return declined;
       console.error("Error in postVote:", error);
       // viem's `message` appends the request arguments, and a ballot's calldata is tens of KB of
       // unbroken hex; `describeFailure` keeps the one-line summary and names known contract errors.
@@ -813,7 +862,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setStepMessage(reason ?? "");
       return { success: false, error: reason ?? "" };
     } finally {
-      setIsLoading(false);
+      if (isCurrent()) setIsLoading(false);
     }
   };
 
@@ -858,7 +907,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setTxHash(hash);
       voteEvidence.record(
         { chainId: ballot.chainId, plugin: ballot.plugin, roundId: BigInt(ballot.roundId), voter: ballot.voter },
-        "confirmed"
+        "confirmed", false, hash
       );
       setPreparedReceipt({ voter: ballot.voter, sender, txHash: hash });
       addAlert("Vote submitted", {

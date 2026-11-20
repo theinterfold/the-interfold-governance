@@ -1,6 +1,6 @@
 import { http, createConfig } from "wagmi";
 import { fallback } from "viem";
-import { walletConnect } from "wagmi/connectors";
+import { getDefaultConfig } from "connectkit";
 import {
   PUB_APP_DESCRIPTION,
   PUB_APP_NAME,
@@ -12,14 +12,6 @@ import {
   PUB_WEB3_ENDPOINT,
   PUB_WEB3_FALLBACK_ENDPOINT,
 } from "@/constants";
-
-// wagmi config
-const metadata = {
-  name: PUB_APP_NAME,
-  description: PUB_APP_DESCRIPTION,
-  url: PUB_PROJECT_URL,
-  icons: [PUB_WALLET_ICON],
-};
 
 /**
  * How every client in the app reads the chain: the wagmi config below and the plain viem clients.
@@ -40,17 +32,18 @@ export const readTransport = PUB_WEB3_FALLBACK_ENDPOINT
     ])
   : http(PUB_WEB3_ENDPOINT, { batch: { batchSize: PUB_RPC_BATCH_SIZE } });
 
-export const config = createConfig({
-  chains: [PUB_CHAIN],
-  ssr: true,
-  transports: {
-    [PUB_CHAIN.id]: readTransport,
-  },
-  connectors: [
-    walletConnect({
-      projectId: PUB_WALLET_CONNECT_PROJECT_ID,
-      metadata,
-      showQrModal: false,
-    }),
-  ],
-});
+export const config = createConfig(
+  getDefaultConfig({
+    appName: PUB_APP_NAME,
+    appDescription: PUB_APP_DESCRIPTION,
+    appUrl: typeof window === "undefined" ? PUB_PROJECT_URL : window.location.origin,
+    appIcon: PUB_WALLET_ICON,
+    walletConnectProjectId: PUB_WALLET_CONNECT_PROJECT_ID,
+    enableFamily: false,
+    // Wallet transports belong to the browser. Server rendering only reads chain data.
+    connectors: typeof window === "undefined" ? [] : undefined,
+    chains: [PUB_CHAIN],
+    ssr: true,
+    transports: { [PUB_CHAIN.id]: readTransport },
+  })
+);

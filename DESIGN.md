@@ -76,6 +76,8 @@ Nos locks individuais em cooldown, o tempo restante aparece dentro da mesma etiq
 
 ## Interação e motion
 
+Aplicar a [transição de saída e entrada entre páginas](app/vendor/site-header/README.md#page-navigation) na navegação interna e no histórico. O padrão abrange o site principal, a Governance e o Dashboard.
+
 Usar `MorphDialog`, `Disclosure`, `ActionTray`, `ActionButton`, `PowerInfo`, `ChoiceMenu` e os controlos de ballot existentes. Uma única expansão move conteúdo e ação no mesmo frame. Preservar reversão, foco visível, teclado, retorno ao gatilho e estado do rascunho. Ações opcionais não competem com a decisão principal. Verificar localmente o resultado e o fluxo, não apenas uma captura estática.
 
 Sem wallet ligada, distinguir consulta pública de ações pessoais. O ballot apresenta Connect wallet, sem escolhas nem um montante fictício; crédito pessoal pede ligação em vez de ficar a carregar. Publicar/executar um resultado deve comunicar a ligação necessária no próprio CTA. A ligação conserva a intenção ou rascunho, permite cancelar e regressa à revisão/ação para confirmação explícita; nunca submete uma transação por si. Desligar ou trocar account não deve reabrir um modal antigo, atribuir poder de outra wallet ou perder o rascunho do editor.

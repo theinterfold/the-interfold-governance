@@ -107,7 +107,7 @@ function PrivateRowBody({
   onSearchText?: (text: string) => void;
   hidden?: boolean;
 }) {
-  const { proposal, totalVotingPower, e3Failed, networkProgress, status } = useProposal(subProposalId, {
+  const { proposal, totalVotingPower, e3Failed, networkProgress, status, retry } = useProposal(subProposalId, {
     metadataUri,
     creator,
   });
@@ -116,7 +116,7 @@ function PrivateRowBody({
   // Only a proposal with no data yet is loading. A background refetch keeps the row as it is: the
   // loading row unmounts the open details, and the details read this proposal again when they
   // mount, which starts the next refetch.
-  const loading = !proposal || (!proposal.title && !status.metadataError);
+  const loading = !proposal || (!proposal.title.trim() && !status.metadataError);
   const nowMs = useProposalBoundaryClock(
     proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
     proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
@@ -158,11 +158,18 @@ function PrivateRowBody({
     if (searchText !== undefined) onSearchText?.(searchText);
   }, [searchText, onSearchText]);
 
+  if (!proposal && status.proposalError) {
+    return <ProposalRow href={href} kindLabel="Secret ballot" title={`Proposal #${proposalId}`}
+      statusLabel="Unavailable" failureMessage="Could not load the voting data for this proposal."
+      onRetry={() => void retry()} hidden={hidden} />;
+  }
+
   if (loading && sppOverride && presentation) {
     return (
       <ProposalRow
         href={href}
         kindLabel="Secret ballot"
+        metadataPending
         title={proposal?.title}
         summary={proposal?.summary}
         creator={proposal?.creator ?? creator}
@@ -201,7 +208,7 @@ function PrivateRowBody({
     <ProposalRow
       href={href}
       kindLabel="Secret ballot"
-      title={proposal.title}
+      title={status.metadataError ? "Title unavailable" : proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
       statusLabel={view.label}

@@ -3,7 +3,8 @@ import { ActionButton } from "@/components/input/actionButton";
 import { BendingChevron } from "@/vendor/site-header";
 import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
-import { PleaseWaitSpinner } from "@/components/please-wait";
+import { FadingLoading, LoadingBoundary, LoadingIndicator } from "@/components/motion/LoadingTransition";
+import { ProposalPlaceholder } from "@/components/proposal/proposalLoading";
 import { AddressText } from "@/components/text/address";
 import { useInert } from "@/components/motion/useInert";
 import { ProposalCountdown, formatCountdown } from "@/components/proposal/proposalCountdown";
@@ -15,6 +16,7 @@ export interface ProposalRowProps {
   /** "Secret ballot" | "Transparent fallback" — drives the editorial kind column. */
   kindLabel: string;
   loading?: boolean;
+  metadataPending?: boolean;
   loadingMessage?: string;
   failureMessage?: string;
   onRetry?: () => void;
@@ -118,11 +120,24 @@ export function ProposalRow(props: ProposalRowProps) {
 
   if (props.loading) {
     return (
-      <article className="proposal-item">
-        <div className="proposal-row proposal-row-loading">
-          <PleaseWaitSpinner fullMessage={props.loadingMessage ?? "Loading…"} />
-        </div>
-      </article>
+      <LoadingIndicator>
+        <article className="proposal-item" data-expanded="false" aria-busy="true">
+          <span className="sr-only">{props.loadingMessage ?? "Loading proposal…"}</span>
+          <div className="proposal-row" aria-hidden="true">
+            <div className="body">
+              <div className="meta"><StatusBadge className="kind">{props.kindLabel}</StatusBadge></div>
+              <div className="proposal-loading-heading"><ProposalPlaceholder part="title" /></div>
+              <div className="summary"><ProposalPlaceholder part="summary" /></div>
+              <div className="author"><ProposalPlaceholder part="label" /></div>
+            </div>
+            <div className="right">
+              <div className="time"><ProposalPlaceholder part="label" /></div>
+              <div className="proposal-result"><ProposalPlaceholder part="summary" /></div>
+              <ProposalPlaceholder part="action" />
+            </div>
+          </div>
+        </article>
+      </LoadingIndicator>
     );
   }
 
@@ -146,15 +161,18 @@ export function ProposalRow(props: ProposalRowProps) {
               {props.kindLabel}
             </StatusBadge>
           </div>
-          <h2 id={titleId}>
-            <Link href={props.href} className="proposal-title-link" scroll={false}>
-              <span className="proposal-motion-title" data-proposal-part="title">
-                {title}
-              </span>
+          <h2 id={titleId} aria-busy={props.metadataPending || undefined}>
+            <Link href={props.href} className="proposal-title-link" scroll={false}
+              aria-label={props.metadataPending ? "Open proposal" : undefined}>
+              <FadingLoading visible={!!props.metadataPending} inline><ProposalPlaceholder part="title" /></FadingLoading>
+              {!props.metadataPending && (
+                <span className="proposal-motion-title proposal-content-arrival" data-proposal-part="title">{title}</span>
+              )}
             </Link>
           </h2>
-          <p className="summary line-clamp-2" data-proposal-part="summary">
-            {props.summary}
+          <p className="summary" data-proposal-part="summary">
+            <FadingLoading visible={!!props.metadataPending} inline><ProposalPlaceholder part="summary" /></FadingLoading>
+            {!props.metadataPending && <span className="proposal-content-arrival line-clamp-2">{props.summary}</span>}
           </p>
           <div className="author" data-proposal-part="author">
             <em>By</em>
@@ -182,7 +200,8 @@ export function ProposalRow(props: ProposalRowProps) {
             </span>
           )}
           <div className="proposal-result" data-proposal-part="list-result">
-            {props.resultLabel !== props.kindLabel && (
+            <FadingLoading visible={!!props.metadataPending && props.resultLabel !== props.kindLabel} inline><ProposalPlaceholder part="summary" /></FadingLoading>
+            {!props.metadataPending && props.resultLabel !== props.kindLabel && (
               <span className="proposal-result-label">{props.resultLabel ?? "Voting results"}</span>
             )}
             {props.bars && props.bars.length > 0 && (
@@ -209,6 +228,7 @@ export function ProposalRow(props: ProposalRowProps) {
             ref={toggleRef}
             type="button"
             intent={votingOpen && !expanded ? "vote" : "open"}
+            size="compact"
             className="proposal-row-action"
             data-proposal-part="list-action"
             aria-expanded={expanded}
@@ -240,13 +260,14 @@ export function ProposalRow(props: ProposalRowProps) {
         <div className="proposal-disclosure-clip">
           {hasOpened && (
             <div className="proposal-expanded-content">
-              {props.details}
+              <LoadingBoundary>{props.details}</LoadingBoundary>
               <div className="proposal-expanded-footer">
                 <Link href={props.href} className="ui-text-action" target="_blank" rel="noopener noreferrer">
                   Open full page ↗<span className="sr-only"> (opens in a new tab)</span>
                 </Link>
                 <ActionButton
                   type="button"
+                  size="compact"
                   className="proposal-row-action"
                   onClick={collapse}
                   aria-expanded={expanded}

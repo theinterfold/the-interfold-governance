@@ -17,7 +17,7 @@ are assessed against the running app, not assumed to match that older inventory.
 | [Base product family](https://brand.base.org/sub-brands) | One visual system across product areas | Shared roles and actions for Voting power and Proposals |
 | [Aave Pro guide](https://aave.com/blog/aave-pro-user-guide), Deposit screenshot | Restrained headings, aligned facts, actions separated from data | Equal overview columns and a dedicated lock-management area |
 | [Coinbase account redesign](https://www.coinbase.com/en-gb/blog/building-economic-freedom-one-pixel-at-a-time), My Assets | Consolidated account facts | Total, liquid balance and sources belong to one overview |
-| Interfold website `titleBlock.ts`, `packages/site-header` | Brand type, responsive scale, common control sizes | PageIntro uses the brand outline weight; header and `SiteFooter` come from the main website's shared source. Footer structure and styles stay global; links, copyright and newsletter visibility are application content. Only background colour varies aesthetically. Standard actions follow 46/52px heights and 6px corners |
+| Interfold website `titleBlock.ts`, `packages/site-header` | Brand type, responsive scale, common control sizes | PageIntro uses the brand outline weight. The main website supplies the header and `SiteFooter`. Both sites share the footer structure, typography and copyright. Each site chooses its links, newsletter visibility and background colour. Standard actions follow 46/52px heights and 6px corners |
 
 The reference is composition and consistency. Brand colours, fonts and governance
 behaviour remain Interfold’s. The atlas is research, not an implementation specification.

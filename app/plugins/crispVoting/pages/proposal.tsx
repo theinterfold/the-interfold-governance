@@ -13,7 +13,7 @@ import {
   usePrivatePair,
 } from "../hooks/usePrivatePair";
 import ProposalHeader from "../components/proposal/header";
-import { PleaseWaitSpinner } from "@/components/please-wait";
+import { ProposalDetailLoading } from "@/components/proposal/proposalLoading";
 import { useProposalStatus } from "../hooks/useProposalStatus";
 import type { Address } from "viem";
 import { ElseIf, If, Then } from "@/components/if";
@@ -49,6 +49,12 @@ import { ActivityCard } from "../components/activityCard";
 import { NetworkProgress } from "../components/networkProgress";
 import type { PreparedBallot } from "../utils/preparedBallot";
 import type { PreparedVoteReceipt } from "../utils/ballotSubmission";
+import {
+  appendPreparedMaskReceipt,
+  preparedMaskReceiptsFor,
+  preparedMaskScope,
+  type PreparedMaskReceipts,
+} from "../utils/preparedMaskReceipts";
 
 const ZERO = BigInt(0);
 
@@ -56,9 +62,11 @@ const ZERO = BigInt(0);
 export default function ProposalDetail({
   index: sppProposalId,
   embedded = false,
+  readingOnly = false,
 }: {
   index: bigint;
   embedded?: boolean;
+  readingOnly?: boolean;
 }) {
   const pair = usePrivatePair();
   const spp = useSppProposal("private", sppProposalId);
@@ -69,7 +77,7 @@ export default function ProposalDetail({
     if (pair === INSTALLED_PRIVATE_PAIR && RETIRED_PRIVATE_PAIR) {
       return (
         <PrivatePairProvider value={RETIRED_PRIVATE_PAIR}>
-          <ProposalDetail index={sppProposalId} embedded={embedded} />
+          <ProposalDetail index={sppProposalId} embedded={embedded} readingOnly={readingOnly} />
         </PrivatePairProvider>
       );
     }
@@ -103,16 +111,25 @@ export default function ProposalDetail({
       />
     );
   }
-  if (spp.subProposalId === undefined) {
+  if (!spp.metadataUri && spp.metadataError) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not load this proposal’s content. Try loading it again."
+        embedded={embedded}
+        onRetry={() => void spp.retryMetadata()}
+      />
+    );
+  }
+  if (spp.subProposalId === undefined || !spp.metadataUri) {
+    return (
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/private/${sppProposalId}` : undefined} />
     );
   }
 
   return (
-    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} />
+    <ProposalDetailBody proposalIdx={spp.subProposalId} sppProposalId={sppProposalId} spp={spp} embedded={embedded} readingOnly={readingOnly} />
   );
 }
 
@@ -121,11 +138,13 @@ function ProposalDetailBody({
   sppProposalId,
   spp,
   embedded,
+  readingOnly,
 }: {
   proposalIdx: bigint;
   sppProposalId: bigint;
   spp: ReturnType<typeof useSppProposal>;
   embedded: boolean;
+  readingOnly: boolean;
 }) {
   const { address } = useAccount();
   const { body } = usePrivatePair();
@@ -140,6 +159,8 @@ function ProposalDetailBody({
     e3Failed,
     e3FailurePending,
     e3FailureReason,
+    retry: retryProposal,
+    retryMetadata,
     status: proposalFetchStatus,
   } = useProposal(proposalIdx, { metadataUri: spp.metadataUri, creator: spp.creator });
   const {
@@ -204,10 +225,26 @@ function ProposalDetailBody({
   if (preparedBallot) lastPreparedBallot.current = preparedBallot;
   if (preparedReceipt) lastPreparedReceipt.current = preparedReceipt;
   const ballotStep = preparedBallot ? "prepared" : preparedReceipt ? "submitted" : "ballot";
+  const [handoffMasks, setHandoffMasks] = useState<PreparedMaskReceipts | null>(null);
+  const handoffScope = preparedMaskScope(proposal?.e3Id, preparedBallot?.voter ?? preparedReceipt?.voter ?? address);
+  const handoffMaskReceipts = preparedMaskReceiptsFor(handoffMasks, handoffScope);
+  useEffect(() => {
+    // Sender changes retain the signer's scope. A different voter or round starts a fresh flow.
+    setHandoffMasks((current) => current?.scope === handoffScope ? current : null);
+  }, [handoffScope]);
+  const discardHandoff = () => {
+    discardPreparedVote();
+    setHandoffMasks(null);
+  };
+  const changeHandoffVote = () => {
+    changePreparedVote();
+    setHandoffMasks(null);
+  };
   const previousBallotStep = useRef(ballotStep);
   useEffect(() => {
     const previous = previousBallotStep.current;
     previousBallotStep.current = ballotStep;
+    if (previous !== ballotStep && ballotStep === "ballot") setHandoffMasks(null);
     if (previous === ballotStep || !votingOpen) return;
     const outgoing = previous === "prepared" ? preparedPanel : previous === "submitted" ? submittedPanel : ballotPanel;
     const incoming =
@@ -252,6 +289,8 @@ function ProposalDetailBody({
 
   const onVote = async (optionIndex: number, weight: BallotWeight) => {
     if (!proposal) return { success: false as const, error: "Proposal unavailable." };
+    // Sending directly starts a different flow from any unfinished wallet handoff.
+    setHandoffMasks(null);
     return postVote(BigInt(optionIndex), proposal.e3Id, proposal.parameters.snapshotBlock, false, submitOnChain, {
       weight,
     });
@@ -289,11 +328,47 @@ function ProposalDetailBody({
   // there is a wallet to send from.
   const ballotOpen = votingOpen && isCommitteeReady !== false;
 
+  const votingPowerNotice = PUB_ENABLE_LOCKING ? (
+    <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
+  ) : (
+    <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
+      <NoVotePowerWarning
+        delegatingToSomeoneElse={delegatingToSomeoneElse}
+        delegatesTo={delegatesTo}
+        delegatedToZero={delegatedToZero}
+        address={address}
+        canVote={!!canVote}
+      />
+    </If>
+  );
+
+  if (!proposal && proposalFetchStatus.proposalError) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not load this private proposal. Check your connection and try again."
+        embedded={embedded}
+        onRetry={() => void retryProposal()}
+      />
+    );
+  }
+
+  if (!proposal?.title?.trim() && proposalFetchStatus.metadataError) {
+    return (
+      <UnavailableProposalDetail
+        proposalId={sppProposalId}
+        status="Unavailable"
+        message="Could not read this proposal’s content. Try loading it again."
+        embedded={embedded}
+        onRetry={() => void retryMetadata()}
+      />
+    );
+  }
+
   if (!proposal || showProposalLoading) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/private/${sppProposalId}` : undefined} />
     );
   }
 
@@ -301,6 +376,8 @@ function ProposalDetailBody({
     <section className={embedded ? "w-full min-w-0" : "flex w-screen min-w-full max-w-full flex-col items-center"}>
       <div className={embedded ? "w-full" : "proposal-page"}>
         <ProposalDetailLayout
+          proposalHref={`/plugins/proposals/#/proposals/private/${sppProposalId}`}
+          readingOnly={readingOnly}
           breadcrumb={!embedded && <ProposalBreadcrumb identifier={`E3 · ${e3RoundNumber(proposal.e3Id)}`} />}
           header={
             !embedded && (
@@ -331,11 +408,17 @@ function ProposalDetailBody({
                         <VoteCard
                           key={`${proposalIdx}-${address}`}
                           votingPower={
-                            <VotingPower
-                              votingPlugin={body}
-                              snapshotTimepoint={proposal.parameters.snapshotBlock}
-                              compact={true}
-                            />
+                            <div>
+                              <UncountedFoldNotice address={PUB_ENABLE_LOCKING ? address : undefined} delegatesTo={delegatesTo}>
+                                {(warning) => <VotingPower
+                                  votingPlugin={body}
+                                  snapshotTimepoint={proposal.parameters.snapshotBlock}
+                                  compact={true}
+                                  warning={warning}
+                                />}
+                              </UncountedFoldNotice>
+                              {!PUB_ENABLE_LOCKING && votingPowerNotice}
+                            </div>
                           }
                           proposalTitle={proposal.title}
                           creditMode={proposal.parameters.creditMode}
@@ -361,6 +444,10 @@ function ProposalDetailBody({
                           onClickVote={onVote}
                           onClickMask={onMask}
                           onPrepareVote={onPrepare}
+                          onPreparedMaskReceipt={(hash) => {
+                            const scope = preparedMaskScope(proposal.e3Id, address);
+                            if (scope) setHandoffMasks((current) => appendPreparedMaskReceipt(current, scope, hash));
+                          }}
                           canPublishOnChain={canPublishOnChain}
                           onChainBlockedReason={onChainBlockedReason}
                           submitOnChain={submitOnChain}
@@ -387,7 +474,8 @@ function ProposalDetailBody({
                             busy={isLoading}
                             error={error}
                             onSend={sendPreparedVote}
-                            onDiscard={discardPreparedVote}
+                            onDiscard={discardHandoff}
+                            maskReceipts={handoffMaskReceipts}
                           />
                         )}
                       </div>
@@ -404,7 +492,8 @@ function ProposalDetailBody({
                             receipt={preparedReceipt ?? lastPreparedReceipt.current}
                             walletAddress={address}
                             canChangeVote={votingOpen}
-                            onChangeVote={changePreparedVote}
+                            onChangeVote={changeHandoffVote}
+                            maskReceipts={handoffMaskReceipts}
                             onSwitchWallet={openWallet}
                           />
                         )}
@@ -412,19 +501,6 @@ function ProposalDetailBody({
                     </MotionPanel>
                   </div>
                 </FluidHeight>
-              )}
-              {PUB_ENABLE_LOCKING ? (
-                <UncountedFoldNotice address={address} delegatesTo={delegatesTo} />
-              ) : (
-                <If all={[hasUnrepresentedBalance, delegatingToSomeoneElse || delegatedToZero]}>
-                  <NoVotePowerWarning
-                    delegatingToSomeoneElse={delegatingToSomeoneElse}
-                    delegatesTo={delegatesTo}
-                    delegatedToZero={delegatedToZero}
-                    address={address}
-                    canVote={!!canVote}
-                  />
-                </If>
               )}
               {error && !votingOpen && (
                 <div className="border border-critical-200 bg-critical-100 px-4 py-3">
@@ -538,6 +614,7 @@ function getShowProposalLoading(
   proposal: ReturnType<typeof useProposal>["proposal"],
   status: ReturnType<typeof useProposal>["status"]
 ) {
+  if (proposal?.title?.trim()) return false;
   if (!proposal && status.proposalLoading) return true;
   else if (status.metadataLoading && !status.metadataError) return true;
   else if (!proposal?.title && !status.metadataError) return true;

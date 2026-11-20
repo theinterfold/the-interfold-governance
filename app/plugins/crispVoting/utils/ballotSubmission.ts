@@ -10,13 +10,29 @@ export function randomFirstBallot(): BallotKind {
   return crypto.getRandomValues(new Uint8Array(1))[0] & 1 ? "mask" : "vote";
 }
 
+/** Resolve the review once; confirmation sends that same order without drawing again. */
+export function reviewFirstBallot({
+  includeMask,
+  anotherWallet,
+  changeOrder,
+}: {
+  includeMask: boolean;
+  anotherWallet: boolean;
+  changeOrder: boolean;
+}): BallotKind {
+  if (!includeMask) return "vote";
+  if (anotherWallet) return "mask";
+  return changeOrder ? randomFirstBallot() : "vote";
+}
+
 /**
- * The vote and the mask are separate submissions, sent in the order that `first` sets. A failure or
- * a changed wallet/view stops the sequence, so the second submission is never sent without the first.
+ * The vote and each mask are separate submissions. `first` places the mask list before or after
+ * the vote. A failure or changed wallet/view stops all remaining submissions.
  */
 export async function submitBallotSequence({
   vote,
   mask,
+  masks,
   first = "vote",
   isCurrent,
   onStart,
@@ -24,19 +40,19 @@ export async function submitBallotSequence({
 }: {
   vote?: () => Promise<BallotSubmissionResult>;
   mask?: () => Promise<BallotSubmissionResult>;
-  /** The submission that goes first when there are two. */
+  masks?: (() => Promise<BallotSubmissionResult>)[];
+  /** Whether the vote or the mask list goes first. */
   first?: BallotKind;
   isCurrent: () => boolean;
-  onStart: (kind: BallotKind) => void;
-  onResult: (kind: BallotKind, result: BallotSubmissionResult) => void;
+  onStart: (kind: BallotKind, maskIndex?: number) => void;
+  onResult: (kind: BallotKind, result: BallotSubmissionResult, maskIndex?: number) => void;
 }) {
-  const submissions = { vote, mask };
-  const order = first === "mask" ? (["mask", "vote"] as const) : (["vote", "mask"] as const);
-  for (const kind of order) {
-    const submit = submissions[kind];
-    if (!submit) continue;
+  const maskSteps = (masks ?? (mask ? [mask] : [])).map((submit, index) => ({ kind: "mask" as const, submit, index }));
+  const voteSteps = vote ? [{ kind: "vote" as const, submit: vote, index: undefined }] : [];
+  const sequence = first === "mask" ? [...maskSteps, ...voteSteps] : [...voteSteps, ...maskSteps];
+  for (const { kind, submit, index } of sequence) {
     if (!isCurrent()) return;
-    onStart(kind);
+    onStart(kind, index);
     let result: BallotSubmissionResult;
     try {
       result = await submit();
@@ -47,7 +63,7 @@ export async function submitBallotSequence({
       };
     }
     if (!isCurrent()) return;
-    onResult(kind, result);
+    onResult(kind, result, index);
     if (!result.success) return;
   }
 }

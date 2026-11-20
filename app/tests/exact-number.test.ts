@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compactNumber, exactNumber } from "../utils/numbers";
+import { compactNumber, displayNumber, exactNumber } from "../utils/numbers";
 
 test("compact amount units retain their magnitude at each scale", () => {
   expect(compactNumber("1000")).toBe("1.00K");
@@ -7,6 +7,26 @@ test("compact amount units retain their magnitude at each scale", () => {
   expect(compactNumber("1000000000")).toBe("1.00B");
   expect(compactNumber("1000000000000")).toBe("1.00T");
   expect(compactNumber("1234500000000")).toBe("1.23T");
+});
+
+describe("Readable ballot amounts", () => {
+  test("groups thousands and removes only redundant fractional zeros", () => {
+    expect(displayNumber("125000.00")).toBe("125,000");
+    expect(displayNumber("50000")).toBe("50,000");
+    expect(displayNumber("49816.20")).toBe("49,816.2");
+    expect(displayNumber("0")).toBe("0");
+    expect(displayNumber("0.00000100")).toBe("0.000001");
+  });
+
+  test("preserves large values and token precision without floating-point rounding", () => {
+    expect(displayNumber("123456789012345678901234567890.123456789123456789")).toBe(
+      "123,456,789,012,345,678,901,234,567,890.123456789123456789"
+    );
+    expect(displayNumber("10000.000000000000000001")).toBe("10,000.000000000000000001");
+    expect(displayNumber("110003.999", 2)).toBe("110,003.99");
+    expect(displayNumber("NaN")).toBe("-");
+    expect(displayNumber("")).toBe("-");
+  });
 });
 
 describe("Exact token amount display", () => {

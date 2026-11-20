@@ -1,3 +1,5 @@
+import Head from "next/head";
+import { PUB_APP_NAME } from "@/constants";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AddressText } from "@/components/text/address";
@@ -21,7 +23,18 @@ export function ProposalBreadcrumb({ identifier }: { identifier: string }) {
         <ArrowLeft size={16} weight="regular" aria-hidden="true" />
         Back to proposals
       </Link>
-      <span aria-current="page">{identifier}</span>
+      {identifier && <span aria-current="page">{identifier}</span>}
+    </nav>
+  );
+}
+
+export function ProposalBackToVoting({ href }: { href: string }) {
+  return (
+    <nav className="proposal-breadcrumb" aria-label="Breadcrumb">
+      <a href={href} className="ui-text-action inline-flex items-center gap-2">
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back to voting
+      </a>
     </nav>
   );
 }
@@ -51,6 +64,7 @@ export function ProposalReadingHeader({
 }) {
   return (
     <header className="proposal-reading-header">
+      <Head><title>{`${title.trim() || "Proposal"} · ${PUB_APP_NAME}`}</title></Head>
       <div className="proposal-reading-status">
         {status && (
           <span className={`badge ${statusClass ?? status.toLowerCase()}`} data-proposal-part="status">

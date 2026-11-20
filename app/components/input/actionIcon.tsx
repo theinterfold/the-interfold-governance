@@ -6,6 +6,7 @@ import {
   LockSimple,
   Minus,
   PaperPlaneTilt,
+  PencilSimple,
   Plus,
   Trash,
   Wallet,
@@ -24,6 +25,7 @@ const icons = {
   wallet: Wallet,
   check: Check,
   send: PaperPlaneTilt,
+  sign: PencilSimple,
 };
 
 export type ActionIconName = keyof typeof icons;

@@ -2,8 +2,9 @@ import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { useQueryClient } from "@tanstack/react-query";
 import { PUB_CHAIN, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { useTransactionManager } from "@/hooks/useTransactionManager";
+import type { Address } from "viem";
 
-export function useProposalVoting(proposalId: bigint) {
+export function useProposalVoting(proposalId: bigint, account: Address | undefined) {
   const queryClient = useQueryClient();
 
   const {
@@ -20,7 +21,9 @@ export function useProposalVoting(proposalId: bigint) {
   });
 
   const voteProposal = (voteOption: number, autoExecute: boolean = false) => {
+    if (!account) return;
     writeContract({
+      account,
       chainId: PUB_CHAIN.id,
       abi: TokenVotingAbi,
       address: PUB_TOKEN_VOTING_PLUGIN_ADDRESS,

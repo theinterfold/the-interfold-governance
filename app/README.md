@@ -87,7 +87,7 @@ Field notes:
 - `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: optional. The private pair that a replacement install retired. The list and the proposal page still show its proposals. Set both or neither, as checksummed addresses.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS` / `NEXT_PUBLIC_CRISP_SERVER_URL` — only used by the private (CRISP) flow.
 - `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` — set to the DAO/plugin deployment block to avoid scanning from genesis.
-- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — from [WalletConnect](https://walletconnect.com/).
+- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — the WalletConnect project ID for the deployment. ConnectKit uses it for QR and mobile wallet connections.
 - `NEXT_PUBLIC_IPFS_ENDPOINTS` / `NEXT_PUBLIC_PINATA_JWT` — for pinning proposal metadata to IPFS.
 
 ## License 📜

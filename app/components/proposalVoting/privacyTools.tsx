@@ -1,10 +1,16 @@
+import { groupThousands } from "@/utils/numbers";
+import { ArrowsDownUp } from "@phosphor-icons/react";
+import { useBallotReviewPresentation } from "./ballotReviewPresentation";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState, type CSSProperties, type ReactNode } from "react";
 import { BendingChevron } from "@/vendor/site-header";
+import { ActionButton } from "@/components/input/actionButton";
+import { useStepTransition } from "@/components/motion/useStepTransition";
 import { AnimatedAmount } from "@/components/motion/AnimatedAmount";
 import { CipherTitle } from "@/components/motion/CipherTitle";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { useIconFlight } from "@/components/motion/useIconFlight";
+import { useInert } from "@/components/motion/useInert";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import { PowerInfoArrow } from "@/plugins/velocker/components/powerInfoArrow";
 import { BallotOptionalAction } from "./ballot";
@@ -28,6 +34,11 @@ export interface PrivacyTool {
   onChange: (checked: boolean) => void;
 }
 
+/** Shared row spacing and checkbox alignment for optional ballot actions. */
+export function BallotOptionalActionList({ children }: { children: ReactNode }) {
+  return <div className={styles.rows}>{children}</div>;
+}
+
 /**
  * The privacy tools of a ballot. Collapsed, a compact bar shows one toggle for each tool. Open,
  * each tool is a full row with its help and its settings. The icons move between the two places.
@@ -36,6 +47,7 @@ export function PrivacyTools({ tools, disabled = false }: { tools: PrivacyTool[]
   const id = useId();
   const [open, setOpen] = useState(false);
   const flight = useIconFlight(open);
+  const collapsedRef = useInert(open);
   const toggle = () => {
     flight.prepare(!open);
     setOpen(!open);
@@ -43,36 +55,58 @@ export function PrivacyTools({ tools, disabled = false }: { tools: PrivacyTool[]
   return (
     <div className={styles.group}>
       <div className={styles.divider} aria-hidden="true" />
-      <section ref={flight.ref} className={styles.tools} data-open={open} aria-labelledby={`${id}-title`}>
+      <section
+        ref={flight.ref}
+        className={styles.tools}
+        data-open={open}
+        data-many-tools={tools.length > 3}
+        aria-labelledby={`${id}-title`}
+        style={{ "--privacy-toggle-count": tools.length } as CSSProperties}
+      >
         <svg className={styles.outline} aria-hidden="true" focusable="false">
           <rect vectorEffect="non-scaling-stroke" />
         </svg>
-        <div className={styles.head}>
+        <div className={styles.head} data-flight-size="head">
           <button
             type="button"
             className={styles.toggle}
-            aria-label={open ? "Hide privacy tools" : "Show privacy tools"}
+            aria-label={open ? "Hide privacy extras" : "Show privacy extras"}
             aria-expanded={open}
             aria-controls={`${id}-options`}
             onClick={toggle}
           >
             <strong id={`${id}-title`} className={styles.title}>
-              <CipherTitle label="Privacy tools" />
+              <CipherTitle label="Privacy extras" />
             </strong>
             <span className={styles.chevron} aria-hidden="true">
               <BendingChevron open={open} width={10} thickness={1.5} />
             </span>
           </button>
           <Tooltip.Provider delayDuration={180}>
-            <div className={styles.toggles} role="group" aria-label="Privacy tool selections">
+            <div
+              ref={collapsedRef}
+              className={styles.toggles}
+              data-flight-fade="closed"
+              role="group"
+              aria-label="Privacy tool selections"
+              aria-hidden={open}
+              onClickCapture={flight.finish}
+              onKeyDownCapture={flight.finish}
+            >
               {tools.map((tool) => (
                 <PrivacyToggle key={tool.id} tool={tool} disabled={disabled} />
               ))}
             </div>
           </Tooltip.Provider>
         </div>
-        <Disclosure id={`${id}-options`} open={open}>
-          <div className={styles.rows}>
+        <Disclosure
+          id={`${id}-options`}
+          open={open}
+          data-flight-size="disclosure"
+          onClickCapture={flight.finish}
+          onKeyDownCapture={flight.finish}
+        >
+          <BallotOptionalActionList>
             {tools.map((tool) => (
               <BallotOptionalAction
                 key={tool.id}
@@ -81,7 +115,11 @@ export function PrivacyTools({ tools, disabled = false }: { tools: PrivacyTool[]
                 title={tool.title}
                 description={tool.description}
                 icon={
-                  <span data-flight-icon={tool.id} data-flight-place="open">
+                  <span
+                    data-flight-icon={tool.id}
+                    data-flight-place="open"
+                    data-flight-opacity={disabled || tool.unavailable !== undefined ? 0.5 : 1}
+                  >
                     {tool.icon}
                   </span>
                 }
@@ -94,7 +132,7 @@ export function PrivacyTools({ tools, disabled = false }: { tools: PrivacyTool[]
                 {tool.details}
               </BallotOptionalAction>
             ))}
-          </div>
+          </BallotOptionalActionList>
         </Disclosure>
       </section>
     </div>
@@ -113,6 +151,7 @@ function PrivacyToggle({ tool, disabled }: { tool: PrivacyTool; disabled: boolea
           className={styles.iconToggle}
           data-flight-icon={tool.id}
           data-flight-place="closed"
+          data-flight-opacity={unavailable ? 0.5 : 1}
           data-active={tool.checked}
           aria-label={tool.title}
           aria-pressed={tool.checked}
@@ -149,8 +188,9 @@ function PrivacyToggle({ tool, disabled }: { tool: PrivacyTool; disabled: boolea
  * follows from those tools, such as the submission steps.
  */
 export function PrivacyReview({ rows, children }: { rows: ReactNode; children?: ReactNode }) {
+  const { compact } = useBallotReviewPresentation();
   return (
-    <div className={styles.review}>
+    <div className={styles.review} data-density={compact ? "compact" : undefined}>
       <div className={styles.reviewRows}>{rows}</div>
       {children}
     </div>
@@ -177,8 +217,9 @@ export function PrivacyReviewRow({
   /** How the value is reached, from both the label and the value. */
   explanation?: { content: ReactNode; labelHelp: string; valueHelp: string };
 }) {
+  const { compact } = useBallotReviewPresentation();
   return (
-    <div className={styles.reviewRow}>
+    <div className={styles.reviewRow} data-density={compact ? "compact" : undefined}>
       <span className={styles.reviewTool}>
         <PowerInfo
           label={tool}
@@ -237,33 +278,43 @@ export function PowerCalculation({
   share,
   counted,
   children,
+  summary = false,
 }: {
   snapshot: string;
   share: string;
   counted: string;
   children?: ReactNode;
+  summary?: boolean;
 }) {
+  const snapshotLabel = groupThousands(snapshot);
+  const countedLabel = groupThousands(counted);
   return (
     <>
-      <dl className={styles.calculationTerms}>
-        <div>
-          <dt>Snapshot voting power</dt>
-          <dd>{snapshot}</dd>
-        </div>
-        <div>
-          <dt>Share used</dt>
-          <dd>{share}</dd>
-        </div>
+      <dl className={`power-info-values ${styles.calculationTerms}`}>
+        {!summary && (
+          <>
+            <div>
+              <dt>Snapshot voting power</dt>
+              <dd>{snapshotLabel}</dd>
+            </div>
+            <div>
+              <dt>Share used</dt>
+              <dd>{share}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>Counted for this ballot</dt>
-          <dd>{counted}</dd>
+          <dd>{countedLabel}</dd>
         </div>
       </dl>
-      <p className={styles.formula}>
-        <span>{snapshot}</span>
-        <span>× {share}</span>
-        <span>= {counted}</span>
-      </p>
+      {!summary && (
+        <p className={styles.formula}>
+          <span>{snapshotLabel}</span>
+          <span>× {share}</span>
+          <span>= {countedLabel}</span>
+        </p>
+      )}
       {children}
     </>
   );
@@ -276,28 +327,65 @@ export function PowerShare({ share, counted, randomized }: { share: string; coun
       <span className={styles.powerPercent} data-active={randomized}>
         <AnimatedAmount plain={true} value={share} />
       </span>
-      <AnimatedAmount highlighted={randomized} plain={!randomized} value={counted} />
+      <AnimatedAmount plain={true} value={counted} />
     </span>
   );
 }
 
 /** The separate submissions of one review, in order. A single submission needs no list. */
-export function SubmissionSteps({ steps }: { steps: { title: string; text: string }[] }) {
-  if (steps.length < 2) return null;
+export function SubmissionSteps({ steps, compact = false }: { steps: { title: string; text: string }[]; compact?: boolean }) {
+  if (!compact && steps.length < 2) return null;
   return (
-    <ol className={styles.steps} aria-label="Submission steps">
+    <ol className={styles.steps} data-compact={compact || undefined} aria-label="Submission steps">
       {steps.map((step, index) => (
-        <li key={step.title}>
+        <li key={`${index}-${step.title}`}>
           <span className={styles.stepNumber} aria-hidden="true">
             {String(index + 1).padStart(2, "0")}.
           </span>
           <p className={styles.stepTitle}>
             <strong>{step.title}</strong>
-            <span className="sr-only">: </span>
-            <span className={styles.stepText}>{step.text}</span>
+            {!compact && <span className="sr-only">: </span>}
+            {!compact && <span className={styles.stepText}>{step.text}</span>}
           </p>
         </li>
       ))}
     </ol>
   );
+}
+
+/** Stable action identities carry their content through a reversal, with the control outside the moving rows. */
+export function SubmissionOrder({ steps, onReverse, disabled = false, reverseUnavailableReason }: {
+  steps: { title: string; icon: ReactNode; detail?: ReactNode; future?: boolean }[];
+  onReverse?: () => void;
+  disabled?: boolean;
+  reverseUnavailableReason?: string;
+}) {
+  const motion = useStepTransition<HTMLElement>(steps.map(step => step.title).join("|"), true);
+  if (!steps.length) return null;
+  const reverse = () => {
+    if (disabled || reverseUnavailableReason || !onReverse) return;
+    motion.prepare();
+    onReverse();
+  };
+  return <section ref={motion.ref} className={styles.order} aria-label="Submission order">
+    <span className={styles.orderLabel}>Actions</span>
+    <div className={styles.orderFrame} data-swappable={!!onReverse || undefined}>
+      <ol className={styles.orderSteps} style={{gridRow:`1 / span ${steps.length}`}} aria-live="polite" aria-label="Submission steps">
+        {steps.map(step => <li key={step.title} data-step-key={`submission-${step.title}`} data-future={step.future || undefined}>
+          <div className={styles.orderItem}><span className={styles.orderItemIcon}>{step.icon}</span><div className={styles.orderItemContent}><span>{step.title}</span>{step.detail && <div className={styles.orderDetail}>{step.detail}</div>}</div></div>
+        </li>)}
+      </ol>
+      {onReverse && <div className={styles.orderConnector}>
+        <ActionButton size="compact" onClick={reverse} disabled={disabled || !!reverseUnavailableReason}>
+          <ArrowsDownUp size={16} aria-hidden="true" /><span>Swap order</span>
+        </ActionButton>
+        <PowerInfo label="Why swap the order?" compact={true}>
+          {reverseUnavailableReason ? <p>{reverseUnavailableReason}</p> : <>
+            <p>Choose which goes first so votes and masks do not always follow the same sending pattern.</p>
+            <p>Your choice, voting power and recipients stay the same.</p>
+          </>}
+        </PowerInfo>
+      </div>}
+    </div>
+  </section>;
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useBlockNumber, useReadContract } from "wagmi";
 import { fromHex, getAbiItem } from "viem";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
@@ -25,8 +26,6 @@ export const SppProposalCreatedEvent = getAbiItem({
  */
 export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const address = useSppAddress(kind);
-  const [metadataUri, setMetadataUri] = useState<string>();
-  const [creator, setCreator] = useState<string>();
 
   const {
     data: proposalData,
@@ -89,6 +88,7 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     if (exists) {
       await refetchStages();
       if (stage0Body) await refetchBodyProposal();
+      if (!metadataSource) await refetchMetadataSource();
     }
   };
 
@@ -118,38 +118,37 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     if (vetoStageReached) refetchTally();
   }, [blockNumber, exists, settled, vetoStageReached]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Metadata URI + creator come from the SPP's ProposalCreated event
-  useEffect(() => {
-    if (!exists || !publicClient || metadataUri) return;
-
-    void (async () => {
-      // The SPP's `ProposalCreated` has the same seven parameters as every other Aragon plugin
-      // here, so it shares the route; only the address differs.
+  // Metadata lookup is bounded too: a missing event must not leave details loading forever.
+  const {
+    data: metadataSource,
+    error: metadataSourceError,
+    refetch: refetchMetadataSource,
+  } = useQuery({
+    queryKey: ["spp-proposal-metadata", PUB_CHAIN.id, address, proposalId.toString()],
+    enabled: exists,
+    retry: 2,
+    staleTime: Infinity,
+    queryFn: async () => {
       const match = (await fetchProposals({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK, proposalId }))?.[0];
+      let args: { metadata: Hex; creator: string };
       if (match) {
-        setMetadataUri(fromHex(match.metadata, "string"));
-        setCreator(match.creator);
-        return;
-      }
-
-      try {
+        args = match;
+      } else {
+        if (!publicClient) throw new Error("Proposal RPC is unavailable");
         const logs = await publicClient.getLogs({
           address,
           event: SppProposalCreatedEvent,
           args: { proposalId },
           fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
         });
-
-        if (!logs?.length) return;
-
-        const args = (logs[0] as unknown as { args: { metadata: Hex; creator: string } }).args;
-        setMetadataUri(fromHex(args.metadata, "string"));
-        setCreator(args.creator);
-      } catch (err) {
-        console.error("Could not fetch the SPP proposal creation event", err);
+        if (!logs.length) throw new Error("Proposal metadata event was not found");
+        args = (logs[0] as unknown as { args: { metadata: Hex; creator: string } }).args;
       }
-    })();
-  }, [proposalId, exists, metadataUri, address]);
+      const metadataUri = fromHex(args.metadata, "string");
+      if (!metadataUri.trim()) throw new Error("Proposal metadata URI is missing");
+      return { metadataUri, creator: args.creator };
+    },
+  });
 
   return {
     address,
@@ -163,8 +162,10 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     subProposalFailed,
     missing,
     vetoTally,
-    metadataUri,
-    creator,
+    metadataUri: metadataSource?.metadataUri,
+    creator: metadataSource?.creator,
+    metadataError: metadataSourceError,
+    retryMetadata: refetchMetadataSource,
     isLoading: proposalLoading,
     error: readError,
     retry,

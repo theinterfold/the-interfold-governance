@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { Shuffle } from "@phosphor-icons/react";
 import type { Address } from "viem";
 import { MemberAvatar } from "@aragon/ods";
 import { SearchField } from "@/components/input/searchField";
@@ -10,7 +11,6 @@ import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { blockieDataUrl } from "@/utils/blockies";
 import { equalAddresses, formatHexString } from "@/utils/evm";
 import { compactNumber } from "@/utils/numbers";
-import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import { CreditsMode, type EligibleVoter } from "../../utils/types";
 import { tallyCountToTokens } from "../../utils/quorum";
 import { useVotingPowerDivisor } from "../../hooks/useVotingPowerDivisor";
@@ -20,8 +20,7 @@ const PAGE_SIZE = 25;
 
 /**
  * Chooses the wallet that a mask covers. The list scrolls in one region and adds rows as its end
- * comes into view. Each row selects its wallet, and a selection collapses the list to one summary
- * row, so the review and its submit action stay in view.
+ * comes into view. Selecting a row commits the recipient and closes the shared dialog.
  */
 export function MaskRecipientPicker({
   voters,
@@ -31,6 +30,9 @@ export function MaskRecipientPicker({
   creditMode,
   e3Id,
   onSelect,
+  random,
+  onSelectRandom,
+  searchRef,
 }: {
   voters?: EligibleVoter[];
   loading: boolean;
@@ -40,9 +42,11 @@ export function MaskRecipientPicker({
   /** The round whose recorded divisor scales the served balances. */
   e3Id?: bigint;
   onSelect: (address: string) => void;
+  random: boolean;
+  onSelectRandom: () => void;
+  searchRef?: RefObject<HTMLInputElement>;
 }) {
   const [search, setSearch] = useState("");
-  const [choosing, setChoosing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const decimals = useTokenDecimals();
   const divisor = useVotingPowerDivisor(e3Id);
@@ -53,7 +57,6 @@ export function MaskRecipientPicker({
   const filtered = (voters ?? []).filter((voter) => voter.address.toLowerCase().includes(query));
   const shown = filtered.slice(0, visibleCount);
   const selectedVoter = selected ? voters?.find((voter) => equalAddresses(voter.address, selected)) : undefined;
-  const showList = choosing || !selectedVoter;
   const more = visibleCount < filtered.length;
 
   const amount = (voter: EligibleVoter) => {
@@ -69,7 +72,7 @@ export function MaskRecipientPicker({
 
   useEffect(() => {
     const end = endRef.current;
-    if (!showList || !more || !end) return;
+    if (!more || !end) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + PAGE_SIZE);
@@ -78,23 +81,12 @@ export function MaskRecipientPicker({
     );
     observer.observe(end);
     return () => observer.disconnect();
-  }, [showList, more, visibleCount]);
-
-  if (!showList) {
-    return (
-      <div className="mask-recipient-selected">
-        <RecipientIdentity address={selectedVoter.address} />
-        {amount(selectedVoter)}
-        <PowerAction size="compact" disabled={pending} onClick={() => setChoosing(true)}>
-          Change
-        </PowerAction>
-      </div>
-    );
-  }
+  }, [more, visibleCount]);
 
   return (
     <div className="mask-recipient-picker">
       <SearchField
+        ref={searchRef}
         label="Search eligible voters"
         placeholder="Wallet address"
         value={search}
@@ -114,6 +106,21 @@ export function MaskRecipientPicker({
       {voters && (
         <div ref={scrollRef} className="mask-recipient-scroll">
           <div className="mask-recipient-list" role="group" aria-label="Eligible voters">
+            {!query && !!voters.length && (
+              <button
+                type="button"
+                className="mask-recipient-row mask-recipient-random"
+                aria-pressed={random}
+                disabled={pending}
+                onClick={onSelectRandom}
+              >
+                <span className="mask-recipient-identity">
+                  <Shuffle size={24} aria-hidden="true" />
+                  <span className="mask-recipient-name">Random eligible voter</span>
+                </span>
+                <span className="mask-recipient-mark" aria-hidden="true">{random && <ActionIcon name="check" />}</span>
+              </button>
+            )}
             {shown.map((voter) => {
               const isSelected = !!selectedVoter && equalAddresses(voter.address, selectedVoter.address);
               return (
@@ -124,12 +131,7 @@ export function MaskRecipientPicker({
                   aria-pressed={isSelected}
                   disabled={pending}
                   title={voter.address}
-                  onClick={() => {
-                    onSelect(voter.address);
-                    setChoosing(false);
-                    setSearch("");
-                    setVisibleCount(PAGE_SIZE);
-                  }}
+                  onClick={() => onSelect(voter.address)}
                 >
                   <RecipientIdentity address={voter.address} />
                   {amount(voter)}
@@ -150,17 +152,12 @@ export function MaskRecipientPicker({
           </div>
         </div>
       )}
-      {choosing && selectedVoter && (
-        <button type="button" className="vp-foot-note vp-mode-toggle" onClick={() => setChoosing(false)}>
-          Keep {formatHexString(selectedVoter.address)}
-        </button>
-      )}
     </div>
   );
 }
 
 /** Blockie and ENS name, or the short address. Plain text: the whole row is the action. */
-function RecipientIdentity({ address }: { address: string }) {
+export function RecipientIdentity({ address }: { address: string }) {
   const name = useMemberName(address as Address);
   return (
     <span className="mask-recipient-identity">

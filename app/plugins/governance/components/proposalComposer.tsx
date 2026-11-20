@@ -1,6 +1,7 @@
 import { useProposalBack } from "@/components/proposal/proposalNavigation";
 import { AccessibleRichText } from "@/components/input/accessibleRichText";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { PageIntro } from "@/components/pageIntro";
 import { MainSection } from "@/components/layout/main-section";
 import { ActionButton } from "@/components/input/actionButton";
 import { ActionIcon } from "@/components/input/actionIcon";
@@ -331,7 +332,7 @@ export function ProposalComposer(props: Props) {
   return (
     <MainSection>
       <div className="proposal-composer" ref={composerRef}>
-        <header className="composer-header" data-proposal-part="create-heading">
+        <nav aria-label="Breadcrumb">
           <a
             href="#/"
             className="composer-back"
@@ -342,11 +343,15 @@ export function ProposalComposer(props: Props) {
           >
             ← Proposals
           </a>
-          <h1 className="ui-card-title" tabIndex={-1} data-proposal-ready>
-            New proposal
-          </h1>
-          <p className="ui-body">Describe the decision and choose how the community will vote.</p>
-        </header>
+        </nav>
+        <div data-proposal-part="create-heading">
+          <PageIntro
+            title="New proposal"
+            description="Describe the decision and choose how the community will vote."
+            glyph="proposals"
+            focusOnNavigation
+          />
+        </div>
         <div className="composer-layout">
           <div className="composer-editor-context min-w-0">
             <Disclosure open={!canSubmit} className="composer-eligibility-notice">

@@ -5,6 +5,7 @@ import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
+import { proposalMetadataState } from "@/utils/proposalMetadataState";
 import { publicClient } from "../utils/client";
 import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
 
@@ -129,22 +130,29 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
   // JSON metadata
   const {
     data: metadata,
-    isLoading: metadataLoading,
+    isSuccess: metadataSuccess,
     error: metadataError,
-  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri);
+    refetch: retryMetadata,
+  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri, {
+    retry: 2,
+    enabled: !!(override?.metadataUri ?? metadataUri),
+  });
+  const metadataState = proposalMetadataState(metadata, { isSuccess: metadataSuccess, error: metadataError });
 
   const proposal = arrangeProposalData(proposalData, creationEvent, metadata, override?.creator);
 
   return {
     proposal,
+    retry: proposalRefetch,
+    retryMetadata,
     status: {
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
       proposalError,
       proposalReadAtMs,
-      metadataReady: !metadataError && !metadataLoading && !!metadata,
-      metadataLoading,
-      metadataError: metadataError !== undefined,
+      metadataReady: metadataState === "ready",
+      metadataLoading: metadataState === "loading",
+      metadataError: metadataState === "unavailable",
     },
   };
 }
@@ -181,7 +189,7 @@ function arrangeProposalData(
     tally: proposalData.tally,
     allowFailureMap: proposalData.allowFailureMap,
     creator: creatorOverride ?? creationEvent?.creator ?? "",
-    title: metadata?.title ?? "",
+    title: typeof metadata?.title === "string" ? metadata.title : "",
     summary: metadata?.summary ?? "",
     description: metadata?.description ?? "",
     resources: metadata?.resources ?? [],
