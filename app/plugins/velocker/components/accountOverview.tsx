@@ -1,6 +1,9 @@
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Disclosure } from "@/components/motion/Disclosure";
+import { BendingChevron } from "@/vendor/site-header";
 import { PanelHeader } from "@/components/panelHeader";
 import { ScrollFadeIn } from "@/vendor/site-header/motion";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { FoldBalanceBreakdown } from "./foldBalanceBreakdown";
 import type { FoldAllocation } from "../utils/foldAllocation";
@@ -10,12 +13,18 @@ export function AccountOverview({
   allocation,
   children,
   heading,
+  balanceText,
 }: {
   allocation: FoldAllocation;
   children: ReactNode;
   /** A study can compose the existing heading outside this card. */
   heading?: ReactNode;
+  balanceText?: string;
 }) {
+  const mobile = useMediaQuery("(max-width: 600px)");
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const breakdownId = useId();
+  const collapsible = mobile && allocation.status === "ready" && !!balanceText;
   const allocationRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const container = allocationRef.current;
@@ -39,12 +48,15 @@ export function AccountOverview({
           <p>Voting power available to this wallet, including power you represent.</p>
         </div>
         <div ref={allocationRef} className={styles.allocation} aria-label="Balance composition">
-          <h3>{PUB_TOKEN_SYMBOL} balance</h3>
-          <FoldBalanceBreakdown
-            allocation={allocation}
-            grouped={true}
-            interactive={true}
-          />
+          {collapsible ? <h3 className={styles.disclosureHeading}>
+            <button type="button" aria-expanded={showBreakdown} aria-controls={breakdownId}
+              onClick={() => setShowBreakdown(open => !open)}>
+              <span>{PUB_TOKEN_SYMBOL} balance</span><span>{balanceText} {PUB_TOKEN_SYMBOL}</span><BendingChevron open={showBreakdown} />
+            </button>
+          </h3> : <h3>{PUB_TOKEN_SYMBOL} balance</h3>}
+          <Disclosure id={breakdownId} open={!collapsible || showBreakdown}>
+            <FoldBalanceBreakdown allocation={allocation} grouped interactive />
+          </Disclosure>
         </div>
       </div>
     </ScrollFadeIn>

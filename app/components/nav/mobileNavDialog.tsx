@@ -47,7 +47,7 @@ export const MobileNavDialog: React.FC<IMobileNavDialogProps> = (props) => {
       data-menu-footer=""
     >
       <p
-        className="site-header-menu-label interfold-menu-item absolute top-6 font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[1px] text-[var(--muted)]"
+        className="site-header-menu-label interfold-menu-item absolute font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[1px] text-[var(--muted)]"
         style={{ animationDelay: "0ms" }}
       >
         Menu

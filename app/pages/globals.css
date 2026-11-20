@@ -1811,10 +1811,8 @@ label div p.leading-tight {
 }
 
 /* Proposal creation uses the same reading surfaces, choice rows and actions as voting. */
-.composer-header { padding-bottom: 32px; }
 .composer-back { display: inline-flex; align-items: center; min-height: 32px; margin-bottom: var(--ui-space-controls); color: var(--muted); font: var(--ui-label-font); transition: color 160ms; }
 .composer-back:hover { color: var(--ink); }
-.composer-header > p { margin-top: var(--ui-space-tight); }
 .proposal-composer { container: composer / inline-size; }
 .composer-editor-context { container: composer-editor / inline-size; }
 .composer-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--ui-space-section); align-items: start; }
@@ -3727,6 +3725,17 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .interfold-header-wallet[data-placement="mobile"] .interfold-header-wallet-icon > * {
   width: 22px; height: 22px;
 }
+#governance-mobile-controls .site-header-menu-action[data-menu-open="true"] {
+  display: none;
+}
+:root { --governance-menu-center-y: 28px; }
+#governance-mobile-controls,
+.interfold-mobile-menu-overlay .site-header-menu-label {
+  top: var(--governance-menu-center-y);
+}
+.interfold-mobile-menu-overlay .site-header-menu-label {
+  translate: 0 -50%;
+}
 @media (width < 480px) {
   .interfold-mobile-menu-overlay[aria-owns="governance-mobile-controls"] .site-header-menu-label {
     left: var(--site-chrome-gutter); right: auto;
@@ -4758,3 +4767,85 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
 .ballot-power-single-values { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .ballot-power-single-values strong { display: inline-flex; font-weight: 600; color: var(--ink); }
 .ballot-power-single-share { display: inline-flex; color: var(--muted); font-weight: 400; }
+
+/* Mobile review: put the task and its deadline in the first viewport. */
+@media (max-width: 600px) {
+  :is(.proposals-page, .power-page) > .governance-page-intro {
+    width: calc(100% - 2 * var(--page-content-gutter));
+    margin-inline: auto;
+  }
+  .governance-page-intro { padding: 28px 0 24px; }
+  .governance-page-intro .page-intro-glyph { width: 28px; margin-bottom: 8px; }
+}
+@media (max-width: 767px) {
+  .proposals-page > .governance-page-intro { padding: 28px 0 24px; }
+  .proposals-page .page-intro-glyph { width: 28px; margin-bottom: 8px; }
+  .proposals-page .proposal-item > .proposal-row,
+  .proposals-page .proposal-item > .proposal-row:hover {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 16px var(--proposal-gutter);
+  }
+  .proposals-page .proposal-item .right { grid-column: 1; align-items: stretch; gap: 12px; }
+  .proposals-page .proposal-item .right > .time { align-self: flex-start; }
+  .proposals-page .proposal-item .body .meta { margin-bottom: 8px; }
+  .proposals-page .proposal-item .body h2 { margin-bottom: 0; }
+  .proposals-page .proposal-item[data-expanded="false"] :is(.body .summary,.body .author,.proposal-result),
+  .proposals-page .proposal-item[data-expanded="false"]:not([data-voting-open="true"]) .right > .time:not(:has(time)) { display: none; }
+  .proposals-page .proposal-item .right > .proposal-row-action { width: 100%; max-width: none; min-height: 44px; }
+  .proposals-page .proposal-expanded-footer { flex-wrap: wrap; }
+  .proposals-page .proposal-expanded-footer .proposal-row-action { width: 100%; max-width: none; }
+}
+@media (max-width: 600px) {
+  .power-page .ui-panel-header:has(#account-heading) {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .power-page .ui-panel-header:has(#account-locks-heading) .ui-panel-heading-copy > p { display: none; }
+  .power-page .ui-panel-header:has(#account-locks-heading) {
+    display: flex; flex-flow: row wrap; align-items: center; justify-content: space-between;
+  }
+  .power-page .ui-panel-header:has(#account-locks-heading) > .power-action {
+    width: auto; min-width: 0; min-height: 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .proposal-page { padding-block-start: 16px; }
+  .proposal-detail-main { gap: 16px; }
+  .proposal-breadcrumb { margin-bottom: 12px; }
+  .proposal-reading-header h1 { margin-block: 12px 8px; }
+  .proposal-reading-author { margin-top: 12px; }
+  .mobile-proposal-document.proposal-voting-details { margin: 0 var(--proposal-gutter, 20px); }
+  .mobile-proposal-document > .proposal-disclosure-trigger { min-height: 48px; padding-block: 8px; }
+  .mobile-proposal-document > .proposal-disclosure-trigger > span {
+    display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px;
+  }
+  .mobile-proposal-document small { color: var(--muted); font: var(--ui-label-font); }
+  .proposal-detail-layout .mobile-proposal-document .proposal-reading-content { margin: 0; padding-inline: 0; }
+  .mobile-proposal-document :is(.proposal-actions,.proposal-resources) { margin-block: 12px; }
+  .page-content:has(> .proposal-composer) { padding-top: var(--ui-space-tight); }
+  .composer-back { min-height: 44px; margin-bottom: 0; }
+  .composer-writing { gap: 16px; }
+  .composer-field textarea { min-height: 68px; }
+  .composer-body .tiptap { min-height: 7.5em; }
+}
+
+.governance-skip-link {
+  position: fixed;
+  top: 8px;
+  left: var(--page-content-gutter);
+  z-index: 100;
+  padding: 12px 16px;
+  background: var(--paper);
+  color: var(--ink);
+  transform: translateY(calc(-100% - 10px));
+}
+.governance-skip-link:focus { transform: none; }
+:is(.proposal-breadcrumb > a.ui-text-action, .proposal-composer .composer-back) { min-height: 44px; }
+@media (min-width: 768px) {
+  .proposals-page > .governance-page-intro {
+    padding-block: clamp(28px, calc(28px + (100vw - 768px) * .2), 112px)
+                 clamp(24px, calc(24px + (100vw - 768px) * .18), 96px);
+  }
+}

@@ -34,6 +34,7 @@ test("repeated taps, wallet clicks, and keyboard activation preserve the intende
   header.key("Tab");
   expect(header.consume()).toBe(false);
   const keyboard = beforeHydration();
+  keyboard.click(true); // Native button dispatches click on Enter before keyup.
   keyboard.key("Enter");
   expect(keyboard.consume()).toBe(true);
 });

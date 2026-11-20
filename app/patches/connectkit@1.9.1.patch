@@ -9,3 +9,12 @@ diff --git a/build/index.es.js b/build/index.es.js
    z-index: 3;
    pointer-events: none;
    user-select: none;
+@@ -4783,7 +4784,7 @@
+                 return '';
+         }
+     }
+-    const Content = (jsx(ResetContainer, { "$useTheme": (_e = demo === null || demo === void 0 ? void 0 : demo.theme) !== null && _e !== void 0 ? _e : themeContext.theme, "$useMode": (_f = demo === null || demo === void 0 ? void 0 : demo.mode) !== null && _f !== void 0 ? _f : themeContext.mode, "$customTheme": (_g = demo === null || demo === void 0 ? void 0 : demo.customTheme) !== null && _g !== void 0 ? _g : themeContext.customTheme, children: jsxs(ModalContainer, { role: "dialog", style: {
++    const Content = (jsx(ResetContainer, { "$useTheme": (_e = demo === null || demo === void 0 ? void 0 : demo.theme) !== null && _e !== void 0 ? _e : themeContext.theme, "$useMode": (_f = demo === null || demo === void 0 ? void 0 : demo.mode) !== null && _f !== void 0 ? _f : themeContext.mode, "$customTheme": (_g = demo === null || demo === void 0 ? void 0 : demo.customTheme) !== null && _g !== void 0 ? _g : themeContext.customTheme, children: jsxs(ModalContainer, { role: "dialog", "aria-modal": !inline, "aria-label": flattenChildren(getHeading() || locales.connectWallet).join(""), style: {
+                 pointerEvents: rendered ? 'auto' : 'none',
+                 position: positionInside ? 'absolute' : undefined,
+             }, children: [!inline && (jsx(BackgroundOverlay, { "$active": rendered, onClick: onClose, "$blur": (_h = context.options) === null || _h === void 0 ? void 0 : _h.overlayBlur })), jsxs(Container$8, { style: dimensionsCSS, initial: false, children: [jsx("div", { style: {

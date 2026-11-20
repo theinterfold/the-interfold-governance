@@ -1,3 +1,6 @@
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ActionButton } from "@/components/input/actionButton";
+import { SlidersHorizontal } from "@phosphor-icons/react";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
 import { SearchField } from "@/components/input/searchField";
@@ -50,6 +53,11 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
 export default function Proposals() {
+  const mobile = useMediaQuery("(max-width: 767px)");
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [filtersPreference, setFiltersPreference] = useState<boolean>();
+  const filtersOpen = filtersPreference ?? wide;
+  const [showAll, setShowAll] = useState(false);
   const { isConnected } = useAccount();
   const privateCreate = useCanCreatePrivate();
   const publicCreate = useCanCreatePublic();
@@ -196,9 +204,17 @@ export default function Proposals() {
     (kindFilter === "all" || e.kind === kindFilter) &&
     matchesStatusFilter(statuses[entryKey(e)], statusFilter) &&
     (!searchTerm || `${e.id} ${searchTexts[entryKey(e)] ?? ""}`.toLowerCase().includes(searchTerm));
-  const matchCount = entries.filter(matches).length;
   const resolving = entries.some((e) => searchTexts[entryKey(e)] === undefined);
-  const hasFilters = kindFilter !== "all" || statusFilter !== "all" || !!searchTerm;
+  const filterCount = Number(kindFilter !== "all") + Number(statusFilter !== "all") + Number(!!searchTerm);
+  const hasFilters = filterCount > 0;
+  const activeCount = entries.filter(e => statuses[entryKey(e)] === "active").length;
+  const allCount = entries.filter(e => matchesStatusFilter(statuses[entryKey(e)], "all")).length;
+  const votingNow = mobile && !showAll && !hasFilters && activeCount > 0;
+  const visible = (entry: Entry) => matches(entry) && (!votingNow || statuses[entryKey(entry)] === "active");
+  const matchCount = entries.filter(visible).length;
+  const ordered = mobile && !hasFilters
+    ? [...entries.filter(e => statuses[entryKey(e)] === "active"), ...entries.filter(e => statuses[entryKey(e)] !== "active")]
+    : entries;
   const clearFilters = () => {
     setKindFilter("all");
     setStatusFilter("all");
@@ -207,42 +223,40 @@ export default function Proposals() {
   const retryLoad = () => setRetryKey((key) => key + 1);
   const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
+  const createAction = showCreate && (
+    <div className={styles.create}>
+      <ActionLink href="#/new" intent="create" affordance="plus" disabled={!canCreate}
+        aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}>
+        Create proposal
+      </ActionLink>
+      {!canCreate && <p id="proposal-create-requirement" className="ui-body">{ineligibleReason}</p>}
+    </div>
+  );
+  const filterButton = entries.length > 0 && (
+    <ActionButton size="compact" aria-controls="proposal-filters" aria-expanded={filtersOpen}
+      onClick={() => setFiltersPreference(!filtersOpen)}>
+      <SlidersHorizontal size={16} aria-hidden="true" /> Filters{filterCount ? ` (${filterCount})` : ""}
+    </ActionButton>
+  );
+
   return (
-    <div className="proposals-page">
+    <div className="proposals-page" data-mobile-activity={mobile}>
       <PageIntro
         title="Proposals"
         glyph="proposals"
         description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
       />
       <section aria-labelledby="proposal-list-heading">
-        <PanelHeader
-          id="proposal-list-heading"
-          title="Governance activity"
-          description="Open a proposal to vote or review its results."
-          className={styles.heading}
-          action={
-            showCreate && (
-              <div className={styles.create}>
-                <>
-                  <ActionLink
-                    href="#/new"
-                    intent="create"
-                    affordance="plus"
-                    disabled={!canCreate}
-                    aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}
-                  >
-                    Create proposal
-                  </ActionLink>
-                  {!canCreate && (
-                    <p id="proposal-create-requirement" className="ui-body">
-                      {ineligibleReason}
-                    </p>
-                  )}
-                </>
-              </div>
-            )
-          }
-        />
+        {mobile && entries.length > 0 ? (
+          <div className={styles.mobileHeading}>
+            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"} <span>{matchCount}</span></h2>
+            {filterButton}
+          </div>
+        ) : (
+          <PanelHeader id="proposal-list-heading" title="Governance activity"
+            description="Open a proposal to vote or review its results." className={styles.heading}
+            action={!mobile && <div className={styles.headingActions}>{filterButton}{createAction}</div>} />
+        )}
         <ScrollFadeIn amount="some" className={`ui-panel ${styles.panel}`}>
           <If not={entries.length}>
             <Then>
@@ -272,43 +286,45 @@ export default function Proposals() {
                   </button>
                 </div>
               )}
-              <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
-                <SearchField
-                  className="proposal-search"
-                  label="Search"
-                  placeholder="Title, proposer or proposal ID"
-                  value={search}
-                  onChange={setSearch}
-                />
-                <label className="proposal-filter">
-                  <span>Status</span>
-                  <NativeSelect
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-                  >
-                    {STATUS_FILTERS.map((filter) => (
-                      <option key={filter.value} value={filter.value}>
-                        {filter.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </label>
-                <label className="proposal-filter">
-                  <span>Voting method</span>
-                  <NativeSelect
-                    value={kindFilter}
-                    onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
-                  >
-                    {FILTERS.map((filter) => (
-                      <option key={filter.value} value={filter.value}>
-                        {filter.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </label>
-              </div>
-              <div className="proposal-list-caption">
-                <p role="status">
+              <Disclosure id="proposal-filters" open={filtersOpen} className={styles.filters}>
+                <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
+                  <SearchField
+                    className="proposal-search"
+                    label="Search"
+                    placeholder="Title, proposer or proposal ID"
+                    value={search}
+                    onChange={setSearch}
+                  />
+                  <label className="proposal-filter">
+                    <span>Status</span>
+                    <NativeSelect
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                    >
+                      {STATUS_FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                  <label className="proposal-filter">
+                    <span>Voting method</span>
+                    <NativeSelect
+                      value={kindFilter}
+                      onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+                    >
+                      {FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                </div>
+              </Disclosure>
+              {(!mobile || hasFilters) && <div className="proposal-list-caption">
+                <p role="status" className={mobile ? "sr-only" : undefined}>
                   {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
                   {hasFilters ? ` of ${entries.length}` : ""}
                 </p>
@@ -318,9 +334,10 @@ export default function Proposals() {
                       Clear filters
                     </button>
                   )}
-                  <span>Newest first</span>
+                  {!mobile && <span>Newest first</span>}
                 </div>
               </div>
+              }
               <Disclosure open={!matchCount}>
                 <div className={styles.feedback}>
                   <MissingContentView>
@@ -333,9 +350,9 @@ export default function Proposals() {
                 </div>
               </Disclosure>
               <div className="proposal-list">
-                {entries.map((e) => {
+                {ordered.map((e) => {
                   const key = entryKey(e);
-                  const hidden = !matches(e);
+                  const hidden = !visible(e);
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
                       {e.kind === "private" ? (
@@ -352,6 +369,16 @@ export default function Proposals() {
             </Else>
           </If>
         </ScrollFadeIn>
+        {mobile && (
+          <div className={styles.followUp}>
+            {!hasFilters && activeCount > 0 && allCount > activeCount && (
+              <button className="ui-text-action" type="button" onClick={() => setShowAll(open => !open)}>
+                {showAll ? "Show open proposals" : `View all proposals (${allCount})`}
+              </button>
+            )}
+            {createAction}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,3 +1,5 @@
+import Head from "next/head";
+import { PUB_APP_NAME } from "@/constants";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AddressText } from "@/components/text/address";
@@ -51,6 +53,7 @@ export function ProposalReadingHeader({
 }) {
   return (
     <header className="proposal-reading-header">
+      <Head><title>{`${title.trim() || "Proposal"} · ${PUB_APP_NAME}`}</title></Head>
       <div className="proposal-reading-status">
         {status && (
           <span className={`badge ${statusClass ?? status.toLowerCase()}`} data-proposal-part="status">

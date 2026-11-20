@@ -202,3 +202,20 @@
 
 .delegationSummary[data-custom-summary="true"] { display:grid; grid-template-columns:minmax(0,1fr) max-content; gap:12px; }
 .delegationSummary[data-custom-summary="true"] > button { width:auto; margin:0; }
+
+.disclosureHeading button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--ink);
+}
+.disclosureHeading button span:first-child { margin-inline-end: auto; }
+@media (max-width: 600px) {
+  .votingSummary > p { padding-top: 8px; }
+  .overview { gap: 12px; }
+  .allocation { padding-top: 4px; }
+  .allocation .disclosureHeading { margin-bottom: 0; }
+  .allocation .disclosureHeading + [data-open="true"] :global(.fold-allocation) { margin-top: 12px; }
+}

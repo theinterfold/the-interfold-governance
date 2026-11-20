@@ -10,15 +10,12 @@ function listenForMenuIntent() {
   let open = false;
   function toggle(event: Event) {
     if (!(event.target instanceof Element) || !event.target.closest("#governance-mobile-controls .hamburger-react")) return;
-    if (event instanceof KeyboardEvent && event.key !== "Enter") return;
     event.stopPropagation();
     open = !open;
   }
   document.addEventListener("click", toggle, true);
-  document.addEventListener("keyup", toggle, true);
   window.takeGovernMenuIntent = () => {
     document.removeEventListener("click", toggle, true);
-    document.removeEventListener("keyup", toggle, true);
     delete window.takeGovernMenuIntent;
     return open;
   };

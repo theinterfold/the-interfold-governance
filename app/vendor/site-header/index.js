@@ -94,7 +94,7 @@ function useHeaderLayout(explicit) {
 }
 
 // packages/site-header/src/index.tsx
-import { useRef as useRef3, useState as useState3 } from "react";
+import { useRef as useRef3, useState as useState2 } from "react";
 
 // packages/site-header/src/entranceRuntime.ts
 function installHeaderEntranceRuntime() {
@@ -329,150 +329,9 @@ function InterfoldSymbol({ className = "", animated = false, lockup = false }) {
   });
 }
 
-// node_modules/hamburger-react/dist-esm/Burger.js
-import { useState as useState2, useEffect as useEffect2 } from "react";
-var area = 48;
-var Burger = ({
-  color = "currentColor",
-  direction = "left",
-  distance = "md",
-  duration = 0.4,
-  easing = "cubic-bezier(0, 0, 0, 1)",
-  hideOutline = true,
-  label,
-  lines = 3,
-  onToggle,
-  render,
-  rounded = false,
-  size = 32,
-  toggle,
-  toggled,
-  disabled = false,
-  animateOnMount = false
-}) => {
-  const [toggledInternal, toggleInternal] = useState2(false);
-  const [mounted, setMounted] = useState2(false);
-  useEffect2(() => {
-    setMounted(true);
-  }, []);
-  const width = Math.max(12, Math.min(area, size));
-  const room = Math.round((area - width) / 2);
-  const barHeightRaw = width / 12;
-  const barHeight = Math.round(barHeightRaw);
-  const space = distance === "lg" ? 0.25 : distance === "sm" ? 0.75 : 0.5;
-  const marginRaw = width / (lines * (space + (lines === 3 ? 1 : 1.25)));
-  const margin = Math.round(marginRaw);
-  const height = barHeight * lines + margin * (lines - 1);
-  const topOffset = Math.round((area - height) / 2);
-  const translate = lines === 3 ? distance === "lg" ? 4.0425 : distance === "sm" ? 5.1625 : 4.6325 : distance === "lg" ? 6.7875 : distance === "sm" ? 8.4875 : 7.6675;
-  const deviation = (barHeightRaw - barHeight + (marginRaw - margin)) / (lines === 3 ? 1 : 2);
-  const move = parseFloat((width / translate - deviation / (4 / 3)).toFixed(2));
-  const time = Math.max(0, duration);
-  const burgerStyles = {
-    cursor: disabled ? "not-allowed" : "pointer",
-    height: `${area}px`,
-    position: "relative",
-    transition: `${time}s ${easing}`,
-    userSelect: "none",
-    width: `${area}px`
-  };
-  const barStyles = {
-    background: color,
-    height: `${barHeight}px`,
-    left: `${room}px`,
-    position: "absolute"
-  };
-  if (hideOutline) {
-    burgerStyles["outline"] = "none";
-  }
-  if (rounded) {
-    barStyles["borderRadius"] = "9em";
-  }
-  const getIsToggled = () => {
-    const isToggled = toggled !== undefined ? toggled : toggledInternal;
-    return animateOnMount && !mounted ? !isToggled : isToggled;
-  };
-  const toggleFunction = toggle || toggleInternal;
-  const isToggled = getIsToggled();
-  const handler = () => {
-    toggleFunction(!isToggled);
-    if (typeof onToggle === "function")
-      onToggle(!isToggled);
-  };
-  return render({
-    barHeight,
-    barStyles,
-    burgerStyles,
-    easing,
-    handler,
-    isLeft: direction === "left",
-    isToggled,
-    label,
-    margin,
-    move,
-    time,
-    topOffset,
-    width
-  });
-};
-
-// node_modules/hamburger-react/dist-esm/Cross.js
-import React from "react";
-function _extends() {
-  _extends = Object.assign || function(target) {
-    for (var i = 1;i < arguments.length; i++) {
-      var source = arguments[i];
-      for (var key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-          target[key] = source[key];
-        }
-      }
-    }
-    return target;
-  };
-  return _extends.apply(this, arguments);
-}
-var Cross = (props) => /* @__PURE__ */ React.createElement(Burger, _extends({}, props, {
-  lines: 2,
-  render: (o) => /* @__PURE__ */ React.createElement("div", {
-    className: "hamburger-react",
-    "aria-label": o.label,
-    "aria-expanded": o.isToggled,
-    onClick: props.disabled ? undefined : o.handler,
-    onKeyUp: props.disabled ? undefined : (e) => e.key === "Enter" && o.handler(),
-    role: "button",
-    style: o.burgerStyles,
-    tabIndex: 0
-  }, /* @__PURE__ */ React.createElement("div", {
-    style: {
-      ...o.barStyles,
-      width: `${o.width}px`,
-      top: `${o.topOffset}px`,
-      transition: `${o.time}s ${o.easing}`,
-      transform: `${o.isToggled ? `rotate(${45 * (o.isLeft ? -1 : 1)}deg) translate(${o.move * (o.isLeft ? -1 : 1)}px, ${o.move}px)` : "none"}`
-    }
-  }), /* @__PURE__ */ React.createElement("div", {
-    style: {
-      ...o.barStyles,
-      width: `${o.width}px`,
-      top: `${o.topOffset + o.barHeight + o.margin}px`,
-      transition: `${o.time}s ${o.easing}`,
-      transform: `${o.isToggled ? `rotate(${45 * (o.isLeft ? 1 : -1)}deg) translate(${o.move * (o.isLeft ? -1 : 1)}px, ${o.move * -1}px)` : "none"}`
-    }
-  }))
-}));
-
 // packages/site-header/src/menuButton.tsx
-import { useSyncExternalStore } from "react";
 import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
-function subscribe(callback) {
-  const preference = matchMedia("(prefers-reduced-motion: reduce)");
-  preference.addEventListener("change", callback);
-  return () => preference.removeEventListener("change", callback);
-}
-var reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function SiteHeaderMenuButton({ open, onOpenChange, variant = "responsive", className = "", id, action }) {
-  const reducedMotion = useSyncExternalStore(subscribe, reduced, () => true);
   return /* @__PURE__ */ jsxs3("div", {
     id,
     className: `site-header-menu-trigger interfold-mobile-menu-trigger ${className}`,
@@ -485,22 +344,18 @@ function SiteHeaderMenuButton({ open, onOpenChange, variant = "responsive", clas
         "data-menu-open": open,
         children: action
       }),
-      /* @__PURE__ */ jsx3(Cross, {
-        toggled: open,
-        toggle: onOpenChange,
-        direction: "right",
-        size: 28,
-        distance: "sm",
-        duration: reducedMotion ? 0 : 0.35,
-        color: "var(--site-chrome-ink)",
-        rounded: true,
-        label: open ? "Close menu" : "Open menu"
+      /* @__PURE__ */ jsx3("button", {
+        type: "button",
+        className: "hamburger-react",
+        "aria-label": open ? "Close menu" : "Open menu",
+        "aria-expanded": open,
+        onClick: () => onOpenChange(!open)
       })
     ]
   });
 }
 // packages/site-header/src/signup.tsx
-import { useEffect as useEffect3, useRef } from "react";
+import { useEffect as useEffect2, useRef } from "react";
 import { jsx as jsx4, jsxs as jsxs4 } from "react/jsx-runtime";
 var GHOST_SIGNUP_SCRIPT = "https://cdn.jsdelivr.net/ghost/signup-form@~0.3/umd/signup-form.min.js";
 var GHOST_SITE = "https://blog.theinterfold.com/";
@@ -539,7 +394,7 @@ var GHOST_FRAME_COLOR_STYLES = `
 `;
 function GhostSignupForm({ className = "" }) {
   const embedRef = useRef(null);
-  useEffect3(() => {
+  useEffect2(() => {
     const mount = embedRef.current;
     if (!mount) {
       return;
@@ -772,10 +627,10 @@ function BendingChevron({
   });
 }
 // packages/site-header/src/mobileMenu.ts
-import { useEffect as useEffect4, useRef as useRef2 } from "react";
+import { useEffect as useEffect3, useRef as useRef2 } from "react";
 function useMobileMenuBehavior(open, onOpenChange) {
   const dialogRef = useRef2(null);
-  useEffect4(() => {
+  useEffect3(() => {
     if (!open)
       return;
     const previousFocus = document.activeElement;
@@ -865,8 +720,8 @@ function SiteHeaderChrome({
 }) {
   const selectedLayout = useHeaderLayout(layout);
   const headerRef = useRef3(null);
-  const [ready, setReady] = useState3(false);
-  const [entrance, setEntrance] = useState3(0);
+  const [ready, setReady] = useState2(false);
+  const [entrance, setEntrance] = useState2(0);
   useBeforePaint(() => {
     const header = headerRef.current;
     if (!header)

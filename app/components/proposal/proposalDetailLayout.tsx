@@ -1,3 +1,5 @@
+import { BallotDisclosure } from "../proposalVoting/ballotDisclosure";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ProposalVotingContext } from "../proposalVoting/proposalVotingContext";
 import { useEffect, useRef, type ReactNode } from "react";
 import type { IProposalResource, RawAction } from "@/utils/types";
@@ -39,6 +41,7 @@ export function ProposalDetailLayout({
   proposalHref?: string;
   readingOnly?: boolean;
 }) {
+  const foldDocument = useMediaQuery("(max-width: 600px)") && !readingOnly;
   const layout = useProposalLayout();
   const votingColumn = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -52,6 +55,18 @@ export function ProposalDetailLayout({
     observer.observe(column);
     return () => observer.disconnect();
   }, [readingOnly]);
+  const documentBody = (
+    <div className="proposal-reading-content" data-proposal-part="document">
+      <BodySection body={description} fullLength={foldDocument || readingOnly || layout === "sticky"} />
+    </div>
+  );
+  const attachments = (
+    <>
+      <ProposalActions actions={actions} />
+      {!!resources?.length && <CardResources resources={resources} title="Resources" />}
+    </>
+  );
+  const actionCount = actions.length;
   return (
     <div className="proposal-detail-layout" data-proposal-layout={layout} data-reading-only={readingOnly || undefined}>
       {readingOnly && proposalHref ? (
@@ -66,12 +81,16 @@ export function ProposalDetailLayout({
         <div className="proposal-detail-reading-column">
           <article className="proposal-detail-reading" data-proposal-part="surface">
             {header}
-            <div className="proposal-reading-content" data-proposal-part="document">
-              <BodySection body={description} fullLength={readingOnly || layout === "sticky"} />
-            </div>
+            {foldDocument ? (
+              <BallotDisclosure className="mobile-proposal-document" title={
+                <>Proposal details{actionCount > 0 && <small>{actionCount} DAO {actionCount === 1 ? "action" : "actions"}</small>}</>
+              }>
+                {documentBody}
+                {attachments}
+              </BallotDisclosure>
+            ) : documentBody}
           </article>
-          <ProposalActions actions={actions} />
-          {!!resources?.length && <CardResources resources={resources} title="Resources" />}
+          {!foldDocument && attachments}
         </div>
         {!readingOnly && <div className="proposal-detail-voting-column" ref={votingColumn} role="region" aria-label="Voting and round details">
           <div className="proposal-detail-ballot" data-proposal-part="ballot">

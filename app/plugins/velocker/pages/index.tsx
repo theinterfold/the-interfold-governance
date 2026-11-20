@@ -220,7 +220,7 @@ export default function Locker() {
             <>
               <div>
                 {accountHeading}
-                <AccountOverview allocation={allocation} heading={null}>
+                <AccountOverview allocation={allocation} heading={null} balanceText={allocation.status === "ready" ? compact(allocation.total) : undefined}>
                   <div className="power-total-summary">
                     <dl className="power-metric-total" aria-label="Your voting power">
                       <dt>

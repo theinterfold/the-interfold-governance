@@ -55,7 +55,7 @@
   visibility: hidden;
 }
 /* Match the canvas viewport when the device cannot render the animation. */
-.art[data-ready="false"] {
+.art:not([data-ready="true"]) {
   background: url("/images/govern-pointillism.webp") center / contain no-repeat;
 }
 .controller { display: contents; }
@@ -123,7 +123,10 @@
   .actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    max-width: 320px;
     margin-inline: auto;
   }
+}
+
+@media (max-width: 600px) and (max-height: 720px) {
+  .art { max-width: min(175%, 56svh); }
 }

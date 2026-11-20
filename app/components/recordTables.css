@@ -80,7 +80,7 @@
 [data-record-table] .power-position-id { flex:none; width:24px; }
 [data-record-table] .power-position-holding { min-width:0; flex:none; }
 [data-record-table] [data-record-group] .power-position-status { flex:none; justify-self:start; justify-content:flex-start; padding:0; flex-wrap:nowrap; }
-[data-record-table] [data-record-group] .power-position-action { grid-column:1 / -1 !important; grid-row:2 !important; align-self:center; justify-self:stretch; }
+[data-record-table] [data-record-group] .power-position-action { grid-column:1 / -1 !important; grid-row:2 !important; align-self:center; justify-self:end; width:min(100%, var(--record-action-track-width)); }
 [data-record-table] [data-record-group] .power-position-action button { width:100%; min-height:44px; }
 
 [data-record-table] [data-record-group] .power-delegate-row {
@@ -100,6 +100,11 @@
 [data-record-table] .power-delegate-votes>div { font-size: 11px; line-height: 1.5; }
 [data-record-table] [data-record-group] .power-delegate-data>button { grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: end; width: var(--action-column-width); min-width: 0; min-height: 44px; margin: 0; padding-inline: 12px; }
 
+/* Give short addresses and their status a full line before either is clipped. */
+@container account-records (max-width: 320px) {
+  [data-record-table] .power-delegate-identity { grid-column: 1 / -1; }
+  [data-record-table] [data-record-group] .power-delegate-data > button { grid-row: 2; }
+}
 /* The full withdrawal label needs more room than Accept/Return. */
 @container account-records (min-width:352px) {
   [data-record-table] [data-record-group] .power-position-row {
@@ -176,5 +181,7 @@
   [data-responsive-status] { padding-inline:6px; }
   [data-responsive-status] [data-status-part="short"] { display:none; }
   [data-responsive-status] [data-status-part="icon"] { display:inline-flex; }
+  [data-responsive-status][data-status="cooldown"] [data-status-part="short"] { display:inline-flex; }
+  [data-responsive-status][data-status="cooldown"] [data-status-part="icon"] { display:none; }
   [data-record-position-icon] { display:none!important; }
 }

@@ -271,11 +271,40 @@
   display: flex;
   align-items: center;
 }
+/* The native button owns activation for pointer, Enter and Space. */
 .site-header-menu-trigger .hamburger-react {
-  position: absolute !important;
+  position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--site-chrome-ink);
+  cursor: pointer;
+}
+.site-header-menu-trigger .hamburger-react::before,
+.site-header-menu-trigger .hamburger-react::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: calc(50% - 1px);
+  width: 28px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform .35s ease;
+}
+.site-header-menu-trigger .hamburger-react::before { transform: translateY(-4px); }
+.site-header-menu-trigger .hamburger-react::after { transform: translateY(4px); }
+.site-header-menu-trigger .hamburger-react[aria-expanded="true"]::before { transform: rotate(45deg); }
+.site-header-menu-trigger .hamburger-react[aria-expanded="true"]::after { transform: rotate(-45deg); }
+.site-header-menu-trigger .hamburger-react:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) {
+  .site-header-menu-trigger .hamburger-react::before,
+  .site-header-menu-trigger .hamburger-react::after { transition: none; }
 }
 .site-header-chrome[data-variant="desktop"] {
   --site-symbol-width: 46px;
