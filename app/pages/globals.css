@@ -4331,7 +4331,7 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .proposal-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; }
 .proposal-back svg { transition: transform var(--interfold-ui-duration, 360ms) var(--interfold-ui-ease, cubic-bezier(.2,.8,.2,1)); }
 .proposal-back:hover svg { transform: translateX(-3px); }
-/* The viewport context crossfades in place; only the selected proposal changes geometry. */
+/* The shared proposal parts morph independently of the page content and persistent chrome. */
 html[data-proposal-navigation]::view-transition-group(*) {
   z-index: 2; animation-duration: 400ms; animation-timing-function: var(--interfold-ui-ease, cubic-bezier(0.2, 0.8, 0.2, 1)); }
 html[data-proposal-navigation]::view-transition-group(root) {
@@ -4344,12 +4344,18 @@ html[data-proposal-navigation]::view-transition-image-pair(root) {
 html[data-proposal-navigation]::view-transition-old(root),
 html[data-proposal-navigation]::view-transition-new(root) {
   mix-blend-mode: plus-lighter; }
-html[data-proposal-navigation]::view-transition-old(root) {
-  animation: proposal-context-out 400ms linear both;
+html[data-proposal-navigation]::view-transition-old(root) { animation: none; opacity: 0; }
+html[data-proposal-navigation]::view-transition-new(root) { animation: none; }
+html[data-proposal-navigation] .proposal-route-shell { view-transition-name: proposal-page; }
+html[data-proposal-navigation]::view-transition-group(proposal-page) { z-index: 0; }
+html[data-proposal-navigation]::view-transition-old(proposal-page) {
+  animation: proposal-page-out 220ms var(--if-page-ease) both;
 }
-html[data-proposal-navigation]::view-transition-new(root) {
-  animation: proposal-context-in 400ms linear both;
+html[data-proposal-navigation]::view-transition-new(proposal-page) {
+  animation: proposal-page-in 280ms 220ms var(--if-page-ease) both;
 }
+@keyframes proposal-page-out { to { opacity: 0; transform: translateY(-18px); } }
+@keyframes proposal-page-in { from { opacity: 0; transform: translateY(18px); } }
 html[data-proposal-navigation]::view-transition-group(proposal-surface) {
   z-index: 1;
 }

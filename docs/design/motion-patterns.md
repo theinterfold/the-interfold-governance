@@ -2,6 +2,10 @@
 
 Decisões de interação e registos de validação desde 22 de setembro de 2026. As secções datadas documentam a evolução da implementação; as regras atuais estão em DESIGN.md e no guia de consistência.
 
+## Transição entre páginas
+
+Ao seguir uma ligação interna ou usar o histórico, o conteúdo sobe 18 px e desaparece em 220 ms. A página seguinte entra de 18 px abaixo em 280 ms. A navbar fica no lugar. A passagem entre a lista e o detalhe de uma proposta conserva o movimento dos elementos partilhados. Com movimento reduzido, a mudança é imediata. Filtros, diálogos e dados que chegam à mesma página conservam o seu comportamento. Ver o [contrato de navegação partilhado](../../app/vendor/site-header/README.md#page-navigation).
+
 ## O que corrigimos já
 
 O peso da Inter tinha sido aumentado, mas o espaçamento dos números continuava com os valores anteriores: −1,2 px no total e no campo de quantidade; −0,6 px no breakdown. O total e o breakdown também usavam algarismos tabulares, embora não fossem colunas de uma tabela.

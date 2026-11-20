@@ -296,3 +296,7 @@ The approved A2 footer is now unconditional: discreet 11px labels, 20px links,
 28px leading and no extra label-to-link gap. Wrapped links keep a .75em hanging
 indent. The comparison selector, query-dependent state and unused alternatives
 are removed, so first paint matches the final footer without a client-side swap.
+
+### Page navigation
+
+Use `transitionPage(getSurface, commit, signal)` on internal page changes, including browser Back and Forward. It fades the outgoing content upwards by 18 px over 220 ms, commits the destination, then brings it up from 18 px below over 280 ms. Both use `cubic-bezier(0.55, 0, 0.1, 1)`. Keep persistent navigation outside the moving surface. A shared hero or proposal can keep its own transition while the surrounding content leaves. Reduced motion switches the page immediately. Initial loads, in-page anchors, filter updates and dialogs keep their own behavior. Abort a superseded transition so only the latest destination can commit.

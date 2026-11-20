@@ -1,15 +1,11 @@
 import React, { useEffect, useState, type FC } from "react";
-import { useRouter } from "next/router";
 import { FadingLoading } from "@/components/motion/LoadingTransition";
 import { PleaseWaitSpinner } from "@/components/please-wait";
-import { resolveQueryParam } from "@/utils/query";
 import { NotFound } from "@/components/not-found";
 import { plugins } from "@/plugins";
 import { MainSection } from "@/components/layout/main-section";
 
-const PluginLoader: FC = () => {
-  const { query } = useRouter();
-  const pluginId = resolveQueryParam(query.id);
+const PluginLoader: FC<{ pluginId?: string }> = ({ pluginId }) => {
   const [loaded, setLoaded] = useState<{ id: string; PageComponent: FC | null }>();
 
   useEffect(() => {

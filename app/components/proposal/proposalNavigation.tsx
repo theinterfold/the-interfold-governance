@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { LoadingBoundary } from "../motion/LoadingTransition";
+import { transitionPage } from "@/vendor/site-header/pageNavigation";
 import { flushSync } from "react-dom";
 import { proposalTransitionStyles, type ProposalPartPosition } from "./proposalTransition";
 
@@ -53,6 +54,7 @@ export function ProposalNavigation({
     const moving = (isList(previous) && isPage(hash)) || (isPage(previous) && returning);
     const creating = isCreate(previous) || isCreate(hash);
     const run = ++generation.current;
+    const controller = new AbortController();
     active.current?.skipTransition();
     const findOrigin = (routeHash: string) =>
       Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".proposal-title-link, a[href$='#/new']") ?? []).find(
@@ -182,13 +184,11 @@ export function ProposalNavigation({
         void transition.ready.catch(() => {});
         void transition.finished.then(finish, finish);
       } else {
-        void update().then(() => {
-          if (run !== generation.current) return;
-          // Unsupported browsers keep the full destination visible immediately as well.
-          finish();
-        });
+        const navigation = reduced ? update() : transitionPage(() => root.current, update, controller.signal);
+        void navigation.then(finish);
       }
     });
+    return () => controller.abort();
   }, [hash]);
 
   return (
