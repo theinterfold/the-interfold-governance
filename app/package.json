@@ -55,7 +55,7 @@
     "wagmi": "2.12.7"
   },
   "patchedDependencies": {
-    "connectkit@1.9.1": "patches/connectkit@1.9.1.patch"
+    "connectkit@1.9.1": "patches/connectkit-1.9.1-governance.patch"
   },
   "devDependencies": {
     "@aragon/osx-commons-configs": "^0.2.0",
