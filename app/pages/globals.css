@@ -4239,6 +4239,8 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 }
 .loading-slot,
 .proposal-item :is(h2, .summary, .proposal-result) { position: relative; }
+/* Keep the footer below the viewport while the route bundle loads. */
+.plugin-loading-slot > .loading-layer { min-block-size: 100svh; }
 .loading-layer[data-exiting] {
   position: absolute;
   inset: 0 0 auto;

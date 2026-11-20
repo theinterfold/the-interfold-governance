@@ -40,7 +40,7 @@ const PluginLoader: FC = () => {
   const pending = !pluginId || loaded?.id !== pluginId;
   const PageComponent = loaded?.PageComponent;
   return (
-    <div className="loading-slot">
+    <div className="loading-slot plugin-loading-slot">
       <FadingLoading visible={pending}>
         <MainSection>
           <div className="flex h-24 w-full items-center justify-center" role="status">
