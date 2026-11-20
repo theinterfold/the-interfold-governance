@@ -8,7 +8,7 @@ import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader"
 import { shortProposalId } from "@/utils/proposalId";
 import { useProposal } from "../hooks/useProposal";
 import ProposalHeader from "../components/proposal/header";
-import { PleaseWaitSpinner } from "@/components/please-wait";
+import { ProposalDetailLoading } from "@/components/proposal/proposalLoading";
 import { useProposalVoting } from "../hooks/useProposalVoting";
 import { IBreakdownMajorityVotingResult, ProposalVoting } from "@/components/proposalVoting";
 import type { ITransformedStage, IVote } from "@/utils/types";
@@ -109,9 +109,7 @@ export default function ProposalDetail({
   }
   if (spp.subProposalId === undefined || !spp.metadataUri) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
   }
 
@@ -330,9 +328,7 @@ function ProposalDetailBody({
 
   if (!proposal || showProposalLoading) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
   }
 

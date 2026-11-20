@@ -6,7 +6,7 @@ import type { IProposalResource, RawAction } from "@/utils/types";
 import { BodySection } from "./proposalBodySection";
 import { CardResources } from "./cardResources";
 import { ProposalActions } from "../proposalActions/proposalActions";
-import { ArrowLeft } from "@phosphor-icons/react";
+import { ProposalBackToVoting } from "./proposalReadingHeader";
 import { useProposalLayout } from "./proposalLayoutContext";
 
 /** Keep voting context with the ballot; secondary details remain available on demand. */
@@ -70,12 +70,7 @@ export function ProposalDetailLayout({
   return (
     <div className="proposal-detail-layout" data-proposal-layout={layout} data-reading-only={readingOnly || undefined}>
       {readingOnly && proposalHref ? (
-        <nav className="proposal-breadcrumb" aria-label="Breadcrumb">
-          <a href={proposalHref} className="ui-text-action inline-flex items-center gap-2">
-            <ArrowLeft size={16} aria-hidden="true" />
-            Back to voting
-          </a>
-        </nav>
+        <ProposalBackToVoting href={proposalHref} />
       ) : breadcrumb}
       <div className="proposal-detail-main">
         <div className="proposal-detail-reading-column">

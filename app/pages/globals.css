@@ -1125,7 +1125,8 @@ label div p.leading-tight {
 .proposal-item .meta {
   flex-wrap: wrap;
 }
-.proposal-item h2 {
+.proposal-item h2,
+.proposal-item .proposal-loading-heading {
   font: var(--ui-title-font);
   letter-spacing: 0;
   color: var(--ink);
@@ -3745,7 +3746,7 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   .site-header-menu-action[data-menu-open="false"] .interfold-header-wallet-label { display: none; }
 }
 
-.proposal-reading-header h1 { margin: 20px 0 8px; font: var(--ui-title-font); letter-spacing: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.proposal-reading-header :is(h1, .proposal-loading-heading) { margin: 20px 0 8px; font: var(--ui-title-font); letter-spacing: 0; text-wrap: balance; overflow-wrap: anywhere; }
 .proposal-reading-summary { margin: 0; color: var(--ink); font: 400 16px/1.7 var(--font-sans); }
 .proposal-reading-author { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 20px; color: var(--muted); font: var(--ui-label-font); }
 .proposal-reading-author a { font: inherit; }
@@ -4235,6 +4236,49 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   display: inline-block;
   max-width: 100%;
   vertical-align: top;
+}
+.proposal-placeholder {
+  display: inline-block;
+  max-width: 100%;
+  height: .65em;
+  vertical-align: middle;
+  border-radius: var(--ui-radius);
+  background: var(--surface-selected);
+}
+.proposal-placeholder-label { width: 10ch; }
+.proposal-placeholder-title {
+  width: min(26ch, 85%);
+  height: 1lh;
+  vertical-align: top;
+  background: repeating-linear-gradient(to bottom, transparent 0 .18lh, var(--surface-selected) .18lh .77lh, transparent .77lh 1lh);
+}
+.proposal-placeholder-summary {
+  display: grid;
+  align-content: space-around;
+  height: 2lh;
+  width: min(100%, 56ch);
+  background: none;
+}
+.proposal-placeholder-summary::before, .proposal-placeholder-summary::after {
+  content: "";
+  height: .55em;
+  background: var(--surface-selected);
+  border-radius: inherit;
+}
+.proposal-placeholder-summary::after { width: 68%; }
+.proposal-placeholder-action { width: 100%; height: 44px; }
+@container proposal-row (max-width: 440px) {
+  .proposal-placeholder-title { height: 2lh; }
+}
+@media (max-width: 600px) {
+  .proposal-detail-reading .proposal-placeholder-title { height: 2lh; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-proposal-navigation] { --proposal-arrival-duration: 0s; }
+  .proposal-content-arrival,
+  .proposal-detail-layout:not([aria-busy]) :is(.proposal-reading-header, .proposal-reading-content, .proposal-detail-ballot > :first-child) {
+    animation: proposal-context-in var(--proposal-arrival-duration, var(--interfold-ui-duration)) var(--interfold-ui-ease);
+  }
 }
 .proposal-row .author,
 .proposal-reading-author {
@@ -4789,7 +4833,7 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
   .proposals-page .proposal-item .right { grid-column: 1; align-items: stretch; gap: 12px; }
   .proposals-page .proposal-item .right > .time { align-self: flex-start; }
   .proposals-page .proposal-item .body .meta { margin-bottom: 8px; }
-  .proposals-page .proposal-item .body h2 { margin-bottom: 0; }
+  .proposals-page .proposal-item .body :is(h2, .proposal-loading-heading) { margin-bottom: 0; }
   .proposals-page .proposal-item[data-expanded="false"] :is(.body .summary,.body .author,.proposal-result),
   .proposals-page .proposal-item[data-expanded="false"]:not([data-voting-open="true"]) .right > .time:not(:has(time)) { display: none; }
   .proposals-page .proposal-item .right > .proposal-row-action { width: 100%; max-width: none; min-height: 44px; }
@@ -4814,7 +4858,7 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
   .proposal-page { padding-block-start: 16px; }
   .proposal-detail-main { gap: 16px; }
   .proposal-breadcrumb { margin-bottom: 12px; }
-  .proposal-reading-header h1 { margin-block: 12px 8px; }
+  .proposal-reading-header :is(h1, .proposal-loading-heading) { margin-block: 12px 8px; }
   .proposal-reading-author { margin-top: 12px; }
   .mobile-proposal-document.proposal-voting-details { margin: 0 var(--proposal-gutter, 20px); }
   .mobile-proposal-document > .proposal-disclosure-trigger { min-height: 48px; padding-block: 8px; }

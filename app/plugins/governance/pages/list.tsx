@@ -81,11 +81,11 @@ export default function Proposals() {
       : minPower !== undefined && decimals !== undefined
         ? `Submitting proposals requires at least ${formatUnits(minPower, decimals)} ${PUB_TOKEN_SYMBOL} of delegated voting power.`
         : `Your delegated voting power is below the minimum required to submit proposals.`;
-  const { data: blockNumber } = useBlockNumber({ watch: true });
+  const { data: blockNumber, isError: blockError, refetch: retryBlock } = useBlockNumber({ watch: true });
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!PUB_DEPLOYMENT_BLOCK);
   const [retryKey, setRetryKey] = useState(0);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -220,7 +220,12 @@ export default function Proposals() {
     setStatusFilter("all");
     setSearch("");
   };
-  const retryLoad = () => setRetryKey((key) => key + 1);
+  const firstBlockUnavailable = !noVotingPlugins && blockNumber === undefined && blockError;
+  const listError = firstBlockUnavailable ? "Could not fetch proposals." : error;
+  const retryLoad = () => {
+    if (firstBlockUnavailable) void retryBlock();
+    else setRetryKey((key) => key + 1);
+  };
   const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
   const createAction = showCreate && (
@@ -264,13 +269,11 @@ export default function Proposals() {
                 <MissingContentView>
                   {noVotingPlugins
                     ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
-                    : isLoading
+                    : listError ?? (isLoading
                       ? "Loading proposals…"
-                      : error
-                        ? error
-                        : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
+                      : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created.")}
                 </MissingContentView>
-                {error && (
+                {listError && (
                   <button type="button" className="ui-text-action" onClick={retryLoad}>
                     Try again
                   </button>

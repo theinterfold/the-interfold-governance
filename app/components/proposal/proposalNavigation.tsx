@@ -125,13 +125,13 @@ export function ProposalNavigation({
           setShown(hash);
           if (returning) setListVisited(true);
         });
-        // Cached proposals are immediate. On a cold route, allow data to arrive before capturing the destination.
+        // A cold detail already has a reading surface. Capture it without holding the previous page for metadata.
         await new Promise<void>((resolve) => {
           const ready = () =>
             returning
               ? !!root.current?.querySelector(creating ? '[data-proposal-route="list"]' : '[data-proposal-route="list"] .proposal-title-link')
               : !isPage(hash) ||
-                !!root.current?.querySelector("[data-proposal-route]:not([hidden]) [data-proposal-ready]");
+                !!root.current?.querySelector("[data-proposal-route]:not([hidden]) :is([data-proposal-ready], [data-proposal-loading])");
           if (ready()) return resolve();
           const observer = new MutationObserver(() => {
             if (ready()) finish();
@@ -166,7 +166,8 @@ export function ProposalNavigation({
         motionStyle?.remove();
         if (run !== generation.current) return;
         delete document.documentElement.dataset.proposalNavigation;
-        const focus = returning ? origin.current : root.current?.querySelector<HTMLElement>("[data-proposal-ready]");
+        const route = root.current?.querySelector<HTMLElement>('[data-proposal-route="detail"]');
+        const focus = returning ? origin.current : route?.querySelector<HTMLElement>("[data-proposal-ready]") ?? route;
         focus?.focus({ preventScroll: true });
         if (returning) fromList.current = false;
       };
@@ -202,7 +203,7 @@ export function ProposalNavigation({
             {list}
           </div>
         )}
-        {!isList(shown) && <div data-proposal-route="detail">{detail(shown)}</div>}
+        {!isList(shown) && <div data-proposal-route="detail" tabIndex={-1}>{detail(shown)}</div>}
       </div>
     </NavigationContext.Provider>
   );

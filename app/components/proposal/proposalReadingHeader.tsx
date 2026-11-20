@@ -23,7 +23,18 @@ export function ProposalBreadcrumb({ identifier }: { identifier: string }) {
         <ArrowLeft size={16} weight="regular" aria-hidden="true" />
         Back to proposals
       </Link>
-      <span aria-current="page">{identifier}</span>
+      {identifier && <span aria-current="page">{identifier}</span>}
+    </nav>
+  );
+}
+
+export function ProposalBackToVoting({ href }: { href: string }) {
+  return (
+    <nav className="proposal-breadcrumb" aria-label="Breadcrumb">
+      <a href={href} className="ui-text-action inline-flex items-center gap-2">
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back to voting
+      </a>
     </nav>
   );
 }

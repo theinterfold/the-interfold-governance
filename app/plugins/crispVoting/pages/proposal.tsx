@@ -13,7 +13,7 @@ import {
   usePrivatePair,
 } from "../hooks/usePrivatePair";
 import ProposalHeader from "../components/proposal/header";
-import { PleaseWaitSpinner } from "@/components/please-wait";
+import { ProposalDetailLoading } from "@/components/proposal/proposalLoading";
 import { useProposalStatus } from "../hooks/useProposalStatus";
 import type { Address } from "viem";
 import { ElseIf, If, Then } from "@/components/if";
@@ -124,9 +124,7 @@ export default function ProposalDetail({
   }
   if (spp.subProposalId === undefined || !spp.metadataUri) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/private/${sppProposalId}` : undefined} />
     );
   }
 
@@ -370,9 +368,7 @@ function ProposalDetailBody({
 
   if (!proposal || showProposalLoading) {
     return (
-      <section className="flex w-full min-w-0">
-        <PleaseWaitSpinner />
-      </section>
+      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/private/${sppProposalId}` : undefined} />
     );
   }
 
