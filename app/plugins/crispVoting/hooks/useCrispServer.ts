@@ -1,6 +1,6 @@
 import { voteEvidence } from "../utils/voteEvidence";
 import { ballotWeightPercentage, chooseBallotWeight, reviewedVote, type BallotWeight } from "../utils/ballotWeight";
-import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_ON_AZTEC, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { usePrivatePair } from "./usePrivatePair";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
@@ -23,8 +23,9 @@ import {
   ballotSignatureRequest,
   getBallotDigest,
   getCensusMode,
-  getOnchainVotingPower,
+  getRoundNumOptions,
   getRoundSnapshot,
+  getSlotWeight,
   getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
@@ -40,6 +41,8 @@ import {
   type PreparedBallot,
 } from "../utils/preparedBallot";
 import { sendPreparedBallot } from "../utils/sendPreparedBallot";
+import { assertAztecRoundOpen } from "../utils/aztec/round";
+import type { SignKind } from "../utils/aztec/castBallot";
 
 /** Limit for one read of a staged ballot's job. */
 const JOB_READ_TIMEOUT_MS = 15_000;
@@ -68,11 +71,20 @@ function toKeyBytes(value: unknown): Uint8Array | undefined {
   return Uint8Array.from(value as number[]);
 }
 
+/** What `resolveVoteBalance` reads of a round's state: its credit mode, and its start for a snapshot without a program. */
+type RoundCredits = Pick<IRoundDetailsResponse, "credit_mode" | "credits" | "start_time">;
+
+/**
+ * A votes round on Aztec always weighs ballots by token power (`CUSTOM` credits) and reads its snapshot from the program,
+ * so no server state is read for it (`start_time` is never used on that branch).
+ */
+const AZTEC_ROUND_CREDITS: RoundCredits = { credit_mode: CreditsMode.CUSTOM, credits: null, start_time: "0" };
+
 async function resolveVoteBalance(
   body: `0x${string}`,
   e3Id: bigint,
   address: string,
-  roundState: IRoundDetailsResponse,
+  roundState: RoundCredits,
   crispProgram?: `0x${string}`
 ) {
   // Ask the plugin which token carries voting power rather than trusting an env constant:
@@ -107,7 +119,7 @@ async function resolveVoteBalance(
     // the `getPastVotes` call and the division below — is what keeps the
     // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
     // naming the cause.
-    adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
+    adjustedBalance = await getSlotWeight(publicClient, crispProgram, e3Id, address as `0x${string}`);
     if (constant) {
       power = adjustedBalance;
     } else {
@@ -256,7 +268,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     canPublish: canPublishOnChain,
     blockedReason: onChainBlockedReason,
     commitmentDeadline,
-  } = usePublishVote(e3Id);
+  } = usePublishVote(PUB_VOTING_ON_AZTEC ? undefined : e3Id);
 
   const resolveCommitteeKey = useCommitteeKeyCheck(e3Id);
 
@@ -340,7 +352,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     // one ballot unit (`MinVotingPowerBelowScale`), so zero here always means `publishInput` would
     // reject the slot with `SlotNotEligible` — better said now than after proving.
     if (target && crispProgram) {
-      const balance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, target);
+      const balance = await getSlotWeight(publicClient, crispProgram, e3Id, target);
       if (balance === 0n) {
         throw new Error(`${target} holds no voting power in this round, so it cannot be masked.`);
       }
@@ -367,7 +379,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     // usually coincide, because both scale by the round's recorded divisor, but a mask that got it
     // wrong would fail in the verifier.
     const balance = crispProgram
-      ? await getOnchainVotingPower(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
+      ? await getSlotWeight(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
       : voter.balance;
 
     return {
@@ -380,9 +392,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const getVoteWeight = useCallback(
     async (randomize: boolean): Promise<BallotWeight> => {
       if (e3Id === undefined || !address) throw new Error("Connect your wallet before reviewing a ballot.");
-      const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
+      const roundState = PUB_VOTING_ON_AZTEC
+        ? AZTEC_ROUND_CREDITS
+        : ((await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse);
       const program = await resolveCrispProgram(publicClient, body, e3Id);
-      const census = await getCensusMode(publicClient, program, e3Id);
+      // The votes program on Aztec has no census mode: weights always come from `weightOf`.
+      const census = PUB_VOTING_ON_AZTEC ? CensusMode.ONCHAIN : await getCensusMode(publicClient, program, e3Id);
       const { available, power, unit, decimals } = await resolveVoteBalance(
         body,
         e3Id,
@@ -408,7 +423,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     e3Id: bigint,
     voteOption: bigint,
     numOptions: number,
-    roundState: IRoundDetailsResponse,
+    roundState: RoundCredits,
     crispProgram: `0x${string}` | undefined,
     weight: BallotWeight | undefined
   ): Promise<VoteData> => {
@@ -433,6 +448,109 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     if (walletChainId === PUB_CHAIN.id) return;
     setStepMessage(`Please switch your wallet to ${PUB_CHAIN.name}.`);
     await switchChainAsync({ chainId: PUB_CHAIN.id });
+  };
+
+  /**
+   * The Aztec route: the ballot is encrypted and proven here, the CRISP server stages its ciphertext, and the voter's
+   * embedded Aztec account sends it (fees sponsored). There is no relay, wallet-sent or prepared-ballot path: nothing is
+   * published on Ethereum, so none of them has anything to send.
+   */
+  const postAztecBallot = async (
+    voteOption: bigint,
+    e3Id: bigint,
+    isAMask: boolean,
+    sendFromWallet: boolean,
+    options: PostVoteOptions,
+    evidenceScope: { chainId: number; plugin: Address; roundId: bigint; voter: string },
+    fail: (reason: string, message?: string) => BallotSubmissionResult
+  ): Promise<BallotSubmissionResult> => {
+    const { weight } = options;
+    if (sendFromWallet) return fail("Ballots are sent from your Aztec account on this network, not from a wallet.");
+
+    const crispProgram = await resolveCrispProgram(publicClient, body, e3Id);
+    setStepMessage("Checking the round on Aztec…");
+    try {
+      await assertAztecRoundOpen(crispProgram, e3Id);
+    } catch (reason) {
+      return fail(reason instanceof Error ? reason.message : "The round is not accepting ballots on Aztec.");
+    }
+
+    // The same verified key as on Ethereum: from the registry's logs, else from the CRISP server, and either way only
+    // when its recomputed BFV commitment matches the round's. The key on Aztec was matched to that commitment above.
+    const serverKey = await crispSdk.getRoundPublicKey(e3Id).catch(() => undefined);
+    const resolved = await resolveCommitteeKey(serverKey);
+    if (!resolved.key || !resolved.presetName) return fail(resolved.reason ?? "The committee public key could not be verified.");
+
+    const numOptions = await getRoundNumOptions(publicClient, body, e3Id);
+    const voteData = isAMask
+      ? await handleMask(e3Id, String(numOptions), crispProgram, options.maskTarget)
+      : await handleVote(e3Id, voteOption, numOptions, AZTEC_ROUND_CREDITS, crispProgram, weight);
+    const counted = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
+
+    setVotingStep("generating_proof");
+    setLastActiveStep("generating_proof");
+    setStepMessage("Loading the circuits…");
+    await ensureCircuits(resolved.presetName);
+
+    const walletName =
+      connector?.type === "walletConnect"
+        ? "the wallet app that you connected with WalletConnect"
+        : (connector?.name ?? "your wallet");
+    const share = isAMask ? "" : ballotWeightPercentage({ ...weight!, counted });
+
+    // The wallet signs twice at most: the round's staging key once, and the ballot (never for a mask).
+    const sign = async (kind: SignKind, typedData: Parameters<typeof signTypedDataAsync>[0]): Promise<Hex> => {
+      setVotingStep("signing");
+      setLastActiveStep("signing");
+      await putWalletOnVotingChain();
+      setStepMessage(
+        kind === "ballot"
+          ? `Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`
+          : `Please sign this round's staging key in ${walletName}. It lets you submit ballots without revealing which wallet they come from, and it costs no gas.`
+      );
+      const stillWaiting = setTimeout(() => {
+        if (!active.current) return;
+        setStepMessage(
+          `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
+        );
+      }, SIGNATURE_WAIT_HINT_MS);
+      const signature = await signTypedDataAsync(typedData).finally(() => clearTimeout(stillWaiting));
+      // The circuits and the contract take a plain 65-byte ECDSA signature, not a smart-contract (EIP-1271) one.
+      if (size(signature) !== 65) {
+        throw new Error(
+          "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
+        );
+      }
+      setVotingStep("generating_proof");
+      setLastActiveStep("generating_proof");
+      return signature;
+    };
+
+    const { castAztecBallot } = await import("../utils/aztec/castBallot");
+    const hash = await castAztecBallot({
+      program: crispProgram,
+      e3Id,
+      l1ChainId: PUB_CHAIN.id,
+      own: address as Address,
+      slot: voteData.slotAddress as Address,
+      vote: isAMask ? undefined : voteData.vote,
+      numOptions,
+      committeePublicKey: resolved.key,
+      sign,
+      onProgress: (step, message) => {
+        setVotingStep(step);
+        setLastActiveStep(step);
+        setStepMessage(message);
+      },
+    });
+
+    const label = isAMask ? "Mask" : "Vote";
+    voteEvidence.record(evidenceScope, "confirmed", isAMask);
+    setVotingStep("complete");
+    // The hash is an Aztec transaction: it must not become a link to the Ethereum explorer.
+    setStepMessage(`${label} submitted on Aztec (transaction ${hash}).`);
+    addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
+    return { success: true, txHash: null };
   };
 
   const postVote = async (
@@ -485,6 +603,10 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         timeout: 3000,
         type: "info",
       });
+
+      if (PUB_VOTING_ON_AZTEC) {
+        return await postAztecBallot(voteOption, e3Id, isAMask, sendFromWallet, options, evidenceScope, fail);
+      }
 
       const roundState = await getRoundState(e3Id);
 
