@@ -6,8 +6,6 @@
       "name": "CRISPVoting",
       "dependencies": {
         "@aragon/ods": "1.0.44",
-        "@aztec-foundation/bb.js": "6.0.0",
-        "@aztec-labs/accounts": "6.0.0",
         "@aztec-labs/aztec.js": "6.0.0",
         "@aztec-labs/constants": "6.0.0",
         "@aztec-labs/foundation": "6.0.0",
@@ -328,7 +326,7 @@
 
     "@crate-crypto/node-eth-kzg-win32-x64-msvc": ["@crate-crypto/node-eth-kzg-win32-x64-msvc@0.10.0", "", { "os": "win32", "cpu": "x64" }, "sha512-mYieW1mBesbLFRB2j4LdodpCkwIxZ8ZHZzzwV+MXqapI61B2SbH+FyMYQ5lJYqQeMHCY0ojq5ScW1zZj1uNGjA=="],
 
-    "@crisp-e3/aztec": ["@crisp-e3/aztec@vendor/crisp-e3-aztec-0.28.1.tgz", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.28.1", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-Zqjnb6RJ0jyn08Wnu8rU0MkNjYmgphtxNQlBsaq8h7LYCthXdlVhOY9wBi2aVOxyNv3W036PRxk9SFQSYKS9jw=="],
+    "@crisp-e3/aztec": ["@crisp-e3/aztec@vendor/crisp-e3-aztec-0.28.1.tgz", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.28.1", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-XfwKeNHpKLI8k2+lH8XH4n8fnFT4Y6eL30kdRcCnHbzKzJt2QoQ0rNxVf5bn6fDzRTXhnD/PZIGYoaFAIGz2sQ=="],
 
     "@crisp-e3/sdk": ["@crisp-e3/sdk@vendor/crisp-e3-sdk-0.28.1.tgz", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@crisp-e3/zk-inputs": "0.28.1", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-1w9EKKuZpb3girwYgOg2G+Xzr0vl8pyJoGAmoloz2CrmIs9cL25iWRjMBzPrIv1gSvKZWcV0WowvTWi0KTdhOw=="],
 

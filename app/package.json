@@ -25,8 +25,6 @@
   },
   "dependencies": {
     "@aragon/ods": "1.0.44",
-    "@aztec-foundation/bb.js": "6.0.0",
-    "@aztec-labs/accounts": "6.0.0",
     "@aztec-labs/aztec.js": "6.0.0",
     "@aztec-labs/constants": "6.0.0",
     "@aztec-labs/foundation": "6.0.0",

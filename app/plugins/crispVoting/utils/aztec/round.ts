@@ -3,14 +3,13 @@ import { PUB_AZTEC_CONTRACT_ADDRESS } from "@/constants";
 import { publicClient } from "../client";
 import { getAztecNode } from "./session";
 import { interfoldViewsAbi } from "../../artifacts/interfoldViews";
-import { aztecRoundGate, checkAztecCommitteeKey, toActivityEntries } from "./status";
 
 const programAbi = parseAbi([
   "function interfold() view returns (address)",
   "function l2Program() view returns (bytes32)",
 ]);
 
-export type AztecDeployment = { program: Address; interfold: Address; contract: Hex };
+export type AztecDeployment = { interfold: Address; contract: Hex };
 
 const deployments = new Map<string, Promise<AztecDeployment>>();
 
@@ -32,7 +31,7 @@ export function loadAztecDeployment(program: Address): Promise<AztecDeployment> 
       if (PUB_AZTEC_CONTRACT_ADDRESS && hexToBigInt(PUB_AZTEC_CONTRACT_ADDRESS) !== hexToBigInt(l2Program)) {
         throw new Error("NEXT_PUBLIC_AZTEC_CONTRACT_ADDRESS is not the Aztec contract the votes program is wired to.");
       }
-      return { program, interfold, contract: l2Program };
+      return { interfold, contract: l2Program };
     })();
     deployments.set(key, deployment);
     deployment.catch(() => deployments.delete(key));
@@ -40,7 +39,7 @@ export function loadAztecDeployment(program: Address): Promise<AztecDeployment> 
   return deployment;
 }
 
-/** What the votes contract has logged for one round, read from a node with no wallet. */
+/** What the votes contract has logged for one round, read from a node with no wallet. `inputs` is newest first. */
 export async function readAztecRound(program: Address, e3Id: bigint) {
   const [{ readLogs }, { AztecAddress }, node, { interfold, contract }] = await Promise.all([
     import("@crisp-e3/aztec"),
@@ -57,31 +56,45 @@ export async function readAztecRound(program: Address, e3Id: bigint) {
   ]);
   return {
     opened: opened.length > 0,
-    keyPublished: keyPublished[0]?.committeePublicKey as Hex | undefined,
+    keyPublished: keyPublished.length > 0,
     closed: closed.length > 0,
-    inputs: toActivityEntries(inputs),
+    inputs: inputs
+      .map((log) => ({ index: log.index, txHash: log.origin.txHash, blockNumber: log.origin.blockNumber }))
+      .sort((a, b) => b.index - a.index),
   };
 }
 
-/**
- * Throws, with the reason, unless the round accepts a ballot on Aztec right now: opened, key published and equal to the
- * commitment Interfold published, not closed, inside the input window. Reads only logs, so it needs no wallet session.
- */
+/** Why the round takes no ballot on Aztec right now (mirrors what `open_round`, `publish_key` and `cast` enforce), if so. */
+export const aztecRoundBlocker = (round: {
+  opened: boolean;
+  keyPublished: boolean;
+  closed: boolean;
+  /** Unix seconds. */
+  now: number;
+  inputStart: number;
+  inputEnd: number;
+}): string | undefined => {
+  if (!round.opened) return "This round has not reached Aztec yet. Try again in a few minutes.";
+  if (!round.keyPublished) return "The committee key has not reached Aztec yet, so the round is not accepting ballots.";
+  if (round.closed) return "This round is closed on Aztec.";
+  if (round.now < round.inputStart) return "The voting window has not opened yet.";
+  if (round.now >= round.inputEnd) return "The voting window has closed.";
+};
+
+/** Throws, with the reason, unless the round accepts a ballot on Aztec right now. Reads only logs, so it needs no wallet session. */
 export async function assertAztecRoundOpen(program: Address, e3Id: bigint): Promise<void> {
   const { interfold } = await loadAztecDeployment(program);
   const [round, e3] = await Promise.all([
     readAztecRound(program, e3Id),
     publicClient.readContract({ address: interfold, abi: interfoldViewsAbi, functionName: "getE3", args: [e3Id] }),
   ]);
-  const gate = aztecRoundGate({
+  const blocker = aztecRoundBlocker({
     opened: round.opened,
-    keyPublished: round.keyPublished !== undefined,
+    keyPublished: round.keyPublished,
     closed: round.closed,
     now: Math.floor(Date.now() / 1000),
     inputStart: Number(e3.inputWindow[0]),
     inputEnd: Number(e3.inputWindow[1]),
   });
-  if (!gate.open) throw new Error(gate.reason);
-  const key = checkAztecCommitteeKey(round.keyPublished, e3.committeePublicKey);
-  if (!key.ok) throw new Error(key.reason);
+  if (blocker) throw new Error(blocker);
 }

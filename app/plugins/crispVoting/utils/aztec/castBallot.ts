@@ -4,13 +4,11 @@ import type { Address, Hex } from "viem";
 import { PUB_CRISP_SERVER_URL } from "@/constants";
 import type { VotingStep } from "../types";
 import { publicClient } from "../client";
-import { slotsToEnroll, type BallotNeed } from "./enrollmentPlan";
 import { loadAztecDeployment } from "./round";
-import { localStorageAdapter, outOfStagingPasses, stagingCounter, stagingCounterKey } from "./secrets";
-import { getAztecSession, getAztecVotes } from "./session";
-import { classifyStagingError, retryingStagingFetch } from "./stagingRetry";
+import { getAztecSession } from "./session";
+import { isTagUsed, retryingStagingFetch } from "./stagingRetry";
 
-type L1Client = Parameters<typeof import("@crisp-e3/aztec").weightOf>[0];
+type L1Client = Parameters<typeof import("@crisp-e3/aztec").isEnrolled>[0];
 
 /** What the wallet signs during a cast: the one-off staging key of the round, and the ballot itself. */
 export type SignKind = "staging-key" | "ballot";
@@ -24,6 +22,8 @@ export type AztecBallotRequest = {
   own: Address;
   /** The slot written: `own` for a vote, the masked slot for a mask. */
   slot: Address;
+  /** The slot's weight in the round (`weightOf`): the credits of the ballot. */
+  credits: bigint;
   /** Omit for a mask. */
   vote?: Vote;
   numOptions: number;
@@ -51,7 +51,7 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
   onProgress("generating_proof", "Connecting to Aztec…");
   const deployment = await loadAztecDeployment(program);
   const session = await getAztecSession(own);
-  const votes = await getAztecVotes(session, deployment.contract);
+  const votes = await sdk.CrispAztecVotes.connect(session, deployment.contract);
   // The SDK ships its own copy of viem, so its client type is a different (structurally equal) one.
   const l1 = publicClient as unknown as L1Client;
 
@@ -63,48 +63,38 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
     throw new Error(`The CRISP server serves program ${config.program}, not this round's program ${program}.`);
   }
 
-  // 1. Enrollment: lazy, the first time a ballot needs a slot.
-  const need: BallotNeed = request.vote ? { kind: "vote", own } : { kind: "mask", own, target: slot };
+  // 1. Enrollment: lazy, the first time a ballot needs a slot. A vote needs the voter's own slot (the staging pass proves
+  // it in the census); a mask also needs its target (the proof reads the target's census leaf).
   onProgress("generating_proof", "Checking which slots are enrolled on Aztec…");
-  const enrolled: Address[] = [];
-  for (const candidate of [own, slot]) {
-    if (await votes.isSlotEnrolled(e3Id, candidate)) enrolled.push(candidate);
+  const missing: Address[] = [];
+  for (const candidate of own.toLowerCase() === slot.toLowerCase() ? [own] : [own, slot]) {
+    if (!(await votes.isSlotEnrolled(e3Id, candidate))) missing.push(candidate);
   }
-  const missing = slotsToEnroll(need, enrolled);
   if (missing.length > 0) {
-    for (const candidate of missing) {
-      if ((await sdk.weightOf(l1, program, e3Id, candidate)) === 0n) {
-        throw new Error(
-          candidate.toLowerCase() === own.toLowerCase()
-            ? `Your wallet holds no voting power in this round, so it cannot be enrolled to ${noun === "mask" ? "send masks" : "vote"}.`
-            : `${candidate} holds no voting power in this round, so it cannot be masked.`
-        );
-      }
-    }
     onProgress(
       "generating_proof",
-      `Enrolling ${missing.length === 1 ? "1 slot" : `${missing.length} slots`} on Aztec. The CRISP server sends the Ethereum transaction and nothing is charged to you; this can take several minutes. Keep this tab open.`
+      `Enrolling ${missing.length} slot${missing.length === 1 ? "" : "s"} on Aztec. The CRISP server sends the Ethereum transaction and nothing is charged to you; this can take several minutes. Keep this tab open.`
     );
     const { txHash, skipped } = await sdk.requestEnrollment(server(), e3Id, missing);
-    for (const { slot: refused, reason } of skipped) {
-      // Skipped because someone enrolled it first is fine: its weight is already on its way to Aztec.
-      if (!(await sdk.isEnrolled(l1, program, e3Id, refused))) {
-        throw new Error(`The CRISP server did not enroll ${refused}: ${reason}.`);
-      }
-    }
+    // `enrolled` and `in_flight` mean the weight is already on its way to Aztec; only a slot without power is refused.
+    const refused = skipped.find(({ reason }) => reason === "no_weight");
+    if (refused) throw new Error(`${refused.slot} has no voting power in this round.`);
     await sdk.waitForEnrollment({ votes, l1, program, e3Id, slots: missing, l1TxHash: txHash });
   }
 
   // 2. The staging key: once per round, signed by the wallet; the secret stays in this browser.
-  const storage = localStorageAdapter(window.localStorage);
+  const storage = {
+    get: (key: string) => window.localStorage.getItem(key),
+    set: (key: string, value: string) => window.localStorage.setItem(key, value),
+  };
   const secrets = sdk.stagingSecretStore(storage);
   const roundId = sdk.roundIdOf(e3Id);
-  let secret = await secrets.get(program, e3Id, own);
-  const boundLogs = await votes.logs("StagingKeyBound", { e3Id });
+  const known = await secrets.get(program, e3Id, own);
+  let secret = known;
   const alreadyBound =
-    secret !== undefined &&
-    boundLogs.some(
-      (log) => log.slot.toLowerCase() === own.toLowerCase() && log.commitment === sdk.stagingCommitment(secret!, roundId)
+    known !== undefined &&
+    (await votes.logs("StagingKeyBound", { e3Id })).some(
+      (log) => log.slot.toLowerCase() === own.toLowerCase() && log.commitment === sdk.stagingCommitment(known, roundId)
     );
   if (!alreadyBound) {
     onProgress("signing", "Creating this round's private staging key. Your wallet signs once; it costs no gas.");
@@ -120,31 +110,31 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
   }
 
   // 3. The ballot.
-  onProgress("generating_proof", `Reading the census and your voting power for the ${noun}…`);
-  const [census, stagingTree, credits] = await Promise.all([
-    votes.getCensus(e3Id),
-    votes.getStagingTree(e3Id),
-    sdk.weightOf(l1, program, e3Id, slot),
-  ]);
+  onProgress("generating_proof", `Reading the census for the ${noun}…`);
+  const [census, stagingTree] = await Promise.all([votes.getCensus(e3Id), votes.getStagingTree(e3Id)]);
   const ciphertexts = sdk.ciphertextStore(storage);
   const head = await sdk.resolveSlotHead({ client: votes, e3Id, slot, cache: ciphertexts, serverUrl: server() });
-  const counters = stagingCounter(window.localStorage);
-  const counterKey = stagingCounterKey(program, e3Id, own);
+  // Staging passes this wallet has used in the round: the server accepts `counter < staging_max_requests`, once per tag.
+  const counterKey = `interfold-governance:staging-counter:v1:${program.toLowerCase()}:${e3Id}:${own.toLowerCase()}`;
+  const spend = (counter: number) => window.localStorage.setItem(counterKey, String(counter + 1));
   // The server reads a fresh staging key from Aztec on its own schedule and refuses a pass whose root it has not seen yet,
   // before it takes the pass's tag: that staging is sent again, unchanged, instead of proving the ballot again.
-  const stagingFetch = retryingStagingFetch(fetch, {
-    onWait: (retry, delayMs) =>
-      onProgress(
-        "broadcasting",
-        `Waiting for the CRISP server to see your staging key on Aztec (try ${retry}, next in ${Math.round(delayMs / 1000)} s). Keep this tab open.`
-      ),
-  });
+  const stagingFetch = retryingStagingFetch(fetch, (retry, delayMs) =>
+    onProgress(
+      "broadcasting",
+      `Waiting for the CRISP server to see your staging key on Aztec (try ${retry}, next in ${Math.round(delayMs / 1000)} s). Keep this tab open.`
+    )
+  );
 
   onProgress("generating_proof", `Encrypting and proving the ${noun}. This takes a few minutes; keep this tab open.`);
   let cast;
   try {
-    for (let counter = counters.next(counterKey); ; counter++) {
-      if (counter >= config.staging_max_requests) throw outOfStagingPasses(config.staging_max_requests);
+    for (let counter = Number(window.localStorage.getItem(counterKey) ?? 0); ; counter++) {
+      if (counter >= config.staging_max_requests) {
+        throw new Error(
+          `This wallet has used all ${config.staging_max_requests} ballots and masks the CRISP server accepts from one voter in a round.`
+        );
+      }
       try {
         cast = await sdk.buildCast({
           serverUrl: server(),
@@ -152,7 +142,7 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
           l1ChainId,
           e3Id,
           slot,
-          credits,
+          credits: request.credits,
           numOptions: request.numOptions,
           census,
           committeePublicKey: request.committeePublicKey,
@@ -164,12 +154,12 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
           onProgress: ({ stage, index, total }) =>
             onProgress("generating_proof", `Proving the ${noun}: ${stage} (${index + 1} of ${total})`),
         });
-        counters.spend(counterKey, counter);
+        spend(counter);
         break;
       } catch (error) {
         // A pass the server already holds is spent: count it and try the next one. Any other refusal leaves it unspent.
-        if (classifyStagingError(error) !== "tag-used") throw error;
-        counters.spend(counterKey, counter);
+        if (!isTagUsed(error)) throw error;
+        spend(counter);
       }
     }
   } finally {

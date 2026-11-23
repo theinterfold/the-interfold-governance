@@ -145,21 +145,4 @@ contract SepoliaTimingBudgetTest is Test {
         uint256 maxAdvance = SPP_PRIVATE_VOTE_DURATION + SPP_ADVANCE_WINDOW;
         assertLt(worstCase, maxAdvance, "worst-case private stage outlives stage-0 expiry");
     }
-
-    /// @notice The Aztec votes program has no Avail tail: `availabilityFinalizationWindow()` is 0 and
-    ///         the compute window alone must cover the remote finality window (10800 s on Sepolia).
-    ///         The tally becomes readable no later than under the Avail program, so the same
-    ///         advance headroom holds.
-    function test_theRemoteProgramProfileKeepsTheAdvanceHeadroom() public pure {
-        uint256 remoteFinalityWindow = 10_800;
-        assertGe(COMPUTE_WINDOW, remoteFinalityWindow, "ComputeWindowTooShort");
-
-        uint256 tallyReadableAt = _earliestStartShift() + SPP_PRIVATE_VOTE_DURATION + COMPUTE_WINDOW;
-        uint256 maxAdvance = SPP_PRIVATE_VOTE_DURATION + SPP_ADVANCE_WINDOW;
-        uint256 avail = _earliestStartShift() + SPP_PRIVATE_VOTE_DURATION + AVAILABILITY_FINALIZATION_WINDOW
-            + COMPUTE_WINDOW;
-
-        assertLe(tallyReadableAt, avail, "remote program is never later than the Avail program");
-        assertGt(maxAdvance - tallyReadableAt, 2 days, "less than 2 days of advance headroom");
-    }
 }

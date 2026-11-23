@@ -200,35 +200,15 @@ export const getOnchainVotingPower = async (
   e3Id: bigint,
   slot: Address
 ): Promise<bigint> => {
+  // A votes round on Aztec has no `votingPowerOf`: its `weightOf` (`getPastVotes(slot, snapshot) / divisor`, 0 below the
+  // floor) is the weight `enroll` bridges to Aztec and the vote carries as its credits.
   return client.readContract({
     address: crispProgram,
     abi: crispProgramAbi,
-    functionName: "votingPowerOf",
+    functionName: PUB_VOTING_ON_AZTEC ? "weightOf" : "votingPowerOf",
     args: [e3Id, slot],
   });
 };
-
-/**
- * The ballot weight a slot carries in a round, in ballot units, from the program that runs the round.
- *
- * An Ethereum round asks `votingPowerOf`. A votes round on Aztec asks `weightOf` (`getPastVotes(slot, snapshot) / divisor`,
- * 0 below the floor): the weight that `enroll` bridges to Aztec and that the vote carries as its credits.
- *
- * @param client The public client.
- * @param crispProgram The CRISP program address.
- * @param e3Id The round.
- * @param slot The slot the ballot is written to.
- * @returns The spendable weight in ballot units.
- */
-export const getSlotWeight = async (
-  client: PublicClient,
-  crispProgram: Address,
-  e3Id: bigint,
-  slot: Address
-): Promise<bigint> =>
-  PUB_VOTING_ON_AZTEC
-    ? client.readContract({ address: crispProgram, abi: crispProgramAbi, functionName: "weightOf", args: [e3Id, slot] })
-    : getOnchainVotingPower(client, crispProgram, e3Id, slot);
 
 /**
  * The number of options a round was requested with, from the round's request.

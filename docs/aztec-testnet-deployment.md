@@ -6,21 +6,15 @@ for mainnet. Nothing in this guide deploys by itself: each step is run by the op
 
 ## What changes in the governance contracts
 
-Nothing in the Solidity. `CrispVoting` talks to its E3 program through four views only:
-`earliestVotingStart()`, `availabilityFinalizationWindow()`, `decodeTally(e3Id)` and
-`votingPowerDivisorOf(e3Id)`. It also encodes the seven-field `customParams` of `CRISPProgram`.
-`CRISPAztecVotesProgram` implements all of these, so the DAO only needs its address in
-`CRISP_PROGRAM_ADDRESS`.
+Nothing in the Solidity. `CrispVoting` talks to its E3 program through `earliestVotingStart()`,
+`availabilityFinalizationWindow()`, `decodeTally(e3Id)` and `votingPowerDivisorOf(e3Id)`, and encodes the seven-field
+`customParams` of `CRISPProgram`. `CRISPAztecVotesProgram` implements all of these, so the DAO only needs its address in
+`CRISP_PROGRAM_ADDRESS`. Two differences:
 
-| Plugin assumption                                        | With `CRISPAztecVotesProgram`                                                                                  |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `customParams` has seven fields                          | Same layout. The program accepts CUSTOM credits, `credits == 0` and ONCHAIN census, which the plugin always sends. |
-| `availabilityFinalizationWindow()`                       | `0`. The E3 input window ends at the voting end. No Avail tail exists.                                         |
-| Compute window covers the late-input tail                | The Interfold compute window (604800 s on Sepolia; 21600 s is the decryption window) must be at least `remoteFinalityWindow` (10800 s). The program checks this at request time. |
-| Tally becomes readable inside stage-0 `maxAdvance`       | Readable at `shift + vote + computeWindow`. This is never later than with `CRISPProgram`, so the headroom is the same or larger. |
-| Divisor in `votingPowerDivisorOf`                        | Recorded when the round is requested, with the `CRISPProgram` rule. Quorum math is unchanged.                  |
-| Refunds (`claimRefund`)                                  | Interfold refunds failed E3s. The program holds no fee, so the path is unchanged.                              |
-| Inputs on L1                                             | None. Ballots go to Aztec, weights go to Aztec through the permissionless L1 `enroll`. L1 sees only the input root. |
+- `availabilityFinalizationWindow()` is `0`: the E3 input window ends at the voting end and no Avail tail exists. The Interfold
+  compute window (604800 s on Sepolia) must be at least the program's `remoteFinalityWindow()` (10800 s); the program checks
+  this at request time.
+- Ballots go to Aztec and L1 sees only the input root. Weights reach Aztec through the permissionless L1 `enroll`.
 
 ## Steps
 

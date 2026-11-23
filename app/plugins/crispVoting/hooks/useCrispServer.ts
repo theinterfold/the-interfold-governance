@@ -23,9 +23,9 @@ import {
   ballotSignatureRequest,
   getBallotDigest,
   getCensusMode,
+  getOnchainVotingPower,
   getRoundNumOptions,
   getRoundSnapshot,
-  getSlotWeight,
   getVotingPowerDivisor,
   resolveCrispProgram,
 } from "../utils/ballotDigest";
@@ -119,7 +119,7 @@ async function resolveVoteBalance(
     // the `getPastVotes` call and the division below — is what keeps the
     // prover and the verifier in agreement; a one-unit difference fails the proof with nothing
     // naming the cause.
-    adjustedBalance = await getSlotWeight(publicClient, crispProgram, e3Id, address as `0x${string}`);
+    adjustedBalance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, address as `0x${string}`);
     if (constant) {
       power = adjustedBalance;
     } else {
@@ -352,7 +352,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     // one ballot unit (`MinVotingPowerBelowScale`), so zero here always means `publishInput` would
     // reject the slot with `SlotNotEligible` — better said now than after proving.
     if (target && crispProgram) {
-      const balance = await getSlotWeight(publicClient, crispProgram, e3Id, target);
+      const balance = await getOnchainVotingPower(publicClient, crispProgram, e3Id, target);
       if (balance === 0n) {
         throw new Error(`${target} holds no voting power in this round, so it cannot be masked.`);
       }
@@ -379,7 +379,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     // usually coincide, because both scale by the round's recorded divisor, but a mask that got it
     // wrong would fail in the verifier.
     const balance = crispProgram
-      ? await getSlotWeight(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
+      ? await getOnchainVotingPower(publicClient, crispProgram, e3Id, voter.address as `0x${string}`)
       : voter.balance;
 
     return {
@@ -451,6 +451,45 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   };
 
   /**
+   * Have the wallet sign `typedData`: move it to the voting chain, say which wallet the request went to, and
+   * hint when a wallet accepted the request without showing it.
+   */
+  const signWithWallet = async (
+    typedData: Parameters<typeof signTypedDataAsync>[0],
+    prompt: (walletName: string) => string
+  ): Promise<Hex> => {
+    setVotingStep("signing");
+    setLastActiveStep("signing");
+    await putWalletOnVotingChain();
+    // Name the connection, so the voter knows where the request went. A WalletConnect session
+    // sends it to the wallet app on the phone, not to a browser extension.
+    const walletName =
+      connector?.type === "walletConnect"
+        ? "the wallet app that you connected with WalletConnect"
+        : (connector?.name ?? "your wallet");
+    setStepMessage(prompt(walletName));
+
+    // A wallet can accept a request and never show it. After a delay, say where to look.
+    const stillWaiting = setTimeout(() => {
+      if (!active.current) return;
+      setStepMessage(
+        `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
+      );
+    }, SIGNATURE_WAIT_HINT_MS);
+    const signature = await signTypedDataAsync(typedData).finally(() => clearTimeout(stillWaiting));
+
+    // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
+    // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
+    // otherwise fail with a bare "invalid signature length".
+    if (size(signature) !== 65) {
+      throw new Error(
+        "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
+      );
+    }
+    return signature;
+  };
+
+  /**
    * The Aztec route: the ballot is encrypted and proven here, the CRISP server stages its ciphertext, and the voter's
    * embedded Aztec account sends it (fees sponsored). There is no relay, wallet-sent or prepared-ballot path: nothing is
    * published on Ethereum, so none of them has anything to send.
@@ -459,14 +498,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     voteOption: bigint,
     e3Id: bigint,
     isAMask: boolean,
-    sendFromWallet: boolean,
     options: PostVoteOptions,
     evidenceScope: { chainId: number; plugin: Address; roundId: bigint; voter: string },
     fail: (reason: string, message?: string) => BallotSubmissionResult
   ): Promise<BallotSubmissionResult> => {
     const { weight } = options;
-    if (sendFromWallet) return fail("Ballots are sent from your Aztec account on this network, not from a wallet.");
-
     const crispProgram = await resolveCrispProgram(publicClient, body, e3Id);
     setStepMessage("Checking the round on Aztec…");
     try {
@@ -476,7 +512,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     }
 
     // The same verified key as on Ethereum: from the registry's logs, else from the CRISP server, and either way only
-    // when its recomputed BFV commitment matches the round's. The key on Aztec was matched to that commitment above.
+    // when its recomputed BFV commitment matches the round's.
     const serverKey = await crispSdk.getRoundPublicKey(e3Id).catch(() => undefined);
     const resolved = await resolveCommitteeKey(serverKey);
     if (!resolved.key || !resolved.presetName) return fail(resolved.reason ?? "The committee public key could not be verified.");
@@ -492,35 +528,15 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setStepMessage("Loading the circuits…");
     await ensureCircuits(resolved.presetName);
 
-    const walletName =
-      connector?.type === "walletConnect"
-        ? "the wallet app that you connected with WalletConnect"
-        : (connector?.name ?? "your wallet");
     const share = isAMask ? "" : ballotWeightPercentage({ ...weight!, counted });
 
     // The wallet signs twice at most: the round's staging key once, and the ballot (never for a mask).
     const sign = async (kind: SignKind, typedData: Parameters<typeof signTypedDataAsync>[0]): Promise<Hex> => {
-      setVotingStep("signing");
-      setLastActiveStep("signing");
-      await putWalletOnVotingChain();
-      setStepMessage(
+      const signature = await signWithWallet(typedData, (wallet) =>
         kind === "ballot"
-          ? `Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`
-          : `Please sign this round's staging key in ${walletName}. It lets you submit ballots without revealing which wallet they come from, and it costs no gas.`
+          ? `Please sign your ballot in ${wallet}. It counts ${share} of your voting power.`
+          : `Please sign this round's staging key in ${wallet}. It lets you submit ballots without revealing which wallet they come from, and it costs no gas.`
       );
-      const stillWaiting = setTimeout(() => {
-        if (!active.current) return;
-        setStepMessage(
-          `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
-        );
-      }, SIGNATURE_WAIT_HINT_MS);
-      const signature = await signTypedDataAsync(typedData).finally(() => clearTimeout(stillWaiting));
-      // The circuits and the contract take a plain 65-byte ECDSA signature, not a smart-contract (EIP-1271) one.
-      if (size(signature) !== 65) {
-        throw new Error(
-          "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
-        );
-      }
       setVotingStep("generating_proof");
       setLastActiveStep("generating_proof");
       return signature;
@@ -533,6 +549,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       l1ChainId: PUB_CHAIN.id,
       own: address as Address,
       slot: voteData.slotAddress as Address,
+      credits: voteData.balance,
       vote: isAMask ? undefined : voteData.vote,
       numOptions,
       committeePublicKey: resolved.key,
@@ -605,7 +622,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       });
 
       if (PUB_VOTING_ON_AZTEC) {
-        return await postAztecBallot(voteOption, e3Id, isAMask, sendFromWallet, options, evidenceScope, fail);
+        return await postAztecBallot(voteOption, e3Id, isAMask, options, evidenceScope, fail);
       }
 
       const roundState = await getRoundState(e3Id);
@@ -729,17 +746,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         const share = ballotWeightPercentage({ ...weight!, counted });
 
         // Step 3: Signing, now that there is a ciphertext to bind to.
-        setVotingStep("signing");
-        setLastActiveStep("signing");
-        await putWalletOnVotingChain();
-        // Name the connection, so the voter knows where the request went. A WalletConnect session
-        // sends it to the wallet app on the phone, not to a browser extension.
-        const walletName =
-          connector?.type === "walletConnect"
-            ? "the wallet app that you connected with WalletConnect"
-            : (connector?.name ?? "your wallet");
-        setStepMessage(`Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`);
-
         const request = ballotSignatureRequest({
           chainId: PUB_CHAIN.id,
           crispProgram,
@@ -748,27 +754,13 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           ciphertextCommitment: prepared.ctCommitment,
         });
 
-        // A wallet can accept a request and never show it. After a delay, say where to look.
-        const stillWaiting = setTimeout(() => {
-          if (!active.current) return;
-          setStepMessage(
-            `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
-          );
-        }, SIGNATURE_WAIT_HINT_MS);
-
         // `signTypedData`, not `signMessage`: `ballotDigest` returns an EIP-712 digest that a
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
         // one, and every ballot would fail looking like a bad signature.
-        const signature = await signTypedDataAsync(request).finally(() => clearTimeout(stillWaiting));
-
-        // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
-        // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
-        // otherwise fail with a bare "invalid signature length".
-        if (size(signature) !== 65) {
-          throw new Error(
-            "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
-          );
-        }
+        const signature = await signWithWallet(
+          request,
+          (wallet) => `Please sign your ballot in ${wallet}. It counts ${share} of your voting power.`
+        );
 
         setVotingStep("generating_proof");
         setLastActiveStep("generating_proof");

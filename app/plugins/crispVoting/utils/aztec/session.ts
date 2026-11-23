@@ -1,8 +1,7 @@
 import type { AztecNode } from "@aztec-labs/stdlib/interfaces/client";
-import type { AztecSession, CrispAztecVotes } from "@crisp-e3/aztec";
+import type { AztecSession } from "@crisp-e3/aztec";
 import type { Address, Hex } from "viem";
 import { PUB_AZTEC_NODE_URL } from "@/constants";
-import { aztecAccountStorageKey, parseStoredAccount, type StoredAccount } from "./secrets";
 
 /*
  * Everything that talks to Aztec lives under this folder and is imported with `import()` from event handlers and
@@ -45,9 +44,8 @@ export function getAztecSession(wallet: Address): Promise<AztecSession> {
 }
 
 async function createSession(wallet: Address): Promise<AztecSession> {
-  if (!PUB_AZTEC_NODE_URL) throw new Error("NEXT_PUBLIC_AZTEC_NODE_URL is not set.");
   const [
-    { createAztecNodeClient },
+    node,
     { SponsoredFeePaymentMethod },
     { getContractInstanceFromInstantiationParams },
     { Fq, Fr },
@@ -56,7 +54,7 @@ async function createSession(wallet: Address): Promise<AztecSession> {
     { EmbeddedWallet },
     { openTmpStore },
   ] = await Promise.all([
-    import("@aztec-labs/aztec.js/node"),
+    getAztecNode(),
     import("@aztec-labs/aztec.js/fee"),
     import("@aztec-labs/aztec.js/contracts"),
     import("@aztec-labs/foundation/curves/bn254"),
@@ -66,7 +64,6 @@ async function createSession(wallet: Address): Promise<AztecSession> {
     import("@aztec-labs/kv-store/sqlite-opfs"),
   ]);
 
-  const node = createAztecNodeClient(PUB_AZTEC_NODE_URL);
   // `ephemeral` covers only the wallet DB: the PXE would still open the origin's persistent OPFS store, which one tab at
   // a time may hold, so a second tab could not vote. An in-memory PXE store per page keeps every tab usable.
   const embedded = await EmbeddedWallet.create(node, {
@@ -74,16 +71,16 @@ async function createSession(wallet: Address): Promise<AztecSession> {
     pxe: { proverEnabled: true, store: await openTmpStore(true) },
   });
   try {
-    const storageKey = aztecAccountStorageKey(wallet);
-    let stored: StoredAccount | undefined = parseStoredAccount(window.localStorage.getItem(storageKey));
-    if (!stored) {
-      stored = {
-        secret: Fr.random().toString() as Hex,
-        salt: Fr.random().toString() as Hex,
-        signingKey: Fq.random().toString() as Hex,
-      };
-      window.localStorage.setItem(storageKey, JSON.stringify(stored));
-    }
+    const storageKey = `interfold-governance:aztec-account:v1:${wallet.toLowerCase()}`;
+    const raw = window.localStorage.getItem(storageKey);
+    const stored: Record<"secret" | "salt" | "signingKey", Hex> = raw
+      ? JSON.parse(raw)
+      : {
+          secret: Fr.random().toString() as Hex,
+          salt: Fr.random().toString() as Hex,
+          signingKey: Fq.random().toString() as Hex,
+        };
+    if (!raw) window.localStorage.setItem(storageKey, JSON.stringify(stored));
     const account = await embedded.createSchnorrInitializerlessAccount(
       Fr.fromHexString(stored.secret),
       Fr.fromHexString(stored.salt),
@@ -107,19 +104,4 @@ async function createSession(wallet: Address): Promise<AztecSession> {
     await embedded.stop();
     throw error;
   }
-}
-
-const votesClients = new WeakMap<AztecSession, Map<string, Promise<CrispAztecVotes>>>();
-
-/** The `CrispAztecVotes` contract as this session's account calls it. */
-export function getAztecVotes(session: AztecSession, contract: Hex): Promise<CrispAztecVotes> {
-  const perSession = votesClients.get(session) ?? new Map<string, Promise<CrispAztecVotes>>();
-  votesClients.set(session, perSession);
-  let client = perSession.get(contract);
-  if (!client) {
-    client = import("@crisp-e3/aztec").then(({ CrispAztecVotes }) => CrispAztecVotes.connect(session, contract));
-    perSession.set(contract, client);
-    client.catch(() => perSession.delete(contract));
-  }
-  return client;
 }
