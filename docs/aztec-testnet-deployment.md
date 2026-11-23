@@ -16,7 +16,7 @@ Nothing in the Solidity. `CrispVoting` talks to its E3 program through four view
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `customParams` has seven fields                          | Same layout. The program accepts CUSTOM credits, `credits == 0` and ONCHAIN census, which the plugin always sends. |
 | `availabilityFinalizationWindow()`                       | `0`. The E3 input window ends at the voting end. No Avail tail exists.                                         |
-| Compute window covers the late-input tail                | The Interfold compute window (21600 s on Sepolia) must be at least `remoteFinalityWindow` (10800 s). The program checks this at request time. |
+| Compute window covers the late-input tail                | The Interfold compute window (604800 s on Sepolia; 21600 s is the decryption window) must be at least `remoteFinalityWindow` (10800 s). The program checks this at request time. |
 | Tally becomes readable inside stage-0 `maxAdvance`       | Readable at `shift + vote + computeWindow`. This is never later than with `CRISPProgram`, so the headroom is the same or larger. |
 | Divisor in `votingPowerDivisorOf`                        | Recorded when the round is requested, with the `CRISPProgram` rule. Quorum math is unchanged.                  |
 | Refunds (`claimRefund`)                                  | Interfold refunds failed E3s. The program holds no fee, so the path is unchanged.                              |
