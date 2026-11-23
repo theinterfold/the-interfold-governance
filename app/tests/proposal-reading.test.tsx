@@ -29,6 +29,15 @@ describe("Dedicated proposal reading", () => {
     expect(html).not.toContain("Expand proposal");
   });
 
+  test("an unavailable or pending document keeps the ballot, stage and results mounted", () => {
+    for (const state of ["loading", "unavailable", "untitled"] as const) {
+      const html = renderToStaticMarkup(<ProposalDetailLayout {...props} contentState={state} onRetryContent={() => {}} />);
+      for (const text of ["Existing ballot action", "Stage details", "Round progress"]) expect(html).toContain(text);
+      if (state === "unavailable") expect(html).toContain("Try again");
+      if (state === "untitled") expect(html).toContain('data-testid="doc-parser"');
+    }
+  });
+
   test("normal proposal keeps the actual ballot alongside the full document", () => {
     const html = renderToStaticMarkup(<ProposalDetailLayout {...props} />);
     expect(html).toContain("Existing ballot action");

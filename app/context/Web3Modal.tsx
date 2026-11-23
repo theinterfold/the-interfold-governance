@@ -1,4 +1,5 @@
-import { http, createConfig } from "wagmi";
+import { http, createConfig, type CreateConnectorFn } from "wagmi";
+import { injected, safe, walletConnect } from "wagmi/connectors";
 import { fallback } from "viem";
 import { getDefaultConfig } from "connectkit";
 import {
@@ -32,16 +33,36 @@ export const readTransport = PUB_WEB3_FALLBACK_ENDPOINT
     ])
   : http(PUB_WEB3_ENDPOINT, { batch: { batchSize: PUB_RPC_BATCH_SIZE } });
 
+const appUrl = typeof window === "undefined" ? PUB_PROJECT_URL : window.location.origin;
+
+// A Coinbase SDK popup loses its opener under the isolation policy used for proving.
+// Installed wallets (including Coinbase) can still announce themselves through EIP-6963.
+const browserConnectors = () => {
+  if (typeof window === "undefined") return [];
+  const connectors: CreateConnectorFn[] = [injected({ target: "metaMask" })];
+  if (window.parent !== window) {
+    connectors.unshift(safe({ allowedDomains: [/gnosis-safe\.io$/, /app\.safe\.global$/] }));
+  }
+  if (PUB_WALLET_CONNECT_PROJECT_ID) {
+    connectors.push(walletConnect({
+      projectId: PUB_WALLET_CONNECT_PROJECT_ID,
+      showQrModal: false,
+      metadata: { name: PUB_APP_NAME, description: PUB_APP_DESCRIPTION, url: appUrl, icons: [PUB_WALLET_ICON] },
+    }));
+  }
+  return connectors;
+};
+
 export const config = createConfig(
   getDefaultConfig({
     appName: PUB_APP_NAME,
     appDescription: PUB_APP_DESCRIPTION,
-    appUrl: typeof window === "undefined" ? PUB_PROJECT_URL : window.location.origin,
+    appUrl,
     appIcon: PUB_WALLET_ICON,
     walletConnectProjectId: PUB_WALLET_CONNECT_PROJECT_ID,
     enableFamily: false,
     // Wallet transports belong to the browser. Server rendering only reads chain data.
-    connectors: typeof window === "undefined" ? [] : undefined,
+    connectors: browserConnectors(),
     chains: [PUB_CHAIN],
     ssr: true,
     transports: { [PUB_CHAIN.id]: readTransport },

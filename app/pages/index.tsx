@@ -11,22 +11,22 @@ export default function StandardHome() {
         <section className={styles.hero} aria-labelledby="governance-hero-title">
           <GovernHeroArtwork />
           <div className={styles.copy}>
-            <ScrollFadeIn as="h1" id="governance-hero-title" className={styles.title}>
+            <h1 id="governance-hero-title" className={styles.title}>
               Private votes.
               <br />
               Collective direction.
-            </ScrollFadeIn>
-            <ScrollFadeIn as="p" className={styles.support}>
+            </h1>
+            <p className={styles.support}>
               Participate in decisions about the network.
-            </ScrollFadeIn>
-            <ScrollFadeIn className={styles.actions}>
+            </p>
+            <div className={styles.actions}>
               <SiteCtaLink as={Link} href="/plugins/proposals/#/">
                 Explore proposals
               </SiteCtaLink>
               <SiteCtaLink as={Link} href={VOTING_POWER_URL} variant="secondary">
                 Manage voting power
               </SiteCtaLink>
-            </ScrollFadeIn>
+            </div>
           </div>
         </section>
         <ScrollFadeIn as="section" className={styles.story} aria-labelledby="home-voting-heading" amount="some">

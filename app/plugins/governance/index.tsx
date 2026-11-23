@@ -19,7 +19,7 @@ const NOT_INSTALLED = "This voting process is not installed in the DAO yet, so t
  */
 export default function PluginPage() {
   const { hash } = useUrl();
-  return <ProposalNavigation hash={hash} list={<ProposalList />} detail={proposalRoute} />;
+  return <ProposalNavigation hash={hash} list={(visible) => <ProposalList routeVisible={visible} />} detail={proposalRoute} />;
 }
 
 function proposalRoute(hash: string) {

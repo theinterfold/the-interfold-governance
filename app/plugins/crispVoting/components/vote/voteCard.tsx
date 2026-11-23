@@ -5,7 +5,7 @@ import { useAccount } from "wagmi";
 import { usePrivateVoteStatus, usePrivateVoteTransaction } from "../../hooks/usePrivateVoteStatus";
 import { BallotSuccess } from "@/components/proposalVoting/ballotSuccess";
 import { Spinner } from "@aragon/ods";
-import { ballotWeightPercentage, draftBallotWeight, isUnchangedBallot, rerandomizeBallotWeight, type BallotWeight } from "../../utils/ballotWeight";
+import { ballotWeightPercentage, draftBallotWeight, editBallotWeightSettings, isUnchangedBallot, rerandomizeBallotWeight, type BallotWeight } from "../../utils/ballotWeight";
 import { ballotSignatureRequest } from "../../utils/ballotDigest";
 import { useCrispProgram } from "../../hooks/useCrispProgram";
 import { displayNumber, groupThousands } from "@/utils/numbers";
@@ -456,12 +456,11 @@ export const VoteCard = ({
     setEditingVote(true);
     setSelectedOption(voteReceipt?.option ?? null);
     const weight = voteReceipt?.weight;
-    if (weight) {
-      setAdjustWeight(weight.randomize || weight.percentage !== undefined);
-      setWeightMode(weight.percentage !== undefined ? "custom" : "random");
-      setCustomPercentage(String(weight.percentage ?? 100));
-      if (weight.randomize) setRandomWeight(weight);
-    }
+    const settings = editBallotWeightSettings(weight);
+    setAdjustWeight(settings.enabled);
+    setWeightMode(settings.mode);
+    setCustomPercentage(settings.percentage);
+    if (weight?.randomize) setRandomWeight(weight);
     setIncludeMask(false);
     setShowFeedback(false);
   };
@@ -510,15 +509,15 @@ export const VoteCard = ({
             : "Random · 99–100%",
       hint:
         adjustWeight && weightMode === "custom"
-          ? `Use ${customPercentage}% of your voting power.`
+          ? `Use a fixed ${customPercentage}% of your voting power. This amount is predictable.`
           : "Randomize or choose the percentage of voting power to use.",
       icon: randomizeIcon,
       checked: adjustWeight,
       info: (
         <p>
-          Use a random 99–100% or choose any whole percentage from 1% to 100% of your voting power. Reducing the weight
-          can make a vote harder to identify in the tally, especially when few people vote. A lower percentage also
-          gives your vote less weight. Select Randomize for a new value, or edit the percentage directly.
+          Randomize picks a weight between 99% and 100% where the round’s precision allows. This can make your vote
+          harder to identify in the tally. A custom percentage uses a predictable amount and provides no randomization.
+          Choosing 100% uses all your available ballot units.
         </p>
       ),
       details: (

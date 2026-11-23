@@ -3,6 +3,7 @@ import {
   ballotWeightPercentage,
   chooseBallotWeight,
   draftBallotWeight,
+  editBallotWeightSettings,
   isUnchangedBallot,
   reviewedVote,
   rerandomizeBallotWeight,
@@ -146,6 +147,23 @@ describe("Explicit Randomize action", () => {
 
 describe("Changing a submitted ballot", () => {
   const submitted = { option: 0, weight: draftBallotWeight(weight, false, 25)! };
+
+  test("Change vote after a reload or wallet handoff starts a randomized draft without a local receipt", () => {
+    const settings = editBallotWeightSettings(undefined);
+    expect(settings.enabled).toBe(true);
+    expect(settings.mode).toBe("random");
+    const balance = { ...weight, counted: chooseBallotWeight(weight.available, true) };
+    const draft = draftBallotWeight(balance, settings.enabled && settings.mode === "random");
+    expect(draft?.randomize).toBe(true);
+    expect(reviewedVote(draft, balance.available, balance.roundId, voter, 0, 3)[0]).toBeLessThan(Number(balance.available));
+  });
+
+  test("Change vote with a receipt restores a deliberate custom percentage or full weight", () => {
+    expect(editBallotWeightSettings(submitted.weight)).toEqual({ enabled: true, mode: "custom", percentage: "25" });
+    expect(editBallotWeightSettings(draftBallotWeight(weight, false))).toEqual({
+      enabled: false, mode: "random", percentage: "100",
+    });
+  });
 
   test("Yes at 25% can become Yes at 50%, but returning to 25% is unchanged", () => {
     expect(isUnchangedBallot(submitted, 0, draftBallotWeight(weight, false, 25))).toBe(true);

@@ -4,7 +4,7 @@ import { CrispVotingAbi } from "../artifacts/CrispVoting";
 import { PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
-import { proposalMetadataState } from "@/utils/proposalMetadataState";
+import { proposalDocument, proposalMetadataState } from "@/utils/proposalMetadataState";
 import { getAbiItem, fromHex } from "viem";
 import { publicClient } from "../utils/client";
 import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
@@ -159,11 +159,13 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
       .catch(() => {});
   }, [proposalRaw?.e3Id, blockNumber, roundSettled]);
 
+  const usesSppMetadata = override !== undefined;
+
   // Fetch creation event (only once when proposal data is available)
   const snapshotBlock = proposalRaw?.parameters?.snapshotBlock;
 
   useEffect(() => {
-    if (override?.metadataUri) return;
+    if (usesSppMetadata) return;
     if (!snapshotBlock || !publicClient || creationEvent) return;
 
     void (async () => {
@@ -208,17 +210,17 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
         console.error("Could not fetch proposal creation event", err);
       }
     })();
-  }, [body, proposalId, snapshotBlock, creationEvent, override?.metadataUri]);
+  }, [body, proposalId, snapshotBlock, creationEvent, usesSppMetadata]);
 
-  // JSON metadata
+  const documentUri = usesSppMetadata ? override.metadataUri : metadataUri;
   const {
     data: metadata,
     isSuccess: metadataSuccess,
     error: metadataError,
     refetch: retryMetadata,
-  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri, {
+  } = useMetadata<ProposalMetadata>(documentUri, {
     retry: 2,
-    enabled: !!(override?.metadataUri ?? metadataUri),
+    enabled: !!documentUri,
   });
   const metadataState = proposalMetadataState(metadata, { isSuccess: metadataSuccess, error: metadataError });
 
@@ -259,9 +261,10 @@ export function useProposal(proposalId: bigint, override?: ProposalSourceOverrid
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
       proposalError,
+      metadataState,
       metadataReady: metadataState === "ready",
       metadataLoading: metadataState === "loading",
-      metadataError: metadataState === "unavailable",
+      metadataError: metadataState === "unavailable" || metadataState === "untitled",
     },
   };
 }
@@ -276,6 +279,12 @@ function arrangeProposalData(
 ): Proposal | null {
   if (!proposalData) return null;
 
+  const numOptions = Number(proposalData.parameters.numOptions);
+  const labels = metadata?.options;
+  const options = Array.isArray(labels) && labels.length === numOptions && labels.every(label => typeof label === "string" && label.trim())
+    ? labels
+    : Array.from({ length: numOptions }, (_, index) => ["Yes", "No", "Abstain"][index] ?? `Option ${index + 1}`);
+
   return {
     actions: proposalData.actions,
     active: proposalData.parameters.endDate > BigInt(Math.floor(Date.now() / 1000)),
@@ -284,13 +293,10 @@ function arrangeProposalData(
     tally,
     allowFailureMap: proposalData.allowFailureMap,
     creator: creatorOverride ?? creationEvent?.creator ?? "",
-    title: typeof metadata?.title === "string" ? metadata.title : "",
-    summary: metadata?.summary ?? "",
-    description: metadata?.description ?? "",
-    resources: metadata?.resources ?? [],
+    ...proposalDocument(metadata),
     e3Id: proposalData.e3Id,
-    options: metadata?.options ?? ["Yes", "No"],
-    numOptions: metadata?.options?.length ?? 2,
+    options,
+    numOptions,
     isTallied: hasPublishedTally(tally, isTallied),
   };
 }

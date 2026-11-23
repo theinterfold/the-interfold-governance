@@ -7,6 +7,7 @@ import { PageIntroGlyph, type PageIntroGlyphKind } from "./pageIntroGlyph";
 export function PageIntro({
   title,
   titleId,
+  showPageTitle = true,
   focusOnNavigation = false,
   description,
   glyph,
@@ -14,6 +15,7 @@ export function PageIntro({
 }: {
   title: string;
   titleId?: string;
+  showPageTitle?: boolean;
   focusOnNavigation?: boolean;
   description: ReactNode;
   glyph?: PageIntroGlyphKind;
@@ -21,7 +23,7 @@ export function PageIntro({
 }) {
   return (
     <header className="governance-page-intro">
-      <Head><title>{`${title} · ${PUB_APP_NAME}`}</title></Head>
+      {showPageTitle && <Head><title>{`${title} · ${PUB_APP_NAME}`}</title></Head>}
       {glyph && (
         <ScrollFadeIn>
           <PageIntroGlyph kind={glyph} />

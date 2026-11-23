@@ -96,18 +96,7 @@ export default function ProposalDetail({
       />
     );
   }
-  if (!spp.metadataUri && spp.metadataError) {
-    return (
-      <UnavailableProposalDetail
-        proposalId={sppProposalId}
-        status="Unavailable"
-        message="Could not load this proposal’s content. Try loading it again."
-        embedded={embedded}
-        onRetry={() => void spp.retryMetadata()}
-      />
-    );
-  }
-  if (spp.subProposalId === undefined || !spp.metadataUri) {
+  if (spp.subProposalId === undefined) {
     return (
       <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
@@ -188,7 +177,6 @@ function ProposalDetailBody({
   // "—" until the on-chain read lands, rather than formatting against an assumed 18.
   const fmtVotes = (v: bigint) => (tokenDecimals === undefined ? "-" : formatUnits(v, tokenDecimals));
   const { balance, delegatesTo } = useTokenVotes(address);
-  const showProposalLoading = getShowProposalLoading(proposal, proposalFetchStatus);
   const nowMs = useProposalBoundaryClock(
     proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
     proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
@@ -314,19 +302,7 @@ function ProposalDetailBody({
     );
   }
 
-  if (!proposal?.title?.trim() && proposalFetchStatus.metadataError) {
-    return (
-      <UnavailableProposalDetail
-        proposalId={sppProposalId}
-        status="Unavailable"
-        message="Could not read this proposal’s content. Try loading it again."
-        embedded={embedded}
-        onRetry={() => void retryMetadata()}
-      />
-    );
-  }
-
-  if (!proposal || showProposalLoading) {
+  if (!proposal) {
     return (
       <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
@@ -359,7 +335,9 @@ function ProposalDetailBody({
           readingOnly={readingOnly}
           breadcrumb={!embedded && <ProposalBreadcrumb identifier={shortProposalId(proposalIdx)} />}
           header={!embedded && <ProposalHeader proposal={proposal} presentation={presentation} />}
-          description={proposal.description || "No description was provided"}
+          description={proposal.description}
+          contentState={!spp.metadataUri && spp.metadataError ? "unavailable" : proposalFetchStatus.metadataState}
+          onRetryContent={spp.metadataUri ? retryMetadata : spp.retryMetadata}
           resources={proposal.resources}
           // The actions to be executed on the DAO live on the SPP proposal; the body
           // sub-proposal only carries the internal reportProposalResult callback.
@@ -488,15 +466,3 @@ const NoVotePowerWarning = ({
     </PowerWarning>
   );
 };
-
-function getShowProposalLoading(
-  proposal: ReturnType<typeof useProposal>["proposal"],
-  status: ReturnType<typeof useProposal>["status"]
-) {
-  if (proposal?.title?.trim()) return false;
-  if (!proposal && status.proposalLoading) return true;
-  else if (status.metadataLoading && !status.metadataError) return true;
-  else if (!proposal?.title && !status.metadataError) return true;
-
-  return false;
-}

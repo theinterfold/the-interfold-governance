@@ -118,7 +118,8 @@ function PublicRowBody({
   // Only a proposal with no data yet is loading. A background refetch keeps the row as it is: the
   // loading row unmounts the open details, and the details read this proposal again when they
   // mount, which starts the next refetch.
-  const loading = !proposal || (!proposal.title.trim() && !status.metadataError);
+  const titleUnavailable = status.metadataError || (!metadataUri && !!spp.metadataError);
+  const loading = !proposal || (!proposal.title.trim() && !titleUnavailable);
   const nowMs = useProposalBoundaryClock(
     proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
     proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
@@ -207,7 +208,7 @@ function PublicRowBody({
     <ProposalRow
       href={href}
       kindLabel="Transparent fallback"
-      title={status.metadataError ? "Title unavailable" : proposal.title}
+      title={titleUnavailable ? "Title unavailable" : proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
       statusLabel={view.label}

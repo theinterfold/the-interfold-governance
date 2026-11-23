@@ -79,9 +79,9 @@ export function ProposalReadingHeader({
           {timing}
         </span>
       </div>
-      <h1 tabIndex={-1} data-proposal-ready={title.trim() ? true : undefined}>
-        <span className="proposal-motion-title" data-proposal-part="title">
-          {title || "(No proposal title)"}
+      <h1 tabIndex={-1} data-proposal-ready>
+        <span key={title} className="proposal-motion-title proposal-content-arrival" data-proposal-part="title">
+          {title || "Proposal"}
         </span>
       </h1>
       {summary && (
@@ -89,9 +89,9 @@ export function ProposalReadingHeader({
           {summary}
         </p>
       )}
-      <p className="proposal-reading-author" data-proposal-part="author">
+      {creator && <p className="proposal-reading-author" data-proposal-part="author">
         <span>By</span> <AddressText bold={false}>{creator}</AddressText>
-      </p>
+      </p>}
     </header>
   );
 }

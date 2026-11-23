@@ -53,7 +53,7 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
-export default function Proposals() {
+export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
   const mobile = useMediaQuery("(max-width: 767px)");
   const wide = useMediaQuery("(min-width: 1024px)");
   const [filtersPreference, setFiltersPreference] = useState<boolean>();
@@ -250,6 +250,7 @@ export default function Proposals() {
     <div className="proposals-page" data-mobile-activity={mobile}>
       <PageIntro
         title="Proposals"
+        showPageTitle={routeVisible}
         glyph="proposals"
         description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
       />

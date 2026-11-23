@@ -22,7 +22,7 @@ export function ProposalNavigation({
   detail,
 }: {
   hash: string;
-  list: ReactNode;
+  list: (visible: boolean) => ReactNode;
   detail: (hash: string) => ReactNode;
 }) {
   const [shown, setShown] = useState(hash);
@@ -202,7 +202,7 @@ export function ProposalNavigation({
       <div ref={root} className="proposal-route-shell">
         {listVisited && (
           <div data-proposal-route="list" hidden={!isList(shown)}>
-            {list}
+            {list(isList(shown))}
           </div>
         )}
         {!isList(shown) && <div data-proposal-route="detail" tabIndex={-1}><LoadingBoundary key={shown}>{detail(shown)}</LoadingBoundary></div>}

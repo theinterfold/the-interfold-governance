@@ -207,6 +207,7 @@ export function VotingPowerAdjustment({
         Click the percentage to type, or drag left or right. Use arrow keys to adjust; hold Shift for steps of ten.
         Randomize picks a new voting weight between 99% and 100%, where the round’s precision allows.
       </span>
+      {custom && <p className="vp-foot-note">A custom percentage gives your vote a predictable weight.</p>}
       {error && (
         <p id={`${id}-error`} className="vp-submission-error" role="alert">
           {error}
@@ -230,7 +231,7 @@ export function VotingPowerPreview({ balance, error, adjusted, mode, percentage,
   }
   const explanation = problem ?? (adjusted ? mode === "random"
     ? "Privacy adjustment is on: a random 99–100% of your power. Change it in Privacy extras."
-    : "Using your chosen percentage. Change it in Privacy extras."
+    : "Your chosen percentage gives a predictable weight. Choose Randomize in Privacy extras for a random weight."
     : "Using your full available voting power at this round’s precision.");
   const share = weight && !problem ? ballotWeightPercentage(weight) : undefined;
   const amount = weight && !problem ? `${displayNumber(formatUnits(weight.counted * weight.unit, weight.decimals), 2)} ${PUB_TOKEN_SYMBOL}` : undefined;

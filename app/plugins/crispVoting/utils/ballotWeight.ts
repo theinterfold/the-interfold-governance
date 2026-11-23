@@ -64,6 +64,15 @@ export function chooseBallotWeight(available: bigint, randomize: boolean, percen
   return available - 1n - randomBelow(maxReduction);
 }
 
+/** Only the current session retains the clear weight. A remembered ballot starts a fresh random draft. */
+export function editBallotWeightSettings(weight?: BallotWeight) {
+  return {
+    enabled: !weight || weight.randomize || weight.percentage !== undefined,
+    mode: weight?.percentage !== undefined ? "custom" : "random",
+    percentage: String(weight?.percentage ?? 100),
+  } as const;
+}
+
 /** Resolve the displayed draft without drawing a new random amount. */
 export function draftBallotWeight(
   balance: BallotWeight | undefined,

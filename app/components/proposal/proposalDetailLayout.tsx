@@ -3,6 +3,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ProposalVotingContext } from "../proposalVoting/proposalVotingContext";
 import { useEffect, useRef, type ReactNode } from "react";
 import type { IProposalResource, RawAction } from "@/utils/types";
+import type { ProposalMetadataState } from "@/utils/proposalMetadataState";
 import { BodySection } from "./proposalBodySection";
 import { CardResources } from "./cardResources";
 import { ProposalActions } from "../proposalActions/proposalActions";
@@ -14,6 +15,8 @@ export function ProposalDetailLayout({
   breadcrumb,
   header,
   description,
+  contentState = "ready",
+  onRetryContent,
   resources,
   actions,
   voting,
@@ -29,6 +32,8 @@ export function ProposalDetailLayout({
   breadcrumb?: ReactNode;
   header?: ReactNode;
   description: string;
+  contentState?: ProposalMetadataState;
+  onRetryContent?: () => void;
   resources?: IProposalResource[];
   actions: RawAction[];
   voting: ReactNode;
@@ -55,7 +60,8 @@ export function ProposalDetailLayout({
     observer.observe(column);
     return () => observer.disconnect();
   }, [readingOnly]);
-  const documentBody = (
+  const hasDocument = contentState === "ready" || contentState === "untitled";
+  const documentBody = hasDocument && (
     <div className="proposal-reading-content" data-proposal-part="document">
       <BodySection body={description} fullLength={foldDocument || readingOnly || layout === "sticky"} />
     </div>
@@ -76,7 +82,15 @@ export function ProposalDetailLayout({
         <div className="proposal-detail-reading-column">
           <article className="proposal-detail-reading" data-proposal-part="surface">
             {header}
-            {foldDocument ? (
+            {contentState === "loading" && <p className="proposal-reading-content" role="status">Loading proposal text…</p>}
+            {contentState === "unavailable" && (
+              <div className="proposal-reading-content" role="status">
+                <p>Could not load the proposal text.</p>
+                <button type="button" className="ui-text-action" onClick={onRetryContent}>Try again</button>
+              </div>
+            )}
+            {contentState === "untitled" && <p className="proposal-reading-content">This proposal has no title.</p>}
+            {foldDocument && (hasDocument || actionCount > 0 || !!resources?.length) ? (
               <BallotDisclosure className="mobile-proposal-document" title={
                 <>Proposal details{actionCount > 0 && <small>{actionCount} DAO {actionCount === 1 ? "action" : "actions"}</small>}</>
               }>
