@@ -44,6 +44,25 @@ Nothing in the Solidity. `CrispVoting` talks to its E3 program through four view
    `votes` mode (CRISP repo docs). The server relays the L1 `enroll` so voters pay nothing.
 7. Fork-test one proposal before use: create, enroll, vote, close, tally, execute.
 
+## Current testnet deployment
+
+Sepolia (11155111), Interfold `0xb35EE9ed8BE5967daabBA8c2e817C52D0b57ac26`, Aztec testnet (rollup version 679261766).
+
+| Contract | Address |
+| --- | --- |
+| `CRISPAztecVotesProgram` (Sepolia, block 12198396) | `0x08e1C6288fb0E6f2a1850F08Db632dBC89c309Dc` |
+| `CrispAztecVotes` (Aztec, block 61045) | `0x2e9309f3c0dd3b1870d51bd219d777b7d6c8f16a01a5a399036b3504055c8b98` |
+| DAO | `0x3b64638240bC6543018056265F5b244d05dAAc1E` |
+| CRISP plugin (private body) | `0x4645814aDba1e90fF88bd4C5F869d8B7aB96b861` |
+| TokenVoting plugin (public body) | `0xC16ae9D68F600c85aA49D094aF146AACb0E10494` |
+| SPP, private process | `0x65423ABa2698407E753e476C6ae342076FC3411a` |
+| SPP, public process | `0x927D9673B1B2986f057347635a67bB5F3c360816` |
+
+Plugin deployment block 12198434. The CRISP server for this program is served at
+`https://private-crisp.theinterfold.com/aztec-gov` (infra `playbooks/crisp-aztec-gov.yml`). On Sepolia, `forge script` needs
+`--with-gas-price 2000000 --priority-gas-price 1000000 --gas-estimate-multiplier 500`: 900 pushes the `CrispVoting` deployment
+past the block gas limit.
+
 ## Vendored SDK: testnet only
 
 `app/vendor/crisp-e3-sdk-0.28.1.tgz` is a `build:testing` build of `@crisp-e3/sdk` (`insecure-64` is real, `secure-8192` is a stub), and the app uses it on every path. This branch must not deploy to mainnet until the tarball is rebuilt with `build:prod`.
