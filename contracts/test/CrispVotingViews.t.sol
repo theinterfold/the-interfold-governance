@@ -352,6 +352,18 @@ contract CrispVotingViewsTest is Test {
         );
     }
 
+    /// @notice A remote-chain program (Aztec votes) reports a zero availability tail: its compute
+    ///         window covers the remote finality instead, so the E3 input window ends with voting.
+    function test_aZeroAvailabilityTailEndsTheE3InputWindowWithVoting() public {
+        crispProgram.setVotingStartDelay(VOTING_START_DELAY);
+        crispProgram.setAvailabilityFinalizationWindow(0);
+
+        uint256 proposalId = _create();
+        ICrispVoting.Proposal memory proposal = plugin.getProposal(proposalId);
+
+        assertEq(interfold.lastInputWindowEnd(), proposal.parameters.endDate, "no tail past the voting end");
+    }
+
     /// @notice An early explicit start is CLAMPED to the floor, not rejected — the SPP always
     ///         supplies `start = block.timestamp`, which is below `earliestVotingStart()` by the
     ///         committee-formation shift, so reverting here would kill every staged proposal
