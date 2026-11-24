@@ -158,14 +158,16 @@ export function BallotPanel({
   );
 }
 
-export function BallotSubmissionInfo({ submitOnChain }: { submitOnChain: boolean }) {
+export function BallotSubmissionInfo({ submitOnChain, onAztec = false }: { submitOnChain: boolean; onAztec?: boolean }) {
   return (
     <PowerInfo label="About ballot submission and fees" compact={true}>
       <p>Your ballot is encrypted on your device before it is sent.</p>
       <p>
-        {submitOnChain
-          ? "Your wallet submits it on-chain. You pay the gas fee in ETH and can review it in your wallet before confirming."
-          : "The relayer submits your encrypted ballot. Your vote stays private."}
+        {onAztec
+          ? "Your ballot is proven in this browser and sent to Aztec from an account kept in this browser. The network sponsors the fee, so you pay nothing."
+          : submitOnChain
+            ? "Your wallet submits it on-chain. You pay the gas fee in ETH and can review it in your wallet before confirming."
+            : "The relayer submits your encrypted ballot. Your vote stays private."}
       </p>
     </PowerInfo>
   );

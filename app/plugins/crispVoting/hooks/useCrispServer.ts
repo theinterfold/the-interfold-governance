@@ -1,6 +1,6 @@
 import { voteEvidence } from "../utils/voteEvidence";
 import { ballotWeightPercentage, chooseBallotWeight, reviewedVote, type BallotWeight } from "../utils/ballotWeight";
-import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_ON_AZTEC, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { usePrivatePair } from "./usePrivatePair";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
@@ -24,6 +24,7 @@ import {
   getBallotDigest,
   getCensusMode,
   getOnchainVotingPower,
+  getRoundNumOptions,
   getRoundSnapshot,
   getVotingPowerDivisor,
   resolveCrispProgram,
@@ -40,6 +41,8 @@ import {
   type PreparedBallot,
 } from "../utils/preparedBallot";
 import { sendPreparedBallot } from "../utils/sendPreparedBallot";
+import { assertAztecRoundOpen } from "../utils/aztec/round";
+import type { SignKind } from "../utils/aztec/castBallot";
 
 /** Limit for one read of a staged ballot's job. */
 const JOB_READ_TIMEOUT_MS = 15_000;
@@ -68,11 +71,20 @@ function toKeyBytes(value: unknown): Uint8Array | undefined {
   return Uint8Array.from(value as number[]);
 }
 
+/** What `resolveVoteBalance` reads of a round's state: its credit mode, and its start for a snapshot without a program. */
+type RoundCredits = Pick<IRoundDetailsResponse, "credit_mode" | "credits" | "start_time">;
+
+/**
+ * A votes round on Aztec always weighs ballots by token power (`CUSTOM` credits) and reads its snapshot from the program,
+ * so no server state is read for it (`start_time` is never used on that branch).
+ */
+const AZTEC_ROUND_CREDITS: RoundCredits = { credit_mode: CreditsMode.CUSTOM, credits: null, start_time: "0" };
+
 async function resolveVoteBalance(
   body: `0x${string}`,
   e3Id: bigint,
   address: string,
-  roundState: IRoundDetailsResponse,
+  roundState: RoundCredits,
   crispProgram?: `0x${string}`
 ) {
   // Ask the plugin which token carries voting power rather than trusting an env constant:
@@ -187,6 +199,8 @@ interface CrispServerState {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  /** The short text of the vote button for the current step; empty when the flow names none. */
+  stepLabel: string;
   txHash: string | null;
   /** The round currently satisfies every precondition `publishInput` enforces. */
   canPublishOnChain: boolean;
@@ -256,7 +270,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     canPublish: canPublishOnChain,
     blockedReason: onChainBlockedReason,
     commitmentDeadline,
-  } = usePublishVote(e3Id);
+  } = usePublishVote(PUB_VOTING_ON_AZTEC ? undefined : e3Id);
 
   const resolveCommitteeKey = useCommitteeKeyCheck(e3Id);
 
@@ -274,6 +288,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [votingStep, setVotingStep] = useState<VotingStep>("idle");
   const [lastActiveStep, setLastActiveStep] = useState<VotingStep | null>(null);
   const [stepMessage, setStepMessage] = useState<string>("");
+  const [stepLabel, setStepLabel] = useState<string>("");
 
   const { signTypedDataAsync } = useSignTypedData();
 
@@ -380,9 +395,12 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const getVoteWeight = useCallback(
     async (randomize: boolean): Promise<BallotWeight> => {
       if (e3Id === undefined || !address) throw new Error("Connect your wallet before reviewing a ballot.");
-      const roundState = (await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse;
+      const roundState = PUB_VOTING_ON_AZTEC
+        ? AZTEC_ROUND_CREDITS
+        : ((await crispSdk.getRoundStateLite(e3Id)) as unknown as IRoundDetailsResponse);
       const program = await resolveCrispProgram(publicClient, body, e3Id);
-      const census = await getCensusMode(publicClient, program, e3Id);
+      // The votes program on Aztec has no census mode: weights always come from `weightOf`.
+      const census = PUB_VOTING_ON_AZTEC ? CensusMode.ONCHAIN : await getCensusMode(publicClient, program, e3Id);
       const { available, power, unit, decimals } = await resolveVoteBalance(
         body,
         e3Id,
@@ -408,7 +426,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     e3Id: bigint,
     voteOption: bigint,
     numOptions: number,
-    roundState: IRoundDetailsResponse,
+    roundState: RoundCredits,
     crispProgram: `0x${string}` | undefined,
     weight: BallotWeight | undefined
   ): Promise<VoteData> => {
@@ -435,6 +453,127 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     await switchChainAsync({ chainId: PUB_CHAIN.id });
   };
 
+  /**
+   * Have the wallet sign `typedData`: move it to the voting chain, say which wallet the request went to, and
+   * hint when a wallet accepted the request without showing it.
+   */
+  const signWithWallet = async (
+    typedData: Parameters<typeof signTypedDataAsync>[0],
+    prompt: (walletName: string) => string
+  ): Promise<Hex> => {
+    setVotingStep("signing");
+    setLastActiveStep("signing");
+    await putWalletOnVotingChain();
+    // Name the connection, so the voter knows where the request went. A WalletConnect session
+    // sends it to the wallet app on the phone, not to a browser extension.
+    const walletName =
+      connector?.type === "walletConnect"
+        ? "the wallet app that you connected with WalletConnect"
+        : (connector?.name ?? "your wallet");
+    setStepMessage(prompt(walletName));
+
+    // A wallet can accept a request and never show it. After a delay, say where to look.
+    const stillWaiting = setTimeout(() => {
+      if (!active.current) return;
+      setStepMessage(
+        `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
+      );
+    }, SIGNATURE_WAIT_HINT_MS);
+    const signature = await signTypedDataAsync(typedData).finally(() => clearTimeout(stillWaiting));
+
+    // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
+    // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
+    // otherwise fail with a bare "invalid signature length".
+    if (size(signature) !== 65) {
+      throw new Error(
+        "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
+      );
+    }
+    return signature;
+  };
+
+  /**
+   * The Aztec route: the ballot is encrypted and proven here, the CRISP server stages its ciphertext, and the voter's
+   * embedded Aztec account sends it (fees sponsored). There is no relay, wallet-sent or prepared-ballot path: nothing is
+   * published on Ethereum, so none of them has anything to send.
+   */
+  const postAztecBallot = async (
+    voteOption: bigint,
+    e3Id: bigint,
+    isAMask: boolean,
+    options: PostVoteOptions,
+    evidenceScope: { chainId: number; plugin: Address; roundId: bigint; voter: string },
+    fail: (reason: string, message?: string) => BallotSubmissionResult
+  ): Promise<BallotSubmissionResult> => {
+    const { weight } = options;
+    const crispProgram = await resolveCrispProgram(publicClient, body, e3Id);
+    setStepMessage("Checking the round on Aztec…");
+    try {
+      await assertAztecRoundOpen(crispProgram, e3Id);
+    } catch (reason) {
+      return fail(reason instanceof Error ? reason.message : "The round is not accepting ballots on Aztec.");
+    }
+
+    // The same verified key as on Ethereum: from the registry's logs, else from the CRISP server, and either way only
+    // when its recomputed BFV commitment matches the round's.
+    const serverKey = await crispSdk.getRoundPublicKey(e3Id).catch(() => undefined);
+    const resolved = await resolveCommitteeKey(serverKey);
+    if (!resolved.key || !resolved.presetName) return fail(resolved.reason ?? "The committee public key could not be verified.");
+
+    const numOptions = await getRoundNumOptions(publicClient, body, e3Id);
+    const voteData = isAMask
+      ? await handleMask(e3Id, String(numOptions), crispProgram, options.maskTarget)
+      : await handleVote(e3Id, voteOption, numOptions, AZTEC_ROUND_CREDITS, crispProgram, weight);
+    const counted = voteData.vote.reduce((sum, units) => sum + BigInt(units), 0n);
+
+    setVotingStep("generating_proof");
+    setLastActiveStep("generating_proof");
+    setStepMessage("Loading the circuits…");
+    await ensureCircuits(resolved.presetName);
+
+    const share = isAMask ? "" : ballotWeightPercentage({ ...weight!, counted });
+
+    // The wallet signs twice at most: the round's staging key once, and the ballot (never for a mask).
+    const sign = async (kind: SignKind, typedData: Parameters<typeof signTypedDataAsync>[0]): Promise<Hex> => {
+      const signature = await signWithWallet(typedData, (wallet) =>
+        kind === "ballot"
+          ? `Please sign your ballot in ${wallet}. It counts ${share} of your voting power.`
+          : `Please sign this round's staging key in ${wallet}. It lets you submit ballots without revealing which wallet they come from, and it costs no gas.`
+      );
+      setVotingStep("generating_proof");
+      setLastActiveStep("generating_proof");
+      return signature;
+    };
+
+    const { castAztecBallot } = await import("../utils/aztec/castBallot");
+    const hash = await castAztecBallot({
+      program: crispProgram,
+      e3Id,
+      l1ChainId: PUB_CHAIN.id,
+      own: address as Address,
+      slot: voteData.slotAddress as Address,
+      credits: voteData.balance,
+      vote: isAMask ? undefined : voteData.vote,
+      numOptions,
+      committeePublicKey: resolved.key,
+      sign,
+      onProgress: (step, label, detail = label) => {
+        setVotingStep(step);
+        setLastActiveStep(step);
+        setStepLabel(label);
+        setStepMessage(detail);
+      },
+    });
+
+    const label = isAMask ? "Mask" : "Vote";
+    voteEvidence.record(evidenceScope, "confirmed", isAMask);
+    setVotingStep("complete");
+    // The hash is an Aztec transaction: it must not become a link to the Ethereum explorer.
+    setStepMessage(`${label} submitted on Aztec (transaction ${hash}).`);
+    addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
+    return { success: true, txHash: null };
+  };
+
   const postVote = async (
     voteOption: bigint,
     e3Id: bigint,
@@ -446,6 +585,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setIsLoading(true);
     // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
     setTxHash(null);
+    setStepLabel("");
     // A new attempt starts clean: the previous failure must not outlive it.
     setError("");
     // A declined prompt is the voter's choice, not a failure: an empty error, nothing to show.
@@ -485,6 +625,10 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         timeout: 3000,
         type: "info",
       });
+
+      if (PUB_VOTING_ON_AZTEC) {
+        return await postAztecBallot(voteOption, e3Id, isAMask, options, evidenceScope, fail);
+      }
 
       const roundState = await getRoundState(e3Id);
 
@@ -607,17 +751,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         const share = ballotWeightPercentage({ ...weight!, counted });
 
         // Step 3: Signing, now that there is a ciphertext to bind to.
-        setVotingStep("signing");
-        setLastActiveStep("signing");
-        await putWalletOnVotingChain();
-        // Name the connection, so the voter knows where the request went. A WalletConnect session
-        // sends it to the wallet app on the phone, not to a browser extension.
-        const walletName =
-          connector?.type === "walletConnect"
-            ? "the wallet app that you connected with WalletConnect"
-            : (connector?.name ?? "your wallet");
-        setStepMessage(`Please sign your ballot in ${walletName}. It counts ${share} of your voting power.`);
-
         const request = ballotSignatureRequest({
           chainId: PUB_CHAIN.id,
           crispProgram,
@@ -626,27 +759,13 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           ciphertextCommitment: prepared.ctCommitment,
         });
 
-        // A wallet can accept a request and never show it. After a delay, say where to look.
-        const stillWaiting = setTimeout(() => {
-          if (!active.current) return;
-          setStepMessage(
-            `Still waiting for your signature in ${walletName}. If no request appeared, unlock the wallet, check that it is connected to this site on ${PUB_CHAIN.name}, and reload the page.`
-          );
-        }, SIGNATURE_WAIT_HINT_MS);
-
         // `signTypedData`, not `signMessage`: `ballotDigest` returns an EIP-712 digest that a
         // wallet signs directly. `signMessage` would add the EIP-191 prefix and sign a different
         // one, and every ballot would fail looking like a bad signature.
-        const signature = await signTypedDataAsync(request).finally(() => clearTimeout(stillWaiting));
-
-        // The proof needs a plain 65-byte ECDSA signature. Anything else is a smart-contract account's
-        // EIP-1271 answer (a Safe), which the ballot circuit does not verify yet; the SDK would
-        // otherwise fail with a bare "invalid signature length".
-        if (size(signature) !== 65) {
-          throw new Error(
-            "This wallet signed with a smart-contract signature (for example a Safe), which secret ballots don't support yet. Vote from a regular wallet with its own key."
-          );
-        }
+        const signature = await signWithWallet(
+          request,
+          (wallet) => `Please sign your ballot in ${wallet}. It counts ${share} of your voting power.`
+        );
 
         setVotingStep("generating_proof");
         setLastActiveStep("generating_proof");
@@ -863,6 +982,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     votingStep,
     lastActiveStep,
     stepMessage,
+    stepLabel,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,

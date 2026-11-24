@@ -57,6 +57,14 @@ export const PUB_CRISP_SERVER_URL = (process.env.NEXT_PUBLIC_CRISP_SERVER_URL ??
 // app needs it from env to read a round's on-chain data (merkle root, numOptions, ...).
 export const PUB_CRISP_PROGRAM_ADDRESS = (process.env.NEXT_PUBLIC_CRISP_PROGRAM_ADDRESS ?? "") as Address;
 
+// Where private ballots are cast. `aztec` sends them to the CRISP votes contract on Aztec (testnet); anything
+// else keeps the Ethereum path, where `publishInput` takes the ballot. Mainnet stays on the default.
+export const PUB_VOTING_ON_AZTEC = (process.env.NEXT_PUBLIC_CRISP_VOTING_CHAIN ?? "").toLowerCase() === "aztec";
+// The Aztec node that serves the votes contract's logs and takes the voter's transactions.
+export const PUB_AZTEC_NODE_URL = (process.env.NEXT_PUBLIC_AZTEC_NODE_URL ?? "") as string;
+// The `CrispAztecVotes` contract (32-byte hex). Optional: unset reads it from the votes program's `l2Program()`.
+export const PUB_AZTEC_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_AZTEC_CONTRACT_ADDRESS ?? "") as `0x${string}` | "";
+
 export const PUB_BRIDGE_ADDRESS = (process.env.NEXT_PUBLIC_BRIDGE_ADDRESS ?? "") as Address;
 
 export const PUBLIC_SECONDS_PER_BLOCK = Number(process.env.NEXT_PUBLIC_SECONDS_PER_BLOCK ?? 1); // ETH Mainnet block takes ~12s

@@ -90,6 +90,7 @@ export interface VoteCardProps {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  stepLabel: string;
   isCommitteeReady: boolean;
   txHash: string | null;
   /** The connected wallet cannot cast a vote on this proposal (or eligibility is still loading). */
@@ -101,6 +102,8 @@ export interface VoteCardProps {
   onChainBlockedReason?: string;
   /** Send the ballot from the voter's wallet rather than via the CRISP server. */
   submitOnChain?: boolean;
+  /** Ballots are cast on Aztec from the voter's own account: there is no relay or wallet-send route to choose. */
+  onAztec?: boolean;
   onChangeSubmitOnChain: (value: boolean) => void;
   /** Write a mask to this slot, or to a random eligible voter's when `undefined`. */
   onClickMask: (target?: Address) => Promise<BallotSubmissionResult>;
@@ -129,12 +132,14 @@ export const VoteCard = ({
   canPublishOnChain,
   onChainBlockedReason,
   submitOnChain = false,
+  onAztec = false,
   onChangeSubmitOnChain,
   onClickMask,
   onPrepareVote,
   votingStep,
   lastActiveStep,
   stepMessage,
+  stepLabel,
   isCommitteeReady,
   txHash,
   voteDisabled = false,
@@ -186,6 +191,11 @@ export const VoteCard = ({
   const isSubmitted = !!voteReceipt && !editingVote;
   const isChangingVote = !!voteReceipt && !isSubmitted;
   const busy = submitting || isLoading;
+  // The button follows the cast: the wallet's turn, else the step the flow names, else the first step.
+  const busyLabel =
+    votingStep === "signing"
+      ? "Waiting for your wallet…"
+      : stepLabel || (submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…");
   // Only the mask list's own run shows its progress in the "Submit a mask" section.
   const sendingMasks = submitting && maskRun !== null && reviewSource === "queue";
   const feedbackVisible = showFeedback && (busy || !!attemptError);
@@ -519,7 +529,7 @@ export const VoteCard = ({
     <BallotPanel
       title={isSubmitted || voteDisabled ? "Voting" : isChangingVote ? "Change your vote" : "Cast ballot"}
       submitted={isSubmitted}
-      info={(canMask || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} />}
+      info={(canMask || !voteDisabled) && <BallotSubmissionInfo submitOnChain={submitOnChain} onAztec={onAztec} />}
     >
       <div className="vp-body">
         {/* `notice` already states the start time when voting has not opened, so repeating it
@@ -623,9 +633,7 @@ export const VoteCard = ({
                           key={busy && !sendingMasks ? "loading" : `${submissionKind}-${selectedOption}`}
                         >
                           {busy && !sendingMasks ? (
-                            <PleaseWaitSpinner
-                              fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"}
-                            />
+                            <PleaseWaitSpinner fullMessage={busyLabel} />
                           ) : submissionKind === "mask" ? (
                             "Submit mask ballot"
                           ) : selectedOption !== null ? (
@@ -704,7 +712,7 @@ export const VoteCard = ({
 
         {/* Submission route. The ballot is encrypted and proven locally either way — this only
             decides who sends the transaction, the voter or the CRISP server acting as relayer. */}
-        {(canMask || (!voteDisabled && !isSubmitted)) && (
+        {!onAztec && (canMask || (!voteDisabled && !isSubmitted)) && (
           <div className="flex flex-col gap-y-1 pt-2">
             <label className="flex items-center gap-x-2 text-sm text-neutral-600">
               <input

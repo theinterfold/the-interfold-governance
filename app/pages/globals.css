@@ -344,6 +344,10 @@ label div p.leading-tight {
 [class*="border-t-neutral-200"] {
   border-color: var(--rule) !important;
 }
+/* The ODS spinner shows that it turns with a darker top border, which the rule above flattens. */
+[class*="border-t-neutral-500"].animate-spin {
+  border-top-color: var(--ods-color-neutral-500) !important;
+}
 
 /* ============================================================
    Top nav, copied from theinterfold.com's index.css

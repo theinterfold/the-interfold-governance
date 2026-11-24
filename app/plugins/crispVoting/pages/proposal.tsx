@@ -5,7 +5,7 @@ import { ProposalDetailLayout } from "@/components/proposal/proposalDetailLayout
 import { ProposalBreadcrumb } from "@/components/proposal/proposalReadingHeader";
 import { e3RoundNumber } from "../utils/ballotDigest";
 import { useProposal } from "../hooks/useProposal";
-import { PUB_ENABLE_LOCKING } from "@/constants";
+import { PUB_ENABLE_LOCKING, PUB_VOTING_ON_AZTEC } from "@/constants";
 import {
   INSTALLED_PRIVATE_PAIR,
   PrivatePairProvider,
@@ -46,6 +46,7 @@ import { UnavailableProposalDetail } from "@/components/proposal/unavailableProp
 import { VotingPower } from "@/plugins/tokenVoting/components/votingPower";
 import { ParticipationCard } from "../components/participationCard";
 import { ActivityCard } from "../components/activityCard";
+import { AztecActivityCard } from "../components/aztecActivityCard";
 import { NetworkProgress } from "../components/networkProgress";
 import type { PreparedBallot } from "../utils/preparedBallot";
 import type { PreparedVoteReceipt } from "../utils/ballotSubmission";
@@ -150,6 +151,7 @@ function ProposalDetailBody({
     votingStep,
     lastActiveStep,
     stepMessage,
+    stepLabel,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
@@ -355,19 +357,23 @@ function ProposalDetailBody({
                           options={options}
                           disabled={!ballotOpen}
                           voteDisabled={canVote !== true}
-                          canMask={ballotOpen && !!address}
+                          // On Aztec a mask is staged with the sender's own enrolled slot, so a wallet without voting
+                          // power cannot send one either.
+                          canMask={ballotOpen && !!address && (!PUB_VOTING_ON_AZTEC || canVote === true)}
                           isLoading={isLoading}
                           onClickVote={onVote}
                           onClickMask={onMask}
-                          onPrepareVote={onPrepare}
+                          onPrepareVote={PUB_VOTING_ON_AZTEC ? undefined : onPrepare}
                           canPublishOnChain={canPublishOnChain}
                           onChainBlockedReason={onChainBlockedReason}
                           submitOnChain={submitOnChain}
+                          onAztec={PUB_VOTING_ON_AZTEC}
                           onChangeSubmitOnChain={setSubmitOnChain}
                           proposalId={proposalIdx}
                           votingStep={votingStep}
                           lastActiveStep={lastActiveStep}
                           stepMessage={stepMessage}
+                          stepLabel={stepLabel}
                           txHash={txHash}
                         />
                       </div>
@@ -464,7 +470,7 @@ function ProposalDetailBody({
           }
           networkProgress={<NetworkProgress progress={networkProgress} />}
           participation={<ParticipationCard proposal={proposal} />}
-          activity={<ActivityCard e3Id={proposal.e3Id} />}
+          activity={PUB_VOTING_ON_AZTEC ? <AztecActivityCard e3Id={proposal.e3Id} /> : <ActivityCard e3Id={proposal.e3Id} />}
           stage={
             <VetoStageCard
               kind="private"
