@@ -266,6 +266,7 @@ export const VoteCard = ({
   const {
     data: census,
     error: recipientError,
+    isFetching: loadingRecipients,
     refetch: reloadRecipients,
   } = useQuery({
     queryKey: ["crisp-mask-candidates", e3Id?.toString()],
@@ -283,10 +284,11 @@ export const VoteCard = ({
   const maskIssue = maskReviewIssue(reviewMasks, recipients, !!recipientError);
   const reviewMasksInvalid = maskIssue !== null;
   const maskReviewHint = maskIssue === "loading" ? "Loading eligible voters before review…"
-    : maskIssue === "unavailable" ? "Open Privacy extras to retry loading mask recipients."
-    : maskIssue === "no-voters" ? "No eligible voters are available for masks. Remove masks to review your vote."
+    : maskIssue === "unavailable" ? "Could not load eligible voters for your mask."
+    : maskIssue === "no-voters" ? "No eligible voters are available for masks."
     : "Choose an eligible wallet for each mask in Privacy extras before reviewing.";
   const toolTargetInvalid = includeMask && reviewMasksInvalid;
+  const maskLookupFailed = toolTargetInvalid && (maskIssue === "unavailable" || maskIssue === "no-voters");
 
   useEffect(() => {
     if (!reviewOpen || isReviewMasking) return;
@@ -320,19 +322,21 @@ export const VoteCard = ({
     };
   }, [reviewOpen, isReviewMasking, randomizeWeight, selectedPercentage, getVoteWeight, weightAttempt, randomWeight]);
 
-  const openReview = (trigger: HTMLElement, kind: BallotKind) => {
+  const openReview = (trigger: HTMLElement, kind: BallotKind, voteOnly = false) => {
     if (submittingRef.current || isDisabled) return;
-    if ((kind === "mask" || includeMask) && reviewMasksInvalid) {
+    const reviewIncludesMask = includeMask && !voteOnly;
+    if ((kind === "mask" || reviewIncludesMask) && reviewMasksInvalid) {
       if (kind === "mask") setSubmissionType("mask");
       return;
     }
     if (kind === "vote" && (voteDisabled || selectedOption === null || unchangedVote || invalidPercentage)) return;
+    if (voteOnly) setIncludeMask(false);
     triggerRef.current = trigger;
     setReviewMode(kind);
     setReviewWeight(undefined);
     setWeightError(undefined);
     setSignatureExpanded(false);
-    setSendFirst(reviewFirstBallot({ includeMask, anotherWallet: sendWithAnotherWallet, changeOrder }));
+    setSendFirst(reviewFirstBallot({ includeMask: reviewIncludesMask, anotherWallet: sendWithAnotherWallet, changeOrder }));
     setReviewOpen(true);
   };
 
@@ -850,17 +854,20 @@ export const VoteCard = ({
 
                       {!voteDisabled && !isSubmitted && (
                         <div className="vp-cta">
-                            {toolTargetInvalid && <p className="vp-note" role="status">{maskReviewHint}</p>}
+                            {toolTargetInvalid && <p className="vp-note" role="status">{maskReviewHint} {maskLookupFailed && (
+                              <button type="button" className="ui-text-action" disabled={isDisabled || loadingRecipients}
+                                onClick={() => void reloadRecipients()}>Try again</button>
+                            )}</p>}
                             <PowerAction
                               className="ballot-primary-action"
                               intent="vote"
-                              disabled={isDisabled || selectedOption === null || unchangedVote || invalidPercentage || toolTargetInvalid}
+                              disabled={isDisabled || selectedOption === null || unchangedVote || invalidPercentage || (toolTargetInvalid && !maskLookupFailed)}
                               onClick={(event: MouseEvent<HTMLButtonElement>) =>
-                                openReview(event.currentTarget, "vote")
+                                openReview(event.currentTarget, "vote", maskLookupFailed)
                               }
                             >
                               <span className="vp-label-change" key={`vote-${selectedOption}`}>
-                                {selectedOption !== null
+                                {maskLookupFailed ? "Continue with vote only" : selectedOption !== null
                                   ? includeMask
                                     ? voteReceipt
                                       ? `Review updated vote + ${queueCount === 1 ? "mask" : `${queueCount} masks`}`

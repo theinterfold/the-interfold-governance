@@ -1,6 +1,8 @@
 import WalletContainer from "@/components/WalletContainer";
 import { plugins } from "@/plugins";
 import Link from "next/link";
+import { useRouter } from "next/router";
+import { useAccount } from "wagmi";
 import { useEffect, useState, useSyncExternalStore, type AnchorHTMLAttributes } from "react";
 import { FaucetStrip } from "./faucetStrip";
 import { MobileNavDialog } from "./mobileNavDialog";
@@ -20,10 +22,40 @@ const isDesktop = () => window.matchMedia(desktopQuery).matches;
 
 export const Navbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
+  const [walletRequestUrl, setWalletRequestUrl] = useState<string | null>(null);
+  const { events } = useRouter();
+  const { status } = useAccount();
 
   useEffect(() => {
-    if (window.takeGovernMenuIntent?.()) setShowMenu(true);
+    const intent = window.takeGovernHeaderIntent?.();
+    if (intent === "menu") setShowMenu(true);
+    if (intent === "wallet") setWalletRequestUrl(window.location.href);
   }, []);
+
+  // ConnectKit closes its modal on mount and when a restored account connects.
+  // Deliver the user's click after those effects, using the current wallet control.
+  useEffect(() => {
+    if (!walletRequestUrl || status === "reconnecting" || status === "connecting") return;
+    setWalletRequestUrl(null);
+    if (walletRequestUrl === window.location.href) {
+      document.querySelector<HTMLButtonElement>("button.interfold-header-wallet")?.click();
+    }
+  }, [walletRequestUrl, status]);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const close = () => setShowMenu(false);
+    events.on("routeChangeStart", close);
+    events.on("hashChangeStart", close);
+    window.addEventListener("popstate", close);
+    window.addEventListener("hashchange", close);
+    return () => {
+      events.off("routeChangeStart", close);
+      events.off("hashChangeStart", close);
+      window.removeEventListener("popstate", close);
+      window.removeEventListener("hashchange", close);
+    };
+  }, [events, showMenu]);
 
   const desktop = useSyncExternalStore(subscribeWidth, isDesktop, () => true);
   const navLinks: INavLink[] = plugins.map((p) => ({

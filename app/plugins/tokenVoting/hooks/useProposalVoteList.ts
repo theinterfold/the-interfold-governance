@@ -3,6 +3,7 @@ import { getAbiItem } from "viem";
 import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { fetchVotes } from "@/utils/crispIndexer";
+import { indexedVotesMatchTally } from "../utils/indexedVotesMatchTally";
 import { publicClient } from "../utils/client";
 import type { AbiEvent } from "viem";
 import type { Proposal, VoteCastEvent } from "../utils/types";
@@ -17,10 +18,12 @@ export function useProposalVoteList(proposalId: bigint, proposal: Proposal | nul
     error: boolean;
   }>({ proposalId, loading: true, error: false });
   const request = useRef(0);
-  const proposalReady = !!proposal;
+  const yes = proposal?.tally.yes;
+  const no = proposal?.tally.no;
+  const abstain = proposal?.tally.abstain;
 
   const getLogs = useCallback(async () => {
-    if (!proposalReady || !publicClient) return;
+    if (yes === undefined || no === undefined || abstain === undefined || !publicClient) return;
     const currentRequest = ++request.current;
     setState((previous) => ({
       proposalId,
@@ -37,7 +40,7 @@ export function useProposalVoteList(proposalId: bigint, proposal: Proposal | nul
         proposalId,
         fromBlock: PUB_DEPLOYMENT_BLOCK,
       });
-      if (fromServer) {
+      if (fromServer && indexedVotesMatchTally(fromServer, { yes, no, abstain })) {
         const votes: VoteCastEvent[] = fromServer.map((vote) => ({
           voter: vote.voter,
           proposalId,
@@ -63,7 +66,7 @@ export function useProposalVoteList(proposalId: bigint, proposal: Proposal | nul
         setState((previous) => ({ ...previous, loading: false, error: true }));
       }
     }
-  }, [proposalId, proposalReady]);
+  }, [proposalId, yes, no, abstain]);
 
   useEffect(() => {
     void getLogs();

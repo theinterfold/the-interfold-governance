@@ -1,23 +1,27 @@
 // The shared header appears in the server HTML before React can handle input.
-// Keep only the intended menu state. Wallet actions are always handled live.
+// Replay only the request to open a header control once React owns it.
+type HeaderIntent = "menu" | "wallet" | null;
 declare global {
   interface Window {
-    takeGovernMenuIntent?: () => boolean;
+    takeGovernHeaderIntent?: () => HeaderIntent;
   }
 }
 
 function listenForMenuIntent() {
-  let open = false;
+  let intent: HeaderIntent = null;
+  const initialUrl = window.location.href;
   function toggle(event: Event) {
-    if (!(event.target instanceof Element) || !event.target.closest("#governance-mobile-controls .hamburger-react")) return;
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest(".interfold-header-wallet")) intent = "wallet";
+    else if (event.target.closest("#governance-mobile-controls .hamburger-react")) intent = intent === "menu" ? null : "menu";
+    else return;
     event.stopPropagation();
-    open = !open;
   }
   document.addEventListener("click", toggle, true);
-  window.takeGovernMenuIntent = () => {
+  window.takeGovernHeaderIntent = () => {
     document.removeEventListener("click", toggle, true);
-    delete window.takeGovernMenuIntent;
-    return open;
+    delete window.takeGovernHeaderIntent;
+    return window.location.href === initialUrl ? intent : null;
   };
 }
 

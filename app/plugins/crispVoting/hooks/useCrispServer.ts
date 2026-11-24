@@ -749,7 +749,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         },
         body: JSON.stringify(voteBody),
       });
-      ensureCurrent();
 
       // The relay answers 200 only when this exact statement already has a completed durable job,
       // and 202 when it staged fresh work — the normal path for a new vote, because Avail
@@ -769,22 +768,28 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       }
 
       const voteResponse = (await response.json()) as VoteResponse;
-      ensureCurrent();
       const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
 
       let step = decideCommitmentStep(voteResponse);
       if (step.action === "wait") {
-        setVotingStep("confirming");
-        setLastActiveStep("confirming");
-        setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
-        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView, () => !isCurrent());
-        ensureCurrent();
+        if (isCurrent()) {
+          setVotingStep("confirming");
+          setLastActiveStep("confirming");
+          setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
+        }
+        // A staged relay vote may still finish after navigation or a wallet switch.
+        // Finish its bounded, read-only receipt lookup for the original signer.
+        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView,
+          () => !isCurrent() && (isAMask || sendFromWallet));
         if (decided === null) {
           step = { action: "error", reason: "The server no longer has this ballot. Submit it again." };
         } else if (decided) {
           step = decideCommitmentStep(decided);
         }
       }
+
+      if (step.action === "committed") voteEvidence.record(evidenceScope, "submitted", isAMask, step.txHash);
+      ensureCurrent();
 
       // `wait` remains only when the server chose no sender before the wait ended.
       if (step.action === "wait" || step.action === "error") {
@@ -795,7 +800,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       if (step.action === "committed") {
         if (step.txHash) setTxHash(step.txHash);
-        voteEvidence.record(evidenceScope, "submitted", isAMask, step.txHash);
         setVotingStep("complete");
         setStepMessage(`${label} submitted successfully!`);
         addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
@@ -804,7 +808,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
 
       // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
       // The voter chose this route, or the server did not relay the ballot.
-      ensureCurrent();
 
       // Prepare only: keep the attested payload for another wallet to send. Nothing is sent now,
       // and `buildPreparedBallot` refuses a payload that names another slot than the signer's.
