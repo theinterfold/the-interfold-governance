@@ -85,7 +85,8 @@
   "overrides": {
     "@interfold/contracts": "0.20.0-dev.3",
     "@interfold/wasm": "0.20.0-dev.3",
-    "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz"
+    "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
+    "@peculiar/asn1-schema": "2.11.1"
   },
   "prettier": {
     "printWidth": 120,
