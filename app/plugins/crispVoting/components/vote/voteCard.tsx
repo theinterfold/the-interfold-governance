@@ -90,6 +90,7 @@ export interface VoteCardProps {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  stepLabel: string;
   isCommitteeReady: boolean;
   txHash: string | null;
   /** The connected wallet cannot cast a vote on this proposal (or eligibility is still loading). */
@@ -138,6 +139,7 @@ export const VoteCard = ({
   votingStep,
   lastActiveStep,
   stepMessage,
+  stepLabel,
   isCommitteeReady,
   txHash,
   voteDisabled = false,
@@ -189,6 +191,11 @@ export const VoteCard = ({
   const isSubmitted = !!voteReceipt && !editingVote;
   const isChangingVote = !!voteReceipt && !isSubmitted;
   const busy = submitting || isLoading;
+  // The button follows the cast: the wallet's turn, else the step the flow names, else the first step.
+  const busyLabel =
+    votingStep === "signing"
+      ? "Waiting for your wallet…"
+      : stepLabel || (submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…");
   // Only the mask list's own run shows its progress in the "Submit a mask" section.
   const sendingMasks = submitting && maskRun !== null && reviewSource === "queue";
   const feedbackVisible = showFeedback && (busy || !!attemptError);
@@ -626,9 +633,7 @@ export const VoteCard = ({
                           key={busy && !sendingMasks ? "loading" : `${submissionKind}-${selectedOption}`}
                         >
                           {busy && !sendingMasks ? (
-                            <PleaseWaitSpinner
-                              fullMessage={submittedMode === "mask" ? "Preparing mask…" : "Encrypting ballot…"}
-                            />
+                            <PleaseWaitSpinner fullMessage={busyLabel} />
                           ) : submissionKind === "mask" ? (
                             "Submit mask ballot"
                           ) : selectedOption !== null ? (

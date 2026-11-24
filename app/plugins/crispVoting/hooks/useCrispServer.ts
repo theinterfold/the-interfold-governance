@@ -199,6 +199,8 @@ interface CrispServerState {
   votingStep: VotingStep;
   lastActiveStep: VotingStep | null;
   stepMessage: string;
+  /** The short text of the vote button for the current step; empty when the flow names none. */
+  stepLabel: string;
   txHash: string | null;
   /** The round currently satisfies every precondition `publishInput` enforces. */
   canPublishOnChain: boolean;
@@ -286,6 +288,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [votingStep, setVotingStep] = useState<VotingStep>("idle");
   const [lastActiveStep, setLastActiveStep] = useState<VotingStep | null>(null);
   const [stepMessage, setStepMessage] = useState<string>("");
+  const [stepLabel, setStepLabel] = useState<string>("");
 
   const { signTypedDataAsync } = useSignTypedData();
 
@@ -554,10 +557,11 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       numOptions,
       committeePublicKey: resolved.key,
       sign,
-      onProgress: (step, message) => {
+      onProgress: (step, label, detail = label) => {
         setVotingStep(step);
         setLastActiveStep(step);
-        setStepMessage(message);
+        setStepLabel(label);
+        setStepMessage(detail);
       },
     });
 
@@ -581,6 +585,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setIsLoading(true);
     // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
     setTxHash(null);
+    setStepLabel("");
     // A new attempt starts clean: the previous failure must not outlive it.
     setError("");
     // A declined prompt is the voter's choice, not a failure: an empty error, nothing to show.
@@ -977,6 +982,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     votingStep,
     lastActiveStep,
     stepMessage,
+    stepLabel,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,

@@ -151,6 +151,7 @@ function ProposalDetailBody({
     votingStep,
     lastActiveStep,
     stepMessage,
+    stepLabel,
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
@@ -372,6 +373,7 @@ function ProposalDetailBody({
                           votingStep={votingStep}
                           lastActiveStep={lastActiveStep}
                           stepMessage={stepMessage}
+                          stepLabel={stepLabel}
                           txHash={txHash}
                         />
                       </div>
