@@ -29,8 +29,8 @@
     "@aztec-labs/foundation": "6.0.0",
     "@aztec-labs/kv-store": "6.0.0",
     "@aztec-labs/stdlib": "6.0.0",
-    "@crisp-e3/aztec": "file:vendor/crisp-e3-aztec-0.28.1.tgz",
-    "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
+    "@crisp-e3/aztec": "0.29.0-insecure.0",
+    "@crisp-e3/sdk": "0.29.0-insecure.0",
     "@hookform/resolvers": "^3.9.0",
     "@interfold/sdk": "0.20.0-dev.3",
     "@phosphor-icons/react": "^2.1.10",
@@ -85,7 +85,6 @@
   "overrides": {
     "@interfold/contracts": "0.20.0-dev.3",
     "@interfold/wasm": "0.20.0-dev.3",
-    "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
     "@peculiar/asn1-schema": "2.11.1"
   },
   "prettier": {

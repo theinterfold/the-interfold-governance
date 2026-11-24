@@ -57,6 +57,6 @@ Plugin deployment block 12202503. The CRISP server for this program is served at
 `--with-gas-price 2000000 --priority-gas-price 1000000 --gas-estimate-multiplier 500`: 900 pushes the `CrispVoting` deployment
 past the block gas limit.
 
-## Vendored SDK: testnet only
+## Testing SDK: testnet only
 
-`app/vendor/crisp-e3-sdk-0.28.1.tgz` is a `build:testing` build of `@crisp-e3/sdk` (`insecure-64` is real, `secure-8192` is a stub), and the app uses it on every path. This branch must not deploy to mainnet until the tarball is rebuilt with `build:prod`.
+The app uses `@crisp-e3/sdk@0.29.0-insecure.0` and `@crisp-e3/aztec@0.29.0-insecure.0`, the CRISP testing release. In that release `insecure-64` is real and `secure-8192` is a stub, and the app uses it on every path. This branch must not deploy to mainnet until the app uses a production release of both packages.
