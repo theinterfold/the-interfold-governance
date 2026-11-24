@@ -1,5 +1,5 @@
 import type { AztecNode } from "@aztec-labs/stdlib/interfaces/client";
-import type { AztecSession } from "@crisp-e3/aztec";
+import type { CrispAztecVotes } from "@crisp-e3/aztec";
 import type { Address, Hex } from "viem";
 import { PUB_AZTEC_NODE_URL } from "@/constants";
 
@@ -9,99 +9,73 @@ import { PUB_AZTEC_NODE_URL } from "@/constants";
  * wasm and needs `window`, OPFS and workers, so it must never load on the server or with the first page.
  */
 
+const nodeUrl = (): string => {
+  if (!PUB_AZTEC_NODE_URL) throw new Error("NEXT_PUBLIC_AZTEC_NODE_URL is not set.");
+  return PUB_AZTEC_NODE_URL;
+};
+
 let nodePromise: Promise<AztecNode> | undefined;
 
 /** A read-only node client: enough for logs and round status, no wallet. */
 export function getAztecNode(): Promise<AztecNode> {
-  if (!PUB_AZTEC_NODE_URL) return Promise.reject(new Error("NEXT_PUBLIC_AZTEC_NODE_URL is not set."));
-  nodePromise ??= import("@aztec-labs/aztec.js/node").then(({ createAztecNodeClient }) =>
-    createAztecNodeClient(PUB_AZTEC_NODE_URL)
-  );
+  nodePromise ??= import("@aztec-labs/aztec.js/node").then(({ createAztecNodeClient }) => createAztecNodeClient(nodeUrl()));
   nodePromise.catch(() => (nodePromise = undefined));
   return nodePromise;
 }
 
-let sessionCache: { wallet: string; session: Promise<AztecSession> } | undefined;
+let connection: { key: string; votes: Promise<CrispAztecVotes> } | undefined;
 
 /**
- * The embedded Aztec wallet of the connected EVM wallet: its account's keys persist in localStorage per wallet, so a
- * voter keeps one Aztec address across visits. The account is initializerless (nothing is deployed) and the
- * SponsoredFPC pays every fee, so the voter holds no Aztec funds. Transactions are proved in the browser: a public
- * network rejects unproven ones. One session at a time; connecting another wallet stops the previous one.
+ * The votes contract as the connected EVM wallet's embedded Aztec account uses it. The account's keys persist in
+ * localStorage per wallet, so a voter keeps one Aztec address across visits. The account is initializerless (nothing is
+ * deployed) and the SponsoredFPC pays every fee, so the voter holds no Aztec funds. Transactions are proved in the
+ * browser: a public network rejects unproven ones. One connection at a time, kept for every ballot of the page; connecting
+ * another wallet stops the previous one.
  */
-export function getAztecSession(wallet: Address): Promise<AztecSession> {
-  const key = wallet.toLowerCase();
-  if (sessionCache?.wallet === key) return sessionCache.session;
-  const previous = sessionCache?.session;
-  void previous?.then((session) => session.stop()).catch(() => undefined);
+export function getAztecVotes(wallet: Address, contract: Hex): Promise<CrispAztecVotes> {
+  const key = `${wallet}:${contract}`.toLowerCase();
+  if (connection?.key === key) return connection.votes;
+  void connection?.votes.then((previous) => previous.session.stop()).catch(() => undefined);
 
-  const session = createSession(wallet);
-  sessionCache = { wallet: key, session };
-  session.catch(() => {
-    if (sessionCache?.session === session) sessionCache = undefined;
+  const votes = connect(wallet, contract);
+  connection = { key, votes };
+  votes.catch(() => {
+    if (connection?.votes === votes) connection = undefined;
   });
-  return session;
+  return votes;
 }
 
-async function createSession(wallet: Address): Promise<AztecSession> {
-  const [
-    node,
-    { SponsoredFeePaymentMethod },
-    { getContractInstanceFromInstantiationParams },
-    { Fq, Fr },
-    { SPONSORED_FPC_SALT },
-    { SponsoredFPCContract },
-    { EmbeddedWallet },
-    { openTmpStore },
-  ] = await Promise.all([
-    getAztecNode(),
-    import("@aztec-labs/aztec.js/fee"),
-    import("@aztec-labs/aztec.js/contracts"),
+async function connect(wallet: Address, contract: Hex): Promise<CrispAztecVotes> {
+  const [{ connectAztec, CrispAztecVotes }, { Fq, Fr }, { openTmpStore }] = await Promise.all([
+    import("@crisp-e3/aztec"),
     import("@aztec-labs/foundation/curves/bn254"),
-    import("@aztec-labs/constants"),
-    import("@aztec-labs/noir-contracts.js/SponsoredFPC"),
-    import("@aztec-labs/wallets/embedded"),
     import("@aztec-labs/kv-store/sqlite-opfs"),
   ]);
+  const storageKey = `interfold-governance:aztec-account:v1:${wallet.toLowerCase()}`;
+  const raw = window.localStorage.getItem(storageKey);
+  const stored: Record<"secret" | "salt" | "signingKey", Hex> = raw
+    ? JSON.parse(raw)
+    : {
+        secret: Fr.random().toString() as Hex,
+        salt: Fr.random().toString() as Hex,
+        signingKey: Fq.random().toString() as Hex,
+      };
+  if (!raw) window.localStorage.setItem(storageKey, JSON.stringify(stored));
 
-  // `ephemeral` covers only the wallet DB: the PXE would still open the origin's persistent OPFS store, which one tab at
-  // a time may hold, so a second tab could not vote. An in-memory PXE store per page keeps every tab usable.
-  const embedded = await EmbeddedWallet.create(node, {
-    ephemeral: true,
-    pxe: { proverEnabled: true, store: await openTmpStore(true) },
+  const session = await connectAztec(nodeUrl(), {
+    account: {
+      secret: Fr.fromHexString(stored.secret),
+      salt: Fr.fromHexString(stored.salt),
+      signingKey: Fq.fromHexString(stored.signingKey),
+    },
+    // The wallet's own PXE store is the origin's persistent OPFS store, which one tab at a time may hold, so a second tab
+    // could not vote. An in-memory store per page keeps every tab usable.
+    pxeStore: await openTmpStore(true),
   });
   try {
-    const storageKey = `interfold-governance:aztec-account:v1:${wallet.toLowerCase()}`;
-    const raw = window.localStorage.getItem(storageKey);
-    const stored: Record<"secret" | "salt" | "signingKey", Hex> = raw
-      ? JSON.parse(raw)
-      : {
-          secret: Fr.random().toString() as Hex,
-          salt: Fr.random().toString() as Hex,
-          signingKey: Fq.random().toString() as Hex,
-        };
-    if (!raw) window.localStorage.setItem(storageKey, JSON.stringify(stored));
-    const account = await embedded.createSchnorrInitializerlessAccount(
-      Fr.fromHexString(stored.secret),
-      Fr.fromHexString(stored.salt),
-      Fq.fromHexString(stored.signingKey)
-    );
-    const fpc = await getContractInstanceFromInstantiationParams(SponsoredFPCContract.artifact, {
-      salt: new Fr(SPONSORED_FPC_SALT),
-    });
-    await embedded.registerContract(fpc, SponsoredFPCContract.artifact);
-
-    return {
-      node,
-      wallet: embedded,
-      address: account.address,
-      fee: { paymentMethod: new SponsoredFeePaymentMethod(fpc.address) },
-      rollupVersion: await node.getVersion(),
-      l1ChainId: await node.getChainId(),
-      stop: () => embedded.stop(),
-    };
+    return await CrispAztecVotes.connect(session, contract);
   } catch (error) {
-    await embedded.stop();
+    await session.stop();
     throw error;
   }
 }

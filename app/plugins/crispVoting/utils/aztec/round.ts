@@ -39,8 +39,8 @@ export function loadAztecDeployment(program: Address): Promise<AztecDeployment> 
   return deployment;
 }
 
-/** What the votes contract has logged for one round, read from a node with no wallet. `inputs` is newest first. */
-export async function readAztecRound(program: Address, e3Id: bigint) {
+/** A reader of the logs the votes contract emitted for one round, from a node with no wallet. */
+async function roundLogs(program: Address, e3Id: bigint) {
   const [{ readLogs }, { AztecAddress }, node, { interfold, contract }] = await Promise.all([
     import("@crisp-e3/aztec"),
     import("@aztec-labs/aztec.js/addresses"),
@@ -48,15 +48,14 @@ export async function readAztecRound(program: Address, e3Id: bigint) {
     loadAztecDeployment(program),
   ]);
   const address = AztecAddress.fromStringUnsafe(contract);
-  const [opened, keyPublished, closed, inputs] = await Promise.all([
-    readLogs(node, address, "RoundOpened", interfold, { e3Id }),
-    readLogs(node, address, "KeyPublished", interfold, { e3Id }),
-    readLogs(node, address, "RoundClosed", interfold, { e3Id }),
-    readLogs(node, address, "InputCommitted", interfold, { e3Id }),
-  ]);
+  return <K extends Parameters<typeof readLogs>[2]>(kind: K) => readLogs(node, address, kind, interfold, { e3Id });
+}
+
+/** The inputs the votes contract committed for a round, newest first, and whether the round is closed. */
+export async function readAztecActivity(program: Address, e3Id: bigint) {
+  const logs = await roundLogs(program, e3Id);
+  const [inputs, closed] = await Promise.all([logs("InputCommitted"), logs("RoundClosed")]);
   return {
-    opened: opened.length > 0,
-    keyPublished: keyPublished.length > 0,
     closed: closed.length > 0,
     inputs: inputs
       .map((log) => ({ index: log.index, txHash: log.origin.txHash, blockNumber: log.origin.blockNumber }))
@@ -84,14 +83,15 @@ export const aztecRoundBlocker = (round: {
 /** Throws, with the reason, unless the round accepts a ballot on Aztec right now. Reads only logs, so it needs no wallet session. */
 export async function assertAztecRoundOpen(program: Address, e3Id: bigint): Promise<void> {
   const { interfold } = await loadAztecDeployment(program);
-  const [round, e3] = await Promise.all([
-    readAztecRound(program, e3Id),
+  const [logs, e3] = await Promise.all([
+    roundLogs(program, e3Id),
     publicClient.readContract({ address: interfold, abi: interfoldViewsAbi, functionName: "getE3", args: [e3Id] }),
   ]);
+  const [opened, keyPublished, closed] = await Promise.all([logs("RoundOpened"), logs("KeyPublished"), logs("RoundClosed")]);
   const blocker = aztecRoundBlocker({
-    opened: round.opened,
-    keyPublished: round.keyPublished,
-    closed: round.closed,
+    opened: opened.length > 0,
+    keyPublished: keyPublished.length > 0,
+    closed: closed.length > 0,
     now: Math.floor(Date.now() / 1000),
     inputStart: Number(e3.inputWindow[0]),
     inputEnd: Number(e3.inputWindow[1]),

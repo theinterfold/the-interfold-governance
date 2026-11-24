@@ -1,7 +1,7 @@
 import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
 import { useQuery } from "@tanstack/react-query";
 import { useCrispProgram } from "../hooks/useCrispProgram";
-import { readAztecRound } from "../utils/aztec/round";
+import { readAztecActivity } from "../utils/aztec/round";
 
 /**
  * Encrypted ballot activity for a round cast on Aztec: every input the votes contract committed (`INPUT_COMMITTED`
@@ -16,7 +16,7 @@ export function AztecActivityCard({ e3Id }: { e3Id: bigint }) {
     isError,
   } = useQuery({
     queryKey: ["crisp-aztec-activity", program, e3Id.toString()],
-    queryFn: () => readAztecRound(program!, e3Id),
+    queryFn: () => readAztecActivity(program!, e3Id),
     enabled: program !== undefined,
     refetchInterval: (query) => (query.state.data?.closed ? false : 15_000),
   });

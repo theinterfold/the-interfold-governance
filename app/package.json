@@ -26,12 +26,9 @@
   "dependencies": {
     "@aragon/ods": "1.0.44",
     "@aztec-labs/aztec.js": "6.0.0",
-    "@aztec-labs/constants": "6.0.0",
     "@aztec-labs/foundation": "6.0.0",
     "@aztec-labs/kv-store": "6.0.0",
-    "@aztec-labs/noir-contracts.js": "6.0.0",
     "@aztec-labs/stdlib": "6.0.0",
-    "@aztec-labs/wallets": "6.0.0",
     "@crisp-e3/aztec": "file:vendor/crisp-e3-aztec-0.28.1.tgz",
     "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
     "@hookform/resolvers": "^3.9.0",
