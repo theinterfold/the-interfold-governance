@@ -10,8 +10,8 @@
         "@aztec-labs/foundation": "6.0.0",
         "@aztec-labs/kv-store": "6.0.0",
         "@aztec-labs/stdlib": "6.0.0",
-        "@crisp-e3/aztec": "file:vendor/crisp-e3-aztec-0.28.1.tgz",
-        "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
+        "@crisp-e3/aztec": "0.29.0-insecure.0",
+        "@crisp-e3/sdk": "0.29.0-insecure.0",
         "@hookform/resolvers": "^3.9.0",
         "@interfold/sdk": "0.20.0-dev.3",
         "@phosphor-icons/react": "^2.1.10",
@@ -66,7 +66,6 @@
     },
   },
   "overrides": {
-    "@crisp-e3/sdk": "file:vendor/crisp-e3-sdk-0.28.1.tgz",
     "@interfold/contracts": "0.20.0-dev.3",
     "@interfold/wasm": "0.20.0-dev.3",
     "@peculiar/asn1-schema": "2.11.1",
@@ -324,11 +323,11 @@
 
     "@crate-crypto/node-eth-kzg-win32-x64-msvc": ["@crate-crypto/node-eth-kzg-win32-x64-msvc@0.10.0", "", { "os": "win32", "cpu": "x64" }, "sha512-mYieW1mBesbLFRB2j4LdodpCkwIxZ8ZHZzzwV+MXqapI61B2SbH+FyMYQ5lJYqQeMHCY0ojq5ScW1zZj1uNGjA=="],
 
-    "@crisp-e3/aztec": ["@crisp-e3/aztec@vendor/crisp-e3-aztec-0.28.1.tgz", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.28.1", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-ZPKBV2vvb3E3vJvZeWv3uyjFUzz347jaAJtK0IjHcuE+zZc+dVQWYEkEr5puori6F/xgfcURuA2dOzeHgjr9aQ=="],
+    "@crisp-e3/aztec": ["@crisp-e3/aztec@0.29.0-insecure.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.29.0-insecure.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-1Zm4Lx0Vrt6U3Nn2CcxvgdiKZ/b1gjDXe+EU6ZoQg1grPTZmuhRLwatAPmwxW2uphNUrZ1iVGSVeCKhvKbCKEg=="],
 
-    "@crisp-e3/sdk": ["@crisp-e3/sdk@vendor/crisp-e3-sdk-0.28.1.tgz", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@crisp-e3/zk-inputs": "0.28.1", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-1w9EKKuZpb3girwYgOg2G+Xzr0vl8pyJoGAmoloz2CrmIs9cL25iWRjMBzPrIv1gSvKZWcV0WowvTWi0KTdhOw=="],
+    "@crisp-e3/sdk": ["@crisp-e3/sdk@0.29.0-insecure.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@crisp-e3/zk-inputs": "0.29.0-insecure.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-Gm3LjurGJLVq/hBEQ480FIu7zkZZ2kk4yUCloleu76FrE0ndc24DAYyCkUXUO69ZgkuVxsvlHfJlI+8ZzUUi7w=="],
 
-    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.28.1", "", {}, "sha512-CI2qDQSSqhCdTWxnRdOqtamTms0SJ1eqxxrwKuU2e4sn4ySeszcJbZ2d53AQqsjLURfLRyqGUxCUPlH6vDfDzQ=="],
+    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.29.0-insecure.0", "", {}, "sha512-HJGev37266D07KFFaOhfD78NSAtb/rYWau/mTuv0bAx+iQa4beyEoicDi7/QPs7giFR26pyblqPvSr462jpZ4Q=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
