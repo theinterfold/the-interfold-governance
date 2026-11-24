@@ -1,4 +1,5 @@
 import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
+import { PUB_AZTEC_EXPLORER_URL } from "@/constants";
 import { useQuery } from "@tanstack/react-query";
 import { useCrispProgram } from "../hooks/useCrispProgram";
 import { readAztecActivity } from "../utils/aztec/round";
@@ -50,9 +51,20 @@ export function AztecActivityCard({ e3Id }: { e3Id: bigint }) {
           {entries?.map((entry) => (
             <div key={entry.txHash} className="flex items-center justify-between text-sm">
               <span className="text-neutral-500">#{entry.index}</span>
-              <span className="font-mono text-neutral-800">
-                {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
-              </span>
+              {PUB_AZTEC_EXPLORER_URL ? (
+                <a
+                  href={`${PUB_AZTEC_EXPLORER_URL}/tx-effects/${entry.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-primary-400 hover:underline"
+                >
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </a>
+              ) : (
+                <span className="font-mono text-neutral-800">
+                  {entry.txHash.slice(0, 10)}…{entry.txHash.slice(-6)}
+                </span>
+              )}
               <span className="text-neutral-400">Aztec block {entry.blockNumber}</span>
             </div>
           ))}
