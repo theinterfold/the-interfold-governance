@@ -483,9 +483,13 @@ Each step prints values that must be written into `.env.mainnet` before the next
 ```bash
 cd contracts
 
-# 1. Deploy CrispVotingSetup + mint the CRISP PluginRepo (EOA; the DAO is not touched).
+# 1. Only when no CRISP PluginRepo exists: deploy CrispVotingSetup + mint the repo (EOA; the DAO is
+#    not touched). A new repo holds build 1 only, so CRISP_BUILD must be 1 for it.
 make publish-crisp-repo ENV_FILE=.env.mainnet
 #    -> record the printed repo address as CRISP_PLUGIN_REPO
+#    When the repo exists (mainnet has one), skip this step. Keep its address in CRISP_PLUGIN_REPO
+#    and set CRISP_BUILD to the build to install, from its VersionCreated event
+#    (docs/publish-crisp-build.md).
 
 # 2. prepareInstallation for the CRISP body and the private SPP (EOA; DAO still untouched).
 make prepare-private-process ENV_FILE=.env.mainnet

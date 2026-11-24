@@ -118,17 +118,20 @@ make read-prepared TX=<prepare-tx-hash> PLUGIN_PREFIX=CRISP >> .env
 Run it once per prepare transaction: `SPP_PUBLIC`, `TOKEN_VOTING`, `CRISP` and `SPP_PRIVATE`.
 
 That derives the helpers hash the way `hashHelpers` does — `keccak256(abi.encode(address[]))` —
-and preserves permission order exactly as emitted, because the setup id hashes the sequence. It
-refuses outright if any permission carries a condition: the generator encodes `NO_CONDITION`, and
-the condition is hashed into the setup id, so such an action would be rejected on chain with
-nothing naming the field.
+and preserves permission order exactly as emitted, because the setup id hashes the sequence. A
+permission can carry a condition: TokenVoting grants `CREATE_PROPOSAL` behind its
+`VotingPowerCondition`. The script writes the condition address of each permission and prints a
+note when it finds one. The condition is hashed into the setup id, so verify that each condition is
+a helper this prepare deployed before you sign.
 
 The values it writes are
 
 - `<PREFIX>_PLUGIN_ADDRESS` — the deployed plugin
 - `<PREFIX>_HELPERS` and `<PREFIX>_HELPERS_HASH` — the helpers and their `keccak256`
-- `<PREFIX>_PERM_OPS`, `_PERM_WHERE`, `_PERM_WHO`, `_PERM_IDS` — the permission set, as four
-  comma-separated lists **in the order the event emitted them**
+- `<PREFIX>_PERM_OPS`, `_PERM_WHERE`, `_PERM_WHO`, `_PERM_IDS`, `_PERM_CONDITIONS` — the permission
+  set, as five comma-separated lists **in the order the event emitted them**. A missing
+  `_PERM_CONDITIONS` list means no conditions, which changes the setup id of a conditioned
+  permission.
 
 If you do read them by hand instead, order matters: the prepared setup id hashes the sequence, and
 `applyInstallation` re-derives it and reverts on any mismatch. That is a feature — a mistyped
@@ -188,6 +191,16 @@ The private wiring makes the CRISP proposer condition the private SPP's creation
 `CRISP_HELPERS` and `SPP_PRIVATE_HELPERS`, which `read-prepared` wrote in step 3. Set
 `WITH_PRIVATE=false` to wire only the public process, for a DAO installed
 without the CRISP body and the private SPP.
+
+`safe-wire` reads three plugin addresses under other names than `read-prepared` writes. Before you
+run it, set these in the same env file, from the values of step 3:
+
+- `CRISP_VOTING_PLUGIN_ADDRESS`: the value of `CRISP_PLUGIN_ADDRESS`
+- `SPP_PRIVATE_ADDRESS`: the value of `SPP_PRIVATE_PLUGIN_ADDRESS`
+- `SPP_PUBLIC_ADDRESS`: the value of `SPP_PUBLIC_PLUGIN_ADDRESS`
+
+`TOKEN_VOTING_PLUGIN_ADDRESS` has the same name in both. Without these values the generation fails.
+An old value under one of these names wires a different plugin, so replace it.
 
 This never disarms the Admin bootstrap. That stays its own deliberate action, so a wiring that
 needs a retry is not entangled with an irreversible revoke.
