@@ -1,3 +1,4 @@
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { VoteStatus } from "./voteStatus";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import styles from "./closedVoteStatus.module.css";
@@ -22,6 +23,8 @@ export function ClosedVoteStatus({
   choice?: string;
   onConnect: () => void;
 }) {
+  const mobile = useMediaQuery("(max-width: 600px)");
+  const localReceiptMissing = secret && status === "unknown" && mobile;
   const description =
     status === "unknown"
       ? secret
@@ -38,12 +41,12 @@ export function ClosedVoteStatus({
         <span>Your vote</span>
         {status !== "disconnected" && (
           <strong>
-            {labels[status]}
+            {localReceiptMissing ? "No receipt in this browser" : labels[status]}
             {status === "confirmed" && !secret && choice ? ` · ${choice}` : ""}
           </strong>
         )}
       </div>
-      {description && <p>{description}</p>}
+      {description && !localReceiptMissing && <p>{description}</p>}
       {status === "disconnected" && (
         <PowerAction className={styles.connect} onClick={onConnect}>Connect wallet</PowerAction>
       )}

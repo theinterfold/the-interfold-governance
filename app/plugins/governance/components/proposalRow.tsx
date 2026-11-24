@@ -4,6 +4,7 @@ import { BendingChevron } from "@/vendor/site-header";
 import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { FadingLoading, LoadingBoundary, LoadingIndicator } from "@/components/motion/LoadingTransition";
+import { ProposalExternalLink } from "@/components/proposal/proposalExternalLink";
 import { ProposalPlaceholder } from "@/components/proposal/proposalLoading";
 import { AddressText } from "@/components/text/address";
 import { useInert } from "@/components/motion/useInert";
@@ -180,7 +181,7 @@ export function ProposalRow(props: ProposalRowProps) {
           </div>
         </div>
         <div className="right">
-          {props.rightLabel && (
+          {props.rightLabel && (props.rightLabel !== props.statusLabel || votingOpen || props.votingPending) && (
             <span className="time" data-proposal-part="timing">
               {votingOpen && props.votingEndMs ? (
                 <ProposalCountdown
@@ -262,9 +263,7 @@ export function ProposalRow(props: ProposalRowProps) {
             <div className="proposal-expanded-content">
               <LoadingBoundary>{props.details}</LoadingBoundary>
               <div className="proposal-expanded-footer">
-                <Link href={props.href} className="ui-text-action" target="_blank" rel="noopener noreferrer">
-                  Open full page ↗<span className="sr-only"> (opens in a new tab)</span>
-                </Link>
+                <ProposalExternalLink href={props.href}>Open full page</ProposalExternalLink>
                 <ActionButton
                   type="button"
                   size="compact"

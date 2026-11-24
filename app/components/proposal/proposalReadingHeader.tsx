@@ -62,22 +62,25 @@ export function ProposalReadingHeader({
   timing: ReactNode;
   badges?: ReactNode;
 }) {
+  const badgeLabel = statusLabel ?? (statusClass ? status : capitalizeFirstLetter(status ?? ""));
   return (
     <header className="proposal-reading-header">
       <Head><title>{`${title.trim() || "Proposal"} · ${PUB_APP_NAME}`}</title></Head>
       <div className="proposal-reading-status">
         {status && (
           <span className={`badge ${statusClass ?? status.toLowerCase()}`} data-proposal-part="status">
-            {statusLabel ?? (statusClass ? status : capitalizeFirstLetter(status))}
+            {badgeLabel}
           </span>
         )}
         {badges}
         <span className="badge kind" data-proposal-part="method">
           {kind}
         </span>
-        <span className="proposal-reading-timing" data-proposal-part="timing">
-          {timing}
-        </span>
+        {timing && timing !== badgeLabel && (
+          <span className="proposal-reading-timing" data-proposal-part="timing">
+            {timing}
+          </span>
+        )}
       </div>
       <h1 tabIndex={-1} data-proposal-ready>
         <span key={title} className="proposal-motion-title proposal-content-arrival" data-proposal-part="title">

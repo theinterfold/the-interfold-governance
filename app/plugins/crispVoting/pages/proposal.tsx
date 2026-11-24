@@ -519,6 +519,7 @@ function ProposalDetailBody({
             ) : undefined
           }
           networkProgress={<NetworkProgress progress={networkProgress} />}
+          networkProgressComplete={networkProgress.published && proposal.isTallied}
           participation={<ParticipationCard proposal={proposal} />}
           activity={<ActivityCard e3Id={proposal.e3Id} />}
           stage={

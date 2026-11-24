@@ -22,6 +22,7 @@ export function ProposalDetailLayout({
   voting,
   personalVote,
   networkProgress,
+  networkProgressComplete = false,
   methodDetails,
   participation,
   stage,
@@ -39,6 +40,7 @@ export function ProposalDetailLayout({
   voting: ReactNode;
   personalVote?: ReactNode;
   networkProgress?: ReactNode;
+  networkProgressComplete?: boolean;
   methodDetails?: ReactNode;
   participation: ReactNode;
   stage: ReactNode;
@@ -47,6 +49,7 @@ export function ProposalDetailLayout({
   readingOnly?: boolean;
 }) {
   const foldDocument = useMediaQuery("(max-width: 600px)") && !readingOnly;
+  const foldNetworkProgress = foldDocument && networkProgressComplete;
   const layout = useProposalLayout();
   const votingColumn = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -111,12 +114,13 @@ export function ProposalDetailLayout({
                   {methodDetails}
                   {participation}
                   {stage}
+                  {foldNetworkProgress && networkProgress}
                 </div>
               }
               activity={activity}
             />
           </div>
-          {networkProgress && <div className="proposal-round-progress">{networkProgress}</div>}
+          {networkProgress && !foldNetworkProgress && <div className="proposal-round-progress">{networkProgress}</div>}
         </div>}
       </div>
     </div>

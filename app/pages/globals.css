@@ -3775,11 +3775,10 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .proposal-detail-layout .description-toggle:hover { background: transparent; text-decoration: underline; text-underline-offset: 4px; }
 .proposal-resources { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .proposal-resources li { min-width: 0; max-width: 100%; }
-.proposal-resource-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 8px 14px; border: 1px solid var(--rule-strong); border-radius: var(--ui-radius); background: transparent; color: var(--ink); font: 500 13px/1.5 var(--font-sans); text-decoration: none; transition: background-color 160ms ease, border-color 160ms ease; }
-.proposal-resource-chip svg { flex-shrink: 0; }
-.proposal-resource-chip span { overflow-wrap: anywhere; }
-.proposal-resource-chip:hover { background: rgb(18 23 24 / .04); border-color: var(--ui-stroke-hover); }
-.proposal-resource-chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.proposal-external-link { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; color: var(--if-brand-green); font: 500 13px/1.5 var(--font-sans); text-decoration: none; }
+.proposal-external-link-content { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding-bottom: 3px; border-bottom: 1px solid currentColor; overflow-wrap: anywhere; }
+.proposal-external-link-content > svg { flex: none; }
+.proposal-external-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .proposal-activity,
 .proposal-voting-details {
   border-top: 1px solid var(--rule);
@@ -4940,4 +4939,13 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
     padding-block: clamp(28px, calc(28px + (100vw - 768px) * .2), 112px)
                  clamp(24px, calc(24px + (100vw - 768px) * .18), 96px);
   }
+}
+
+/* Keep alerts clear of the shared 60–63px header and its fixed mobile controls. */
+.governance-alerts {
+  pointer-events: none;
+}
+.governance-alerts > * { pointer-events: auto; }
+@media (max-width: 1279.98px) {
+  .governance-alerts { top: calc(4rem + env(safe-area-inset-top, 0px)); }
 }

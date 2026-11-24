@@ -16,9 +16,7 @@ const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presen
   // Before the start, the reader wants to know when they can vote.
   if (presentation?.votingPending) timing = <ProposalCountdown boundary="start" atMs={startMs} />;
   else if (presentation && !presentation.votingOpen) timing = presentation.timing;
-  else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
-  else if (proposalStatus === ProposalStatus.REJECTED)
-    timing = quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected";
+  else if (proposalStatus === ProposalStatus.ACCEPTED || proposalStatus === ProposalStatus.REJECTED) timing = null;
   else if (endDateIsInThePast) timing = "The voting period is over";
   else timing = <ProposalCountdown boundary="end" atMs={endMs} />;
 

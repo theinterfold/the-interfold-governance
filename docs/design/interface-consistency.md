@@ -140,6 +140,8 @@ Reference pages inspected visually on 2026-09-23:
 
 ## Voting results
 
+- On phones, lead with the outcome, vote shares and available action. Show the reason if a vote failed. Participation and quorum figures are available under Voting details. Keep live network progress visible during counting and move it into Voting details once the tally is published and available.
+
 - Public and secret majority-vote results use the same `ResultPanel`: Result and total weight, authoritative outcome, Yes/No/Abstain share rows, quorum, and result-submission status or the available advance action. Keep data conversion in each voting backend: public tallies are raw ERC-20 units with an absolute minimum; CRISP tallies use its existing credit scaling and percentage quorum. Never infer approval solely from the largest share; abstentions count toward participation but not support. Unavailable token metadata or supply must not become a fabricated zero.
 - A submitted result is informative text, never a disabled transaction button. Snapshot voting power follows the result, then Voting details, then Public votes or Encrypted ballot activity. Supporting disclosures start closed and use `BallotDisclosure`, composed from the existing shared `Disclosure` and `BendingChevron`, with mounted/inert content and reduced-motion support. Public live results reuse `ResultRows` without declaring a winner. Result content resizes with `FluidHeight`; share updates use the shared motion duration/easing, not bespoke timing.
 

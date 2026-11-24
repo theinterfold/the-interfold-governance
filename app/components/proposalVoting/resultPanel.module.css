@@ -65,3 +65,9 @@
   flex-shrink: 0;
   color: var(--accent);
 }
+
+@media (max-width: 600px) {
+  /* Voting details includes the Participation breakdown for both voting methods. */
+  .tally .quorum,
+  .description:has(> .repeatShare) { display: none; }
+}

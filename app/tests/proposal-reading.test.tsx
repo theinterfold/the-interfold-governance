@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { ProposalReadingHeader } from "../components/proposal/proposalReadingHeader";
 import { ProposalDetailLayout } from "../components/proposal/proposalDetailLayout";
 import { ProposalLayoutContext } from "../components/proposal/proposalLayoutContext";
 
@@ -16,6 +17,18 @@ const props = {
 };
 
 describe("Dedicated proposal reading", () => {
+  for (const kind of ["Secret ballot", "Transparent fallback"]) {
+    test(`${kind} shows the status once and retains a distinct stage or deadline`, () => {
+      const header = { title: "Voting on Aztec", summary: "", creator: "", status: "Accepted", kind };
+      const html = renderToStaticMarkup(<ProposalReadingHeader {...header} timing="Accepted" />);
+      expect(html.match(/>Accepted</g)).toHaveLength(1);
+      expect(html).not.toContain('data-proposal-part="timing"');
+      for (const timing of ["Awaiting Foundation stage", <time key="end">Ends in 2h</time>]) {
+        expect(renderToStaticMarkup(<ProposalReadingHeader {...header} timing={timing} />)).toContain('data-proposal-part="timing"');
+      }
+    });
+  }
+
   test("reader preserves the document and resources but does not mount the ballot or round", () => {
     const html = renderToStaticMarkup(<ProposalDetailLayout {...props} readingOnly />);
     expect(html).toContain("Proposal document");

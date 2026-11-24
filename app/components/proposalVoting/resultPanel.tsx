@@ -164,7 +164,7 @@ export function ResultPanel({
             : undefined;
 
   return (
-    <ResultFrame title={outcome} description={<p>{explanation}</p>}>
+    <ResultFrame title={outcome} description={explanation && <p className={resolved && passed ? styles.repeatShare : undefined}>{explanation}</p>}>
       <div className={styles.tally}>
         <div className={styles.fact}>
           <span>Voting power cast</span>
@@ -172,7 +172,7 @@ export function ResultPanel({
         </div>
         <ResultRows rows={rows} winnerIndex={leading?.index} />
         {quorum && (
-          <div className="tally-row tally-quorum">
+          <div className={`tally-row tally-quorum ${styles.quorum}`}>
             <span className="key">Quorum {resolved && quorum.reached ? "✓" : ""}</span>
             <span className="bar" aria-hidden="true">
               <span
