@@ -64,6 +64,8 @@ export const PUB_VOTING_ON_AZTEC = (process.env.NEXT_PUBLIC_CRISP_VOTING_CHAIN ?
 export const PUB_AZTEC_NODE_URL = (process.env.NEXT_PUBLIC_AZTEC_NODE_URL ?? "") as string;
 // The `CrispAztecVotes` contract (32-byte hex). Optional: unset reads it from the votes program's `l2Program()`.
 export const PUB_AZTEC_CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_AZTEC_CONTRACT_ADDRESS ?? "") as `0x${string}` | "";
+// An Aztec-Scan instance for the same network, without a trailing slash. Optional: unset shows hashes without links.
+export const PUB_AZTEC_EXPLORER_URL = (process.env.NEXT_PUBLIC_AZTEC_EXPLORER_URL ?? "").replace(/\/+$/, "");
 
 export const PUB_BRIDGE_ADDRESS = (process.env.NEXT_PUBLIC_BRIDGE_ADDRESS ?? "") as Address;
 
