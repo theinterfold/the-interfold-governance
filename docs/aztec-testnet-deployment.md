@@ -44,15 +44,15 @@ Sepolia (11155111), Interfold `0xb35EE9ed8BE5967daabBA8c2e817C52D0b57ac26`, Azte
 
 | Contract | Address |
 | --- | --- |
-| `CRISPAztecVotesProgram` (Sepolia, block 12198396) | `0x08e1C6288fb0E6f2a1850F08Db632dBC89c309Dc` |
-| `CrispAztecVotes` (Aztec, block 61045) | `0x2e9309f3c0dd3b1870d51bd219d777b7d6c8f16a01a5a399036b3504055c8b98` |
-| DAO | `0x3b64638240bC6543018056265F5b244d05dAAc1E` |
-| CRISP plugin (private body) | `0x4645814aDba1e90fF88bd4C5F869d8B7aB96b861` |
-| TokenVoting plugin (public body) | `0xC16ae9D68F600c85aA49D094aF146AACb0E10494` |
-| SPP, private process | `0x65423ABa2698407E753e476C6ae342076FC3411a` |
-| SPP, public process | `0x927D9673B1B2986f057347635a67bB5F3c360816` |
+| `CRISPAztecVotesProgram` (Sepolia, block 12202493) | `0xC6F8e289a1316B9ecAFaDaB98d211dcb66D66c86` |
+| `CrispAztecVotes` (Aztec, block 63163) | `0x2b394523778956defd3c1de36721424e775689ee56b849234efaeeb88ba690e0` |
+| DAO | `0xCd070cB917b06fA2A3A6Df785320Cf68D959d503` |
+| CRISP plugin (private body) | `0x41D537D70F626fA1b3a4aF2B7BdD5BcC1556EE5a` |
+| TokenVoting plugin (public body) | `0x95453f560497A9Abc2ec063f024E401F822F73F7` |
+| SPP, private process | `0x2eEd223B136cD75f2bAFFac5130dD4f7BDE92ed0` |
+| SPP, public process | `0x1d1eb5Abd26590EA20790886f9e65511D7CaCe37` |
 
-Plugin deployment block 12198434. The CRISP server for this program is served at
+Plugin deployment block 12202503. The CRISP server for this program is served at
 `https://private-crisp.theinterfold.com/aztec-gov` (infra `playbooks/crisp-aztec-gov.yml`). On Sepolia, `forge script` needs
 `--with-gas-price 2000000 --priority-gas-price 1000000 --gas-estimate-multiplier 500`: 900 pushes the `CrispVoting` deployment
 past the block gas limit.
