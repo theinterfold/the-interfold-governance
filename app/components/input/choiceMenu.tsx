@@ -1,5 +1,5 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { BendingChevron } from "@/vendor/site-header";
 import { ActionIcon } from "./actionIcon";
 
@@ -10,12 +10,15 @@ export function ChoiceMenu<T extends string>({
   options,
   onChange,
   disabled,
+  displayValue,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
   disabled?: boolean;
+  /** Optional selected identity, while menu options continue to describe the available actions. */
+  displayValue?: ReactNode;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -31,7 +34,7 @@ export function ChoiceMenu<T extends string>({
       }} modal={false}>
         <DropdownMenu.Trigger asChild>
           <button ref={trigger} type="button" className="ui-choice-trigger" disabled={disabled} aria-labelledby={`${id} ${id}-value`}>
-            <span id={`${id}-value`}>{options.find((option) => option.value === value)?.label}</span>
+            <span id={`${id}-value`}>{displayValue ?? options.find((option) => option.value === value)?.label}</span>
             <BendingChevron open={open} width={8} thickness={1.3} />
           </button>
         </DropdownMenu.Trigger>

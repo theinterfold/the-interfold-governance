@@ -1,3 +1,4 @@
+import { ProposalStatusBadge } from "@/components/proposal/proposalStatusBadge";
 import { ProposalBreadcrumb } from "./proposalReadingHeader";
 
 /** A proposal whose SPP or voting body cannot currently provide a readable detail page. */
@@ -24,9 +25,7 @@ export function UnavailableProposalDetail({
               <article className="proposal-detail-reading" data-proposal-part="surface">
                 <header className="proposal-reading-header">
                   <div className="proposal-reading-status">
-                    <span className="badge failed" data-proposal-part="status">
-                      {status}
-                    </span>
+                    <ProposalStatusBadge state="failed" label={status} data-proposal-part="status" />
                   </div>
                   <h1 tabIndex={-1}>Proposal #{proposalId.toString()}</h1>
                 </header>

@@ -1,3 +1,4 @@
+import { ProposalStatusBadge } from "@/components/proposal/proposalStatusBadge";
 import Link from "next/link";
 import { ProposalStatus } from "@aragon/ods";
 import { PleaseWaitSpinner } from "@/components/please-wait";
@@ -79,10 +80,10 @@ export default function ProposalCard(props: ProposalInputs) {
       <div className="num">{e3Label}</div>
       <div className="body">
         <div className="meta">
-          <span className={`badge ${statusClass}`}>{statusLabel}</span>
+          {statusLabel && <ProposalStatusBadge state={statusClass} label={statusLabel} />}
           {/* A failed round and a voted-down proposal both resolve to REJECTED, but they mean
               very different things — one was decided, the other never got to run. Say which. */}
-          {e3Failed && <span className="badge failed">Round failed</span>}
+          {e3Failed && <ProposalStatusBadge state="failed" label="Round failed" />}
         </div>
         <h3>{proposal!.title}</h3>
         <p className="summary line-clamp-2">{proposal!.summary}</p>

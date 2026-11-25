@@ -1,4 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { LoadingBoundary } from "../motion/LoadingTransition";
+import { transitionPage } from "@/vendor/site-header/pageNavigation";
 import { flushSync } from "react-dom";
 import { proposalTransitionStyles, type ProposalPartPosition } from "./proposalTransition";
 
@@ -20,7 +22,7 @@ export function ProposalNavigation({
   detail,
 }: {
   hash: string;
-  list: ReactNode;
+  list: (visible: boolean) => ReactNode;
   detail: (hash: string) => ReactNode;
 }) {
   const [shown, setShown] = useState(hash);
@@ -52,6 +54,7 @@ export function ProposalNavigation({
     const moving = (isList(previous) && isPage(hash)) || (isPage(previous) && returning);
     const creating = isCreate(previous) || isCreate(hash);
     const run = ++generation.current;
+    const controller = new AbortController();
     active.current?.skipTransition();
     const findOrigin = (routeHash: string) =>
       Array.from(root.current?.querySelectorAll<HTMLAnchorElement>(".proposal-title-link, a[href$='#/new']") ?? []).find(
@@ -67,18 +70,18 @@ export function ProposalNavigation({
     queueMicrotask(() => {
       if (run !== generation.current || !root.current) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const start = (document as TransitionDocument).startViewTransition;
+      const morphComposer = moving && creating && !reduced && !!start;
       const named: HTMLElement[] = [];
       let positions = new Map<string, ProposalPartPosition>();
       let motionStyle: HTMLStyleElement | undefined;
       const nameShared = () => {
         const route = root.current?.querySelector<HTMLElement>("[data-proposal-route]:not([hidden])");
-        const scope = route?.dataset.proposalRoute === "list"
-          ? creating ? origin.current : origin.current?.closest(".proposal-row")
-          : route;
-        // Scope to the originating action/row, never a hidden route or an expanded ballot.
+        const scope = route?.dataset.proposalRoute === "list" ? origin.current : route;
+        // Only the create action and the writing surface share geometry.
         const measured = new Map<string, ProposalPartPosition>();
         if (!scope || !scope.getClientRects().length) return measured;
-        const elements = creating && route?.dataset.proposalRoute === "list"
+        const elements = route?.dataset.proposalRoute === "list"
           ? [
               { element: scope as HTMLElement, part: "surface" },
               ...Array.from(route.querySelectorAll<HTMLElement>(".governance-page-intro, .ui-panel-heading-copy"))
@@ -92,6 +95,7 @@ export function ProposalNavigation({
           elements.unshift({ element: scope as HTMLElement, part: (scope as HTMLElement).dataset.proposalPart! });
         // Read all geometry before assigning names, avoiding a style/layout flush per fact.
         const visible = elements.filter(({ element, part }) => {
+          if (element.closest(".loading-layer[data-exiting]")) return false;
           const rect = element.getBoundingClientRect();
           if (!rect.width || !rect.height) return false;
           const style = getComputedStyle(element);
@@ -125,13 +129,13 @@ export function ProposalNavigation({
           setShown(hash);
           if (returning) setListVisited(true);
         });
-        // Cached proposals are immediate. On a cold route, allow data to arrive before capturing the destination.
+        // A cold detail already has a reading surface. Capture it without holding the previous page for metadata.
         await new Promise<void>((resolve) => {
           const ready = () =>
             returning
               ? !!root.current?.querySelector(creating ? '[data-proposal-route="list"]' : '[data-proposal-route="list"] .proposal-title-link')
               : !isPage(hash) ||
-                !!root.current?.querySelector("[data-proposal-route]:not([hidden]) [data-proposal-ready]");
+                !!root.current?.querySelector("[data-proposal-route]:not([hidden]) :is([data-proposal-ready], [data-proposal-loading])");
           if (ready()) return resolve();
           const observer = new MutationObserver(() => {
             if (ready()) finish();
@@ -154,7 +158,7 @@ export function ProposalNavigation({
         // A direct URL (or development refresh) has no stored link yet. Match its row after the list loads.
         if (returning) origin.current = findOrigin(previous);
         window.scrollTo({ top: returning ? listScroll.current : 0, behavior: "instant" });
-        if (!reduced && moving) {
+        if (morphComposer) {
           const destination = nameShared();
           motionStyle = document.createElement("style");
           motionStyle.textContent = proposalTransitionStyles(positions, destination);
@@ -166,26 +170,24 @@ export function ProposalNavigation({
         motionStyle?.remove();
         if (run !== generation.current) return;
         delete document.documentElement.dataset.proposalNavigation;
-        const focus = returning ? origin.current : root.current?.querySelector<HTMLElement>("[data-proposal-ready]");
+        const route = root.current?.querySelector<HTMLElement>('[data-proposal-route="detail"]');
+        const focus = returning ? origin.current : route?.querySelector<HTMLElement>("[data-proposal-ready]") ?? route;
         focus?.focus({ preventScroll: true });
         if (returning) fromList.current = false;
       };
-      const start = (document as TransitionDocument).startViewTransition;
-      if (start && moving && !reduced) {
-        document.documentElement.dataset.proposalNavigation = returning ? "back" : "forward";
+      if (moving && !reduced) document.documentElement.dataset.proposalNavigation = returning ? "back" : "forward";
+      if (morphComposer) {
         positions = nameShared();
         const transition = start.call(document, update);
         active.current = transition;
         void transition.ready.catch(() => {});
         void transition.finished.then(finish, finish);
       } else {
-        void update().then(() => {
-          if (run !== generation.current) return;
-          // Unsupported browsers keep the full destination visible immediately as well.
-          finish();
-        });
+        const navigation = reduced ? update() : transitionPage(() => root.current, update, controller.signal);
+        void navigation.then(finish);
       }
     });
+    return () => controller.abort();
   }, [hash]);
 
   return (
@@ -199,10 +201,10 @@ export function ProposalNavigation({
       <div ref={root} className="proposal-route-shell">
         {listVisited && (
           <div data-proposal-route="list" hidden={!isList(shown)}>
-            {list}
+            {list(isList(shown))}
           </div>
         )}
-        {!isList(shown) && <div data-proposal-route="detail">{detail(shown)}</div>}
+        {!isList(shown) && <div data-proposal-route="detail" tabIndex={-1}><LoadingBoundary key={shown}>{detail(shown)}</LoadingBoundary></div>}
       </div>
     </NavigationContext.Provider>
   );

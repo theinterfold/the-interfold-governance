@@ -42,6 +42,31 @@ bun install
 bun dev
 ```
 
+## Recovery regression checks
+
+```bash
+bun test
+bunx playwright install chromium
+bun run test:submission-recovery
+bun run test:submission-recovery --mobile
+bun run build
+```
+
+Playwright is a pinned development dependency. To use an installed Chrome instead, set
+`CHROME_CHANNEL=chrome`; the same option works with `scripts/verify-mainnet-preview.cjs`.
+The recovery browser checks exercise the actual React hook, recovery card and session store.
+Wallet prompts, chain reads, proving and server responses are simulated; no transaction is sent.
+They cover declined prompts, definitive and temporary refusals, lost responses, reloads, account
+switches, corrupt storage, discard, and protection against sending twice after a transaction hash.
+
+The fixed job-ID vectors in `tests/pending-submission.test.ts` were generated independently in
+Rust using CRISP's `input_identity` / `job_id` at commit `22c48c9c`
+(`server/src/server/data_availability.rs`, Alloy primitives/sol-types `1.4.1`). The first uses
+round `42`, slot `0x1111111111111111111111111111111111111111`, commitment `0x33` repeated
+32 times, parent `7`, ciphertext `0xaabb` and proof `0x1234`; the second uses round `00042`
+and the maximum uint40 parent. These pin compatibility with that server source, not the deployed
+mainnet binary. The deployment owner should confirm its revision before release.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in the values.
@@ -87,7 +112,7 @@ Field notes:
 - `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: optional. The private pair that a replacement install retired. The list and the proposal page still show its proposals. Set both or neither, as checksummed addresses.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS` / `NEXT_PUBLIC_CRISP_SERVER_URL` — only used by the private (CRISP) flow.
 - `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` — set to the DAO/plugin deployment block to avoid scanning from genesis.
-- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — from [WalletConnect](https://walletconnect.com/).
+- `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — the WalletConnect project ID for the deployment. ConnectKit uses it for QR and mobile wallet connections.
 - `NEXT_PUBLIC_IPFS_ENDPOINTS` / `NEXT_PUBLIC_PINATA_JWT` — for pinning proposal metadata to IPFS.
 
 ## License 📜

@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
   submitBallotSequence,
   submitMaskSequence,
+  reviewFirstBallot,
   type BallotKind,
   type BallotSubmissionResult,
 } from "../plugins/crispVoting/utils/ballotSubmission";
@@ -9,6 +10,43 @@ import { pickMaskRecipients } from "../plugins/crispVoting/utils/voters";
 
 const success: BallotSubmissionResult = { success: true, txHash: "0xvote" };
 const failure: BallotSubmissionResult = { success: false, error: "Rejected in wallet" };
+
+describe("Change order privacy extra", () => {
+  test("off keeps the vote first, while another sending wallet always requires masks first", () => {
+    for (const changeOrder of [false, true]) {
+      expect(reviewFirstBallot({ includeMask: false, anotherWallet: true, changeOrder })).toBe("vote");
+      expect(reviewFirstBallot({ includeMask: true, anotherWallet: true, changeOrder })).toBe("mask");
+    }
+    expect(reviewFirstBallot({ includeMask: true, anotherWallet: false, changeOrder: false })).toBe("vote");
+  });
+
+  test("on can review either order, and confirmation sends that exact order", async () => {
+    const draw = spyOn(crypto, "getRandomValues");
+    try {
+      for (const bit of [0, 1]) {
+        draw.mockImplementationOnce((bytes: Uint8Array) => {
+          (bytes as Uint8Array)[0] = bit;
+          return bytes;
+        });
+        const first = reviewFirstBallot({ includeMask: true, anotherWallet: false, changeOrder: true });
+        const sent: BallotKind[] = [];
+        await submitBallotSequence({
+          vote: async () => success,
+          masks: [async () => success, async () => success],
+          first,
+          isCurrent: () => true,
+          onStart: (kind) => sent.push(kind),
+          onResult: () => {},
+        });
+        expect(first).toBe(bit ? "mask" : "vote");
+        expect(sent).toEqual(bit ? ["mask", "mask", "vote"] : ["vote", "mask", "mask"]);
+      }
+      expect(draw).toHaveBeenCalledTimes(2);
+    } finally {
+      draw.mockRestore();
+    }
+  });
+});
 
 describe("Vote and optional mask", () => {
   test("the default submits only the vote", async () => {
@@ -162,5 +200,48 @@ describe("Mask recipients", () => {
     const picked = pickMaskRecipients([undefined, undefined, undefined, undefined, undefined], voters);
     expect(picked).toHaveLength(5);
     expect(new Set(picked).size).toBe(3);
+  });
+});
+
+describe("Vote with multiple masks", () => {
+  for (const first of ["vote", "mask"] as const) {
+    test(`${first} first preserves every receipt and its mask index`, async () => {
+      const receipts: string[] = [];
+      await submitBallotSequence({
+        first,
+        vote: async () => success,
+        masks: [0, 1, 2].map((i) => async () => ({ success: true as const, txHash: `mask${i}` })),
+        isCurrent: () => true,
+        onStart: () => {},
+        onResult: (kind, result, index) => receipts.push(`${kind}:${index ?? "vote"}:${result.success && result.txHash}`),
+      });
+      const masks = ["mask:0:mask0", "mask:1:mask1", "mask:2:mask2"];
+      expect(receipts).toEqual(first === "vote" ? ["vote:vote:0xvote", ...masks] : [...masks, "vote:vote:0xvote"]);
+    });
+  }
+  test("a failed second mask retains the first receipt and prevents vote preparation", async () => {
+    const events: string[] = [];
+    await submitBallotSequence({
+      first: "mask",
+      vote: async () => { events.push("prepare"); return success; },
+      masks: [success, failure, success].map((result) => async () => result),
+      isCurrent: () => true,
+      onStart: () => {},
+      onResult: (kind, result, index) => events.push(`${kind}:${index}:${result.success}`),
+    });
+    expect(events).toEqual(["mask:0:true", "mask:1:false"]);
+  });
+  test("a wallet change during a mask stops the remaining masks and vote", async () => {
+    let current = true;
+    const events: string[] = [];
+    await submitBallotSequence({
+      first: "mask",
+      vote: async () => { events.push("vote"); return success; },
+      masks: [async () => { current = false; return success; }, async () => { events.push("mask2"); return success; }],
+      isCurrent: () => current,
+      onStart: () => {},
+      onResult: () => events.push("receipt"),
+    });
+    expect(events).toEqual([]);
   });
 });

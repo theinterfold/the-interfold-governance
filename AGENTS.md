@@ -46,8 +46,8 @@ across the main website and Governance; only the background colour may differ by
 Edit that shared source and run `bun run sync:header` in Interfold-Website to update both
 consumers. Do not modify generated `app/vendor/site-header` or create a Governance-only
 restyling of the header/footer. Application destinations and wallet controls remain slots.
-Footer content is application-specific: Governance uses its own links and copyright,
-without Updates. Supply these through the shared footer's props; keep its styling shared.
+Governance supplies its own footer links and hides Updates through the shared footer's props.
+Both sites use the default copyright and style it like the footer section labels.
 
 ## What this is
 

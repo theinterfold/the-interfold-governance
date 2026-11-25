@@ -16,7 +16,9 @@ export const CallParamField: React.FC<ICallParamFiledProps> = ({ value, idx, fun
   if (functionAbi?.type !== "function") return;
 
   const resolvedValue = resolveParamValue(value, functionAbi.inputs?.[idx]);
-  const label = resolveFieldTitle(functionAbi.inputs?.[idx].name ?? "", functionAbi.inputs?.[idx].type, idx);
+  const input = functionAbi.inputs?.[idx];
+  // ABI integer types do not establish a unit: thresholds and counts are not wei.
+  const label = input?.name || resolveFieldTitle("", input?.type, idx);
 
   return (
     <ActionDetailField label={decodeCamelCase(label)} code={true}>

@@ -1,0 +1,17 @@
+{
+  "unicodeRange": "U+0-FF,U+131-131,U+152-153,U+300-36F,U+2000-206F,U+20AC-20AC,U+2122-2122,U+2190-2193,U+2212-2212,U+2215-2215,U+FEFF-FEFF,U+FFFD-FFFD",
+  "fonts": {
+    "InterVariable.woff2": {
+      "originalBytes": 352240,
+      "latinBytes": 97572
+    },
+    "InterVariable-Italic.woff2": {
+      "originalBytes": 387976,
+      "latinBytes": 106820
+    },
+    "OfficeCodePro-Medium.woff2": {
+      "originalBytes": 21908,
+      "latinBytes": 12404
+    }
+  }
+}

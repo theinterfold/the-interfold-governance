@@ -9,6 +9,7 @@ import { PUB_CHAIN } from "@/constants";
 import { unixTimestampToDate } from "../../utils/formatProposalDate";
 import { preparedSenderError, type PreparedBallot } from "../../utils/preparedBallot";
 import type { BallotSubmissionResult } from "../../utils/ballotSubmission";
+import { MaskSubmissionSummary } from "./voteConfirmation";
 
 export function PreparedVoteCard({
   ballot,
@@ -16,12 +17,14 @@ export function PreparedVoteCard({
   error,
   onSend,
   onDiscard,
+  maskReceipts = [],
 }: {
   ballot: PreparedBallot;
   busy: boolean;
   error?: string;
   onSend: () => Promise<BallotSubmissionResult>;
   onDiscard: () => void;
+  maskReceipts?: (string | null)[];
 }) {
   const { address, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -53,6 +56,7 @@ export function PreparedVoteCard({
   return (
     <BallotPanel title={ballot.transactionHash ? "Vote sent · awaiting confirmation" : "Signed ballot ready"}>
       <div className="vp-body">
+        <MaskSubmissionSummary receipts={maskReceipts} />
         <p className="vp-note">
           {ballot.transactionHash
             ? "Your transaction has been sent. Check its confirmation before taking another action."

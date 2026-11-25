@@ -29,14 +29,20 @@ export type BondedDelegation = {
   maxOwners?: number;
   /** The bonded voting power of the account: the weight that a delegate takes while one represents the account. */
   ownWeight?: bigint;
+  ownBonded?: bigint;
+  ownVesting?: bigint;
   /** The address that the account asked to represent it, while that address has not answered. */
   pendingDelegate?: Address;
   /** The address that represents the account now. Undefined while the account keeps its weight. */
   delegate?: Address;
   /** The owners that the account represents. */
   owners: BondedAccount[];
+  ownersState: "pending" | "error" | "success";
+  retryOwners: () => void;
   /** The owners that asked the account to represent them and wait for its answer. */
   requests: BondedAccount[];
+  requestsState: "pending" | "error" | "success";
+  retryRequests: () => void;
   /** The sum of `owners[].weight`: zero when bonded delegation is unsupported, undefined while unknown. */
   representedWeight?: bigint;
   /** The control whose transaction is in flight. */
@@ -237,7 +243,7 @@ export function useBondedDelegation(address: Address | undefined, onChanged?: ()
   // represented weight as the account's own vesting while the owners load.
   let representedWeight: bigint | undefined;
   if (probeSettled && !supported) representedWeight = 0n;
-  else if (state.data) {
+  else if (ownersResult !== undefined) {
     representedWeight = owners.reduce<bigint | undefined>(
       (sum, owner) => (sum === undefined || owner.weight === undefined ? undefined : sum + owner.weight),
       0n
@@ -333,10 +339,16 @@ export function useBondedDelegation(address: Address | undefined, onChanged?: ()
     countsVesting,
     maxOwners: probe.data === undefined ? undefined : Number(probe.data),
     ownWeight: address ? weights.get(address.toLowerCase())?.weight : undefined,
+    ownBonded: address ? weights.get(address.toLowerCase())?.bonded : undefined,
+    ownVesting: address ? weights.get(address.toLowerCase())?.vesting : undefined,
     pendingDelegate: pending && !isAddressEqual(pending, zeroAddress) ? pending : undefined,
     delegate: current && !isAddressEqual(current, zeroAddress) ? current : undefined,
     owners,
+    ownersState: state.isError || state.data?.[2]?.status === "failure" ? "error" : state.status,
+    retryOwners: () => { void state.refetch(); },
     requests,
+    requestsState: requestsQuery.status,
+    retryRequests: () => { void requestsQuery.refetch(); },
     representedWeight,
     pendingAction,
     failure,

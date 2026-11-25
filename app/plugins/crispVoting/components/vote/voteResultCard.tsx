@@ -171,7 +171,6 @@ export const VoteResultCard = ({
         percentage: percentages[index],
         amount: `${amount(values[index])} ${unitLabel}`,
       }))}
-      total={`${amount(totalVotes)} ${unitLabel}`}
       status={proposalStatus}
       isEmpty={totalVotes === 0n}
       quorum={quorum}

@@ -44,10 +44,12 @@ export function AnimatedAmount({
   value,
   highlighted = false,
   plain = false,
+  direction = "up",
 }: {
   value: string;
   highlighted?: boolean;
   plain?: boolean;
+  direction?: "up" | "down";
 }) {
   const amountRef = useRef<HTMLSpanElement>(null);
   const charactersRef = useRef<HTMLSpanElement>(null);
@@ -122,6 +124,7 @@ export function AnimatedAmount({
               delay={Math.min(index, 6) * 24}
               entering={!previousCharacters.current.has(character.key)}
               reducedMotion={reducedMotion}
+              direction={direction}
             />
           ) : (
             <span key={character.key} className={styles.character}>
@@ -139,11 +142,13 @@ function AmountDigit({
   delay,
   entering,
   reducedMotion,
+  direction,
 }: {
   value: string;
   delay: number;
   entering: boolean;
   reducedMotion: boolean;
+  direction: "up" | "down";
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const initial = useRef(value);
@@ -187,13 +192,13 @@ function AmountDigit({
       const element = document.createElement("span");
       element.className = styles.digitLayer;
       element.textContent = value;
-      element.style.transform = "translateY(100%)";
+      element.style.transform = direction === "up" ? "translateY(100%)" : "translateY(-100%)";
       element.style.opacity = "0";
       root.append(element);
       layers.current.set(value, { element });
     } else if (first && entering) {
       const element = layers.current.get(value)!.element;
-      element.style.transform = "translateY(100%)";
+      element.style.transform = direction === "up" ? "translateY(100%)" : "translateY(-100%)";
       element.style.opacity = "0";
     }
     // Capture every live layer before cancellation. A rapid reversal reuses its
@@ -207,7 +212,7 @@ function AmountDigit({
     frames.forEach(({ character, layer, transform, opacity }) => {
       layer.animation?.cancel();
       const end = {
-        transform: character === value ? "translateY(0)" : "translateY(-100%)",
+        transform: character === value ? "translateY(0)" : direction === "up" ? "translateY(-100%)" : "translateY(100%)",
         opacity: character === value ? "1" : "0",
       };
       Object.assign(layer.element.style, end);
@@ -229,7 +234,7 @@ function AmountDigit({
         })
         .catch(() => {});
     });
-  }, [value, reducedMotion]);
+  }, [value, reducedMotion, direction]);
 
   useEffect(() => () => layers.current.forEach(({ animation }) => animation?.cancel()), []);
   return (

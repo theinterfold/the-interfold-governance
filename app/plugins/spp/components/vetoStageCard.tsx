@@ -1,3 +1,5 @@
+import { ProposalStatusBadge } from "@/components/proposal/proposalStatusBadge";
+import { VotingDetailSection } from "@/components/proposalVoting/votingDetailSection";
 import { useEffect, useState } from "react";
 import { Button } from "@aragon/ods";
 import { useAccount } from "wagmi";
@@ -125,22 +127,19 @@ export const VetoStageCard = ({
 
   const BADGE_CLASSES: Record<VetoStatus, string> = {
     pending: "pending",
-    notNeeded: "pending",
-    active: "active",
-    vetoed: "failed",
+    notNeeded: "skipped",
+    active: "foundation",
+    vetoed: "vetoed",
     executable: "executable",
     executed: "executed",
-    expired: "failed",
-    canceled: "failed",
+    expired: "expired",
+    canceled: "canceled",
   };
 
   return (
-    <div className="vote-panel proposal-stage-panel">
-      <div className="vp-head">
-        <h3>{approvalMode ? "Approval stage" : "Veto stage"}</h3>
-        <span className={`badge ${BADGE_CLASSES[status]}`}>{META_LABELS[status]}</span>
-      </div>
-      <div className="vp-body">
+    <div className="proposal-stage-panel">
+      <VotingDetailSection title={approvalMode ? "Approval stage" : "Veto stage"}
+        summary={<ProposalStatusBadge state={BADGE_CLASSES[status]} label={META_LABELS[status]} />}>
         <If true={status === "active" && !!vetoWindowEndsAt}>
           <span className="text-sm text-neutral-500">Ends in {countdown}</span>
         </If>
@@ -192,6 +191,8 @@ export const VetoStageCard = ({
           <If true={status === "canceled"}>The proposal has been canceled.</If>
         </p>
 
+      </VotingDetailSection>
+      <div className="proposal-stage-actions">
         <If true={showVetoButton}>
           <Button
             className="w-full"

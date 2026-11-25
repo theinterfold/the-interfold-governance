@@ -1,3 +1,4 @@
+import { ParticipationDetails } from "@/components/proposalVoting/participationDetails";
 import { useReadContract } from "wagmi";
 import { formatUnits, parseAbi } from "viem";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
@@ -38,40 +39,17 @@ export function ParticipationCard({ proposal }: { proposal: Proposal }) {
   const pct = (part: bigint) => (supply > 0n ? (Number(part) / Number(supply)) * 100 : 0);
   const turnoutPct = pct(totalVotes);
   const requiredPct = pct(required);
-  const progressPct = required > 0n ? Math.min((Number(totalVotes) / Number(required)) * 100, 100) : 100;
-
   const fmt = (v: bigint) =>
     decimals === undefined ? "-" : `${compactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
 
   return (
-    <div className="flex flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-4 xl:p-6">
-      <div className="ui-fact-row">
-        <p className="text-sm font-semibold text-neutral-800">Participation {reached ? "✓" : ""}</p>
-        <span className="text-sm text-neutral-500">
-          {turnoutPct.toFixed(2)}% / {requiredPct.toFixed(2)}%
-        </span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${progressPct}%`,
-            background: reached ? "var(--accent, #2f8a4f)" : "var(--muted-ink, #9a9a9a)",
-          }}
-        />
-      </div>
-      <div className="ui-fact-row text-sm">
-        <span className="text-neutral-500">Voted</span>
-        <span className="font-semibold text-neutral-800">{fmt(totalVotes)}</span>
-      </div>
-      <div className="ui-fact-row text-sm">
-        <span className="text-neutral-500">Required minimum</span>
-        <span className="font-semibold text-neutral-800">{fmt(required)}</span>
-      </div>
-      <div className="ui-fact-row text-sm">
-        <span className="text-neutral-500">Total voting power</span>
-        <span className="font-semibold text-neutral-800">{fmt(supply)}</span>
-      </div>
-    </div>
+    <ParticipationDetails
+      turnout={supply > 0n ? `${turnoutPct.toFixed(2)}%` : undefined}
+      voted={fmt(totalVotes)}
+      minimum={required === 0n ? "None" : fmt(required)}
+      threshold={required > 0n && supply > 0n ? `${requiredPct.toFixed(2)}%` : undefined}
+      reached={required > 0n ? reached : undefined}
+      total={totalSupply == null ? "—" : fmt(supply)}
+    />
   );
 }

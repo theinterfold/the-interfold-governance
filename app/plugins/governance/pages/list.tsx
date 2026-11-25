@@ -1,21 +1,28 @@
+import { FluidHeight } from "@/components/motion/FluidHeight";
+import { LoadingTextScope } from "@/components/motion/LoadingTransition";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ActionButton } from "@/components/input/actionButton";
+import { SlidersHorizontal } from "@phosphor-icons/react";
+import { PendingProposalRows } from "@/components/proposal/pendingProposalRows";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
 import { SearchField } from "@/components/input/searchField";
 import styles from "./proposalList.module.css";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { useAccount, useBlockNumber } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionLink } from "@/components/input/actionLink";
-import { formatUnits, isAddress } from "viem";
-import { Else, If, Then } from "@/components/if";
+import { formatUnits, isAddress, type Hex } from "viem";
 import { MissingContentView } from "@/components/MissingContentView";
-import { PageIntro } from "@/components/pageIntro";
+import { ProposalsIntro } from "../components/proposalsIntro";
 import { ScrollFadeIn } from "@/vendor/site-header/motion";
-import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 // Aliased: this file already has a local `fetchProposals` callback.
 import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
+import { rememberProposalSource } from "@/plugins/spp/utils/proposalMetadataSource";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
 import {
   INSTALLED_PRIVATE_PAIR,
@@ -49,7 +56,13 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
-export default function Proposals() {
+export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
+  const queryClient = useQueryClient();
+  const mobile = useMediaQuery("(max-width: 767px)");
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [filtersPreference, setFiltersPreference] = useState<boolean>();
+  const filtersOpen = filtersPreference ?? wide;
+  const [showAll, setShowAll] = useState(false);
   const { isConnected } = useAccount();
   const privateCreate = useCanCreatePrivate();
   const publicCreate = useCanCreatePublic();
@@ -73,11 +86,11 @@ export default function Proposals() {
       : minPower !== undefined && decimals !== undefined
         ? `Submitting proposals requires at least ${formatUnits(minPower, decimals)} ${PUB_TOKEN_SYMBOL} of delegated voting power.`
         : `Your delegated voting power is below the minimum required to submit proposals.`;
-  const { data: blockNumber } = useBlockNumber({ watch: true });
+  const { data: blockNumber, isError: blockError, refetch: retryBlock } = useBlockNumber({ watch: true });
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!PUB_DEPLOYMENT_BLOCK);
   const [retryKey, setRetryKey] = useState(0);
   const [kindFilter, setKindFilter] = useState<"all" | Kind>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -122,9 +135,11 @@ export default function Proposals() {
           // rather than a delta — so the incremental `fromBlock` bookkeeping is bypassed.
           const fromServer = await fetchProposalsFromServer({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK });
           if (fromServer) {
-            return fromServer.map(
-              (proposal) => ({ kind, id: BigInt(proposal.proposal_id), block: BigInt(proposal.block), pair }) as Entry
-            );
+            return fromServer.map((proposal): Entry => {
+              const id = BigInt(proposal.proposal_id);
+              rememberProposalSource(queryClient, PUB_CHAIN.id, address, id, proposal);
+              return { kind, id, block: BigInt(proposal.block), pair };
+            });
           }
 
           if (!publicClient) throw new Error("Proposal RPC is unavailable");
@@ -136,8 +151,10 @@ export default function Proposals() {
           });
           return logs
             .map((log) => {
-              const id = (log.args as { proposalId?: bigint })?.proposalId;
-              return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n, pair } as Entry);
+              const args = log.args as { proposalId?: bigint; creator?: string; metadata?: Hex };
+              if (args?.proposalId === undefined) return null;
+              rememberProposalSource(queryClient, PUB_CHAIN.id, address, args.proposalId, args);
+              return { kind, id: args.proposalId, block: log.blockNumber ?? 0n, pair } as Entry;
             })
             .filter((e): e is Entry => e !== null);
         })
@@ -169,7 +186,7 @@ export default function Proposals() {
     } finally {
       setIsLoading(false);
     }
-  }, [blockNumber, retryKey]);
+  }, [blockNumber, retryKey, queryClient]);
 
   useEffect(() => {
     fetchProposals();
@@ -196,74 +213,80 @@ export default function Proposals() {
     (kindFilter === "all" || e.kind === kindFilter) &&
     matchesStatusFilter(statuses[entryKey(e)], statusFilter) &&
     (!searchTerm || `${e.id} ${searchTexts[entryKey(e)] ?? ""}`.toLowerCase().includes(searchTerm));
-  const matchCount = entries.filter(matches).length;
   const resolving = entries.some((e) => searchTexts[entryKey(e)] === undefined);
-  const hasFilters = kindFilter !== "all" || statusFilter !== "all" || !!searchTerm;
+  const filterCount = Number(kindFilter !== "all") + Number(statusFilter !== "all") + Number(!!searchTerm);
+  const hasFilters = filterCount > 0;
+  const activeCount = entries.filter(e => statuses[entryKey(e)] === "active").length;
+  const allCount = entries.filter(e => matchesStatusFilter(statuses[entryKey(e)], "all")).length;
+  const votingNow = mobile && !showAll && !hasFilters && activeCount > 0;
+  const visible = (entry: Entry) => matches(entry) && (!votingNow || statuses[entryKey(entry)] === "active");
+  const matchCount = entries.filter(visible).length;
+  // "All" excludes failed rounds, which the creation index cannot identify on its own.
+  const countKnown = entries.length > 0 && entries.every(e => statuses[entryKey(e)] !== undefined);
+  const ordered = mobile && !hasFilters
+    ? [...entries.filter(e => statuses[entryKey(e)] === "active"), ...entries.filter(e => statuses[entryKey(e)] !== "active")]
+    : entries;
   const clearFilters = () => {
     setKindFilter("all");
     setStatusFilter("all");
     setSearch("");
   };
-  const retryLoad = () => setRetryKey((key) => key + 1);
+  const firstBlockUnavailable = !noVotingPlugins && blockNumber === undefined && blockError;
+  const listError = firstBlockUnavailable ? "Could not fetch proposals." : error;
+  const retryLoad = () => {
+    if (firstBlockUnavailable) void retryBlock();
+    else setRetryKey((key) => key + 1);
+  };
   const showCreate = isConnected && (canCreate || (!noVotingPlugins && eligibilityKnown));
 
+  const createAction = showCreate && (
+    <div className={styles.create}>
+      <ActionLink href="#/new" intent="create" affordance="plus" disabled={!canCreate}
+        aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}>
+        Create proposal
+      </ActionLink>
+      {!canCreate && <p id="proposal-create-requirement" className="ui-body">{ineligibleReason}</p>}
+    </div>
+  );
+  const loadingList = !entries.length && isLoading && !listError && !noVotingPlugins;
+  const hasList = loadingList || entries.length > 0;
+  const filterButton = hasList && (
+    <ActionButton size="compact" aria-controls="proposal-filters" aria-expanded={filtersOpen}
+      onClick={() => setFiltersPreference(!filtersOpen)}>
+      <SlidersHorizontal size={16} aria-hidden="true" /> Filters{filterCount ? ` (${filterCount})` : ""}
+    </ActionButton>
+  );
+
   return (
-    <div className="proposals-page">
-      <PageIntro
-        title="Proposals"
-        glyph="proposals"
-        description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
-      />
-      <section aria-labelledby="proposal-list-heading">
-        <PanelHeader
-          id="proposal-list-heading"
-          title="Governance activity"
-          description="Open a proposal to vote or review its results."
-          className={styles.heading}
-          action={
-            showCreate && (
-              <div className={styles.create}>
-                <>
-                  <ActionLink
-                    href="#/new"
-                    intent="create"
-                    affordance="plus"
-                    disabled={!canCreate}
-                    aria-describedby={!canCreate ? "proposal-create-requirement" : undefined}
-                  >
-                    Create proposal
-                  </ActionLink>
-                  {!canCreate && (
-                    <p id="proposal-create-requirement" className="ui-body">
-                      {ineligibleReason}
-                    </p>
-                  )}
-                </>
-              </div>
-            )
-          }
-        />
-        <ScrollFadeIn amount="some" className={`ui-panel ${styles.panel}`}>
-          <If not={entries.length}>
-            <Then>
+    <div className="proposals-page" data-mobile-activity={mobile}>
+      <ProposalsIntro showPageTitle={routeVisible} />
+      <ScrollFadeIn as="section" amount="some" aria-labelledby="proposal-list-heading">
+        {mobile && (loadingList || entries.length > 0) ? (
+          <div className={styles.mobileHeading}>
+            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"}{countKnown && <> <span>{matchCount}</span></>}</h2>
+            {filterButton}
+          </div>
+        ) : (
+          <PanelHeader id="proposal-list-heading" title="Governance activity" animate={false}
+            description="Open a proposal to vote or review its results." className={styles.heading}
+            action={!mobile && <div className={styles.headingActions}>{filterButton}{createAction}</div>} />
+        )}
+        <div className={`ui-panel ${styles.panel}`}>
+          {!hasList ? (
               <div className={styles.feedback}>
                 <MissingContentView>
                   {noVotingPlugins
                     ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
-                    : isLoading
-                      ? "Loading proposals…"
-                      : error
-                        ? error
-                        : "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
+                    : listError ?? "No active proposals. Secret-ballot proposals and transparent fallback proposals will appear here when created."}
                 </MissingContentView>
-                {error && (
+                {listError && (
                   <button type="button" className="ui-text-action" onClick={retryLoad}>
                     Try again
                   </button>
                 )}
               </div>
-            </Then>
-            <Else>
+          ) : (
+            <>
               {error && (
                 <div className={styles.feedback} role="alert">
                   <p className="ui-body">{error}</p>
@@ -272,45 +295,48 @@ export default function Proposals() {
                   </button>
                 </div>
               )}
-              <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
-                <SearchField
-                  className="proposal-search"
-                  label="Search"
-                  placeholder="Title, proposer or proposal ID"
-                  value={search}
-                  onChange={setSearch}
-                />
-                <label className="proposal-filter">
-                  <span>Status</span>
-                  <NativeSelect
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-                  >
-                    {STATUS_FILTERS.map((filter) => (
-                      <option key={filter.value} value={filter.value}>
-                        {filter.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </label>
-                <label className="proposal-filter">
-                  <span>Voting method</span>
-                  <NativeSelect
-                    value={kindFilter}
-                    onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
-                  >
-                    {FILTERS.map((filter) => (
-                      <option key={filter.value} value={filter.value}>
-                        {filter.label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </label>
-              </div>
-              <div className="proposal-list-caption">
-                <p role="status">
-                  {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
-                  {hasFilters ? ` of ${entries.length}` : ""}
+              <Disclosure id="proposal-filters" open={filtersOpen} className={styles.filters}>
+                <div className="proposal-toolbar" role="search" aria-label="Filter proposals">
+                  <SearchField
+                    className="proposal-search"
+                    label="Search"
+                    placeholder="Title, proposer or proposal ID"
+                    value={search}
+                    onChange={setSearch}
+                  />
+                  <label className="proposal-filter">
+                    <span>Status</span>
+                    <NativeSelect
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                    >
+                      {STATUS_FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                  <label className="proposal-filter">
+                    <span>Voting method</span>
+                    <NativeSelect
+                      value={kindFilter}
+                      onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)}
+                    >
+                      {FILTERS.map((filter) => (
+                        <option key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                </div>
+              </Disclosure>
+              {(!mobile || hasFilters) && <div className="proposal-list-caption">
+                <p role="status" className={mobile ? "sr-only" : undefined}>
+                  {loadingList ? "Loading proposals…" : countKnown && (
+                    <>{matchCount} {matchCount === 1 ? "proposal" : "proposals"}{hasFilters ? ` of ${entries.length}` : ""}</>
+                  )}
                 </p>
                 <div>
                   {hasFilters && (
@@ -318,10 +344,11 @@ export default function Proposals() {
                       Clear filters
                     </button>
                   )}
-                  <span>Newest first</span>
+                  {!mobile && <span>Newest first</span>}
                 </div>
               </div>
-              <Disclosure open={!matchCount}>
+              }
+              <Disclosure open={!loadingList && !matchCount}>
                 <div className={styles.feedback}>
                   <MissingContentView>
                     {resolving
@@ -332,27 +359,44 @@ export default function Proposals() {
                   </MissingContentView>
                 </div>
               </Disclosure>
-              <div className="proposal-list">
-                {entries.map((e) => {
+              {loadingList ? <>
+                {mobile && !hasFilters && <span className="sr-only" role="status">Loading proposals…</span>}
+                <PendingProposalRows />
+              </> : <div className="proposal-list">
+                {ordered.map((e) => {
                   const key = entryKey(e);
-                  const hidden = !matches(e);
+                  const hidden = !visible(e);
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
-                      {e.kind === "private" ? (
-                        <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
-                          <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
-                        </PrivatePairProvider>
-                      ) : (
-                        <PublicRow proposalId={e.id} {...rowHandlers[key]} />
-                      )}
+                      <FluidHeight>
+                        <LoadingTextScope>
+                          {e.kind === "private" ? (
+                            <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
+                              <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                            </PrivatePairProvider>
+                          ) : (
+                            <PublicRow proposalId={e.id} {...rowHandlers[key]} />
+                          )}
+                        </LoadingTextScope>
+                      </FluidHeight>
                     </Disclosure>
                   );
                 })}
-              </div>
-            </Else>
-          </If>
-        </ScrollFadeIn>
-      </section>
+              </div>}
+            </>
+          )}
+        </div>
+        {mobile && (
+          <div className={styles.followUp}>
+            {!hasFilters && activeCount > 0 && allCount > activeCount && (
+              <button className="ui-text-action" type="button" onClick={() => setShowAll(open => !open)}>
+                {showAll ? "Show open proposals" : `View all proposals (${allCount})`}
+              </button>
+            )}
+            {createAction}
+          </div>
+        )}
+      </ScrollFadeIn>
     </div>
   );
 }

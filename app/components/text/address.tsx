@@ -183,7 +183,7 @@ export const AddressText = ({
 };
 
 /** ENS is resolved only when the card is opened, using the directory's shared cache. */
-function WalletDetails({ address }: { address: Address }) {
+export function WalletDetails({ address, fallbackName = "Wallet" }: { address: Address; fallbackName?: string }) {
   const ensName = useMemberName(address);
   const { address: connectedAddress } = useAccount();
   const isYou = address.toLowerCase() === connectedAddress?.toLowerCase();
@@ -195,7 +195,7 @@ function WalletDetails({ address }: { address: Address }) {
       <div className="wallet-identity-card-heading">
         <MemberAvatar src={blockieDataUrl(address) ?? ""} address={address} alt="" size="sm" />
         <div>
-          <strong>{ensName ?? "Wallet"}</strong>
+          <strong>{ensName ?? fallbackName}</strong>
           <span>{isYou ? `Your wallet · ${PUB_CHAIN.name}` : PUB_CHAIN.name}</span>
         </div>
       </div>

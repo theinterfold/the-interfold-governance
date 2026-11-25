@@ -55,7 +55,7 @@ export function MorphDialog({
         <Dialog.Content
           {...props}
           aria-describedby={undefined}
-          className={`fixed inset-x-2 bottom-2 z-[var(--ods-dialog-content-z-index)] mx-auto flex max-h-[calc(100vh-80px)] max-w-[480px] flex-col rounded-xl border border-neutral-100 bg-neutral-0 shadow-neutral-md md:min-w-[480px] lg:bottom-auto lg:top-[120px] lg:max-h-[calc(100vh-200px)] ${containerClassName} morph-dialog`}
+          className={`fixed inset-x-2 bottom-2 z-[var(--ods-dialog-content-z-index)] mx-auto flex max-h-[calc(100vh-80px)] max-w-[480px] flex-col rounded-xl border border-neutral-100 bg-neutral-0 shadow-neutral-md md:min-w-[480px] ${containerClassName} morph-dialog`}
         >
           <MorphSurface open={open} triggerRef={triggerRef} onExited={onExited} overlayId={overlayId}>
             {lastContent.current}

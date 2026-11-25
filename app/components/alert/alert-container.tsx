@@ -1,14 +1,22 @@
 import { type FC } from "react";
 import { useAlerts } from "@/context/Alerts";
 import { AlertCard, type AlertVariant, Icon, IconType } from "@aragon/ods";
+import { SuccessBanner } from "./successBanner";
 import { type IAlert } from "@/utils/types";
 
 const AlertContainer: FC = () => {
   const { alerts } = useAlerts();
 
   return (
-    <div className="fixed right-0 top-0 z-50 m-4 w-72 md:w-96">
-      {alerts.map((alert: IAlert) => (
+    <div className="governance-alerts fixed right-0 top-0 z-50 m-4 w-72 max-w-[calc(100%-2rem)] md:w-96">
+      {alerts.map((alert: IAlert) => alert.type === "success" ? (
+        <div className="mb-4" key={alert.id}>
+          <SuccessBanner title={alert.message} compact announce>
+            {alert.description && <p>{alert.description}</p>}
+            {alert.explorerLink && <a href={alert.explorerLink} target="_blank" rel="noopener noreferrer">Show transaction ↗</a>}
+          </SuccessBanner>
+        </div>
+      ) : (
         <AlertCard
           className="mb-4 drop-shadow-lg"
           key={alert.id}

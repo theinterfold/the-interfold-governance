@@ -77,6 +77,70 @@
   outline-offset: 2px;
 }
 
+/* Keep the icon outside the text's baseline while the shared suffix makes room. */
+.option[data-repeatable] .label { pointer-events: none; }
+
+/* Compact form modes use the same moving selection with the standard field radius. */
+.control[data-size="small"] {
+  container-type: inline-size;
+  width: 100%;
+  border-radius: var(--ui-radius);
+}
+.control[data-size="small"] .label {
+  min-height: 32px;
+  padding: 6px 8px;
+  gap: 6px;
+  border-radius: var(--ui-radius);
+  font: var(--ui-label-font);
+}
+.control[data-size="small"] .icon,
+.control[data-size="small"] .icon svg {
+  width: 16px;
+  height: 16px;
+}
+@container (max-width: 300px) {
+  .control[data-size="small"] .option[data-repeatable] .label {
+    gap: 4px;
+    padding-inline: 4px;
+  }
+}
+@container (max-width: 245px) {
+  /* Both mode names share the first row; only the repeat hint uses the second. */
+  .control[data-size="small"] .label {
+    display: grid;
+    grid-template-rows: repeat(2, 1.4em);
+    row-gap: 0;
+    align-content: center;
+  }
+  .control[data-size="small"] .label > .icon {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .control[data-size="small"] .text {
+    grid-row: 1;
+  }
+  .control[data-size="small"] .option[data-repeatable] :global(.expanding-action-label) {
+    display: grid;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    justify-items: center;
+    grid-template-rows: repeat(2, 1.4em);
+  }
+  .control[data-size="small"] .option[data-repeatable] :global(.expanding-action-base) {
+    grid-row: 1;
+  }
+  .control[data-size="small"] .option[data-repeatable] :global(.expanding-action-suffix) {
+    grid-row: 2;
+  }
+}
+@container (max-width: 215px) {
+  .control[data-size="small"] .label { padding-inline: 4px; }
+  .control[data-size="small"] .icon { display: none; }
+  .control[data-size="small"] .option[data-repeatable] :global(.expanding-action-label) {
+    grid-column: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .thumb,
   .label {

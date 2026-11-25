@@ -7,7 +7,7 @@ import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import type { ReactNode } from "react";
 import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
 
-const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presentation?: ProposalPresentation }) => {
+const ProposalHeader = ({ proposal, presentation, metadataPending }: { proposal: Proposal; presentation?: ProposalPresentation; metadataPending?: boolean }) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
   const startMs = Number(proposal.parameters.startDate) * 1000;
   const endMs = Number(proposal.parameters.endDate) * 1000;
@@ -16,15 +16,14 @@ const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presen
   // Before the start, the reader wants to know when they can vote.
   if (presentation?.votingPending) timing = <ProposalCountdown boundary="start" atMs={startMs} />;
   else if (presentation && !presentation.votingOpen) timing = presentation.timing;
-  else if (proposalStatus === ProposalStatus.ACCEPTED) timing = "The proposal has been accepted";
-  else if (proposalStatus === ProposalStatus.REJECTED)
-    timing = quorumNotMet ? "The proposal did not meet quorum" : "The proposal has been rejected";
+  else if (proposalStatus === ProposalStatus.ACCEPTED || proposalStatus === ProposalStatus.REJECTED) timing = null;
   else if (endDateIsInThePast) timing = "The voting period is over";
   else timing = <ProposalCountdown boundary="end" atMs={endMs} />;
 
   return (
     <ProposalReadingHeader
       title={proposal.title}
+      metadataPending={metadataPending}
       summary={proposal.summary}
       creator={proposal.creator}
       status={presentation?.label ?? proposalStatus}

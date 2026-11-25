@@ -1,14 +1,14 @@
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import type { VoteStatus } from "./voteStatus";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import styles from "./closedVoteStatus.module.css";
 
-const labels: Record<VoteStatus, string> = {
+const labels: Record<Exclude<VoteStatus, "disconnected">, string> = {
   confirmed: "You voted",
   submitted: "Submission pending",
   "not-voted": "You did not vote",
   unknown: "Unable to confirm",
   loading: "Checking your vote…",
-  disconnected: "Wallet not connected",
 };
 
 /** Closed ballots prioritize participation; voting power belongs to the open ballot. */
@@ -23,6 +23,8 @@ export function ClosedVoteStatus({
   choice?: string;
   onConnect: () => void;
 }) {
+  const mobile = useMediaQuery("(max-width: 600px)");
+  const localReceiptMissing = secret && status === "unknown" && mobile;
   const description =
     status === "unknown"
       ? secret
@@ -37,13 +39,17 @@ export function ClosedVoteStatus({
     <section className={styles.status} aria-label="Your vote" aria-live="polite">
       <div className={styles.row}>
         <span>Your vote</span>
-        <strong>
-          {labels[status]}
-          {status === "confirmed" && !secret && choice ? ` · ${choice}` : ""}
-        </strong>
+        {status !== "disconnected" && (
+          <strong>
+            {localReceiptMissing ? "No receipt in this browser" : labels[status]}
+            {status === "confirmed" && !secret && choice ? ` · ${choice}` : ""}
+          </strong>
+        )}
       </div>
-      {description && <p>{description}</p>}
-      {status === "disconnected" && <PowerAction onClick={onConnect}>Connect wallet</PowerAction>}
+      {description && !localReceiptMissing && <p>{description}</p>}
+      {status === "disconnected" && (
+        <PowerAction className={styles.connect} onClick={onConnect}>Connect wallet</PowerAction>
+      )}
     </section>
   );
 }

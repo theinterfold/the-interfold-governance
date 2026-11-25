@@ -10,6 +10,9 @@ export function WithdrawalButton({
 }: Omit<ComponentProps<typeof PowerAction>, "affordance"> & { kind: WithdrawalKind }) {
   return (
     <PowerAction
+      iconBehavior="persistent"
+      intent={kind === "withdraw" ? "confirm" : "open"}
+      appearance={kind === "cancel" && props.intent !== "confirm" ? "text" : "default"}
       {...props}
       data-withdrawal-action={kind}
       affordance={kind === "start" ? "clock" : kind === "cancel" ? "undo" : "wallet"}

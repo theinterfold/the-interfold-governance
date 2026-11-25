@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Info } from "@phosphor-icons/react";
+import { PowerInfo } from "./powerInfo";
 import { formatUnits } from "viem";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { compactNumber, exactNumber } from "@/utils/numbers";
+import { compactNumber, displayNumber } from "@/utils/numbers";
 import {
   foldHoldingParts,
   type AllocationKind,
@@ -27,30 +29,43 @@ const labels: Record<AllocationKind | FoldHoldingKind, string> = {
 export function FoldBalanceBreakdown({
   allocation,
   grouped = false,
-  includeVestingInLocked = false,
   showLegend = true,
+  showTotal = true,
   interactive = false,
+  distribution,
 }: {
   allocation: FoldAllocation;
   grouped?: boolean;
-  includeVestingInLocked?: boolean;
   showLegend?: boolean;
+  showTotal?: boolean;
   interactive?: boolean;
+  /** Alternative composition using the same chart, legend and interaction. */
+  distribution?: {
+    total: bigint;
+    label: string;
+    parts: { kind: AllocationKind; amount: bigint; label: string }[];
+  };
 }) {
   const decimals = useTokenDecimals();
   const [hoveredKind, setHoveredKind] = useState<AllocationKind | FoldHoldingKind>();
   const [focusedKind, setFocusedKind] = useState<AllocationKind | FoldHoldingKind>();
-  if (allocation.status !== "ready" || decimals === undefined)
+  if ((!distribution && allocation.status !== "ready") || decimals === undefined)
     return (
       <p className="power-help" role="status">
-        Balance breakdown unavailable.
+        Breakdown unavailable.
       </p>
     );
 
-  const parts = grouped ? foldHoldingParts(allocation.parts, { includeVestingInLocked }) : allocation.parts;
+  const allocationParts = allocation.status === "ready" ? allocation.parts : [];
+  const parts = distribution?.parts ?? (grouped ? foldHoldingParts(allocationParts) : allocationParts);
+  const total = distribution?.total ?? (allocation.status === "ready" ? allocation.total : 0n);
+  const chartLabel = distribution?.label ?? `Total ${PUB_TOKEN_SYMBOL}`;
+  const labelFor = (kind: AllocationKind | FoldHoldingKind) => distribution?.parts.find(part => part.kind === kind)?.label ?? labels[kind];
+  const vesting = allocationParts.find(({ kind }) => kind === "vesting")?.amount ?? 0n;
+  const readable = (amount: bigint) => `${displayNumber(formatUnits(amount, decimals))} ${PUB_TOKEN_SYMBOL}`;
   let cumulative = 0n;
   const percentOf = (amount: bigint) =>
-    allocation.total > 0n ? Number((amount * 1_000_000n) / allocation.total) / 10_000 : 0;
+    total > 0n ? Number((amount * 1_000_000n) / total) / 10_000 : 0;
   const segments = parts.map((part) => {
     const start = percentOf(cumulative);
     cumulative += part.amount;
@@ -62,7 +77,7 @@ export function FoldBalanceBreakdown({
       percentage: part.amount > 0n && percent < 0.01 ? "<0.01%" : `${percent.toFixed(2)}%`,
     };
   });
-  const exact = (amount: bigint) => `${exactNumber(formatUnits(amount, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const exact = (amount: bigint) => `${displayNumber(formatUnits(amount, decimals))} ${PUB_TOKEN_SYMBOL}`;
   const compact = (amount: bigint) => compactNumber(formatUnits(amount, decimals));
   const active = interactive
     ? segments.find(({ kind, amount }) => kind === (hoveredKind ?? focusedKind) && amount > 0n)
@@ -75,7 +90,7 @@ export function FoldBalanceBreakdown({
       data-highlighting={!!active}
     >
       <div className="fold-allocation-chart">
-        <svg viewBox="0 0 160 160" role="img" aria-label={`${PUB_TOKEN_SYMBOL} allocation`}>
+        <svg viewBox="0 0 160 160" role="img" aria-label={distribution ? chartLabel : `${PUB_TOKEN_SYMBOL} allocation`}>
           <circle className="fold-allocation-track" cx="80" cy="80" r="66" fill="none" strokeWidth="16" />
           {segments
             .filter(({ percent }) => percent > 0)
@@ -97,17 +112,17 @@ export function FoldBalanceBreakdown({
                 transform="rotate(-90 80 80)"
               >
                 <title>
-                  {labels[kind]}: {exact(amount)}
+                  {labelFor(kind)}: {exact(amount)}
                 </title>
               </circle>
             ))}
         </svg>
-        <div className="fold-allocation-total">
-          <span>Total {PUB_TOKEN_SYMBOL}</span>
-          <strong className="ui-number" title={exact(allocation.total)}>
-            {compact(allocation.total)}
+        {showTotal && <div className="fold-allocation-total">
+          <span>{chartLabel}</span>
+          <strong className="ui-number" title={exact(total)}>
+            {compact(total)}
           </strong>
-        </div>
+        </div>}
       </div>
       {showLegend &&
         (segments.length ? (
@@ -120,12 +135,28 @@ export function FoldBalanceBreakdown({
                 onPointerEnter={interactive && amount > 0n ? () => setHoveredKind(kind) : undefined}
                 onPointerLeave={interactive ? () => setHoveredKind(undefined) : undefined}
               >
-                <dt>
-                  {interactive && amount > 0n ? (
+                <dt onFocusCapture={() => setFocusedKind(kind)} onBlurCapture={() => setFocusedKind(undefined)}>
+                  {grouped && kind === "locked" ? (
+                    <PowerInfo
+                      label="Locked FOLD breakdown"
+                      compact={true}
+                      trigger={<span className={styles.legendTarget}>
+                        <span className="fold-allocation-dot" aria-hidden="true" />
+                        {labelFor(kind)}
+                        <Info size={16} aria-hidden="true" />
+                      </span>}
+                    >
+                      <dl className="power-info-values">
+                        <div><dt>Locks</dt><dd>{readable(amount - vesting)}</dd></div>
+                        {vesting > 0n && <div><dt>Still vesting</dt><dd>{readable(vesting)}</dd></div>}
+                      </dl>
+                      <p>Locks include FOLD awaiting withdrawal.{vesting > 0n && " Vesting is separate from the locks listed below."}</p>
+                    </PowerInfo>
+                  ) : interactive && amount > 0n ? (
                     <button
                       type="button"
                       className={styles.legendTarget}
-                      aria-label={`${labels[kind]}: ${exact(amount)}. Highlight in balance chart.`}
+                      aria-label={`${labelFor(kind)}: ${exact(amount)}. Highlight in chart.`}
                       onFocus={() => setFocusedKind(kind)}
                       onBlur={() => setFocusedKind(undefined)}
                       onClick={() => setFocusedKind(kind)}
@@ -134,18 +165,18 @@ export function FoldBalanceBreakdown({
                       }}
                     >
                       <span className="fold-allocation-dot" aria-hidden="true" />
-                      {labels[kind]}
+                      {labelFor(kind)}
                     </button>
                   ) : (
                     <>
                       <span className="fold-allocation-dot" aria-hidden="true" />
-                      {labels[kind]}
+                      {labelFor(kind)}
                     </>
                   )}
                 </dt>
                 <dd className="ui-number" title={exact(amount)}>
                   <span>{compact(amount)}</span>
-                  <small>{grouped ? PUB_TOKEN_SYMBOL : percentage}</small>
+                  <small>{grouped || distribution ? PUB_TOKEN_SYMBOL : percentage}</small>
                 </dd>
               </div>
             ))}

@@ -1,11 +1,13 @@
-import { useEffect, useRef, useId, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useId, useState, useCallback, type ReactNode, type RefObject } from "react";
 import { ActionIcon } from "@/components/input/actionIcon";
 import { ActionTray } from "@/plugins/velocker/components/actionTray";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
-import { Prohibit } from "@phosphor-icons/react";
+import { useBallotReviewPresentation } from "./ballotReviewPresentation";
+import { ArrowDown, ArrowUp, Prohibit } from "@phosphor-icons/react";
+import { useBallotPresentation } from "./ballotPresentation";
 
 const OPTION_COLORS = [
   "var(--if-brand-green)",
@@ -47,7 +49,7 @@ export function BallotOptionalAction({
   disabled?: boolean;
   /** Why the action cannot change now. */
   unavailable?: string;
-  layout?: "card" | "compact";
+  layout?: "card" | "compact" | "inline";
   info?: ReactNode;
   children?: ReactNode;
   onChange: (checked: boolean) => void;
@@ -107,6 +109,27 @@ export function BallotOptionalAction({
   );
 }
 
+/** Three ballot papers with the selected vote marked on the central one. */
+export function BallotIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="square"
+      strokeLinejoin="miter"
+      aria-hidden="true"
+    >
+      <path d="M1.5 18.5h21M8 18.5V8h8v10.5M8 10.5l-5.5 1.25L4 18.5M16 10.5l5.5 1.25-1.5 6.75" />
+      <path d="m10 12.5 1.5 1.5 2.5-2.5" />
+    </svg>
+  );
+}
+
 export function MaskIcon({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -135,43 +158,66 @@ export function BallotPanel({
   className = "",
   submitted = false,
   info,
+  navigation,
   children,
 }: {
-  title: string;
-  /** Replaces the title when a control already names the panel's action. */
+  /** Omit when the submission state supplies the panel's own heading. */
+  title?: string;
   heading?: ReactNode;
   mode?: "vote" | "mask";
   className?: string;
   submitted?: boolean;
   info?: ReactNode;
+  /** Optional route selector, centered above the panel heading. */
+  navigation?: ReactNode;
   children: ReactNode;
 }) {
+  const hasHeading = Boolean(heading) || Boolean(title) || Boolean(info);
   return (
-    <div className={`vote-panel ${className}`} data-vote-mode={mode} data-vote-submitted={submitted}>
-      <div className="vp-head">
-        {heading ?? (
-          <h3 aria-live="polite">
-            <span key={title} className="vp-label-change">
-              {title}
-            </span>
-          </h3>
-        )}
-        {info}
-      </div>
+    <div className={`vote-panel ${className}`} data-vote-mode={mode} data-vote-submitted={submitted} data-has-heading={hasHeading}>
+      {navigation && <div className="vp-navigation">{navigation}</div>}
+      {hasHeading && (
+        <div className={`vp-head${info ? " vp-head-with-info" : ""}`}>
+          {heading ?? (title && <h3 aria-live="polite">
+            <span key={title} className="vp-label-change">{title}</span>
+          </h3>)}
+          {info}
+        </div>
+      )}
       {children}
     </div>
   );
 }
 
-export function BallotSubmissionInfo({ submitOnChain }: { submitOnChain: boolean }) {
+export function BallotSubmissionInfo({
+  submitOnChain,
+  anotherWallet = false,
+  includeMask = false,
+}: {
+  submitOnChain: boolean;
+  anotherWallet?: boolean;
+  includeMask?: boolean;
+}) {
   return (
     <PowerInfo label="About ballot submission and fees" compact={true}>
-      <p>Your ballot is encrypted on your device before it is sent.</p>
       <p>
-        {submitOnChain
-          ? "Your wallet submits it on-chain. You pay the gas fee in ETH and can review it in your wallet before confirming."
-          : "The relayer submits your encrypted ballot. Your vote stays private."}
+        Ballots are encrypted client-side and tallied under encryption within an Encrypted Execution Environment
+        (E3). Individual votes are <em>never</em> revealed.
       </p>
+      {anotherWallet && (
+        <p>
+          Prepare the vote with your voting wallet, then switch wallets to publish it. The sending wallet pays gas;
+          your voting power still comes from the wallet that signed the ballot.
+        </p>
+      )}
+      {(!anotherWallet || includeMask) && (
+        <p>
+          {anotherWallet && "For your masks: "}
+          {submitOnChain
+            ? "Your wallet publishes the transaction without relying on the relayer to send it. You pay gas and can review the fee in your wallet before confirming. Your wallet address is visible as the sender."
+            : "Interfold currently covers gas when the relayer sends your encrypted ballot. If it cannot send, you can choose to publish from your wallet and pay gas. Your ballot remains encrypted."}
+        </p>
+      )}
     </PowerInfo>
   );
 }
@@ -186,7 +232,7 @@ export function BallotChoices({
   voteDisabled = false,
   maskAsOption = false,
   maskUnavailable = false,
-  presentation,
+  presentation = "framed",
 }: {
   options: string[];
   value: BallotChoice | null;
@@ -200,14 +246,15 @@ export function BallotChoices({
   maskAsOption?: boolean;
   /** Public ballots retain the secret-ballot affordance as an explained unavailable choice. */
   maskUnavailable?: boolean;
-  /** Opt-in local comparison treatments; omitting this preserves the standard ballot. */
+  /** Approved framed choices by default; other treatments are for local comparisons. */
   presentation?: BallotChoicePresentation;
 }) {
   const groupId = useId();
+  const { choices: choiceLayout } = useBallotPresentation();
   const choices: { value: BallotChoice; label: string }[] = options.map((label, index) => ({ value: index, label }));
   if (maskAsOption) choices.push({ value: "mask", label: "Submit a mask" });
   return (
-    <div className="vote-choices" data-presentation={presentation} role="radiogroup" aria-label="Ballot choice">
+    <div className="vote-choices" data-presentation={presentation} data-layout={choiceLayout} role="radiogroup" aria-label="Ballot choice">
       {choices.map((choice, index) => {
         const selected = value === choice.value;
         const isMask = choice.value === "mask";
@@ -345,6 +392,9 @@ export function BallotReview({
   isMask = false,
   emphasis = "standard",
   votingPower,
+  choiceDetail,
+  previousChoice,
+  footerContext,
   footer,
   signatureExpanded = false,
   detailView,
@@ -362,6 +412,9 @@ export function BallotReview({
   isMask?: boolean;
   emphasis?: "standard" | "choice";
   votingPower?: ReactNode;
+  choiceDetail?: ReactNode;
+  previousChoice?: string;
+  footerContext?: ReactNode;
   footer?: ReactNode;
   signatureExpanded?: boolean;
   detailView?: {
@@ -373,12 +426,49 @@ export function BallotReview({
   };
   children: ReactNode;
 }) {
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const { compact, comparison, powerPresentation = "inline" } = useBallotReviewPresentation();
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [bodyElement, setBodyElement] = useState<HTMLDivElement | null>(null);
+  const attachBody = useCallback((element: HTMLDivElement | null) => {
+    bodyRef.current = element;
+    setBodyElement(element);
+  }, []);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const scrollCueRef = useRef<HTMLButtonElement>(null);
+  const scrollId = useId();
+  const [scrollState, setScrollState] = useState({ overflow: false, below: false });
+  const measureScroll = useCallback(() => {
+    const body = bodyRef.current;
+    if (!body || !body.clientHeight) return;
+    // Measure against the space without the cue so showing it cannot create overflow by itself.
+    const overflow = body.scrollHeight > body.clientHeight + (scrollCueRef.current?.offsetHeight ?? 0) + 2;
+    const below = overflow && body.scrollHeight - body.clientHeight - body.scrollTop > 2;
+    setScrollState(previous => previous.overflow === overflow && previous.below === below ? previous : { overflow, below });
+  }, []);
   const reviewScroll = useRef(0);
   const returning = useRef(false);
   const restoringScroll = useRef(false);
   const detailsOpen = detailView?.open ?? false;
   const detailTriggerRef = detailView?.triggerRef;
+  useEffect(() => {
+    if (!open) {
+      setScrollState({ overflow: false, below: false });
+      return;
+    }
+    const body = bodyRef.current;
+    const content = scrollContentRef.current;
+    if (!body || !content) return;
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measureScroll);
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(body);
+    observer.observe(content);
+    schedule();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [open, bodyElement, detailsOpen, measureScroll]);
   useEffect(() => {
     if (!open) {
       returning.current = false;
@@ -415,9 +505,9 @@ export function BallotReview({
   const reviewContent = (
     <>
       {proposalTitle && <p className="ballot-review-proposal">{proposalTitle}</p>}
-      <div className="ballot-review-summary">
-        <div className="ballot-review-row">
-          <span>{isMask ? "Ballot" : emphasis === "choice" ? "You're voting" : "Your vote"}</span>
+      {!(compact && isMask) && <div className="ballot-review-summary">
+        <div className="ballot-review-row" data-integrated-power={compact && !!choiceDetail || undefined} data-power-layout={compact && choiceDetail ? powerPresentation : undefined}>
+          <span>{compact && previousChoice ? previousChoice === choice ? "Your vote" : `Changing from ${previousChoice} to` : isMask ? "Sending" : emphasis === "choice" ? "You're voting" : "Your vote"}</span>
           <strong
             className="ballot-review-choice"
             style={
@@ -438,25 +528,20 @@ export function BallotReview({
             ) : (
               <span className="swatch" style={{ background: ballotOptionColor(optionIndex) }} aria-hidden="true" />
             )}
-            {choice}
+            <span className="ballot-review-choice-text">{choice}</span>
           </strong>
+          {compact && choiceDetail && <div className="ballot-review-choice-detail" data-power-presentation={powerPresentation}>{choiceDetail}</div>}
         </div>
-        {isMask ? (
-          <div className="ballot-review-row">
-            <span>Voting power</span>
-            <strong>None</strong>
-          </div>
-        ) : (
-          votingPower
-        )}
-      </div>
+        {!isMask && votingPower}
+      </div>}
       {children}
+      {footerContext && <div className="ballot-review-footer-context">{footerContext}</div>}
     </>
   );
   return (
     <ActionTray
       open={open}
-      title={detailView?.open ? detailView.title : isMask ? "Confirm mask" : "Confirm your vote"}
+      title={detailView?.open ? detailView.title : compact && previousChoice ? "Confirm vote change" : isMask ? compact && choice !== "1 mask" ? "Confirm masks" : "Confirm mask" : "Confirm your vote"}
       pending={pending}
       triggerRef={triggerRef}
       returnFocusRef={returnFocusRef}
@@ -464,17 +549,24 @@ export function BallotReview({
       onCloseComplete={onCloseComplete}
       onBack={detailView?.open ? detailView.onBack : undefined}
       backLabel="Back to review"
-      className={`ballot-review${detailView ? " ballot-review-lateral" : ""}${emphasis === "choice" ? " ballot-review-choice-first" : ""}${footer ? " ballot-review-with-footer" : ""}${signatureExpanded ? " ballot-review-signature-expanded" : ""}`}
+      className={`ballot-review${compact ? " ballot-review-compact" : ""}${detailView ? " ballot-review-lateral" : ""}${emphasis === "choice" ? " ballot-review-choice-first" : ""}${footer ? " ballot-review-with-footer" : ""}${footerContext ? " ballot-review-with-footer-context" : ""}${signatureExpanded ? " ballot-review-signature-expanded" : ""}`}
     >
+      {!detailsOpen && comparison}
       <div
-        ref={bodyRef}
+        ref={attachBody}
+        id={scrollId}
         className="ballot-review-body"
+        tabIndex={scrollState.overflow ? 0 : undefined}
+        role={scrollState.overflow ? "region" : undefined}
+        aria-label={scrollState.overflow ? detailsOpen ? "Signature data details" : isMask ? "Mask review details" : "Vote review details" : undefined}
         onScroll={(event) => {
           if (!detailsOpen && !restoringScroll.current) reviewScroll.current = event.currentTarget.scrollTop;
+          measureScroll();
         }}
       >
+        <div ref={scrollContentRef} className="ballot-review-scroll-content">
         {detailView ? (
-          <FluidHeight layoutKey={detailView.open ? "details" : "review"}>
+          <FluidHeight layoutKey={`${detailView.open ? "details" : "review"}-${compact}`}>
             <div className="motion-tab-panels">
               <MotionPanel active={!detailView.open} direction="left">
                 <div className="ballot-review-content">{reviewContent}</div>
@@ -487,7 +579,23 @@ export function BallotReview({
         ) : (
           reviewContent
         )}
+        </div>
       </div>
+      {scrollState.overflow && <button
+        ref={scrollCueRef}
+        type="button"
+        className="ui-text-action ballot-review-scroll-cue"
+        data-more-below={scrollState.below || undefined}
+        aria-controls={scrollId}
+        onClick={() => {
+          const body = bodyRef.current;
+          if (!body) return;
+          const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+          body.scrollTo({ top: scrollState.below ? body.scrollTop + body.clientHeight * 0.8 : 0, behavior });
+        }}
+      >
+        {scrollState.below ? <>More details below <ArrowDown size={14} aria-hidden="true" /></> : <>Back to top <ArrowUp size={14} aria-hidden="true" /></>}
+      </button>}
       {footer && (
         <Disclosure open={!detailsOpen} className="ballot-review-footer-disclosure">
           <div className="ballot-review-footer">{footer}</div>

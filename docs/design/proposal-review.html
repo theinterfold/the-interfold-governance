@@ -1,0 +1,422 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Propostas · Governance preview</title>
+<style>
+/* shared voting card, typography and disclosure styles */
+
+*{box-sizing:border-box}body{margin:0;background:#eefaf1;color:#395d3d;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1010px;margin:auto;padding:26px 26px 14px}header{display:flex;align-items:end;justify-content:space-between;gap:16px;padding-bottom:20px;border-bottom:1px solid #c8dacb}h1{font:400 clamp(32px,4vw,46px)/1.05 Georgia,serif;letter-spacing:-.04em;margin:0 0 6px}header p{font-size:13px;margin:0}.switches{display:flex;gap:12px;align-items:end}label{display:grid;gap:4px;font-size:12px;font-weight:600}select{background:white;color:#294c30;border:1px solid #b7cbb9;border-radius:6px;font-family:inherit;font-size:14px;padding:9px 24px 9px 10px;max-width:100%}select:focus-visible,summary:focus-visible{outline:2px solid #395d3d;outline-offset:3px}.baseline{margin-top:16px;font-size:13px;color:#536e58}.baseline summary{cursor:pointer;width:fit-content}.baseline img{display:block;width:min(100%,480px);margin:10px 0}.grid{display:grid;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);gap:25px;align-items:start}h2{font-family:inherit;font-size:16px;margin:19px 0 9px}.ballot{display:block;width:100%;height:auto;border-radius:6px}.frames[data-scenario=publicResult] .ballot{border-bottom:1px solid #d7d9d8}
+.access{margin-top:5px}.access summary{cursor:pointer;display:inline-flex;min-height:44px;gap:8px;align-items:center;padding:4px 2px;list-style:none;width:fit-content;font-size:14px;font-weight:550;color:#395d3d}.access summary::-webkit-details-marker{display:none}.access summary span{text-decoration:underline;text-decoration-color:#8da893;text-underline-offset:4px;text-decoration-thickness:1px}.access summary:hover span{text-decoration-color:currentColor}.access summary svg{width:17px;height:17px}.access[open] .closed,.access:not([open]) .opened{display:none}
+.surface{background:white;border:1px solid #d7dad7;border-radius:6px;padding:2px 20px;margin:1px 0 16px;color:#171d1b}.group{padding:14px 0}.group+.group{border-top:1px solid #e5e8e5}.group h3{font-size:14px;font-weight:650;margin:0 0 8px}.group p,.group dt,.group dd{font-size:13px;margin:0}.group p{color:#54615d;line-height:1.55}.group dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:5px 12px;margin:0}.group dt{color:#54615d}.group dd{text-align:right;font-variant-numeric:tabular-nums}.group p+dl,.group dl+p{margin-top:8px}.group p+p{margin-top:6px}
+[hidden]{display:none!important}@media(max-width:740px){header{align-items:start;flex-direction:column}}@media(max-width:610px){main{padding:18px 14px}.grid{display:flex;flex-direction:column;gap:6px}.frames{width:100%;max-width:100%}.frames:nth-child(2){order:-1}.switches{flex-wrap:wrap}}
+
+body{background:#ecfbf0}.result-card{background:#fff;color:#161c1a;border:1px solid #d5dcd6;border-radius:8px;overflow:hidden;font-family:Inter,Arial,sans-serif}.meta{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 24px 0}.pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font:550 12px/1.45 Inter,Arial,sans-serif;white-space:nowrap;background:#f0f2f0;color:#59645f}.pill.is-open{background:#e4f4e8;color:#395d3d}.info{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin-right:-5px;padding:0 5px;border:0;background:none;color:#4b6252;font:500 13px/1.3 Inter,Arial,sans-serif;cursor:pointer}.info svg{width:15px;height:15px}.info:hover span{text-decoration:underline;text-underline-offset:3px}.info:focus-visible,.dismiss:focus-visible{outline:2px solid #395d3d;outline-offset:2px;border-radius:4px}.content{padding:5px 24px 12px}.content h3{margin:2px 0 16px;font-size:clamp(24px,2.5vw,30px);font-weight:600;letter-spacing:-.04em;line-height:1.15}.rows{display:grid;grid-template-columns:max-content minmax(22px,1fr) max-content}.result-row{display:grid;grid-template-columns:subgrid;grid-column:1/-1;gap:14px;align-items:center;min-height:50px;border-top:1px solid #e1e5e2;font:500 14px/1.4 Inter,Arial,sans-serif}.name{display:inline-flex;align-items:center;gap:6px;color:#4f5956}.result-row[data-leader=true] .name{color:#171d1b;font-weight:600}.dot{width:8px;height:8px;background:var(--option-color);border-radius:50%;flex:none}.track{background:#f2f4f2;height:6px;border-radius:20px}.result-row[data-leader=true] .track{outline:1.5px solid var(--option-color);outline-offset:3px}.fill{background:var(--option-color);height:100%;border-radius:inherit}.pct{text-align:right;font-variant-numeric:tabular-nums}.choice-tag{display:inline-flex;align-items:center;white-space:nowrap;border-radius:4px;background:#eaf6ed;color:#395d3d;padding:2px 4px;font:550 11px/1.4 Inter,Arial,sans-serif}.reason,.personal{margin:0 0 16px;font-size:14px;line-height:1.5;color:#535f5a}.personal{margin-top:12px;margin-bottom:4px}.open-body img{display:block;width:calc(100% + 2px);margin:0 -1px -1px}.open-body{overflow:hidden}.open-body img{border-radius:0}.meta:has(.is-open){padding-bottom:6px}
+dialog{color:#18221b;background:white;border:1px solid #cfd9d1;width:min(450px,calc(100% - 32px));max-height:78dvh;padding:0;overflow:auto;border-radius:10px;box-shadow:0 16px 60px #163f221c;font-family:Inter,Arial,sans-serif}dialog::backdrop{background:#1e392a4d}.dialog-head{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;padding:12px 20px;background:#fff;border-bottom:1px solid #e2e8e4}.dialog-head h2{font:600 19px/1.3 Inter,Arial,sans-serif;margin:0;color:#203a29}.dismiss{height:42px;width:42px;background:none;color:#395d3d;border:none;font-size:25px;cursor:pointer}dialog .surface{border:none;padding:0 20px;margin:0}.group h3{font-size:14px}.baseline{margin-top:16px}@media(max-width:610px){dialog{margin:auto auto 0;width:100%;max-width:none;max-height:80dvh;border-radius:14px 14px 0 0;padding-bottom:env(safe-area-inset-bottom)}.content{padding-inline:16px}.meta{padding-inline:16px}.result-row{gap:10px}}
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;src:url("../../app/public/fonts/InterVariable.woff2") format("woff2")}dialog .dialog-head{padding:10px 18px 10px 24px;border-bottom:0}
+dialog .dialog-head h2{font-weight:550;font-size:17px}
+dialog .dismiss{color:#57665b}
+dialog .surface{padding:0 24px 16px}
+.details-brief{padding:10px 0 22px}
+.details-brief h3{font:600 clamp(23px,3vw,27px)/1.2 Inter,Arial,sans-serif;color:#17251c;letter-spacing:-.035em;margin:0 0 6px;overflow-wrap:anywhere}
+.details-brief p{font:400 14px/1.5 Inter,Arial,sans-serif;margin:0;color:#536258}
+.detail-section{border-top:1px solid #e0e6e1}
+.detail-section summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;min-height:47px;padding:4px 2px;color:#344c39;font-size:14px;font-weight:550}
+.detail-section summary::-webkit-details-marker{display:none}
+.detail-section summary:focus-visible{outline:2px solid #395d3d;outline-offset:-2px;border-radius:4px}
+.detail-section summary small{color:#617165;font-weight:400;font-size:13px;font-variant-numeric:tabular-nums}
+.detail-section summary:hover span{text-decoration:underline;text-underline-offset:3px}
+.chevron{width:7px;height:7px;flex:none;margin-left:auto;margin-right:5px;border:solid #5e7061;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.detail-section[open] .chevron{transform:rotate(225deg)}
+.section-content{padding:0 0 16px 2px}
+.section-content .group{padding:0}
+.section-content .group+.group{margin:13px 0 0;padding:0;border:0}
+.section-content .group h3{color:#4a5d4e;font-size:12px;margin:0 0 4px}
+.section-content .group dd,.section-content .group dt,.section-content .group p{font-size:13px;line-height:1.5}
+.section-content .group dd{color:#1b2c20}
+.section-content .group dl{gap:4px 12px}
+@media(max-width:610px){dialog .dialog-head{padding-inline:18px 12px}dialog .surface{padding-inline:18px}.details-brief{padding:7px 0 18px}}
+@font-face{font-family:Gramercy;font-weight:400;src:url("../../app/public/fonts/ABCGramercy-Regular.woff2") format("woff2")}
+:root{--fold:#395d3d;--ink:#151b18;--muted:#59645e;--line:#dbe3dc;--paper:#fff;--mint:#ecfbf0}
+body{color:var(--ink);background:var(--mint);font-family:Inter,Arial,sans-serif}
+main{padding:clamp(20px,4vw,54px) clamp(14px,4vw,48px);max-width:1210px;margin:auto}
+.preview{font:500 12px/1.5 Inter,Arial,sans-serif;color:var(--muted);margin:0 0 12px}
+.proposal{background:white;border:1px solid var(--line);border-radius:9px;padding:clamp(18px,3.5vw,44px)}
+.proposal-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.proposal-top span+span{display:inline-flex;align-items:center;gap:9px}.lock-icon{width:15px;height:15px}
+h1{font:400 clamp(32px,4.1vw,49px)/1.1 Gramercy,Georgia,serif;color:var(--fold);margin:12px 0 7px;letter-spacing:-.035em}
+.byline{margin:0;color:var(--muted);font-size:13px}
+.spread{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:clamp(18px,4vw,56px);margin-top:26px;padding-top:27px;border-top:1px solid var(--line)}
+.reading{padding-top:3px}.kicker{font:550 12px/1.4 Inter,Arial,sans-serif;color:var(--muted);letter-spacing:0;margin:0}
+.description{font:400 17px/1.5 Inter,Arial,sans-serif;overflow-wrap:anywhere;margin:8px 0 15px;color:var(--ink)}
+.resource,.source,.stage-link{color:var(--fold);display:inline-flex;align-items:center;gap:7px;font:500 13px/1.4 Inter,Arial,sans-serif;text-decoration:underline;text-underline-offset:3px}
+.resource{min-height:35px}.resource svg{width:16px;height:16px}.source,.stage-link{min-height:42px}
+.meta{padding:12px 21px 0;gap:5px}.meta-start{display:flex;align-items:center;gap:9px}.meta-start .pill{font-size:11px}.info{font-size:12px}.content{padding:4px 21px 19px}.content h3{margin:1px 0 15px;font-size:28px}
+.rows{grid-template-columns:minmax(52px,max-content) minmax(15px,1fr) max-content}
+.result-row{min-height:44px;gap:14px}.name{font-size:14px}.pct{font-size:13px}
+.connect{display:block;width:100%;padding:10px 12px;min-height:44px;font:550 14px/1.4 Inter,Arial,sans-serif;color:var(--ink);background:white;border:1px solid #cfd6d0;border-radius:6px;cursor:pointer;margin-top:12px}.connect:hover{background:#f2f7f3}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:22px}
+.toggle,.text-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:0;cursor:pointer;color:var(--fold);font:500 13px/1.3 Inter,Arial,sans-serif;min-height:44px;padding:0 3px}
+.toggle svg{width:14px;height:14px}.toggle[aria-expanded=false] svg{transform:rotate(180deg)}
+.personal-note{margin:10px 0 0;font-size:13px;color:var(--muted)}.text-button{text-decoration:underline;text-underline-offset:3px}.wallet-choice{margin:6px 22px 20px}.wallet-choice p{font-size:14px;color:var(--muted)}.wallet-choice .source{margin-top:5px}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--fold);outline-offset:3px}.actions{margin-top:15px}.actions li{overflow-wrap:anywhere}
+@media(max-width:680px){main{padding:16px 12px}.proposal{padding:18px 15px}.spread{grid-template-columns:minmax(0,1fr);gap:17px;padding-top:16px;margin-top:18px}.reading{padding-top:0}.description{margin:4px 0 2px;font-size:16px}.resource{margin:0;min-height:36px}.meta{padding:8px 14px 0}.content{padding:3px 14px 15px}.content h3{margin:1px 0 12px;font-size:25px}.result-row{gap:10px;min-height:40px}.foot{margin-top:12px}.preview{margin-bottom:8px}.meta-start{gap:6px}}
+
+.sample-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:0 0 16px}
+.sample-toolbar label{font:550 13px/1.3 Inter,Arial,sans-serif;color:var(--fold)}
+.sample-toolbar select{font:500 14px/1.4 Inter,Arial,sans-serif;min-height:42px;padding-right:26px;color:var(--ink);background:#fff;border-color:#bfcfc3}
+.sample-toolbar .preview{margin:0 0 0 auto;line-height:1.4;font-weight:400}
+.proposal-top #method{display:inline}
+.proposal-copy{min-width:0}.reading-extra{min-width:0}
+.resource{max-width:100%;overflow-wrap:anywhere}.resource svg{flex:none}
+.changes{margin-top:19px}
+.changes .kicker{margin-bottom:6px}
+.changes details{border-bottom:1px solid var(--line)}
+.changes summary{display:flex;align-items:center;gap:8px;min-height:45px;cursor:pointer;list-style:none;font-size:14px;font-weight:550}
+.changes summary::-webkit-details-marker{display:none}
+.changes summary small{color:var(--muted);font-size:12px;font-weight:450;margin-left:auto}
+.changes .chevron{margin-left:3px}.changes [open] .chevron{transform:rotate(225deg)}
+.changes dl{margin:3px 0 14px;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:3px 10px;font-size:12px;color:var(--muted)}
+.changes dd{margin:0;overflow-wrap:anywhere;color:var(--ink)}
+#read-more{margin-top:-6px;min-height:40px;padding-left:0}
+.proposal{--panel-x:clamp(18px,3.5vw,44px);--panel-y:var(--panel-x)}
+.proposal:has(#next-steps:not([hidden])){padding:0;background:transparent;border:0}
+.proposal:has(#next-steps:not([hidden]))>.proposal-main,#next-steps{background:var(--paper);border:1px solid var(--line);border-radius:9px}
+.proposal:has(#next-steps:not([hidden]))>.proposal-main{padding:var(--panel-y) var(--panel-x)}
+#next-steps{margin-top:16px;padding:18px var(--panel-x)}
+#next-steps p{max-width:70ch;margin:5px 0 0}
+.proposal:has(#next-steps:not([hidden]))>.foot{margin:6px var(--panel-x) 0}
+.changes:not([hidden]){margin-bottom:12px}
+#caption{margin-bottom:14px}
+#options{display:grid;gap:6px;border:0;margin:0;padding:0;min-width:0}
+#options label{position:relative;display:flex;align-items:center;gap:9px;min-height:44px;padding:8px 12px;border-radius:6px;border:1px solid #d7ded8;font-size:14px;color:var(--ink);cursor:pointer}
+#options label:has(:checked){outline:1px solid var(--fold);outline-offset:-1px;border-color:var(--fold);background:#f3faf5}
+#options label:has(:focus-visible){outline:2px solid var(--fold);outline-offset:2px}
+.sr-only,#options input{position:absolute;width:1px;height:1px;clip-path:inset(50%);overflow:hidden}
+#options label:has(:checked)::after{content:'✓';margin-left:auto}
+.primary{color:white;background:var(--fold);border-color:var(--fold)}.primary:hover{background:#304f33}.primary:disabled{background:#edf1ee;border-color:#dbe2dc;color:#59645e;cursor:default}
+.group dd{overflow-wrap:anywhere}
+@media(max-width:680px){
+.sample-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;margin-bottom:13px}
+.sample-toolbar select{width:100%}.sample-toolbar .preview{margin:2px 0 0}
+.proposal{--panel-x:15px;--panel-y:18px}
+.proposal-copy{display:contents}.reading{order:0}.reading-extra{order:2}.reading-extra:has(#resource[hidden]){display:none}.result-card{order:1}
+.changes:not([hidden]){margin:15px 0 0}
+#next-steps{margin-top:12px;padding:14px var(--panel-x)}
+#read-more{margin:0}.description code{font-size:.92em}.changes summary small{font-size:11px}
+}
+
+:root{--if-brand-green:var(--fold)}
+.proposal-external-link { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; color: var(--if-brand-green); font: 500 13px/1.5 Inter,Arial,sans-serif; text-decoration: none; }
+.proposal-external-link-content { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding-bottom: 3px; border-bottom: 1px solid currentColor; overflow-wrap: anywhere; }
+.proposal-external-link-content > svg { flex: none; }
+.proposal-external-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.interfold-arrow-slide { position: relative; display: inline-block; overflow: hidden; flex-shrink: 0; }
+/* Navbar arrows use the website's existing glyph size and optical alignment. */
+.site-nav-arrow {
+  width: 1em;
+  height: 1em;
+  font-size: 14px;
+  line-height: 1;
+  top: -.0875em;
+}
+.site-nav-arrow-row { display: block; width: 1em; height: 1em; line-height: 1; }
+.interfold-arrow-slide__track {
+  display: flex;
+  flex-direction: column;
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
+}
+.site-header-governance-track { display: inline; }
+.group:hover .interfold-arrow-slide__track,
+.group:focus-visible .interfold-arrow-slide__track,
+.site-header-brand:hover .site-header-governance-track,
+.site-header-brand:focus-visible .site-header-governance-track {
+  transform: translateY(var(--interfold-roll-offset, -50%));
+}
+@media (prefers-reduced-motion: reduce) {
+  .interfold-arrow-slide__track { transition: none; }
+  .group:hover .interfold-arrow-slide__track,
+  .group:focus-visible .interfold-arrow-slide__track,
+  .site-header-brand:hover .site-header-governance-track,
+  .site-header-brand:focus-visible .site-header-governance-track { transform: none; }
+}
+</style></head>
+<body><main><nav class="sample-toolbar" lang="pt" aria-label="Comparar propostas"><label for="sample">Experimentar proposta</label><select id="sample"></select><span class="preview" aria-live="polite"></span></nav>
+<article class="proposal" aria-labelledby="proposal-title">
+<div class="proposal-main"><div class="proposal-top"><span></span><span id="method-wrap"><svg class="lock-icon" aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="8.5" width="12" height="9" rx="1.6"/><path d="M6.5 8.5V6a3.5 3.5 0 017 0v2.5"/></svg><span id="method"></span></span></div>
+<h1 id="proposal-title"></h1><p class="byline">By <span id="author"></span></p>
+<div class="spread" id="expanded-proposal"><div class="proposal-copy"><section class="reading" aria-labelledby="desc-label"><h2 class="kicker" id="desc-label">Description</h2><p class="description" id="description"></p><button type="button" class="text-button" id="read-more" aria-controls="description" hidden>Read full description</button><section id="actions" class="changes" aria-label="Proposed changes" hidden></section></section><div class="reading-extra">
+<a class="resource group proposal-external-link" id="resource" target="_blank" rel="noopener noreferrer"><span class="proposal-external-link-content"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z"></path></svg><span data-link-label></span><span aria-hidden="true" class="interfold-arrow-slide site-nav-arrow"><span class="interfold-arrow-slide__track"><span class="site-nav-arrow-row">↗</span><span class="site-nav-arrow-row">↗</span></span></span></span><span class="sr-only"> (opens in a new tab)</span></a></div></div>
+<section class="result-card" aria-labelledby="outcome"><div class="meta"><div class="meta-start"><h2 class="kicker" id="card-label"></h2><span class="pill">Voting closed</span></div><button type="button" class="info" aria-haspopup="dialog" aria-controls="details"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.6"/><path d="M10 9v5m0-8v1.5"/></svg>Voting details</button></div><div class="content"><h3 id="outcome"></h3><p id="caption" class="reason" hidden></p><fieldset id="options" hidden><legend class="sr-only">Vote choice</legend></fieldset><div class="rows" role="list" aria-label="Vote share"></div>
+<button type="button" class="connect" id="connect" aria-haspopup="dialog" aria-controls="wallet">Connect wallet</button><button class="connect primary" id="review-vote" type="button" aria-haspopup="dialog" aria-controls="review" hidden>Review vote</button><div id="session" hidden><p class="personal-note">Your vote · No receipt in this browser</p><button type="button" class="text-button" id="disconnect">Disconnect demo wallet</button></div></div></section></div>
+</div><section id="next-steps" aria-labelledby="steps-label" hidden><h2 class="kicker" id="steps-label">Next steps</h2><p class="description"></p></section><div class="foot"><a class="source live group proposal-external-link" target="_blank" rel="noopener noreferrer"><span class="proposal-external-link-content"><span data-link-label>Open full page</span><span aria-hidden="true" class="interfold-arrow-slide site-nav-arrow"><span class="interfold-arrow-slide__track"><span class="site-nav-arrow-row">↗</span><span class="site-nav-arrow-row">↗</span></span></span></span><span class="sr-only"> (opens in a new tab)</span></a><button type="button" class="toggle" aria-controls="expanded-proposal next-steps" aria-expanded="true"><span>Close details</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m3 10 5-5 5 5"/></svg></button></div>
+</article></main>
+<dialog id="details" aria-labelledby="details-title"><div class="dialog-head"><h2 id="details-title">Voting details</h2><button class="dismiss" autofocus aria-label="Close voting details">×</button></div><div class="surface"></div></dialog>
+<dialog id="wallet" aria-labelledby="wallet-title"><div class="dialog-head"><h2 id="wallet-title">Connect wallet</h2><button class="dismiss" autofocus aria-label="Close wallet preview">×</button></div><div class="wallet-choice"><p>This preview uses a simulated wallet.</p><button class="connect" id="simulate">Use demo wallet</button><a class="source live group proposal-external-link" target="_blank" rel="noopener noreferrer"><span class="proposal-external-link-content"><span data-link-label>Open the Sepolia proposal</span><span aria-hidden="true" class="interfold-arrow-slide site-nav-arrow"><span class="interfold-arrow-slide__track"><span class="site-nav-arrow-row">↗</span><span class="site-nav-arrow-row">↗</span></span></span></span><span class="sr-only"> (opens in a new tab)</span></a></div></dialog>
+<dialog id="review" aria-labelledby="review-title"><div class="dialog-head"><h2 id="review-title">Review demo vote</h2><button type="button" class="dismiss" autofocus aria-label="Close vote review">×</button></div><div class="wallet-choice"><strong id="review-text"></strong><p>This vote is simulated in this preview.</p><button type="button" class="connect primary" id="confirm-demo">Confirm demo vote</button></div></dialog><script type="application/json" id="proposal-data">{"ipp": {"actions": [], "resource": {"name": "IPP-001: Initial Ciphernode Rewards Program", "url": "https://aquamarine-added-basilisk-78.mypinata.cloud/ipfs/bafkreicnfxpcqvygwn4kmhlpmgndcavaldumzbvybtlatgahj6uwuc73xu"}, "options": [{"label": "Yes", "share": 99.8}, {"label": "No", "share": 0.2}, {"label": "Abstain", "share": 0}], "details": [{"heading": "Participation", "groups": [{"title": "Participation", "rows": [["Voting power cast", "35,146,094 FOLD"], ["Turnout", "2.9%"], ["Required turnout", "2%"]], "notes": []}]}, {"heading": "Network & proposal stage", "groups": [{"title": "Network & proposal stage", "rows": [["Encrypted tally", "Published · 7 of 7"], ["Approval stage", "Executed"]], "notes": []}]}], "by": "0xd714...F3C8", "description": "A time-boxed FOLD reward for ciphernode operators. 12,000,000 FOLD (1.0% of the 1.2B supply) from the Foundation treasury, paid in six biweekly batches on a backloaded Fibonacci schedule (pools 600,000 → 4,800,000 FOLD across the six epochs), in proportion to each node operator's ticket-block accrual (credited tickets × blocks; max 8 credits per operator, with a Foundation common-control determination so registrations under common control accrue as a single operator). Paid as VE-locked FOLD (createLockFor() on the Vote Escrow contract), so rewards immediately count as voting power and carry a 30-day unlock. Tracking is manual: no new contracts, no new emissions.", "kind": "result", "label": "IPP-001 · descrição longa", "origin": "Ethereum · proposta real", "ref": "E3 · 4", "method": "Secret ballot", "headline": "Vote passed", "title": "IPP-001: Initial Ciphernode Rewards Program", "rich": "\u003cp>A time-boxed FOLD reward for ciphernode operators. 12,000,000 FOLD (1.0% of the 1.2B supply) from the Foundation treasury, paid in six biweekly batches on a backloaded Fibonacci schedule (pools 600,000 → 4,800,000 FOLD across the six epochs), in proportion to each \u003cstrong>node operator's\u003c/strong> ticket-block accrual (credited tickets × blocks; max 8 credits per operator, with a Foundation common-control determination so registrations under common control accrue as a single operator). Paid as VE-locked FOLD (\u003ccode>createLockFor()\u003c/code> on the Vote Escrow contract), so rewards immediately count as voting power and carry a 30-day unlock. Tracking is manual: no new contracts, no new emissions.\u003c/p>", "live": "https://governance.theinterfold.com/plugins/proposals/#/proposals/private/35888769819894493112901792127644586002521212983406828851129880826324482392622", "brief": "Proposal executed", "detailNote": "Turnout reached 2.9%. The proposal required 2%."}, "aztec": {"actions": [], "resource": {"name": "Interfold Governance", "url": "https://theinterfold.com/"}, "options": [{"label": "Yes", "share": 100}, {"label": "No", "share": 0}, {"label": "Abstain", "share": 0}], "details": [{"heading": "Participation", "groups": [{"title": "Participation", "rows": [["Voting power cast", "14.2361 FOLD"], ["Required minimum", "None"], ["Total voting power", "121.01M FOLD"]], "notes": []}]}, {"heading": "Network & proposal stage", "groups": [{"title": "Network progress", "rows": [["Encrypted tally", "Published · 7 of 7"]], "notes": []}, {"title": "Approval stage", "rows": [["Status", "Executable"]], "notes": ["The Foundation approved the proposal. Anyone can now execute it."]}]}, {"heading": "Encrypted ballot activity", "count": 1, "groups": [{"title": "Encrypted ballot activity", "rows": [["Input #0", "0x15c984b4…c44db1"], ["Aztec block", "63716"]], "notes": ["The entry is encrypted. It could be a vote, an override or a mask."]}]}], "by": "0xcBc8...096B", "description": "Voting on Aztec", "kind": "result", "title": "Voting on Aztec", "live": "https://the-interfold-governance-testnet.vercel.app/plugins/proposals/#/proposals/private/40424628441025196271388440404930163258030786224985013213312119862497086327367", "label": "Aztec · resultado publicado", "origin": "Sepolia · proposta real", "ref": "E3 · 54", "method": "Secret ballot", "headline": "Vote passed", "brief": "Foundation approved", "detailNote": "14.2361 FOLD voted. No minimum turnout was required."}, "grants": {"actions": [{"label": "Transfer 1 ETH", "to": "0x000000000000000000000000000000000000de02"}, {"label": "Transfer 0.5 ETH", "to": "0x000000000000000000000000000000000000de03"}], "resource": {"name": "Documentation", "url": "https://docs.theinterfold.com/"}, "options": [{"label": "Yes", "share": 72}, {"label": "No", "share": 20}, {"label": "Abstain", "share": 8}], "details": [{"heading": "Participation", "groups": [{"title": "Participation", "rows": [["Voting power cast", "25,000 FOLD"], ["Turnout", "2.5%"], ["Required turnout", "1%"], ["Total voting power", "1.00M FOLD"]], "notes": []}]}, {"heading": "Proposal stage", "groups": [{"title": "Proposal stage", "rows": [["Veto stage", "Executed"]], "notes": []}]}, {"heading": "Public votes", "groups": [{"title": "Public votes", "rows": [["0x0000...de02", "18.00K FOLD · Yes"], ["0x0000...de03", "5.00K FOLD · No"]], "notes": []}]}], "by": "0x2B49...ED0E", "description": "Fund community-led tools and documentation through two grants: 1 ETH for tooling and 0.5 ETH for documentation.", "kind": "result", "label": "Grants · duas transferências", "origin": "Demo simulada · voto público", "ref": "0x0002…0002", "method": "Public ballot", "headline": "Vote passed", "title": "Community grants — first round", "nextSteps": "Publish milestones and share progress with the community.", "live": "https://interfold-governance-review.vercel.app/plugins/proposals/#/proposals/public/2", "brief": "Proposal executed", "detailNote": "The proposal passed the veto window."}, "aberta": {"actions": [], "resource": {"name": "Documentation", "url": "https://docs.theinterfold.com/"}, "options": [], "details": [{"heading": "Schedule", "groups": [{"title": "Schedule", "rows": [["Starts", "23 Nov 2026"], ["Ends", "28 Nov 2026"]], "notes": []}]}, {"heading": "Participation", "groups": [{"title": "Participation", "rows": [["Voting power cast", "25,000 FOLD"], ["Turnout", "2.5%"], ["Required turnout", "1%"], ["Total voting power", "1.00M FOLD"]], "notes": []}]}, {"heading": "Proposal stage", "groups": [{"title": "Proposal stage", "rows": [["Veto stage", "Not started"]], "notes": []}]}], "by": "0x2B49...ED0E", "description": "Agree on guidelines for clear documentation, community feedback and participation.", "kind": "active", "label": "Guidelines · votação aberta", "origin": "Demo simulada · voto público", "ref": "0x0001…0001", "method": "Public ballot", "headline": "Cast your vote", "title": "Governance participation guidelines", "nextSteps": "Collect feedback and publish the agreed guidelines. This proposal records community support without transferring funds.", "live": "https://interfold-governance-review.vercel.app/plugins/proposals/#/proposals/public/1", "caption": "Your vote is public.", "brief": "Voting is open", "detailNote": "The demo wallet can try all three voting options."}, "contagem": {"actions": [], "resource": {"name": "Interfold Governance", "url": "https://theinterfold.com/"}, "options": [], "details": [{"heading": "Network & proposal stage", "groups": [{"title": "Network & proposal stage", "rows": [["Network progress", "Compute · 5 of 7"], ["Foundation approval", "Not started"]], "notes": []}]}, {"heading": "Participation", "groups": [{"title": "Participation", "rows": [["Required minimum", "None"], ["Total voting power", "121.01M FOLD"]], "notes": []}]}, {"heading": "Encrypted ballot activity", "groups": [{"title": "Encrypted ballot activity", "rows": [], "notes": ["No encrypted inputs posted yet."]}], "count": 0}], "by": "0xcBc8...096B", "description": "Aztec voting", "kind": "pending", "label": "Aztec · contagem pendente", "origin": "Sepolia · proposta real", "ref": "E3 · 53", "method": "Secret ballot", "headline": "Awaiting tally", "title": "Aztec voting", "live": "https://the-interfold-governance-testnet.vercel.app/plugins/proposals/#/proposals/private/50715849937398976428884059905549094029569991431840065884083037237958997809369", "caption": "Voting has ended. The encrypted votes are being counted.", "brief": "Counting encrypted votes", "detailNote": "Turnout will be visible once the result is published."}, "arquivo": {"actions": [{"label": "Contract call", "to": "0xE01DC46CEeb6509a8124Ec904F6E925e0D74e33C", "selector": "0x30196ab9", "value": "0 ETH"}, {"label": "Contract call", "to": "0xCB8D916a7BFbA60407f28020E2803E83aE9C64B2", "selector": "0x30196ab9", "value": "0 ETH"}], "resource": null, "options": [], "details": [{"heading": "Proposal record", "groups": [{"title": "Proposal record", "rows": [["Network", "Sepolia"], ["Creation block", "12,057,006"], ["Proposal ID", "48241342411411291908122640563986709032745285928831177562161163278129073446331"]], "notes": []}]}], "by": "0x8837...af1B", "description": "No description available.", "kind": "archive", "label": "Arquivo · duas operações reais", "origin": "Sepolia · registo on-chain", "ref": "Sepolia", "method": "", "headline": "Result unavailable", "title": "Proposal #48241342…446331", "live": "https://sepolia.etherscan.io/tx/0x7e0555c8987a81795057d093c61d4febb81b44ea7fa293192f409e9d2551902e", "caption": "This archived record contains the proposed actions. A voting result could not be verified.", "brief": "On-chain record", "detailNote": "The creation transaction identifies the proposer and both contract calls."}}</script><script>function element(tag,text){const n=document.createElement(tag);n.textContent=text;return n}
+function populate(surface,groups){surface.replaceChildren();for(const data of groups){const section=document.createElement('section');section.className='group';section.append(element('h3',data.title));if(data.preamble)section.append(element('p',data.preamble));if(data.rows.length){const dl=document.createElement('dl');for(const [label,value] of data.rows)dl.append(element('dt',label),element('dd',value));section.append(dl)}for(const line of data.notes)section.append(element('p',line));surface.append(section)}}
+
+function formatShare(value){
+ return Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(parseFloat(value))+'%';
+}
+function detailSection(container,title,count,groups,accessibleName){
+ const section=document.createElement('details');section.className='detail-section';section.setAttribute('name','vote-information');
+ const trigger=element('summary','');trigger.append(element('span',title));
+ if(count!==undefined){const total=element('small',count);total.setAttribute('aria-label',count+' entries');trigger.append(total)}
+ const end=element('i','');end.className='chevron';end.setAttribute('aria-hidden','true');trigger.append(end);
+ const body=element('div','');body.className='section-content';populate(body,groups);
+ if(groups.length===1 && !accessibleName){body.querySelector('h3')?.remove()}
+ section.append(trigger,body);container.append(section);
+}
+function resultRow(option,percentage,leading,personal,color){
+ const row=element('div','');row.className='result-row';row.setAttribute('role','listitem');row.dataset.leader=String(leading);row.style.setProperty('--option-color',color);
+ const name=element('span','');name.className='name';const dot=element('i','');dot.className='dot';name.append(dot,element('span',option));
+ if(personal){const tag=element('span','✓ You voted');tag.className='choice-tag';name.append(tag)}
+ const bar=element('div','');bar.className='track';bar.setAttribute('aria-hidden','true');const fill=element('div','');fill.className='fill';fill.style.width=percentage+'%';bar.append(fill);
+ const pct=element('span',percentage.toFixed(1)+'%');pct.className='pct';row.append(name,bar,pct);return row;
+}
+
+const samples = JSON.parse(document.querySelector('#proposal-data').textContent);
+const $ = selector => document.querySelector(selector);
+const picker = $('#sample');
+const connect = $('#connect');
+const wallet = $('#wallet');
+const details = $('#details');
+const review = $('#review');
+const chart = $('.rows');
+const spread = $('.spread');
+const toggle = $('.toggle');
+const description = $('#description');
+const more = $('#read-more');
+const narrow = matchMedia('(max-width: 680px)');
+let expandedCopy = false;
+let connected = false;
+let sampleKey;
+let proposal;
+let choice = '';
+const demoVotes = new Map();
+const labels = ['Yes', 'No', 'Abstain'];
+const colors = ['#395d3d','#ae4831','#7c7e77'];
+
+for (const [value, sample] of Object.entries(samples)) picker.add(new Option(sample.label, value));
+picker.addEventListener('change', () => { location.hash = picker.value; });
+window.addEventListener('hashchange', render);
+// Keep keyboard order in step with the single-column reading order.
+function placeResources() {
+  const extra = $('.reading-extra');
+  const parent = narrow.matches ? spread : $('.proposal-copy');
+  if (extra.parentElement === parent) return;
+  const focused = extra.contains(document.activeElement) ? document.activeElement : null;
+  parent.append(extra);
+  focused?.focus({ preventScroll: true });
+}
+placeResources();
+narrow.addEventListener('change', () => { placeResources(); renderDescription(); syncExtraOperations(); });
+
+function renderDescription() {
+  const text = proposal.description;
+  const isLong = text.length > 420 && narrow.matches;
+  more.hidden = !isLong;
+  const full = !isLong || expandedCopy;
+  description.replaceChildren();
+  if (full && proposal.rich) {
+    const paragraphs = new DOMParser().parseFromString(proposal.rich, 'text/html');
+    // Historical proposal copy only retains its inline emphasis and code.
+    function copyInline(node, parent) {
+      if (node.nodeType === Node.TEXT_NODE) { parent.append(node.textContent); return; }
+      const target = ['STRONG','CODE'].includes(node.tagName) ? document.createElement(node.tagName) : parent;
+      if (target !== parent) parent.append(target);
+      for (const child of node.childNodes) copyInline(child, target);
+    }
+    copyInline(paragraphs.body, description);
+  } else {
+    if (full) description.textContent = text;
+    else {
+      const end = text.indexOf('. ');
+      const prefix = text.slice(0, 170);
+      const lastSpace = prefix.lastIndexOf(' ');
+      description.textContent = end >= 0 && end < 170 ? text.slice(0, end + 1)
+        : prefix.slice(0, lastSpace > 0 ? lastSpace : prefix.length).trimEnd() + '…';
+    }
+  }
+  more.textContent = full ? 'Show less' : 'Read full description';
+  more.setAttribute('aria-expanded', String(full));
+}
+more.onclick = () => { expandedCopy = !expandedCopy; renderDescription(); };
+
+function syncExtraOperations() {
+  const button = $('#toggle-operations');
+  if (!button) return;
+  const extra = $('#extra-operations');
+  if (narrow.matches && extra.contains(document.activeElement)) button.setAttribute('aria-expanded','true');
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  button.hidden = !narrow.matches;
+  extra.hidden = narrow.matches && !expanded;
+  button.textContent = expanded ? 'Show fewer operations' : 'View all ' + proposal.actions.length + ' operations';
+}
+
+function renderActions() {
+  const actions = $('#actions');
+  actions.replaceChildren();
+  actions.hidden = !proposal.actions.length;
+  if (actions.hidden) return;
+  const heading = element('h3','Proposed changes');
+  heading.className = 'kicker';
+  actions.append(heading);
+  const extra = document.createElement('div');
+  extra.id = 'extra-operations';
+  for (const [index, action] of proposal.actions.entries()) {
+    const item = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.append(element('span', action.label),element('small',action.to.slice(0,6)+'…'+action.to.slice(-4)));
+    const chevron = element('i','');
+    chevron.className = 'chevron';
+    summary.append(chevron);
+    const content = element('dl','');
+    const fields = [['Recipient',action.to],['Method selector',action.selector],['Value',action.value]];
+    for (const [key,value] of fields) if (value !== undefined) content.append(element('dt',key),element('dd',value));
+    item.append(summary,content);
+    (index < 2 ? actions : extra).append(item);
+  }
+  if (extra.childElementCount) {
+    const button = element('button','');
+    button.type = 'button';
+    button.id = 'toggle-operations';
+    button.className = 'text-button';
+    button.setAttribute('aria-controls',extra.id);
+    button.setAttribute('aria-expanded','false');
+    button.onclick = () => {
+      button.setAttribute('aria-expanded', String(button.getAttribute('aria-expanded') !== 'true'));
+      syncExtraOperations();
+    };
+    actions.append(button, extra);
+    syncExtraOperations();
+  }
+}
+
+function renderDetails() {
+  const surface = details.querySelector('.surface');
+  const brief = element('div','');
+  brief.className = 'details-brief';
+  brief.append(element('h3',proposal.brief),element('p',proposal.detailNote));
+  surface.replaceChildren(brief);
+  for (const group of proposal.details) detailSection(surface,group.heading,group.count,group.groups,group.groups.length > 1);
+}
+
+function renderAccount() {
+  const active = proposal.kind === 'active';
+  const archive = proposal.kind === 'archive';
+  const cast = demoVotes.get(sampleKey);
+  const session = $('#session');
+  connect.hidden = connected || archive;
+  session.hidden = !connected || archive;
+  $('#review-vote').hidden = !active || !connected;
+  $('#review-vote').disabled = !choice || choice === cast;
+  $('#review-vote').textContent = choice && choice !== cast ? 'Review vote' : cast ? 'Vote recorded in demo' : 'Choose an option';
+  const note = session.querySelector('.personal-note');
+  note.hidden = active && !cast;
+  note.textContent = active ? 'Simulated vote recorded.' : proposal.method === 'Public ballot' ? 'Demo wallet · No vote recorded' : 'No vote receipt in this browser.';
+  for (const input of document.querySelectorAll('[name="ballot"]')) {
+    input.checked = input.value === choice;
+    input.closest('label').querySelector('.choice-tag').hidden = !connected || input.value !== cast;
+  }
+}
+function show(dialog) {
+  dialog.querySelectorAll('details[open]').forEach(item => item.open = false);
+  dialog.showModal();
+  dialog.scrollTop = 0;
+}
+function setSpread(open) {
+  spread.hidden = !open;
+  $('#next-steps').hidden = !open || !proposal.nextSteps;
+  toggle.setAttribute('aria-expanded',String(open));
+  toggle.querySelector('span').textContent = open ? 'Close details' : 'View proposal';
+}
+function render() {
+  const requested = location.hash.slice(1);
+  sampleKey = Object.hasOwn(samples,requested) ? requested : 'ipp';
+  proposal = samples[sampleKey];
+  $('#next-steps p').textContent = proposal.nextSteps || '';
+  picker.value = sampleKey;
+  expandedCopy = false;
+  choice = connected ? demoVotes.get(sampleKey) || '' : '';
+  setSpread(true);
+  $('.preview').textContent = proposal.origin;
+  $('#proposal-title').textContent = proposal.title;
+  document.title = proposal.title + ' · Governance preview';
+  $('#author').textContent = proposal.by;
+  $('.proposal-top span').textContent = proposal.ref;
+  $('#method').textContent = proposal.method;
+  $('#method-wrap').hidden = !proposal.method;
+  $('.lock-icon').style.display = proposal.method === 'Secret ballot' ? '' : 'none';
+  renderDescription();
+  const resource = $('#resource');
+  resource.hidden = !proposal.resource;
+  if (proposal.resource) {
+    resource.href = proposal.resource.url;
+    resource.querySelector('[data-link-label]').textContent = proposal.resource.name;
+  }
+  renderActions();
+  const publicDemo = proposal.origin.startsWith('Demo');
+  document.querySelectorAll('.live').forEach(link => {
+    link.href = proposal.live;
+    link.querySelector('[data-link-label]').textContent = proposal.kind === 'archive' ? 'View on Sepolia Etherscan' : publicDemo ? 'Open original demo' : 'Open full page';
+  });
+  const isActive = proposal.kind === 'active';
+  const status = $('.pill');
+  status.hidden = proposal.kind === 'archive';
+  status.classList.toggle('is-open',isActive);
+  status.textContent = isActive ? 'Voting open' : 'Voting closed';
+  $('#card-label').textContent = isActive ? 'Ballot' : 'Result';
+  $('#outcome').textContent = proposal.headline;
+  $('#caption').textContent = proposal.caption || '';
+  $('#caption').hidden = !proposal.caption;
+  chart.replaceChildren();
+  chart.hidden = !proposal.options.length;
+  const highestShare = Math.max(0, ...proposal.options.map(answer => answer.share));
+  const leaders = proposal.options.filter(answer => answer.share === highestShare && highestShare > 0);
+  const leader = leaders.length === 1 ? leaders[0] : undefined;
+  for (const [i, answer] of proposal.options.entries()) {
+    chart.append(resultRow(answer.label,answer.share,answer === leader,false,colors[i] ?? 'var(--muted)'));
+  }
+  $('#options').hidden = !isActive;
+  renderDetails();
+  renderAccount();
+}
+
+for (const [i,label] of labels.entries()) {
+  const wrapper = element('label','');
+  const radio = document.createElement('input');
+  radio.type = 'radio'; radio.name = 'ballot'; radio.value = label;
+  const dot = element('i',''); dot.className = 'dot'; dot.style.setProperty('--option-color',colors[i]);
+  const tag = element('span','✓ You voted'); tag.className = 'choice-tag'; tag.hidden = true;
+  wrapper.append(radio,dot,element('span',label),tag);
+  $('#options').append(wrapper);
+}
+$('#options').onchange = e => { choice = e.target.value; renderAccount(); };
+$('.info').onclick = () => show(details);
+connect.onclick = () => show(wallet);
+$('#simulate').onclick = () => {
+  connected = true;
+  wallet.close();
+  renderAccount();
+  (proposal.kind === 'active' ? document.querySelector('[name="ballot"]:checked') || document.querySelector('[name="ballot"]') : $('#disconnect')).focus();
+};
+$('#disconnect').onclick = () => { connected = false; choice = ''; renderAccount(); connect.focus(); };
+$('#review-vote').onclick = () => {
+  $('#review-text').textContent = choice + ' · ' + proposal.title;
+  show(review);
+};
+$('#confirm-demo').onclick = () => {
+  demoVotes.set(sampleKey,choice);
+  review.close();
+  renderAccount();
+  document.querySelector('[name="ballot"]:checked')?.focus();
+};
+toggle.onclick = () => setSpread(spread.hidden);
+for (const dialog of document.querySelectorAll('dialog')) {
+  dialog.querySelector('.dismiss').onclick = () => dialog.close();
+  dialog.addEventListener('click', e => {
+    if (e.target !== dialog) return;
+    const r = dialog.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close();
+  });
+}
+render();
+</script></body></html>
