@@ -4238,8 +4238,10 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 }
 .loading-slot,
 .proposal-item :is(h2, .summary, .proposal-result) { position: relative; }
-/* Keep the footer below the viewport while the route bundle loads. */
-.plugin-loading-slot > .loading-layer { min-block-size: 100svh; }
+/* The header and main own the first viewport, including the handoff from the
+   route bundle to its data. Short final pages still have a reachable footer. */
+.governance-page-frame { min-block-size: 100vh; min-block-size: 100dvh; }
+html:not([data-initial-proposals]) .plugin-initial-list { display: none; }
 .loading-layer[data-exiting] {
   position: absolute;
   inset: 0 0 auto;
@@ -4881,8 +4883,18 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
   .proposals-page .proposal-item .right > .time { align-self: flex-start; }
   .proposals-page .proposal-item .body .meta { margin-bottom: 8px; }
   .proposals-page .proposal-item .body :is(h2, .proposal-loading-heading) { margin-bottom: 0; }
-  .proposals-page .proposal-item[data-expanded="false"] :is(.body .summary,.body .author,.proposal-result),
+  .proposals-page .proposal-item[data-expanded="false"] :is(.body .summary,.body .author,.proposal-result:not([data-compact])),
   .proposals-page .proposal-item[data-expanded="false"]:not([data-voting-open="true"]) .right > .time:not(:has(time)) { display: none; }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] .proposal-result-label { display: none; }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] .mini-bar { margin: 2px 0 6px; }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] .proposal-result-legend {
+    display: flex; flex-wrap: wrap; gap: 4px 12px; font: var(--ui-label-font);
+  }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] li {
+    display: flex; gap: 4px; max-width: 100%; overflow-wrap: anywhere;
+  }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] li > :is(:first-child, :last-child) { flex: none; }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] .proposal-result-message { font: var(--ui-label-font); margin: 0; }
   .proposals-page .proposal-item .right > .proposal-row-action { width: 100%; max-width: none; min-height: 44px; }
   .proposals-page .proposal-expanded-footer { flex-wrap: wrap; }
   .proposals-page .proposal-expanded-footer .proposal-row-action { width: 100%; max-width: none; }

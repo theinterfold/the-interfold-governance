@@ -67,7 +67,14 @@ export function PrivateRow({ proposalId, onStatus, onSearchText, hidden }: Priva
   }
   if (spp.subProposalId === undefined) {
     return (
-      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        loading
+        title={spp.document.title}
+        summary={spp.document.summary}
+        hidden={hidden}
+      />
     );
   }
 
@@ -170,9 +177,9 @@ function PrivateRowBody({
       <ProposalRow
         href={href}
         kindLabel="Secret ballot"
-        metadataPending
-        title={proposal?.title}
-        summary={proposal?.summary}
+        metadataPending={!spp.document.title}
+        title={spp.document.title}
+        summary={spp.document.summary}
         creator={proposal?.creator ?? creator}
         statusLabel={presentation.label}
         statusClass={presentation.className}
@@ -185,7 +192,14 @@ function PrivateRowBody({
 
   if (loading) {
     return (
-      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        loading
+        title={spp.document.title}
+        summary={spp.document.summary}
+        hidden={hidden}
+      />
     );
   }
 

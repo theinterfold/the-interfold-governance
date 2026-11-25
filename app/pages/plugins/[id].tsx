@@ -1,9 +1,19 @@
 import React, { useEffect, useState, type FC } from "react";
-import { FadingLoading } from "@/components/motion/LoadingTransition";
-import { PleaseWaitSpinner } from "@/components/please-wait";
+import { ProposalsIntro } from "@/plugins/governance/components/proposalsIntro";
+import { useUrl } from "@/hooks/useUrl";
 import { NotFound } from "@/components/not-found";
 import { plugins } from "@/plugins";
-import { MainSection } from "@/components/layout/main-section";
+
+function PendingPlugin({ pluginId }: { pluginId?: string }) {
+  const { hash } = useUrl();
+  const list = pluginId === "proposals" && (!hash || hash === "#/");
+  return <>
+    {(!pluginId || list) && <div className={pluginId ? "proposals-page" : "proposals-page plugin-initial-list"}>
+      <ProposalsIntro showPageTitle={false} />
+    </div>}
+    <span className="sr-only" role="status">Loading page…</span>
+  </>;
+}
 
 const PluginLoader: FC<{ pluginId?: string }> = ({ pluginId }) => {
   const [loaded, setLoaded] = useState<{ id: string; PageComponent: FC | null }>();
@@ -35,18 +45,8 @@ const PluginLoader: FC<{ pluginId?: string }> = ({ pluginId }) => {
 
   const pending = !pluginId || loaded?.id !== pluginId;
   const PageComponent = loaded?.PageComponent;
-  return (
-    <div className="loading-slot plugin-loading-slot">
-      <FadingLoading visible={pending}>
-        <MainSection>
-          <div className="flex h-24 w-full items-center justify-center" role="status">
-            <PleaseWaitSpinner />
-          </div>
-        </MainSection>
-      </FadingLoading>
-      {!pending && (PageComponent ? <PageComponent /> : <NotFound />)}
-    </div>
-  );
+  if (pending) return <PendingPlugin pluginId={pluginId} />;
+  return PageComponent ? <PageComponent /> : <NotFound />;
 };
 
 export default PluginLoader;

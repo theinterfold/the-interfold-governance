@@ -1,25 +1,26 @@
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ActionButton } from "@/components/input/actionButton";
 import { SlidersHorizontal } from "@phosphor-icons/react";
-import { FadingLoading, LoadingBoundary } from "@/components/motion/LoadingTransition";
+import { PendingProposalRows } from "@/components/proposal/pendingProposalRows";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
 import { SearchField } from "@/components/input/searchField";
 import styles from "./proposalList.module.css";
 import { NativeSelect } from "@/components/input/nativeSelect";
 import { useAccount, useBlockNumber } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionLink } from "@/components/input/actionLink";
-import { formatUnits, isAddress } from "viem";
-import { Else, If, Then } from "@/components/if";
+import { formatUnits, isAddress, type Hex } from "viem";
 import { MissingContentView } from "@/components/MissingContentView";
-import { PageIntro } from "@/components/pageIntro";
+import { ProposalsIntro } from "../components/proposalsIntro";
 import { ScrollFadeIn } from "@/vendor/site-header/motion";
-import { PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
+import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK, PUB_SPP_PRIVATE_ADDRESS, PUB_SPP_PUBLIC_ADDRESS, PUB_TOKEN_SYMBOL } from "@/constants";
 // Aliased: this file already has a local `fetchProposals` callback.
 import { fetchProposals as fetchProposalsFromServer } from "@/utils/crispIndexer";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { SppProposalCreatedEvent } from "@/plugins/spp/hooks/useSppProposal";
+import { rememberProposalSource } from "@/plugins/spp/utils/proposalMetadataSource";
 import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoting/hooks/useCanCreateProposal";
 import {
   INSTALLED_PRIVATE_PAIR,
@@ -54,6 +55,7 @@ const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
 const entryKey = (e: Entry) => `${e.kind}:${e.id}`;
 
 export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
+  const queryClient = useQueryClient();
   const mobile = useMediaQuery("(max-width: 767px)");
   const wide = useMediaQuery("(min-width: 1024px)");
   const [filtersPreference, setFiltersPreference] = useState<boolean>();
@@ -131,9 +133,11 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
           // rather than a delta — so the incremental `fromBlock` bookkeeping is bypassed.
           const fromServer = await fetchProposalsFromServer({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK });
           if (fromServer) {
-            return fromServer.map(
-              (proposal) => ({ kind, id: BigInt(proposal.proposal_id), block: BigInt(proposal.block), pair }) as Entry
-            );
+            return fromServer.map((proposal): Entry => {
+              const id = BigInt(proposal.proposal_id);
+              rememberProposalSource(queryClient, PUB_CHAIN.id, address, id, proposal);
+              return { kind, id, block: BigInt(proposal.block), pair };
+            });
           }
 
           if (!publicClient) throw new Error("Proposal RPC is unavailable");
@@ -145,8 +149,10 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
           });
           return logs
             .map((log) => {
-              const id = (log.args as { proposalId?: bigint })?.proposalId;
-              return id === undefined ? null : ({ kind, id, block: log.blockNumber ?? 0n, pair } as Entry);
+              const args = log.args as { proposalId?: bigint; creator?: string; metadata?: Hex };
+              if (args?.proposalId === undefined) return null;
+              rememberProposalSource(queryClient, PUB_CHAIN.id, address, args.proposalId, args);
+              return { kind, id: args.proposalId, block: log.blockNumber ?? 0n, pair } as Entry;
             })
             .filter((e): e is Entry => e !== null);
         })
@@ -178,7 +184,7 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
     } finally {
       setIsLoading(false);
     }
-  }, [blockNumber, retryKey]);
+  }, [blockNumber, retryKey, queryClient]);
 
   useEffect(() => {
     fetchProposals();
@@ -213,6 +219,8 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
   const votingNow = mobile && !showAll && !hasFilters && activeCount > 0;
   const visible = (entry: Entry) => matches(entry) && (!votingNow || statuses[entryKey(entry)] === "active");
   const matchCount = entries.filter(visible).length;
+  // "All" excludes failed rounds, which the creation index cannot identify on its own.
+  const countKnown = entries.length > 0 && entries.every(e => statuses[entryKey(e)] !== undefined);
   const ordered = mobile && !hasFilters
     ? [...entries.filter(e => statuses[entryKey(e)] === "active"), ...entries.filter(e => statuses[entryKey(e)] !== "active")]
     : entries;
@@ -239,7 +247,8 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
     </div>
   );
   const loadingList = !entries.length && isLoading && !listError && !noVotingPlugins;
-  const filterButton = entries.length > 0 && (
+  const hasList = loadingList || entries.length > 0;
+  const filterButton = hasList && (
     <ActionButton size="compact" aria-controls="proposal-filters" aria-expanded={filtersOpen}
       onClick={() => setFiltersPreference(!filtersOpen)}>
       <SlidersHorizontal size={16} aria-hidden="true" /> Filters{filterCount ? ` (${filterCount})` : ""}
@@ -248,30 +257,21 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
 
   return (
     <div className="proposals-page" data-mobile-activity={mobile}>
-      <PageIntro
-        title="Proposals"
-        showPageTitle={routeVisible}
-        glyph="proposals"
-        description="Explore the decisions shaping Interfold. Read proposals, cast your vote, and follow the outcome."
-      />
-      <section aria-labelledby="proposal-list-heading">
+      <ProposalsIntro showPageTitle={routeVisible} />
+      <ScrollFadeIn as="section" amount="some" aria-labelledby="proposal-list-heading">
         {mobile && (loadingList || entries.length > 0) ? (
           <div className={styles.mobileHeading}>
-            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"}{!loadingList && <> <span>{matchCount}</span></>}</h2>
+            <h2 id="proposal-list-heading">{hasFilters ? "Results" : votingNow ? "Open for voting" : "All proposals"}{countKnown && <> <span>{matchCount}</span></>}</h2>
             {filterButton}
           </div>
         ) : (
-          <PanelHeader id="proposal-list-heading" title="Governance activity"
+          <PanelHeader id="proposal-list-heading" title="Governance activity" animate={false}
             description="Open a proposal to vote or review its results." className={styles.heading}
             action={!mobile && <div className={styles.headingActions}>{filterButton}{createAction}</div>} />
         )}
-        <ScrollFadeIn amount="some" className={`ui-panel loading-slot ${styles.panel}`}>
-          <FadingLoading visible={loadingList}>
-            <div className={styles.feedback} role="status"><MissingContentView>Loading proposals…</MissingContentView></div>
-          </FadingLoading>
-          <If not={entries.length}>
-            <Then>
-              {!loadingList && <div className={styles.feedback}>
+        <div className={`ui-panel ${styles.panel}`}>
+          {!hasList ? (
+              <div className={styles.feedback}>
                 <MissingContentView>
                   {noVotingPlugins
                     ? "The voting plugins are not installed in this DAO yet. Proposals will appear here once governance goes live."
@@ -282,9 +282,9 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
                     Try again
                   </button>
                 )}
-              </div>}
-            </Then>
-            <Else>
+              </div>
+          ) : (
+            <>
               {error && (
                 <div className={styles.feedback} role="alert">
                   <p className="ui-body">{error}</p>
@@ -332,8 +332,9 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
               </Disclosure>
               {(!mobile || hasFilters) && <div className="proposal-list-caption">
                 <p role="status" className={mobile ? "sr-only" : undefined}>
-                  {matchCount} {matchCount === 1 ? "proposal" : "proposals"}
-                  {hasFilters ? ` of ${entries.length}` : ""}
+                  {loadingList ? "Loading proposals…" : countKnown && (
+                    <>{matchCount} {matchCount === 1 ? "proposal" : "proposals"}{hasFilters ? ` of ${entries.length}` : ""}</>
+                  )}
                 </p>
                 <div>
                   {hasFilters && (
@@ -345,7 +346,7 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
                 </div>
               </div>
               }
-              <Disclosure open={!matchCount}>
+              <Disclosure open={!loadingList && !matchCount}>
                 <div className={styles.feedback}>
                   <MissingContentView>
                     {resolving
@@ -356,28 +357,29 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
                   </MissingContentView>
                 </div>
               </Disclosure>
-              <div className="proposal-list">
+              {loadingList ? <>
+                {mobile && !hasFilters && <span className="sr-only" role="status">Loading proposals…</span>}
+                <PendingProposalRows />
+              </> : <div className="proposal-list">
                 {ordered.map((e) => {
                   const key = entryKey(e);
                   const hidden = !visible(e);
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
-                      <LoadingBoundary>
-                        {e.kind === "private" ? (
-                          <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
-                            <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
-                          </PrivatePairProvider>
-                        ) : (
-                          <PublicRow proposalId={e.id} {...rowHandlers[key]} />
-                        )}
-                      </LoadingBoundary>
+                      {e.kind === "private" ? (
+                        <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
+                          <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                        </PrivatePairProvider>
+                      ) : (
+                        <PublicRow proposalId={e.id} {...rowHandlers[key]} />
+                      )}
                     </Disclosure>
                   );
                 })}
-              </div>
-            </Else>
-          </If>
-        </ScrollFadeIn>
+              </div>}
+            </>
+          )}
+        </div>
         {mobile && (
           <div className={styles.followUp}>
             {!hasFilters && activeCount > 0 && allCount > activeCount && (
@@ -388,7 +390,7 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
             {createAction}
           </div>
         )}
-      </section>
+      </ScrollFadeIn>
     </div>
   );
 }

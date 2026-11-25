@@ -3,9 +3,9 @@ import { ActionButton } from "@/components/input/actionButton";
 import { BendingChevron } from "@/vendor/site-header";
 import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
-import { FadingLoading, LoadingBoundary, LoadingIndicator } from "@/components/motion/LoadingTransition";
+import { FadingLoading, LoadingBoundary } from "@/components/motion/LoadingTransition";
 import { ProposalExternalLink } from "@/components/proposal/proposalExternalLink";
-import { ProposalPlaceholder } from "@/components/proposal/proposalLoading";
+import { PendingProposalRow, ProposalPlaceholder } from "@/components/proposal/pendingProposalRows";
 import { AddressText } from "@/components/text/address";
 import { useInert } from "@/components/motion/useInert";
 import { ProposalCountdown, formatCountdown } from "@/components/proposal/proposalCountdown";
@@ -120,26 +120,8 @@ export function ProposalRow(props: ProposalRowProps) {
   }
 
   if (props.loading) {
-    return (
-      <LoadingIndicator>
-        <article className="proposal-item" data-expanded="false" aria-busy="true">
-          <span className="sr-only">{props.loadingMessage ?? "Loading proposal…"}</span>
-          <div className="proposal-row" aria-hidden="true">
-            <div className="body">
-              <div className="meta"><StatusBadge className="kind">{props.kindLabel}</StatusBadge></div>
-              <div className="proposal-loading-heading"><ProposalPlaceholder part="title" /></div>
-              <div className="summary"><ProposalPlaceholder part="summary" /></div>
-              <div className="author"><ProposalPlaceholder part="label" /></div>
-            </div>
-            <div className="right">
-              <div className="time"><ProposalPlaceholder part="label" /></div>
-              <div className="proposal-result"><ProposalPlaceholder part="summary" /></div>
-              <ProposalPlaceholder part="action" />
-            </div>
-          </div>
-        </article>
-      </LoadingIndicator>
-    );
+    return <PendingProposalRow kindLabel={props.kindLabel} title={props.title} summary={props.summary}
+      message={props.loadingMessage ?? "Loading proposal…"} />;
   }
 
   return (
@@ -167,7 +149,7 @@ export function ProposalRow(props: ProposalRowProps) {
               aria-label={props.metadataPending ? "Open proposal" : undefined}>
               <FadingLoading visible={!!props.metadataPending} inline><ProposalPlaceholder part="title" /></FadingLoading>
               {!props.metadataPending && (
-                <span className="proposal-motion-title proposal-content-arrival" data-proposal-part="title">{title}</span>
+                <span className="proposal-motion-title" data-proposal-part="title">{title}</span>
               )}
             </Link>
           </h2>
@@ -200,7 +182,8 @@ export function ProposalRow(props: ProposalRowProps) {
               )}
             </span>
           )}
-          <div className="proposal-result" data-proposal-part="list-result">
+          <div className="proposal-result" data-proposal-part="list-result"
+            data-compact={props.statusClass === "executed" && (!!props.bars?.length || !!props.resultMessage) || undefined}>
             <FadingLoading visible={!!props.metadataPending && props.resultLabel !== props.kindLabel} inline><ProposalPlaceholder part="summary" /></FadingLoading>
             {!props.metadataPending && props.resultLabel !== props.kindLabel && (
               <span className="proposal-result-label">{props.resultLabel ?? "Voting results"}</span>

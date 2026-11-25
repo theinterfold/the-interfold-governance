@@ -1,10 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBlockNumber, useReadContract } from "wagmi";
-import { fromHex, getAbiItem } from "viem";
+import { getAbiItem } from "viem";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { publicClient } from "@/plugins/governance/utils/client";
+import { useMetadata } from "@/hooks/useMetadata";
+import { proposalDocument } from "@/utils/proposalMetadataState";
+import type { ProposalMetadata } from "@/utils/types";
+import { decodeMetadataSource, sppMetadataKey } from "../utils/proposalMetadataSource";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
 import { SPP_PROPOSAL_WITHOUT_ID, SppProposalState } from "../utils/types";
 import { useSppAddress } from "./useSppAddress";
@@ -124,31 +128,35 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     error: metadataSourceError,
     refetch: refetchMetadataSource,
   } = useQuery({
-    queryKey: ["spp-proposal-metadata", PUB_CHAIN.id, address, proposalId.toString()],
+    queryKey: sppMetadataKey(PUB_CHAIN.id, address, proposalId),
     enabled: exists,
     retry: 2,
     staleTime: Infinity,
     queryFn: async () => {
       const match = (await fetchProposals({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK, proposalId }))?.[0];
-      let args: { metadata: Hex; creator: string };
-      if (match) {
-        args = match;
-      } else {
-        if (!publicClient) throw new Error("Proposal RPC is unavailable");
-        const logs = await publicClient.getLogs({
-          address,
-          event: SppProposalCreatedEvent,
-          args: { proposalId },
-          fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
-        });
-        if (!logs.length) throw new Error("Proposal metadata event was not found");
-        args = (logs[0] as unknown as { args: { metadata: Hex; creator: string } }).args;
-      }
-      const metadataUri = fromHex(args.metadata, "string");
-      if (!metadataUri.trim()) throw new Error("Proposal metadata URI is missing");
-      return { metadataUri, creator: args.creator };
+      const indexed = decodeMetadataSource(match);
+      if (indexed) return indexed;
+      if (!publicClient) throw new Error("Proposal RPC is unavailable");
+      const logs = await publicClient.getLogs({
+        address,
+        event: SppProposalCreatedEvent,
+        args: { proposalId },
+        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
+      });
+      if (!logs.length) throw new Error("Proposal metadata event was not found");
+      const source = decodeMetadataSource(logs[0].args as { metadata?: Hex; creator?: string });
+      if (!source) throw new Error("Proposal metadata source is missing");
+      return source;
     },
   });
+
+  // Fetch the document alongside the stage and body reads. The ballot hooks subscribe
+  // to the same IPFS query once the on-chain sub-proposal ID is available.
+  const { data: metadata } = useMetadata<ProposalMetadata>(metadataSource?.metadataUri, {
+    enabled: !!metadataSource?.metadataUri && !missing,
+    retry: 2,
+  });
+  const document = useMemo(() => proposalDocument(metadata), [metadata]);
 
   return {
     address,
@@ -163,6 +171,7 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     missing,
     vetoTally,
     metadataUri: metadataSource?.metadataUri,
+    document,
     creator: metadataSource?.creator,
     metadataError: metadataSourceError,
     retryMetadata: refetchMetadataSource,

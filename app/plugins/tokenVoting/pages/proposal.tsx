@@ -98,7 +98,7 @@ export default function ProposalDetail({
   }
   if (spp.subProposalId === undefined) {
     return (
-      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
+      <ProposalDetailLoading document={spp.document} embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
   }
 
@@ -304,7 +304,7 @@ function ProposalDetailBody({
 
   if (!proposal) {
     return (
-      <ProposalDetailLoading embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
+      <ProposalDetailLoading document={spp.document} embedded={embedded} backToVoting={readingOnly ? `/plugins/proposals/#/proposals/public/${sppProposalId}` : undefined} />
     );
   }
 

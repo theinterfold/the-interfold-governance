@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProposalReadingHeader } from "../components/proposal/proposalReadingHeader";
+import { ProposalDetailLoading } from "../components/proposal/proposalLoading";
+import { ProposalRow } from "../plugins/governance/components/proposalRow";
 import { ProposalDetailLayout } from "../components/proposal/proposalDetailLayout";
 import { ProposalLayoutContext } from "../components/proposal/proposalLayoutContext";
 
@@ -17,6 +19,20 @@ const props = {
 };
 
 describe("Dedicated proposal reading", () => {
+  test("available text is readable during contract checks without promising a result or voting action", () => {
+    const document = { title: "Community grants", summary: "Two proposed grants" };
+    const row = <ProposalRow loading kindLabel="Secret ballot" href="#/proposals/private/1" {...document} />;
+    const detail = <ProposalDetailLoading embedded={false} document={document} />;
+    for (const element of [row, detail]) {
+      const html = renderToStaticMarkup(element);
+      expect(html).toContain(document.title);
+      expect(html).toContain(document.summary);
+      expect(html).toContain('aria-busy="true"');
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain("Vote passed");
+    }
+  });
+
   for (const kind of ["Secret ballot", "Transparent fallback"]) {
     test(`${kind} shows the status once and retains a distinct stage or deadline`, () => {
       const header = { title: "Voting on Aztec", summary: "", creator: "", status: "Accepted", kind };

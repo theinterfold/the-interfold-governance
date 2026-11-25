@@ -70,7 +70,8 @@ export function PublicRow({ proposalId, onStatus, onSearchText, hidden }: Public
         href={href}
         kindLabel="Transparent fallback"
         loading
-        loadingMessage="Loading proposal…"
+        title={spp.document.title}
+        summary={spp.document.summary}
         hidden={hidden}
       />
     );
@@ -164,9 +165,9 @@ function PublicRowBody({
       <ProposalRow
         href={href}
         kindLabel="Transparent fallback"
-        metadataPending
-        title={proposal?.title}
-        summary={proposal?.summary}
+        metadataPending={!spp.document.title}
+        title={spp.document.title}
+        summary={spp.document.summary}
         creator={proposal?.creator ?? creator}
         statusLabel={presentation.label}
         statusClass={presentation.className}
@@ -183,7 +184,8 @@ function PublicRowBody({
         href={href}
         kindLabel="Transparent fallback"
         loading
-        loadingMessage="Loading proposal…"
+        title={spp.document.title}
+        summary={spp.document.summary}
         hidden={hidden}
       />
     );
