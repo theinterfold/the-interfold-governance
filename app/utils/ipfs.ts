@@ -68,26 +68,28 @@ async function fetchRawIpfs(ipfsUri: string): Promise<Response> {
 }
 
 /**
- * Ask every gateway at once and keep the first good answer. A gateway that is down or blocked on
- * the voter's network then costs no time, and a slow one cannot use up the time of a fast one.
+ * Ask every gateway at once and keep the first complete answer. A gateway that is down or blocked
+ * on the voter's network then costs no time, and a slow one cannot use up the time of a fast one.
+ * An answer counts only once its whole body arrived: a gateway that sends its headers and then
+ * stalls must not win over one that delivers.
  */
 export async function fetchFromFirstGateway(uriPrefixes: string[], cid: string): Promise<Response> {
   const controllers = uriPrefixes.map(() => new AbortController());
   const timer = setTimeout(() => controllers.forEach((controller) => controller.abort()), IPFS_FETCH_TIMEOUT);
   try {
-    const { response, index } = await Promise.any(
+    const { response, body, index } = await Promise.any(
       uriPrefixes.map(async (uriPrefix, index) => {
         const response = await fetch(`${uriPrefix}/${cid}`, { method: "GET", signal: controllers[index].signal });
         if (!response.ok) throw new Error(`${uriPrefix} answered ${response.status}`);
-        return { response, index };
+        return { response, body: await response.arrayBuffer(), index };
       })
     );
     controllers.forEach((controller, other) => other !== index && controller.abort());
-    return response; // .json(), .text(), .blob(), etc.
+    // A fresh response over the bytes already read, so `.json()`, `.text()` and `.blob()` still work.
+    return new Response(body, { status: response.status, headers: response.headers });
   } catch {
     throw new Error("Could not connect to any of the IPFS endpoints");
   } finally {
-    // The answer's body is read after this returns, so the time limit ends here.
     clearTimeout(timer);
   }
 }
