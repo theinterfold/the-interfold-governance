@@ -111,13 +111,13 @@ export function ProposalDetailLayout({
               personalVote={personalVote}
               details={
                 <div className="proposal-ballot-facts">
-                  {methodDetails}
                   {participation}
                   {stage}
+                  {methodDetails}
                   {foldNetworkProgress && networkProgress}
+                  {activity}
                 </div>
               }
-              activity={activity}
             />
           </div>
           {networkProgress && !foldNetworkProgress && <div className="proposal-round-progress">{networkProgress}</div>}

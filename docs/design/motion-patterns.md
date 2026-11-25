@@ -241,7 +241,11 @@ Os popovers de wallet e locks partilham um único espaço de hover, com atraso b
 
 Validação na página local: registo de abertura do seletor com 52 amostras e fecho com 35, ambos sem inversões de largura; inspeção visual pausada a 40/120 ms na troca de passo, com opacidades de cabeçalho e corpo coincidentes; fecho a 160 ms sem o título comprido dentro do botão; Lock FOLD com título visível em todas as 18 amostras de uma abertura normal e sem inversões; abertura/fecho a partir de Start withdrawal no preview com a origem preservada. Instrumentação temporária removida.
 
-### Navegação das propostas — vídeo de 29 de setembro, 15:59
+### Navegação entre a lista e a proposta
+
+Abrir a página de leitura e voltar à lista usa a transição de página partilhada do site. Cada página move-se e desvanece à sua própria escala. No regresso, a lista recupera os filtros, a posição e o foco da proposta de origem. Com movimento reduzido, a troca é imediata.
+
+### Estudo anterior de navegação das propostas — vídeo de 29 de setembro, 15:59
 
 Foram extraídos e inspecionados os 272 frames nativos do vídeo de 6,733 s,
 preservando os timestamps. Na abertura, os frames 88–98 (1,533–1,717 s)
@@ -265,7 +269,7 @@ com detalhes expandidos, navegação por teclado e o formato de 390 px.
 O foco regressou ao título de origem e os nomes temporários desapareceram
 no fim. Os controlos de pausa foram removidos do código final.
 
-### Regresso à lista e estabilidade — 29 de setembro
+### Estudo anterior do regresso à lista — 29 de setembro
 
 O regresso tem agora uma sequência própria de 360 ms, com a curva de fecho
 do `MorphDialog`. O documento e o boletim recolhem primeiro; a informação

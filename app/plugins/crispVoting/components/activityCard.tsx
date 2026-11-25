@@ -1,4 +1,4 @@
-import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
+import { VotingDetailSection } from "@/components/proposalVoting/votingDetailSection";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAbiItem, type Address } from "viem";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
@@ -173,13 +173,7 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
   const published = entries?.filter((e) => e.published).length ?? 0;
 
   return (
-    <BallotActivity
-      title={
-        <>
-          Encrypted ballot activity <span className="proposal-detail-count">{committed}</span>
-        </>
-      }
-    >
+    <VotingDetailSection title="Encrypted ballot activity" summary={entries !== undefined ? <span className="proposal-detail-count">{committed}</span> : undefined}>
       <div className="proposal-activity-body">
         <p className="text-xs text-neutral-500">
           Each entry is an encrypted input recorded on-chain for this round. Votes, overrides and masks are
@@ -231,6 +225,6 @@ export function ActivityCard({ e3Id }: { e3Id: bigint }) {
           ))}
         </div>
       </div>
-    </BallotActivity>
+    </VotingDetailSection>
   );
 }

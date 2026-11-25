@@ -1,3 +1,4 @@
+import { ProposalStatusBadge } from "@/components/proposal/proposalStatusBadge";
 import Head from "next/head";
 import { PUB_APP_NAME } from "@/constants";
 import type { ReactNode } from "react";
@@ -68,9 +69,7 @@ export function ProposalReadingHeader({
       <Head><title>{`${title.trim() || "Proposal"} · ${PUB_APP_NAME}`}</title></Head>
       <div className="proposal-reading-status">
         {status && (
-          <span className={`badge ${statusClass ?? status.toLowerCase()}`} data-proposal-part="status">
-            {badgeLabel}
-          </span>
+          <ProposalStatusBadge state={statusClass ?? status.toLowerCase()} label={badgeLabel ?? status} data-proposal-part="status" />
         )}
         {badges}
         <span className="badge kind" data-proposal-part="method">

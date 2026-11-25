@@ -5,6 +5,25 @@
 .details > :global(.proposal-disclosure-trigger:hover) {
   color: var(--ink);
 }
-.activity {
-  padding-left: var(--ui-space-related);
+.section > :global(.proposal-disclosure-trigger) {
+  min-height: 48px;
+  gap: var(--ui-space-related);
+  font: var(--ui-body-font);
+  font-weight: 600;
 }
+.section > :global(.proposal-disclosure-trigger) > span:first-child { flex: 1; min-width: 0; }
+.sectionHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.summary { flex: none; color: var(--muted); font: var(--ui-label-font); font-variant-numeric: tabular-nums; }
+.sectionBody {
+  display: grid;
+  gap: var(--ui-space-related);
+  min-width: 0;
+  padding: 0 0 var(--ui-space-controls);
+  color: var(--muted);
+  font: var(--ui-body-font);
+}
+.sectionBody :global(.proposal-activity-body) { padding-bottom: 0; }
+.facts { display: grid; gap: 8px; margin: 0; font-size: 13px; }
+.facts > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; }
+.facts dd { margin: 0; text-align: end; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.facts small { display: block; font: var(--ui-label-font); color: var(--muted); }

@@ -29,20 +29,26 @@ export const BodySection: React.FC<IBodySectionProps> = (props) => {
 
   if (!body.trim() || body === "<p></p>") body = "No description was provided";
 
+  const content = (
+    <div className="detail-body flex flex-col gap-y-4">
+      <DocumentParser document={body} className={proseClasses} />
+    </div>
+  );
+
   return (
     <section ref={cardRef} className="proposal-description" data-expanded={fullLength || expanded} aria-label="Proposal description">
       <div className="proposal-description-content" data-truncated={!fullLength && overflows && !expanded}>
-        <FluidHeight
-          id={contentId}
-          expanded={fullLength || expanded}
-          collapsedHeight={420}
-          onOverflowChange={setOverflows}
-          onFocusCapture={() => setExpanded(true)}
-        >
-          <div className="detail-body flex flex-col gap-y-4">
-            <DocumentParser document={body} className={proseClasses} />
-          </div>
-        </FluidHeight>
+        {fullLength ? content : (
+          <FluidHeight
+            id={contentId}
+            expanded={expanded}
+            collapsedHeight={420}
+            onOverflowChange={setOverflows}
+            onFocusCapture={() => setExpanded(true)}
+          >
+            {content}
+          </FluidHeight>
+        )}
       </div>
       {!fullLength && overflows && (
         <button

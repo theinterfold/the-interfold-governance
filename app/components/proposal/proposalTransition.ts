@@ -45,18 +45,14 @@ export function proposalTransitionStyles(
     const scaleX = surface ? first.width / last.width : first.fontSize / last.fontSize;
     const scaleY = surface ? first.height / last.height : scaleX;
     const name = `proposal-${part}`;
-    // A full summary can be taller than the clamped row summary. Its visible region
-    // contracts with the row, so the outgoing lines cannot cross the returning author.
-    const clip = part === "summary" && first.height / scaleY > last.height + 1;
-    const clipStart = `inset(0 -${Math.max(0, first.width / scaleX - last.width)}px -${Math.max(0, first.height / scaleY - last.height)}px 0)`;
     rules.push(`
       html[data-proposal-navigation]::view-transition-group(${name}) {
         width: ${last.width}px; height: ${last.height}px; transform-origin: 0 0;
         animation-name: ${name}-travel;
       }
       @keyframes ${name}-travel {
-        from { transform: translate(${first.left}px, ${first.top}px) scale(${scaleX}, ${scaleY}); ${clip ? `clip-path: ${clipStart};` : ""} }
-        to { transform: translate(${last.left}px, ${last.top}px) scale(1); ${clip ? "clip-path: inset(0);" : ""} }
+        from { transform: translate(${first.left}px, ${first.top}px) scale(${scaleX}, ${scaleY}); }
+        to { transform: translate(${last.left}px, ${last.top}px) scale(1); }
       }
     `);
     if (surface) {
@@ -82,22 +78,6 @@ export function proposalTransitionStyles(
         width: ${last.width}px; height: ${last.height}px;
       }
     `);
-    if (
-      part === "timing" &&
-      first.top < (before.get("title")?.top ?? 0) &&
-      last.top > (after.get("author")?.top ?? Infinity)
-    ) {
-      // In a stacked row the deadline moves from above to below the reading text.
-      // Clear that crossing, then restore it with the row controls.
-      rules.push(`
-        html[data-proposal-navigation="back"]::view-transition-old(${name}) {
-          animation: proposal-context-out 90ms linear both;
-        }
-        html[data-proposal-navigation="back"]::view-transition-new(${name}) {
-          animation: proposal-context-in 120ms 240ms linear both;
-        }
-      `);
-    }
   });
   return rules.join("\n");
 }

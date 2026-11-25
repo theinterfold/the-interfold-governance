@@ -140,3 +140,18 @@
 .steps li[data-state="current"] .state {
   font-weight: 600;
 }
+
+/* A completed round is listed alongside other topics in the narrow ballot. */
+:global(.proposal-ballot-facts) .network :global(.proposal-disclosure-trigger) {
+  min-height: 48px;
+  padding: 0;
+}
+:global(.proposal-ballot-facts) .network .summary {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+:global(.proposal-ballot-facts) .network :is(.meta, .current) { display: contents; }
+:global(.proposal-ballot-facts) .network .meta > :first-child { color: var(--ink); font: var(--ui-body-font); font-weight: 600; }
+:global(.proposal-ballot-facts) .network .current strong { font: var(--ui-label-font); color: var(--muted); }
+:global(.proposal-ballot-facts) .network .chevron { grid-column: auto; margin: 0; }
+:global(.proposal-ballot-facts) .network :is(.track, .current > svg, .meta > :nth-child(2)) { display: none; }

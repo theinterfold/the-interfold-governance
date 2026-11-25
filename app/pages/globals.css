@@ -856,6 +856,15 @@ label div p.leading-tight {
   background: var(--surface-muted);
   color: var(--muted);
 }
+.badge.proposal-status.executed {
+  background: var(--mint-shade);
+  color: var(--if-brand-green);
+}
+.badge.proposal-status.expired {
+  background: var(--warning-surface);
+  color: var(--warning-ink);
+}
+.badge.proposal-status svg { flex: none; }
 .badge.executable {
   background: #cfdfeb;
   color: #33566f;
@@ -927,11 +936,10 @@ label div p.leading-tight {
   color: var(--ink);
 }
 .proposal-row .body .summary {
-  font-family: var(--font-sans);
-  font-size: 16px;
-  color: var(--ink-soft);
   margin: 0;
-  max-width: 70ch;
+  max-width: 60ch;
+  color: var(--muted);
+  font: var(--ui-body-font);
 }
 .proposal-row .body .author {
   font-family: var(--font-mono);
@@ -1085,14 +1093,6 @@ label div p.leading-tight {
   scroll-margin-top: 88px;
   background-color: var(--paper);
 }
-/* Badges and results carry state colour while list surfaces stay neutral. */
-.proposal-item[data-status="executed"] h2 {
-  color: var(--ink-soft);
-}
-.proposal-item[data-status="executed"] .body .summary {
-  font-size: 14px;
-  color: var(--muted);
-}
 .proposal-list > .proposal-item:nth-last-child(1 of :not([hidden])) {
   border-bottom: 1px solid var(--rule);
 }
@@ -1125,11 +1125,7 @@ label div p.leading-tight {
 .proposal-item .meta {
   flex-wrap: wrap;
 }
-.proposal-item h2,
-.proposal-item .proposal-loading-heading {
-  font: var(--ui-title-font);
-  letter-spacing: 0;
-  color: var(--ink);
+.proposal-row > .body > :is(h2, .proposal-loading-heading) {
   margin: 0 0 10px;
 }
 .proposal-title-link {
@@ -1152,11 +1148,6 @@ label div p.leading-tight {
 .proposal-title-link:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 4px;
-}
-.proposal-item .body .summary {
-  font-size: 16px;
-  line-height: 1.5;
-  max-width: 60ch;
 }
 .proposal-item .body .author {
   margin-top: 16px;
@@ -3746,7 +3737,18 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   .site-header-menu-action[data-menu-open="false"] .interfold-header-wallet-label { display: none; }
 }
 
-.proposal-reading-header :is(h1, .proposal-loading-heading) { margin: 20px 0 8px; font: var(--ui-title-font); letter-spacing: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.proposal-row > .body > :is(h2, .proposal-loading-heading),
+.proposal-reading-header > :is(h1, .proposal-loading-heading) {
+  color: var(--if-brand-green);
+  font: 400 var(--type-h3)/1.1 var(--font-serif);
+  letter-spacing: -.035em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.proposal-reading-header > :is(h1, .proposal-loading-heading) {
+  margin: 20px 0 8px;
+  font-size: clamp(32px, 4.1vw, 49px);
+}
 .proposal-reading-summary { margin: 0; color: var(--ink); font: 400 16px/1.7 var(--font-sans); }
 .proposal-reading-author { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 20px; color: var(--muted); font: var(--ui-label-font); }
 .proposal-reading-author a { font: inherit; }
@@ -4038,18 +4040,28 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 .proposal-ballot-results-context { padding-bottom: 0; }
 .proposal-ballot-context > .ballot-voting-power { margin-top: 20px; }
 .proposal-ballot-context > details > summary { min-height: 52px; font: 500 14px/1.5 var(--font-sans); }
-.proposal-ballot-facts { display: flex; flex-direction: column; gap: 24px; padding: 12px 0 24px; }
-.proposal-ballot-facts > div { min-width: 0; padding: 0; background: transparent; border: 0; border-radius: 0; }
-.proposal-ballot-facts > div + div { padding-top: 20px; border-top: 1px solid var(--rule); }
+.proposal-ballot-facts {
+  display: grid;
+  min-width: 0;
+  margin: 0 0 var(--ui-space-controls);
+  padding-inline: var(--ui-space-controls);
+  background: var(--surface-muted);
+  border-radius: var(--ui-radius);
+}
+.proposal-ballot-facts > * { min-width: 0; }
+.proposal-ballot-facts > * + * { border-top: 1px solid var(--rule); }
+.proposal-ballot-facts > :first-child { border-top: 0; }
+.proposal-stage-actions:not(:empty) { display: grid; gap: 8px; padding-bottom: var(--ui-space-controls); }
+.proposal-ballot-facts .proposal-stage-panel > .proposal-voting-details { border-top: 0; }
 .voting-method-details { display: flex; flex-direction: column; gap: var(--ui-space-section); }
 .voting-method-details > section + section { padding-top: 20px; border-top: 1px solid var(--rule); }
 .voting-method-details .vp-body { display: flex; flex-direction: column; }
 .voting-detail-date { display: flex; flex-direction: column; min-width: 0; font-variant-numeric: tabular-nums; }
 .voting-detail-date > span { white-space: nowrap; }
 .voting-detail-date > span + span { color: var(--muted); font: var(--ui-label-font); }
-.proposal-ballot-facts .ui-fact-row { grid-template-columns: minmax(0, 1fr) minmax(110px, .85fr); gap: 16px; font-size: 13px; }
+.proposal-ballot-facts .ui-fact-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; font-size: 13px; }
+.proposal-ballot-facts .ui-fact-row > :last-child { text-align: end; }
 .proposal-ballot-facts .ui-fact-row > span { min-width: 0; overflow-wrap: anywhere; }
-.proposal-ballot-facts .ui-fact-row > p,
 .proposal-ballot-facts .vp-head h3 {
   font: var(--ui-section-font);
 }
@@ -4060,7 +4072,7 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   font: 400 13px/1.6 var(--font-sans);
   color: var(--muted);
 }
-.proposal-ballot-facts button { font-size: 13px; }
+
 .proposal-ballot-context .proposal-activity-body { font: 400 12px/1.6 var(--font-sans); }
 .proposal-ballot-context .proposal-activity-body .text-sm { font-size: 12px; }
 .proposal-ballot-context .proposal-activity-body p { font: inherit; }
@@ -4332,7 +4344,7 @@ html:not([data-initial-proposals]) .plugin-initial-list { display: none; }
 .proposal-back { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; }
 .proposal-back svg { transition: transform var(--interfold-ui-duration, 360ms) var(--interfold-ui-ease, cubic-bezier(.2,.8,.2,1)); }
 .proposal-back:hover svg { transform: translateX(-3px); }
-/* The shared proposal parts morph independently of the page content and persistent chrome. */
+/* The create action expands into the composer above the persistent chrome. */
 html[data-proposal-navigation]::view-transition-group(*) {
   z-index: 2; animation-duration: 400ms; animation-timing-function: var(--interfold-ui-ease, cubic-bezier(0.2, 0.8, 0.2, 1)); }
 html[data-proposal-navigation]::view-transition-group(root) {
@@ -4364,51 +4376,6 @@ html[data-proposal-navigation]::view-transition-image-pair(proposal-surface) {
   background: var(--paper);
   border-radius: var(--ui-radius);
   overflow: hidden;
-}
-/* One text snapshot per shared fact prevents two font sizes ghosting over each other. */
-html[data-proposal-navigation]::view-transition-old(proposal-title),
-html[data-proposal-navigation]::view-transition-old(proposal-summary),
-html[data-proposal-navigation]::view-transition-old(proposal-author),
-html[data-proposal-navigation]::view-transition-old(proposal-status),
-html[data-proposal-navigation]::view-transition-old(proposal-method),
-html[data-proposal-navigation]::view-transition-old(proposal-timing) {
-  animation: none;
-  opacity: 0;
-}
-html[data-proposal-navigation]::view-transition-new(proposal-title),
-html[data-proposal-navigation]::view-transition-new(proposal-summary),
-html[data-proposal-navigation]::view-transition-new(proposal-author),
-html[data-proposal-navigation]::view-transition-new(proposal-status),
-html[data-proposal-navigation]::view-transition-new(proposal-method),
-html[data-proposal-navigation]::view-transition-new(proposal-timing) {
-  animation: none;
-  opacity: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: left top;
-}
-/* A direct arrival or a cold/error destination may have no matching snapshot. */
-html[data-proposal-navigation]::view-transition-old(proposal-title):only-child,
-html[data-proposal-navigation]::view-transition-old(proposal-summary):only-child,
-html[data-proposal-navigation]::view-transition-old(proposal-author):only-child,
-html[data-proposal-navigation]::view-transition-old(proposal-status):only-child,
-html[data-proposal-navigation]::view-transition-old(proposal-method):only-child,
-html[data-proposal-navigation]::view-transition-old(proposal-timing):only-child {
-  opacity: 1;
-  animation: proposal-context-out 400ms linear both;
-}
-html[data-proposal-navigation]::view-transition-old(proposal-list-result),
-html[data-proposal-navigation]::view-transition-old(proposal-list-action),
-html[data-proposal-navigation]::view-transition-old(proposal-document),
-html[data-proposal-navigation]::view-transition-old(proposal-ballot) {
-  animation: proposal-context-out 180ms ease both;
-}
-html[data-proposal-navigation]::view-transition-new(proposal-list-result),
-html[data-proposal-navigation]::view-transition-new(proposal-list-action),
-html[data-proposal-navigation]::view-transition-new(proposal-document),
-html[data-proposal-navigation]::view-transition-new(proposal-ballot) {
-  animation: proposal-context-in 180ms 160ms var(--interfold-ui-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
 }
 /* Creation shares the originating action's surface; form text never stretches with it. */
 html[data-proposal-navigation]::view-transition-old(proposal-create-list-intro),
@@ -4454,42 +4421,6 @@ html[data-proposal-navigation="back"]::view-transition-old(root) {
 }
 html[data-proposal-navigation="back"]::view-transition-new(root) {
   animation-duration: 360ms;
-}
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-title),
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-summary),
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-author),
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-status),
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-method),
-html[data-proposal-navigation="back"]::view-transition-image-pair(proposal-timing) {
-  isolation: isolate;
-}
-html[data-proposal-navigation="back"]::view-transition-old(proposal-title),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-summary),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-author),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-status),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-method),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-timing) {
-  opacity: 1;
-  object-fit: contain;
-  object-position: left top;
-  animation: proposal-context-out 240ms steps(1, end) both;
-}
-html[data-proposal-navigation="back"]::view-transition-new(proposal-title),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-summary),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-author),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-status),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-method),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-timing) {
-  animation: proposal-context-in 240ms steps(1, end) both;
-}
-html[data-proposal-navigation="back"]::view-transition-old(proposal-document),
-html[data-proposal-navigation="back"]::view-transition-old(proposal-ballot) {
-  transform-origin: top left;
-  animation: proposal-detail-retract 140ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-html[data-proposal-navigation="back"]::view-transition-new(proposal-list-result),
-html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action) {
-  animation: proposal-row-restore 120ms 240ms var(--interfold-ui-ease, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
 }
 @keyframes proposal-detail-retract {
   to {
@@ -4645,7 +4576,7 @@ html[data-proposal-navigation="back"]::view-transition-new(proposal-list-action)
 }
 :is(.power-card, .ui-panel, .proposal-item, .proposal-detail-reading,
     .proposal-detail-ballot, [role="dialog"], .power-info-popover)
-:is(h1, h2, h3, h4, h5, h6, .ui-panel-heading-copy > p) {
+:is(h1, h2, h3, h4, h5, h6, .ui-panel-heading-copy > p):where(:not(.proposal-reading-header > h1, .proposal-row > .body > h2)) {
   font-family: var(--font-sans);
 }
 :is(.power-card, .ui-panel, .proposal-item, .proposal-detail-reading,

@@ -1,3 +1,4 @@
+import { ProposalStatusBadge } from "@/components/proposal/proposalStatusBadge";
 import { StatusBadge } from "@/components/text/statusBadge";
 import { ActionButton } from "@/components/input/actionButton";
 import { BendingChevron } from "@/vendor/site-header";
@@ -86,9 +87,7 @@ export function ProposalRow(props: ProposalRowProps) {
         <div className="proposal-row" data-proposal-part="surface">
           <div className="body">
             <div className="meta">
-              <StatusBadge className="failed" data-proposal-part="status">
-                {props.statusLabel ?? "Unavailable"}
-              </StatusBadge>
+              <ProposalStatusBadge state="failed" label={props.statusLabel ?? "Unavailable"} data-proposal-part="status" />
               <StatusBadge className="kind" data-proposal-part="method">
                 {props.kindLabel}
               </StatusBadge>
@@ -136,9 +135,7 @@ export function ProposalRow(props: ProposalRowProps) {
         <div className="body">
           <div className="meta">
             {props.statusLabel && (
-              <StatusBadge className={props.statusClass} data-proposal-part="status">
-                {props.statusLabel}
-              </StatusBadge>
+              <ProposalStatusBadge state={props.statusClass} label={props.statusLabel} data-proposal-part="status" />
             )}
             <StatusBadge className="kind" data-proposal-part="method">
               {props.kindLabel}

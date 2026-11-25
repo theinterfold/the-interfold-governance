@@ -70,18 +70,18 @@ export function ProposalNavigation({
     queueMicrotask(() => {
       if (run !== generation.current || !root.current) return;
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const start = (document as TransitionDocument).startViewTransition;
+      const morphComposer = moving && creating && !reduced && !!start;
       const named: HTMLElement[] = [];
       let positions = new Map<string, ProposalPartPosition>();
       let motionStyle: HTMLStyleElement | undefined;
       const nameShared = () => {
         const route = root.current?.querySelector<HTMLElement>("[data-proposal-route]:not([hidden])");
-        const scope = route?.dataset.proposalRoute === "list"
-          ? creating ? origin.current : origin.current?.closest(".proposal-row")
-          : route;
-        // Scope to the originating action/row, never a hidden route or an expanded ballot.
+        const scope = route?.dataset.proposalRoute === "list" ? origin.current : route;
+        // Only the create action and the writing surface share geometry.
         const measured = new Map<string, ProposalPartPosition>();
         if (!scope || !scope.getClientRects().length) return measured;
-        const elements = creating && route?.dataset.proposalRoute === "list"
+        const elements = route?.dataset.proposalRoute === "list"
           ? [
               { element: scope as HTMLElement, part: "surface" },
               ...Array.from(route.querySelectorAll<HTMLElement>(".governance-page-intro, .ui-panel-heading-copy"))
@@ -158,7 +158,7 @@ export function ProposalNavigation({
         // A direct URL (or development refresh) has no stored link yet. Match its row after the list loads.
         if (returning) origin.current = findOrigin(previous);
         window.scrollTo({ top: returning ? listScroll.current : 0, behavior: "instant" });
-        if (!reduced && moving) {
+        if (morphComposer) {
           const destination = nameShared();
           motionStyle = document.createElement("style");
           motionStyle.textContent = proposalTransitionStyles(positions, destination);
@@ -175,9 +175,8 @@ export function ProposalNavigation({
         focus?.focus({ preventScroll: true });
         if (returning) fromList.current = false;
       };
-      const start = (document as TransitionDocument).startViewTransition;
-      if (start && moving && !reduced) {
-        document.documentElement.dataset.proposalNavigation = returning ? "back" : "forward";
+      if (moving && !reduced) document.documentElement.dataset.proposalNavigation = returning ? "back" : "forward";
+      if (morphComposer) {
         positions = nameShared();
         const transition = start.call(document, update);
         active.current = transition;

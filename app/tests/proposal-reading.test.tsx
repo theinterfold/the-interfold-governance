@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProposalReadingHeader } from "../components/proposal/proposalReadingHeader";
 import { ProposalDetailLoading } from "../components/proposal/proposalLoading";
+import { ParticipationDetails } from "../components/proposalVoting/participationDetails";
 import { ProposalRow } from "../plugins/governance/components/proposalRow";
 import { ProposalDetailLayout } from "../components/proposal/proposalDetailLayout";
 import { ProposalLayoutContext } from "../components/proposal/proposalLayoutContext";
@@ -84,5 +85,27 @@ describe("Dedicated proposal reading", () => {
     expect(html).toContain("Existing ballot action");
     expect(html).toContain('data-expanded="false"');
     expect(html).not.toContain("Expand proposal");
+  });
+});
+
+describe("Voting detail topics", () => {
+  test("a published turnout is readable before opening the breakdown", () => {
+    const html = renderToStaticMarkup(<ParticipationDetails turnout="2.93%" voted="35.15M FOLD"
+      minimum="24.00M FOLD" threshold="2%" total="1.20B FOLD" reached />);
+    const [trigger, breakdown] = html.split("</button>");
+    expect(trigger).toContain('aria-expanded="false"');
+    expect(trigger).toContain("2.93% turnout");
+    expect(trigger).not.toContain("35.15M");
+    expect(breakdown).toContain("35.15M FOLD");
+    expect(breakdown).toContain("24.00M FOLD");
+    expect(breakdown).toContain(">Met<");
+  });
+
+  test("before the encrypted tally only the known requirements are shown", () => {
+    const html = renderToStaticMarkup(<ParticipationDetails encrypted minimum="None" total="1.20B FOLD" />);
+    expect(html.split("</button>")[0]).toContain("Awaiting tally");
+    expect(html).not.toContain("0% turnout");
+    expect(html).not.toContain("Voting power cast");
+    expect(html).not.toContain(">Met<");
   });
 });

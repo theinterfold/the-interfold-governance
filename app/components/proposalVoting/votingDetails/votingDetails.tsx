@@ -1,3 +1,4 @@
+import { VotingDetailSection } from "../votingDetailSection";
 import { AddressText } from "@/components/text/address";
 import { IconType, Link } from "@aragon/ods";
 import type { Address } from "viem";
@@ -41,55 +42,57 @@ function VotingDate({ value }: { value: string }) {
 export const VotingDetails: React.FC<IVotingDetailsProps> = (props) => {
   const { startDate, endDate, snapshotBlockURL, snapshotTakenAt, tokenAddress, options, strategy } = props;
   return (
-    <div className="voting-method-details">
-      <section>
-        <div className="vp-head">
-          <h3>Schedule</h3>
-        </div>
-        <div className="vp-body">
-          {startDate && (
-            <div className="ui-fact-row">
-              <span className="text-neutral-500">Starts</span>
-              <VotingDate value={startDate} />
-            </div>
-          )}
-          <div className="ui-fact-row">
-            <span className="text-neutral-500">Ends</span>
-            <VotingDate value={endDate} />
+    <VotingDetailSection title="Dates and rules">
+      <div className="voting-method-details">
+        <section>
+          <div className="vp-head">
+            <h3>Schedule</h3>
           </div>
-          <div className="ui-fact-row">
-            <span className="text-neutral-500">Snapshot</span>
-            {snapshotBlockURL ? (
-              <Link iconRight={IconType.LINK_EXTERNAL} href={snapshotBlockURL} target="_blank">
-                <VotingDate value={snapshotTakenAt} />
-              </Link>
-            ) : (
-              <VotingDate value={snapshotTakenAt} />
+          <div className="vp-body">
+            {startDate && (
+              <div className="ui-fact-row">
+                <span className="text-neutral-500">Starts</span>
+                <VotingDate value={startDate} />
+              </div>
             )}
-          </div>
-        </div>
-      </section>
-      <section>
-        <div className="vp-head">
-          <h3>Governance settings</h3>
-        </div>
-        <div className="vp-body">
-          {tokenAddress && (
             <div className="ui-fact-row">
-              <span className="text-neutral-500">Token contract</span>
-              <AddressText>{tokenAddress}</AddressText>
+              <span className="text-neutral-500">Ends</span>
+              <VotingDate value={endDate} />
             </div>
-          )}
-          <div className="ui-fact-row">
-            <span className="text-neutral-500">Strategy</span>
-            <span>{strategy}</span>
+            <div className="ui-fact-row">
+              <span className="text-neutral-500">Snapshot</span>
+              {snapshotBlockURL ? (
+                <Link iconRight={IconType.LINK_EXTERNAL} href={snapshotBlockURL} target="_blank">
+                  <VotingDate value={snapshotTakenAt} />
+                </Link>
+              ) : (
+                <VotingDate value={snapshotTakenAt} />
+              )}
+            </div>
           </div>
-          <div className="ui-fact-row">
-            <span className="text-neutral-500">Voting options</span>
-            <span>{options}</span>
+        </section>
+        <section>
+          <div className="vp-head">
+            <h3>Governance settings</h3>
           </div>
-        </div>
-      </section>
-    </div>
+          <div className="vp-body">
+            {tokenAddress && (
+              <div className="ui-fact-row">
+                <span className="text-neutral-500">Token contract</span>
+                <AddressText>{tokenAddress}</AddressText>
+              </div>
+            )}
+            <div className="ui-fact-row">
+              <span className="text-neutral-500">Strategy</span>
+              <span>{strategy}</span>
+            </div>
+            <div className="ui-fact-row">
+              <span className="text-neutral-500">Voting options</span>
+              <span>{options}</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </VotingDetailSection>
   );
 };

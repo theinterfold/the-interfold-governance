@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   trailingSlash: true,
+  async redirects() {
+    if (!process.env.NEXT_PUBLIC_VE_LOCKER_ADDRESS) return [];
+    return [{ source: "/plugins/members/", destination: "/plugins/lock/", permanent: false }];
+  },
   transpilePackages: ["@aragon/ods"],
   webpack: (config, { isServer }) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");

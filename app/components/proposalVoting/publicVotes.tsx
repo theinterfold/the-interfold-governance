@@ -1,5 +1,5 @@
 import type { IVote } from "@/utils/types";
-import { BallotActivity } from "./ballotActivity";
+import { VotingDetailSection } from "./votingDetailSection";
 import { WalletListRow } from "@/components/walletListRow";
 import { EnsMember } from "@/components/text/ensMember";
 import { ListTokenAmount } from "@/components/text/listValue";
@@ -28,9 +28,7 @@ export function PublicVotes({
   const labels = { yes: "Yes", approve: "Approve", no: "No", abstain: "Abstain" };
   const states = { yes: "accepted", approve: "accepted", no: "rejected", abstain: "pending" };
   return (
-    <BallotActivity
-      title={<>Public votes {hasLoaded && <span className="proposal-detail-count">{votes.length}</span>}</>}
-    >
+    <VotingDetailSection title="Public votes" summary={hasLoaded ? <span className="proposal-detail-count">{votes.length}</span> : undefined}>
       <div className="proposal-activity-body">
         {isLoading && (
           <p className="ui-label" role="status">
@@ -88,6 +86,6 @@ export function PublicVotes({
           </div>
         )}
       </div>
-    </BallotActivity>
+    </VotingDetailSection>
   );
 }

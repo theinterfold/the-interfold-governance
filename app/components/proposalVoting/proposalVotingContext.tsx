@@ -6,18 +6,15 @@ import styles from "./proposalVotingContext.module.css";
 export function ProposalVotingContext({
   personalVote,
   details,
-  activity,
 }: {
   personalVote?: ReactNode;
   details: ReactNode;
-  activity?: ReactNode;
 }) {
   return (
     <div className="proposal-ballot-context">
       {personalVote}
       <BallotDisclosure title="Voting details" className={styles.details}>
         {details}
-        {activity && <div className={styles.activity}>{activity}</div>}
       </BallotDisclosure>
     </div>
   );
