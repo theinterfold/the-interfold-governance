@@ -635,7 +635,7 @@ label div p.leading-tight {
 }
 .governance-page-intro h1 { margin: 0; font: 400 36px/0.95 var(--font-serif); letter-spacing: -1.08px; text-wrap: balance; }
 .power-intro-withdrawals { white-space: nowrap; }
-.governance-page-intro-copy { max-width: 320px; margin: 8px auto 0; color: var(--muted); font: 400 var(--type-support)/1.5 var(--font-sans); }
+.governance-page-intro-copy { max-width: 320px; margin: 8px auto 0; color: var(--muted); font: 400 var(--type-support)/1.5 var(--font-sans); text-wrap: balance; }
 .governance-page-intro-actions { display: flex; flex-direction: column; align-items: center; gap: var(--ui-space-tight); max-width: 440px; margin: var(--ui-space-controls) auto 0; }
 .governance-page-intro-actions > p { color: var(--muted); }
 @media (min-width: 768px) {
@@ -1129,20 +1129,21 @@ label div p.leading-tight {
   margin: 0 0 10px;
 }
 .proposal-title-link {
+  display: block;
   color: inherit;
   text-decoration: none;
 }
 
 /* Decoration must live on the inline-block used by the shared-title transition. */
-.proposal-title-link > .proposal-motion-title {
+.proposal-title-link .proposal-motion-title {
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 0.2em;
   text-decoration-thickness: 1px;
   transition: text-decoration-color var(--interfold-ui-duration) var(--interfold-ui-ease);
 }
-.proposal-title-link:hover > .proposal-motion-title,
-.proposal-title-link:focus-visible > .proposal-motion-title {
+.proposal-title-link:hover .proposal-motion-title,
+.proposal-title-link:focus-visible .proposal-motion-title {
   text-decoration-color: currentColor;
 }
 .proposal-title-link:focus-visible {
@@ -3550,7 +3551,7 @@ label div p.leading-tight,
   .ballot-optional-group,
   .ballot-optional-card,
   .ballot-optional-check svg,
-  .proposal-title-link > .proposal-motion-title {
+  .proposal-title-link .proposal-motion-title {
     transition: none;
   } }
 .ballot-mask-target { display: flex; flex-direction: column; gap: var(--ui-space-related); }
@@ -3747,7 +3748,7 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
 }
 .proposal-reading-header > :is(h1, .proposal-loading-heading) {
   margin: 20px 0 8px;
-  font-size: clamp(32px, 4.1vw, 49px);
+  font-size: 32px;
 }
 .proposal-reading-summary { margin: 0; color: var(--ink); font: 400 16px/1.7 var(--font-sans); }
 .proposal-reading-author { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; margin-top: 20px; color: var(--muted); font: var(--ui-label-font); }
@@ -4248,6 +4249,13 @@ select.ui-select { appearance: none; width: 100%; padding-right: 44px; }
   max-width: 100%;
   vertical-align: top;
 }
+.loading-text {
+  --interfold-ui-duration: var(--proposal-arrival-duration, 600ms);
+  display: block;
+  position: relative;
+  overflow: visible;
+}
+.loading-text-content { display: block; }
 .loading-slot,
 .proposal-item :is(h2, .summary, .proposal-result) { position: relative; }
 /* The header and main own the first viewport, including the handoff from the
@@ -4277,6 +4285,16 @@ html:not([data-initial-proposals]) .plugin-initial-list { display: none; }
     animation-timing-function: var(--interfold-ui-ease);
     animation-fill-mode: both;
   }
+  /* A text crossfade needs its full duration; the movement curve reveals most
+     of the ink in the first few frames. Keep that curve only for the rise. */
+  .loading-text > .fluid-height-content > .loading-layer[data-exiting],
+  .loading-text > .fluid-height-content > .loading-layer[data-exiting] ~ .loading-text-content {
+    animation-timing-function: linear, var(--interfold-ui-ease);
+  }
+  .loading-text > .fluid-height-content > .loading-text-content {
+    animation: proposal-context-in var(--proposal-arrival-duration, 600ms) linear both,
+      loading-rise-in var(--proposal-arrival-duration, 600ms) var(--interfold-ui-ease) both;
+  }
   /* The breadcrumb is shared by the skeleton and the proposal. Lift only the panels below it. */
   .loading-layer[data-exiting]:has([data-proposal-loading]),
   .loading-layer[data-exiting]:has([data-proposal-loading]) ~ :not(.loading-layer) {
@@ -4288,6 +4306,11 @@ html:not([data-initial-proposals]) .plugin-initial-list { display: none; }
   }
   @keyframes loading-rise-out { to { translate: 0 -16px; } }
   @keyframes loading-rise-in { from { translate: 0 16px; } }
+  /* Text received before the contract data is already readable; keep it in place. */
+  .loading-layer[data-exiting]:has([data-proposal-document-ready]),
+  .loading-layer[data-exiting]:has([data-proposal-document-ready]) ~ :not(.loading-layer) {
+    --loading-rise: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .loading-layer[data-exiting] { display: none; }
@@ -4331,7 +4354,7 @@ html:not([data-initial-proposals]) .plugin-initial-list { display: none; }
 @media (prefers-reduced-motion: no-preference) {
   html[data-proposal-navigation] { --proposal-arrival-duration: 0s; }
   .proposal-content-arrival,
-  .proposal-detail-layout:not([aria-busy]) :is(.proposal-reading-header, .proposal-reading-content, .proposal-detail-ballot > :first-child) {
+  .proposal-detail-layout:not([aria-busy]) :is(.proposal-reading-content, .proposal-detail-ballot > :first-child) {
     animation: proposal-context-in var(--proposal-arrival-duration, var(--interfold-ui-duration)) var(--interfold-ui-ease);
   }
 }

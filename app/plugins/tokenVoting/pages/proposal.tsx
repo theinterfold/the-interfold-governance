@@ -334,7 +334,7 @@ function ProposalDetailBody({
           proposalHref={`/plugins/proposals/#/proposals/public/${sppProposalId}`}
           readingOnly={readingOnly}
           breadcrumb={!embedded && <ProposalBreadcrumb identifier={shortProposalId(proposalIdx)} />}
-          header={!embedded && <ProposalHeader proposal={proposal} presentation={presentation} />}
+          header={!embedded && <ProposalHeader proposal={proposal} presentation={presentation} metadataPending={proposalFetchStatus.metadataState === "loading"} />}
           description={proposal.description}
           contentState={!spp.metadataUri && spp.metadataError ? "unavailable" : proposalFetchStatus.metadataState}
           onRetryContent={spp.metadataUri ? retryMetadata : spp.retryMetadata}

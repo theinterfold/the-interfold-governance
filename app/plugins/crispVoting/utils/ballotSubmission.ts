@@ -1,6 +1,6 @@
 export type PreparedVoteReceipt = { voter: string; sender?: string; txHash: string | null };
 export type BallotKind = "vote" | "mask";
-export type BallotSubmissionResult = { success: true; txHash: string | null } | { success: false; error: string };
+export type BallotSubmissionResult = { success: true; txHash: string | null } | { success: false; error: string; uncertain?: boolean };
 
 /**
  * The first submission of a vote and its mask, picked at random. If every voter sent the vote

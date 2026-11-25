@@ -1,8 +1,8 @@
-import { voteEvidence } from "../utils/voteEvidence";
+import { voteEvidence, type VoteScope } from "../utils/voteEvidence";
 import { ballotWeightPercentage, chooseBallotWeight, reviewedVote, type BallotWeight } from "../utils/ballotWeight";
 import { PUB_CHAIN, PUB_CRISP_SERVER_URL, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { usePrivatePair } from "./usePrivatePair";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAccount, useSignTypedData, useSwitchChain } from "wagmi";
 import { CreditsMode } from "../utils/types";
 import type { EligibleVoter, IRoundDetailsResponse, VoteData, VotingStep } from "../utils/types";
@@ -17,7 +17,6 @@ import { useAlerts } from "@/context/Alerts";
 import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
 import { equalAddresses } from "@/utils/evm";
-import { readServerRejection } from "../utils/readServerRejection";
 import { describeFailure } from "../utils/describeFailure";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
@@ -42,9 +41,14 @@ import {
   type PreparedBallot,
 } from "../utils/preparedBallot";
 import { sendPreparedBallot } from "../utils/sendPreparedBallot";
-
-/** Limit for one read of a staged ballot's job. */
-const JOB_READ_TIMEOUT_MS = 15_000;
+import {
+  broadcastSubmission,
+  pendingSubmissions,
+  readSubmission,
+  submissionJobId,
+  type PendingSubmission,
+  type SubmissionRecoveryState,
+} from "../utils/pendingSubmission";
 
 /** How long a signature request waits before the card says where to look for it. */
 const SIGNATURE_WAIT_HINT_MS = 30_000;
@@ -206,6 +210,9 @@ interface CrispServerState {
   /** Send `preparedBallot` from the connected wallet, which must not be the one that signed it. */
   sendPreparedVote: () => Promise<BallotSubmissionResult>;
   discardPreparedVote: () => void;
+  /** An unfinished request replaces the ballot form until its exact submission is resolved. */
+  submissionRecovery: { kind: "vote" | "mask"; state: SubmissionRecoveryState; busy: boolean; message?: string } | null;
+  recoverSubmission: () => Promise<void>;
 }
 
 interface PostVoteOptions {
@@ -285,6 +292,36 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const submissionScope =
+    e3Id === undefined || !address
+      ? undefined
+      : {
+          chainId: PUB_CHAIN.id,
+          plugin: body,
+          roundId: e3Id,
+          voter: address,
+        };
+  const storedSubmission = useSyncExternalStore(
+    pendingSubmissions.subscribe,
+    () => {
+      if (!submissionScope) return undefined;
+      try {
+        return pendingSubmissions.get(submissionScope);
+      } catch {
+        return "The saved submission cannot be read. Allow site storage and check again before voting.";
+      }
+    },
+    () => undefined
+  );
+  const activeSubmission = useRef<PendingSubmission | null>(null);
+  const recovering =
+    typeof storedSubmission === "object" && activeSubmission.current !== storedSubmission
+      ? storedSubmission
+      : undefined;
+  const [recoveryState, setRecoveryState] = useState<SubmissionRecoveryState>("checking");
+  const [recoveryMessage, setRecoveryMessage] = useState<string>();
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const recoveryRunning = useRef(false);
 
   // A wallet prompt must not open from a page that the voter already left. The worker can take
   // minutes to choose who sends a ballot, so the wait can outlive the page.
@@ -308,6 +345,8 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     setLastActiveStep(null);
     setStepMessage("");
     setProofProgress(null);
+    setRecoveryBusy(false);
+    setRecoveryMessage(undefined);
   }, [address, e3Id, body]);
   useEffect(() => {
     active.current = true;
@@ -317,21 +356,207 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
   }, []);
 
   /** Read one staged ballot's job: its view, `null` when the server does not know it, else `undefined`. */
-  const readCommitmentView = async (jobId: string): Promise<VoteResponse | null | undefined> => {
-    const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), JOB_READ_TIMEOUT_MS);
-    try {
-      const response = await fetch(
-        `${PUB_CRISP_SERVER_URL.replace(/\/$/, "")}/voting/availability/${encodeURIComponent(jobId)}`,
-        { signal: abort.signal }
-      );
-      if (response.status === 404) return null;
-      if (!response.ok) return undefined;
-      return (await response.json()) as VoteResponse;
-    } catch {
-      return undefined;
-    } finally {
+  const readCommitmentView = (jobId: string) => readSubmission(PUB_CRISP_SERVER_URL, jobId);
+
+  const rememberSubmission = (scope: VoteScope, submission: PendingSubmission, hash: string | null) => {
+    const walletHash = pendingSubmissions.get(scope)?.transactionHash;
+    // readPendingSubmission returns a wallet hash only after reading its successful receipt.
+    voteEvidence.record(
+      scope,
+      walletHash && walletHash === hash ? "confirmed" : "submitted",
+      submission.kind === "mask",
+      hash
+    );
+    pendingSubmissions.remove(scope, submission);
+  };
+
+  // A wallet may have broadcast before its receipt RPC failed. Once a hash exists, only read
+  // that transaction: a server that has not indexed it yet must not open another wallet prompt.
+  const readPendingSubmission = async (scope: VoteScope, submission: PendingSubmission) => {
+    if (submission.transactionHash) {
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: submission.transactionHash });
+        if (receipt.status === "success")
+          return {
+            job_id: submission.jobId,
+            status: "success",
+            tx_hash: submission.transactionHash,
+            message: null,
+          };
+        pendingSubmissions.markSent(scope, submission, undefined);
+      } catch {
+        return undefined;
+      }
+    }
+    return readCommitmentView(submission.jobId);
+  };
+
+  // Restore only by reading. Navigation, refresh and account switches must never open a wallet
+  // prompt or broadcast a new input. A read failure/404 keeps the exact original retry material.
+  useEffect(() => {
+    if (!recovering || !submissionScope) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    setRecoveryState("checking");
+    setRecoveryMessage(undefined);
+    const check = async () => {
+      if (!recoveryRunning.current) {
+        const view = await readPendingSubmission(submissionScope, recovering);
+        if (cancelled || pendingSubmissions.get(submissionScope)?.jobId !== recovering.jobId) return;
+        if (!recoveryRunning.current) {
+          const step = view && decideCommitmentStep(view);
+          if (step?.action === "committed") {
+            rememberSubmission(submissionScope, recovering, step.txHash);
+            setTxHash(step.txHash);
+            setError("");
+            addAlert(`${recovering.kind === "vote" ? "Vote" : "Mask"} submitted`, { type: "success" });
+            return;
+          }
+          setRecoveryState(
+            view === null
+              ? "missing"
+              : !view
+                ? "unavailable"
+                : step?.action === "submit"
+                  ? "ready"
+                  : step?.action === "wait"
+                    ? "pending"
+                    : "failed"
+          );
+          setRecoveryMessage(step?.action === "error" ? step.reason : undefined);
+        }
+      }
+      if (!cancelled) timer = setTimeout(check, 10_000);
+    };
+    void check();
+    return () => {
+      cancelled = true;
       clearTimeout(timer);
+    };
+    // The scope and job identify the operation; UI callback identity must not restart polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recovering?.jobId, recovering?.transactionHash, address, body, e3Id]);
+
+  const unconfirmed = (): BallotSubmissionResult => {
+    setVotingStep("idle");
+    setStepMessage("");
+    setError("");
+    return {
+      success: false,
+      uncertain: true,
+      error: "Submission not confirmed yet. Check its status before trying again.",
+    };
+  };
+
+  /** Finish a known job. Only the original click or an explicit recovery click may send it. */
+  const finishSubmission = async (
+    scope: VoteScope,
+    submission: PendingSubmission,
+    view: VoteResponse,
+    isCurrent: () => boolean
+  ): Promise<BallotSubmissionResult> => {
+    const step = decideCommitmentStep(view);
+    if (step.action === "committed") {
+      rememberSubmission(scope, submission, step.txHash);
+      if (!isCurrent()) return { success: false, error: "" };
+      setTxHash(step.txHash);
+      setVotingStep("complete");
+      setStepMessage(`${submission.kind === "vote" ? "Vote" : "Mask"} submitted successfully!`);
+      addAlert(`${submission.kind === "vote" ? "Vote" : "Mask"} submitted`, { type: "success" });
+      return { success: true, txHash: step.txHash };
+    }
+    if (!isCurrent()) return { success: false, error: "" };
+    if (step.action !== "submit") return unconfirmed();
+    if (submission.prepare) {
+      if (commitmentDeadline === undefined) return unconfirmed();
+      const program = await resolveCrispProgram(publicClient, body, scope.roundId);
+      if (!isCurrent()) return { success: false, error: "" };
+      pending.save(
+        buildPreparedBallot({
+          scope: { chainId: scope.chainId, plugin: scope.plugin as Address, roundId: scope.roundId.toString() },
+          voter: scope.voter as Address,
+          program,
+          attestedPayload: step.payload as Hex,
+          commitmentDeadline,
+        })
+      );
+      pendingSubmissions.remove(scope, submission);
+      setPreparedReceipt(null);
+      setVotingStep("idle");
+      setLastActiveStep(null);
+      setStepMessage("");
+      addAlert("Signed ballot saved", { type: "success", description: "Switch to the wallet that will send it." });
+      return { success: true, txHash: null };
+    }
+    if (pendingSubmissions.get(scope)?.transactionHash) return unconfirmed();
+    if (!canPublishOnChain)
+      throw new Error(onChainBlockedReason ?? "The round is still being checked. Try again shortly.");
+    await putWalletOnVotingChain();
+    if (!isCurrent()) return { success: false, error: "" };
+    setStepMessage("Confirm this ballot's transaction in your wallet.");
+    const hash = await publishVoteOnChain(step.payload as Hex, {
+      account: scope.voter as Address,
+      onSubmitted: (transactionHash) => {
+        const saved = pendingSubmissions.markSent(scope, submission, transactionHash);
+        if (activeSubmission.current?.jobId === submission.jobId && saved) activeSubmission.current = saved;
+      },
+    });
+    voteEvidence.record(scope, "confirmed", submission.kind === "mask", hash);
+    pendingSubmissions.remove(scope, submission);
+    if (!isCurrent()) return { success: false, error: "" };
+    setTxHash(hash);
+    setVotingStep("complete");
+    setStepMessage(`${submission.kind === "vote" ? "Vote" : "Mask"} submitted successfully!`);
+    return { success: true, txHash: hash };
+  };
+
+  const recoverSubmission = async () => {
+    if (recoveryRunning.current || !submissionScope) return;
+    const scope = operationScope.current;
+    const isCurrent = () => active.current && operationScope.current === scope;
+    recoveryRunning.current = true;
+    setRecoveryBusy(true);
+    setRecoveryMessage(undefined);
+    try {
+      const submission = pendingSubmissions.get(submissionScope);
+      if (!submission) return;
+      let view = await readPendingSubmission(submissionScope, submission);
+      if (!isCurrent()) return;
+      if (pendingSubmissions.get(submissionScope)?.transactionHash && !view) {
+        setRecoveryState("pending");
+        return;
+      }
+      if (!view || view.status === "failed_broadcast") {
+        // Never re-encrypt/re-sign: CRISP keys durable work by this exact statement. Replaying
+        // an accepted request returns its existing job, including if the earlier HTTP reply died.
+        const answer = await broadcastSubmission(PUB_CRISP_SERVER_URL, submission.request);
+        if (!isCurrent()) return;
+        if (answer.kind === "rejected") {
+          // This rejection may be a rate limit on a replay of an accepted request. Keep the
+          // original job until a read resolves it; a replay's rejection is not a rejection of it.
+          setRecoveryMessage(answer.reason);
+          setRecoveryState("unavailable");
+          return;
+        }
+        view = answer.kind === "accepted" ? answer.view : undefined;
+      }
+      if (!view) {
+        setRecoveryState("unavailable");
+        return;
+      }
+      const result = await finishSubmission(submissionScope, submission, view, isCurrent);
+      if (!isCurrent()) return;
+      if (!result.success) {
+        const step = decideCommitmentStep(view);
+        setRecoveryState(step.action === "wait" ? "pending" : step.action === "submit" ? "ready" : "failed");
+        setRecoveryMessage(step.action === "error" ? step.reason : undefined);
+      }
+    } catch (cause) {
+      if (isCurrent())
+        setRecoveryMessage(describeFailure(cause, "Could not confirm this submission. Check again.") ?? undefined);
+    } finally {
+      recoveryRunning.current = false;
+      if (active.current) setRecoveryBusy(false);
     }
   };
 
@@ -475,6 +700,16 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     const ensureCurrent = () => {
       if (!isCurrent()) throw cancelled;
     };
+    let staged: PendingSubmission | undefined;
+    const evidenceScope = address ? { chainId: PUB_CHAIN.id, plugin: body, roundId: e3Id, voter: address } : undefined;
+    // The store check is synchronous: even an old review dialog cannot start a second request.
+    if (evidenceScope) {
+      try {
+        if (pendingSubmissions.get(evidenceScope)) return unconfirmed();
+      } catch {
+        return { success: false, uncertain: true, error: "Check the saved submission before voting again." };
+      }
+    }
     setIsLoading(true);
     // The indicator reads any hash as success, so a previous ballot's must not outlive this one.
     setTxHash(null);
@@ -506,13 +741,6 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       if (deferSend && pending.ballot) {
         return fail("Send or discard your prepared ballot first.");
       }
-
-      const evidenceScope = {
-        chainId: PUB_CHAIN.id,
-        plugin: body,
-        roundId: e3Id,
-        voter: address,
-      };
 
       addAlert(`${isAMask ? "Masking" : "Vote"} generation started! Please do not leave the current page.`, {
         timeout: 3000,
@@ -742,117 +970,42 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       // `send_from_wallet`, it hands the attested payload to this wallet and does not relay.
       setStepMessage("Preparing your vote for submission...");
 
-      const response = await fetch(`${PUB_CRISP_SERVER_URL}/voting/broadcast`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(voteBody),
-      });
-
-      // The relay answers 200 only when this exact statement already has a completed durable job,
-      // and 202 when it staged fresh work — the normal path for a new vote, because Avail
-      // publication is asynchronous. Treating 202 as failure reports "Failed to broadcast vote"
-      // over a vote the server accepted and went on to publish on-chain. Accept every 2xx;
-      // anything else is a real rejection and carries the server's reason.
-      if (!response.ok) {
-        // Every rejection path in the server's `/voting/broadcast` sets a specific `message`:
-        // "Too many votes from this address, slow down", "The vote commitment deadline has
-        // passed", "The availability service is temporarily unavailable", and so on. Discarding
-        // it for a flat "Failed to broadcast vote" throws away the one thing that tells the voter
-        // whether to wait, retry, or stop — and it is the difference between a rate limit and a
-        // closed ballot.
-        const reason = await readServerRejection(response);
+      staged = {
+        jobId: submissionJobId(e3Id.toString(), encodedProof),
+        kind: isAMask ? "mask" : "vote",
+        prepare: deferSend,
+        request: voteBody,
+      };
+      activeSubmission.current = staged;
+      pendingSubmissions.save(evidenceScope!, staged);
+      ensureCurrent();
+      const answer = await broadcastSubmission(PUB_CRISP_SERVER_URL, voteBody);
+      if (answer.kind === "rejected") {
+        pendingSubmissions.remove(evidenceScope!, staged);
         ensureCurrent();
-        return fail(reason);
+        return fail(answer.reason);
       }
-
-      const voteResponse = (await response.json()) as VoteResponse;
-      const label = isAMask ? "Masking" : voteResponse.is_vote_update ? "Vote update" : "Vote";
-
-      let step = decideCommitmentStep(voteResponse);
-      if (step.action === "wait") {
+      let view = answer.kind === "accepted" ? answer.view : await readCommitmentView(staged.jobId);
+      if (view && decideCommitmentStep(view).action === "wait") {
         if (isCurrent()) {
           setVotingStep("confirming");
           setLastActiveStep("confirming");
-          setStepMessage("Your ballot is queued. Waiting for the server to send it or to ask your wallet to send it...");
+          setStepMessage("Your ballot is queued. Waiting for confirmation...");
         }
-        // A staged relay vote may still finish after navigation or a wallet switch.
-        // Finish its bounded, read-only receipt lookup for the original signer.
-        const decided = await waitForCommitmentDecision(step.jobId, readCommitmentView,
-          () => !isCurrent() && (isAMask || sendFromWallet));
-        if (decided === null) {
-          step = { action: "error", reason: "The server no longer has this ballot. Submit it again." };
-        } else if (decided) {
-          step = decideCommitmentStep(decided);
-        }
-      }
-
-      if (step.action === "committed") voteEvidence.record(evidenceScope, "submitted", isAMask, step.txHash);
-      ensureCurrent();
-
-      // `wait` remains only when the server chose no sender before the wait ended.
-      if (step.action === "wait" || step.action === "error") {
-        const reason =
-          step.action === "error" ? step.reason : "The server has not processed this ballot yet. Try again later.";
-        return fail(reason);
-      }
-
-      if (step.action === "committed") {
-        if (step.txHash) setTxHash(step.txHash);
-        setVotingStep("complete");
-        setStepMessage(`${label} submitted successfully!`);
-        addAlert(`${label} submitted successfully!`, { timeout: 3000, type: "success" });
-        return { success: true, txHash: step.txHash };
-      }
-
-      // The wallet sends the ATTESTED payload, not `encodedProof`: only the server can sign it.
-      // The voter chose this route, or the server did not relay the ballot.
-
-      // Prepare only: keep the attested payload for another wallet to send. Nothing is sent now,
-      // and `buildPreparedBallot` refuses a payload that names another slot than the signer's.
-      if (deferSend) {
-        if (commitmentDeadline === undefined) throw new Error("The voting deadline has not loaded yet. Try again.");
-        pending.save(
-          buildPreparedBallot({
-            scope: { chainId: PUB_CHAIN.id, plugin: body, roundId: e3Id.toString() },
-            voter: address,
-            program: crispProgram,
-            attestedPayload: step.payload as Hex,
-            commitmentDeadline,
-          })
+        view = await waitForCommitmentDecision(
+          staged.jobId,
+          readCommitmentView,
+          () => !isCurrent() && (isAMask || sendFromWallet)
         );
-        setPreparedReceipt(null);
-        setVotingStep("idle");
-        setLastActiveStep(null);
-        setStepMessage("");
-        addAlert("Signed ballot saved", {
-          timeout: 4000,
-          type: "success",
-          description: "Switch to the wallet that will send it.",
-        });
-        return { success: true, txHash: null };
       }
-
-      await putWalletOnVotingChain();
+      if (view) return await finishSubmission(evidenceScope!, staged, view, isCurrent);
       ensureCurrent();
-      setStepMessage(
-        submitOnChain
-          ? "Publishing your vote on-chain..."
-          : "The server did not relay this ballot. Confirm the transaction in your wallet to submit it."
-      );
-      const hash = await publishVoteOnChain(step.payload as `0x${string}`);
-      // The transaction may already be confirmed when the account changes. Keep its evidence
-      // with the original signer, while leaving the new wallet's visible operation untouched.
-      voteEvidence.record(evidenceScope, "confirmed", isAMask, hash);
-      ensureCurrent();
-      setTxHash(hash);
-      setVotingStep("complete");
-      setStepMessage(`${label} published on-chain!`);
-      addAlert(`${label} published on-chain!`, { timeout: 3000, type: "success" });
-      return { success: true, txHash: hash };
+      return unconfirmed();
     } catch (error) {
       if (!isCurrent() || error === cancelled) return declined;
+      // A request may have reached the server. Keep its ciphertext and stable job ID; reporting
+      // failure or regenerating a ballot here could replace a vote that was already accepted.
+      if (staged && evidenceScope && pendingSubmissions.get(evidenceScope)) return unconfirmed();
       console.error("Error in postVote:", error);
       // viem's `message` appends the request arguments, and a ballot's calldata is tens of KB of
       // unbroken hex; `describeFailure` keeps the one-line summary and names known contract errors.
@@ -865,6 +1018,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setStepMessage(reason ?? "");
       return { success: false, error: reason ?? "" };
     } finally {
+      if (activeSubmission.current?.jobId === staged?.jobId) activeSubmission.current = null;
       if (isCurrent()) setIsLoading(false);
     }
   };
@@ -910,7 +1064,9 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       setTxHash(hash);
       voteEvidence.record(
         { chainId: ballot.chainId, plugin: ballot.plugin, roundId: BigInt(ballot.roundId), voter: ballot.voter },
-        "confirmed", false, hash
+        "confirmed",
+        false,
+        hash
       );
       setPreparedReceipt({ voter: ballot.voter, sender, txHash: hash });
       addAlert("Vote submitted", {
@@ -942,6 +1098,22 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     txHash,
     canPublishOnChain,
     onChainBlockedReason,
+    submissionRecovery: recovering
+      ? {
+          kind: recovering.kind,
+          state: recoveryState,
+          busy: recoveryBusy,
+          message: recoveryMessage,
+        }
+      : typeof storedSubmission === "string"
+        ? {
+            kind: "vote",
+            state: "unavailable",
+            busy: recoveryBusy,
+            message: storedSubmission,
+          }
+        : null,
+    recoverSubmission,
     preparedBallot: pending.ballot,
     preparedReceipt,
     changePreparedVote: () => setPreparedReceipt(null),

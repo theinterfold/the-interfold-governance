@@ -7,6 +7,8 @@ import { AddressText } from "@/components/text/address";
 import { capitalizeFirstLetter } from "@/utils/text";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { useProposalBack } from "./proposalNavigation";
+import { LoadingText } from "../motion/LoadingTransition";
+import { ProposalPlaceholder } from "./pendingProposalRows";
 
 export function ProposalBreadcrumb({ identifier }: { identifier: string }) {
   const back = useProposalBack();
@@ -50,6 +52,7 @@ export function ProposalReadingHeader({
   kind,
   timing,
   badges,
+  metadataPending = false,
 }: {
   title: string;
   summary: string;
@@ -62,6 +65,7 @@ export function ProposalReadingHeader({
   kind: string;
   timing: ReactNode;
   badges?: ReactNode;
+  metadataPending?: boolean;
 }) {
   const badgeLabel = statusLabel ?? (statusClass ? status : capitalizeFirstLetter(status ?? ""));
   return (
@@ -81,10 +85,10 @@ export function ProposalReadingHeader({
           </span>
         )}
       </div>
-      <h1 tabIndex={-1} data-proposal-ready>
-        <span key={title} className="proposal-motion-title proposal-content-arrival" data-proposal-part="title">
-          {title || "Proposal"}
-        </span>
+      <h1 tabIndex={-1} data-proposal-ready aria-busy={metadataPending || undefined}>
+        <LoadingText pending={metadataPending && !title.trim()} placeholder={<ProposalPlaceholder part="title" />}>
+          <span className="proposal-motion-title" data-proposal-part="title">{title || "Proposal"}</span>
+        </LoadingText>
       </h1>
       {summary && (
         <p className="proposal-reading-summary" data-proposal-part="summary">

@@ -28,7 +28,7 @@ behaviour remain Interfold’s. The atlas is research, not an implementation spe
 | --- | --- | --- | --- |
 | Page introduction | `PageIntro` | Gramercy regular; existing responsive website scale | Voting power, Proposals |
 | Panel title | `PanelHeader` | Inter 20 / 600 | Your account, Locks, Proposals |
-| Proposal title | `ProposalRow` / `ProposalReadingHeader` | Gramercy regular, 24px in the index and 32–49px on the reading page | Public and secret proposals |
+| Proposal title | `ProposalRow` / `ProposalReadingHeader` | Gramercy regular, 24px in the index and 32px on the reading page (local refinement under review) | Public and secret proposals |
 | Section introduction | `power-section-intro` / site type ladder | Gramercy 24–32 title, 16–18 copy | Your delegation, outside its white card |
 | Section title | `--ui-section-font` / `ui-section-title` | Inter 16 / 600 | Voting power, Voting power sources, Voting details, Actions |
 | Supporting text | `--ui-body-font` / `ui-body` | Inter 14 / 400 | Account explanations, source names, lock summary |

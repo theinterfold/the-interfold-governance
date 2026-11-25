@@ -16,7 +16,7 @@ const rows: ResultRow[] = [
 const quorum = { reached: true, turnoutPct: 10, requiredPct: 1 };
 const render = (props: Partial<Parameters<typeof ResultPanel>[0]> = {}) =>
   renderToStaticMarkup(
-    <ResultPanel rows={rows} total="100,000 FOLD" status={ProposalStatus.EXECUTED} quorum={quorum} {...props} />
+    <ResultPanel rows={rows} status={ProposalStatus.EXECUTED} quorum={quorum} {...props} />
   );
 
 describe("Shared public and secret results", () => {
@@ -51,7 +51,7 @@ describe("Shared public and secret results", () => {
 
   test("abstentions can be the largest share without being the approving option", () => {
     const html = render({ rows: rows.map((row, index) => ({ ...row, percentage: [20, 10, 70][index] })) });
-    expect(html).toContain("Yes received 20.0% of the voting power cast.");
+    expect(html).toContain("Vote passed");
     expect(html).not.toContain("Abstain won");
     expect(html.match(/data-leading="true"[^>]*>[\s\S]*?<span class="truncate">([^<]+)/)?.[1]).toBe("Abstain");
   });
@@ -104,7 +104,7 @@ describe("Shared public and secret results", () => {
   test("rounded zero shares are not treated as an empty raw tally", () => {
     const html = render({ status: ProposalStatus.ACCEPTED, rows: rows.map((row) => ({ ...row, percentage: 0 })) });
     expect(html).toContain("Vote passed");
-    expect(html).toContain("Yes received 0.0% of the voting power cast.");
+    expect(html).toContain(">0.0%</span>");
     expect(html).not.toContain("No votes cast");
   });
 
@@ -130,9 +130,9 @@ describe("Shared public and secret results", () => {
     expect(notice).toContain("Result");
   });
 
-  test("a submitted result is information and cannot repeat its transaction", () => {
+  test("a submitted result cannot repeat its transaction or its network-progress confirmation", () => {
     const html = render({ submitted: true, action: <button>Submit result</button> });
-    expect(html).toContain("Result submitted");
+    expect(html).not.toContain("Result submitted");
     expect(html).not.toContain(">Submit result</button>");
     expect(render({ submitted: false, action: <button>Submit result</button> })).toContain("<button");
   });

@@ -7,7 +7,7 @@ import { bodyStatusLabel } from "@/plugins/governance/utils/statusBucket";
 import type { ReactNode } from "react";
 import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPresentation";
 
-const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presentation?: ProposalPresentation }) => {
+const ProposalHeader = ({ proposal, presentation, metadataPending }: { proposal: Proposal; presentation?: ProposalPresentation; metadataPending?: boolean }) => {
   const { status: proposalStatus, quorumNotMet } = useProposalStatus(proposal);
   const startMs = Number(proposal.parameters.startDate) * 1000;
   const endMs = Number(proposal.parameters.endDate) * 1000;
@@ -23,6 +23,7 @@ const ProposalHeader = ({ proposal, presentation }: { proposal: Proposal; presen
   return (
     <ProposalReadingHeader
       title={proposal.title}
+      metadataPending={metadataPending}
       summary={proposal.summary}
       creator={proposal.creator}
       status={presentation?.label ?? proposalStatus}

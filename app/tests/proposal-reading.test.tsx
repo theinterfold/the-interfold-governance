@@ -35,6 +35,22 @@ describe("Dedicated proposal reading", () => {
   });
 
   for (const kind of ["Secret ballot", "Transparent fallback"]) {
+    test(`${kind} keeps a placeholder until metadata arrives, without flashing a made-up title`, () => {
+      const header = { title: "", summary: "", creator: "", kind, timing: null };
+      const pending = renderToStaticMarkup(<ProposalReadingHeader {...header} metadataPending />);
+      expect(pending).toContain('aria-busy="true"');
+      expect(pending).toContain("proposal-placeholder-title");
+      expect(pending).not.toContain(">Proposal<");
+      // A pending document must not hold navigation or the available ballot.
+      expect(pending).toContain("data-proposal-ready");
+      const missing = renderToStaticMarkup(<ProposalReadingHeader {...header} />);
+      expect(missing).toContain(">Proposal<");
+      expect(missing).toContain("data-proposal-ready");
+      const cached = renderToStaticMarkup(<ProposalReadingHeader {...header} title="Community grants" metadataPending />);
+      expect(cached).toContain("Community grants");
+      expect(cached).not.toContain("proposal-placeholder-title");
+    });
+
     test(`${kind} shows the status once and retains a distinct stage or deadline`, () => {
       const header = { title: "Voting on Aztec", summary: "", creator: "", status: "Accepted", kind };
       const html = renderToStaticMarkup(<ProposalReadingHeader {...header} timing="Accepted" />);

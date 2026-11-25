@@ -12,6 +12,7 @@ export function FluidHeight({
   collapsedHeight,
   onOverflowChange,
   layoutKey,
+  inline = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   animate?: boolean;
@@ -20,6 +21,8 @@ export function FluidHeight({
   onOverflowChange?: (overflows: boolean) => void;
   /** Measure a coordinated layout change before paint, in sync with its content animation. */
   layoutKey?: string;
+  /** Use phrasing content when measuring text inside a heading or link. */
+  inline?: boolean;
 }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -126,17 +129,18 @@ export function FluidHeight({
   const visibleHeight =
     !expanded && collapsedHeight !== undefined ? Math.min(height ?? collapsedHeight, collapsedHeight) : height;
 
+  const Tag = inline ? "span" : "div";
   return (
-    <div
+    <Tag
       {...props}
       ref={surfaceRef}
       className={`fluid-height ${className}`}
       data-animate={animate && layoutKey === undefined && !followingContentMotion}
       style={{ ...style, height: visibleHeight }}
     >
-      <div ref={contentRef} className="fluid-height-content">
+      <Tag ref={contentRef} className="fluid-height-content">
         {children}
-      </div>
-    </div>
+      </Tag>
+    </Tag>
   );
 }

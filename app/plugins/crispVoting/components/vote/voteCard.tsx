@@ -207,6 +207,7 @@ export const VoteCard = ({
   const [submissionType, setSubmissionType] = useState<BallotKind>("vote");
   const [submitting, setSubmitting] = useState(false);
   const [attemptError, setAttemptError] = useState<string>();
+  const [attemptUncertain, setAttemptUncertain] = useState(false);
   // The first submission of a vote + mask attempt. Null when the attempt sends one ballot.
   const [combinedFirst, setCombinedFirst] = useState<BallotKind | null>(null);
   // Progress of the current mask list, including masks accompanying a vote.
@@ -346,6 +347,7 @@ export const VoteCard = ({
     setAttemptMaskReceipts([]);
     setReviewOpen(false);
     setAttemptError(undefined);
+    setAttemptUncertain(false);
     setShowFeedback(true);
   };
 
@@ -386,6 +388,7 @@ export const VoteCard = ({
         },
         onResult: (kind, result, index) => {
           if (!result.success) {
+            setAttemptUncertain(!!result.uncertain);
             setAttemptError(result.error);
             return;
           }
@@ -430,6 +433,7 @@ export const VoteCard = ({
         onStart: (index) => setMaskRun((run) => run && { ...run, current: index }),
         onResult: (index, result) => {
           if (!result.success) {
+            setAttemptUncertain(!!result.uncertain);
             setAttemptError(result.error);
             return;
           }
@@ -935,7 +939,7 @@ export const VoteCard = ({
           <div className="vp-submission-results" aria-live="polite">
             {attemptError && showFeedback && (
               <p className="vp-submission-error" role="alert">
-                {submittedMode !== "mask"
+                {attemptUncertain ? "Submission not confirmed yet. Check its status before trying again." : submittedMode !== "mask"
                   ? sendWithAnotherWallet
                     ? "Vote not prepared."
                     : "Vote not submitted."

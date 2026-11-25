@@ -1,6 +1,5 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { ProposalStatus } from "@aragon/ods";
-import { ActionIcon } from "@/components/input/actionIcon";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { BallotPanel, ballotOptionColor } from "./ballot";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
@@ -106,7 +105,6 @@ export function ResultNotice({ state, title, children }: { state: ReactNode; tit
 /** A result is the voting body's outcome, not a claim that the SPP has executed the proposal. */
 export function ResultPanel({
   rows,
-  total,
   status,
   quorum,
   quorumNotMet = false,
@@ -116,10 +114,9 @@ export function ResultPanel({
   children,
 }: {
   rows: ResultRow[];
-  total: string;
   status?: ProposalStatus;
   quorum?: ResultQuorum | null;
-  /** The status hook's authoritative flag, independent of the supply-derived `quorum` bar. */
+  /** The status hook's authoritative flag, independent of the supply-derived quorum. */
   quorumNotMet?: boolean;
   submitted?: boolean;
   /** Explicit zero raw tally; rounded shares and missing rows cannot establish zero votes. */
@@ -135,7 +132,6 @@ export function ResultPanel({
   const largestShare = Math.max(0, ...rows.map((row) => row.percentage));
   const leaders = rows.filter((row) => row.percentage === largestShare);
   const leading = resolved && !noVotes && largestShare > 0 && leaders.length === 1 ? leaders[0] : undefined;
-  const yes = rows.find((row) => row.index === 0);
   const outcome = !resolved
     ? "Confirming result"
     : noVotes
@@ -150,51 +146,19 @@ export function ResultPanel({
     : noVotes
       ? "No votes were cast. This proposal did not pass."
       : lowQuorum
-        ? `Quorum not reached. Participation was below the required minimum.${
-            quorumNotMet && leading
-              ? ` ${leading.option} led with ${leading.percentage.toFixed(1)}% of the voting power cast.`
-              : ""
-          }`
+        ? "Quorum not reached. Participation was below the required minimum."
         : status === ProposalStatus.REJECTED
           ? quorum
             ? "The required support was not reached."
             : "The vote did not meet the approval requirements."
-          : yes
-            ? `Yes received ${yes.percentage.toFixed(1)}% of the voting power cast.`
-            : undefined;
+          : undefined;
 
   return (
-    <ResultFrame title={outcome} description={explanation && <p className={resolved && passed ? styles.repeatShare : undefined}>{explanation}</p>}>
+    <ResultFrame title={outcome} description={explanation && <p>{explanation}</p>}>
       <div className={styles.tally}>
-        <div className={styles.fact}>
-          <span>Voting power cast</span>
-          <strong>{total}</strong>
-        </div>
         <ResultRows rows={rows} winnerIndex={leading?.index} />
-        {quorum && (
-          <div className={`tally-row tally-quorum ${styles.quorum}`}>
-            <span className="key">Quorum {resolved && quorum.reached ? "✓" : ""}</span>
-            <span className="bar" aria-hidden="true">
-              <span
-                style={{
-                  width: `${quorum.requiredPct > 0 ? Math.min((quorum.turnoutPct / quorum.requiredPct) * 100, 100) : 100}%`,
-                  background: resolved && quorum.reached ? "var(--accent)" : "var(--muted)",
-                }}
-              />
-            </span>
-            <span className="pct">
-              {quorum.turnoutPct.toFixed(1)}% / {Number(quorum.requiredPct.toFixed(2))}%
-            </span>
-          </div>
-        )}
       </div>
-      {submitted ? (
-        <p className={styles.submitted}>
-          <ActionIcon name="check" /> Result submitted to the next stage
-        </p>
-      ) : (
-        action
-      )}
+      {!submitted && action}
       {children}
     </ResultFrame>
   );

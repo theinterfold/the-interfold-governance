@@ -20,7 +20,9 @@ Mobile menu entries share `interfold-menu-item` and the same CSS timing;
 only their order and destinations vary.
 
 Below 1280px, product headers show the Interfold symbol and the product name.
-The Governance wordmark retains its rolling hover and keyboard-focus treatment.
+The Governance wordmark stays still in the mobile layout and on touch devices.
+Its rolling hover and keyboard-focus treatment applies only at desktop widths
+(1280px and up) with a fine pointer that supports hover.
 The marketing site uses its existing Interfold wordmark at every width.
 
 Applications may pass an `action` to `SiteHeaderMenuButton` for a control beside

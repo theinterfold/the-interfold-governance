@@ -367,12 +367,18 @@
   flex-direction: column;
   transition: transform 300ms cubic-bezier(.22, 1, .36, 1);
 }
-.site-header-governance-track { display: inline; }
-.group:hover .interfold-arrow-slide__track,
-.group:focus-visible .interfold-arrow-slide__track,
-.site-header-brand:hover .site-header-governance-track,
-.site-header-brand:focus-visible .site-header-governance-track {
+.site-header-governance-track { display: inline; transition: none; }
+.group:hover .interfold-arrow-slide__track:not(.site-header-governance-track),
+.group:focus-visible .interfold-arrow-slide__track:not(.site-header-governance-track) {
   transform: translateY(var(--interfold-roll-offset, -50%));
+}
+/* The mobile product name stays still, including the sticky hover after a tap. */
+@media (min-width: 1280px) and (hover: hover) and (pointer: fine) {
+  .site-header-governance-track { transition: transform 300ms cubic-bezier(.22, 1, .36, 1); }
+  .site-header-brand:hover .site-header-governance-track,
+  .site-header-brand:focus-visible .site-header-governance-track {
+    transform: translateY(var(--interfold-roll-offset, -50%));
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .interfold-arrow-slide__track { transition: none; }

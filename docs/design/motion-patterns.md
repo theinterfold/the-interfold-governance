@@ -6,6 +6,12 @@ Decisões de interação e registos de validação desde 22 de setembro de 2026.
 
 Ao seguir uma ligação interna ou usar o histórico, o conteúdo sobe 18 px e desaparece em 220 ms. A página seguinte entra de 18 px abaixo em 280 ms. A navbar fica no lugar. A passagem entre a lista e o detalhe de uma proposta conserva o movimento dos elementos partilhados. Com movimento reduzido, a mudança é imediata. Filtros, diálogos e dados que chegam à mesma página conservam o seu comportamento. Ver o [contrato de navegação partilhado](../../app/vendor/site-header/README.md#page-navigation).
 
+## Entrada de títulos assíncronos
+
+O esqueleto do título sai para cima enquanto o texto entra de baixo, com a altura medida a acompanhar títulos de várias linhas. Usar `LoadingText`, composto por `FadingLoading` e `FluidHeight`, na lista e no cabeçalho de leitura. A opacidade cruza de forma linear durante os 600 ms da transição; só o movimento usa a curva rápida da interface, para o texto não aparecer quase todo nos primeiros frames. Não apresentar “Proposal” como título provisório enquanto os metadados ainda carregam. Se o texto chegou antes dos dados do contrato, a troca de superfície conserva a sua posição. A altura das linhas da lista acompanha a chegada de dados para evitar deslocar de repente os títulos seguintes. Uma falha definitiva continua a mostrar o fallback e as ações da proposta; a navegação não espera pelos metadados. A preferência por movimento reduzido torna a troca imediata.
+
+A entrada do texto não depende de o esqueleto continuar montado. `LoadingTextScope` conserva o instante de início por campo na mesma proposta: uma resposta rápida também entra gradualmente e uma troca do componente de dados retoma o ponto da animação em curso, incluindo a saída do esqueleto. Ao navegar para uma proposta já carregada, a transição de página é suficiente; não repetir a entrada do texto quando essa transição termina. Confirmar tanto o primeiro carregamento como o refresh com cache; observar apenas a posição ou o estado final não valida a transição de opacidade.
+
 ## O que corrigimos já
 
 O peso da Inter tinha sido aumentado, mas o espaçamento dos números continuava com os valores anteriores: −1,2 px no total e no campo de quantidade; −0,6 px no breakdown. O total e o breakdown também usavam algarismos tabulares, embora não fossem colunas de uma tabela.

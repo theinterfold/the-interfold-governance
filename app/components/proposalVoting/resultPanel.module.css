@@ -38,36 +38,3 @@
 .tally {
   min-width: 0;
 }
-.fact {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--ui-space-tight);
-  padding-bottom: var(--ui-space-related);
-  font: var(--ui-label-font);
-  color: var(--muted);
-}
-.fact strong {
-  font-weight: 500;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.submitted {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-tight);
-  margin: 0;
-  color: var(--muted);
-  font: var(--ui-label-font);
-}
-.submitted svg {
-  flex-shrink: 0;
-  color: var(--accent);
-}
-
-@media (max-width: 600px) {
-  /* Voting details includes the Participation breakdown for both voting methods. */
-  .tally .quorum,
-  .description:has(> .repeatShare) { display: none; }
-}

@@ -1,3 +1,5 @@
+import { FluidHeight } from "@/components/motion/FluidHeight";
+import { LoadingTextScope } from "@/components/motion/LoadingTransition";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ActionButton } from "@/components/input/actionButton";
 import { SlidersHorizontal } from "@phosphor-icons/react";
@@ -366,13 +368,17 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
                   const hidden = !visible(e);
                   return (
                     <Disclosure key={key} open={!hidden} className="proposal-filter-row">
-                      {e.kind === "private" ? (
-                        <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
-                          <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
-                        </PrivatePairProvider>
-                      ) : (
-                        <PublicRow proposalId={e.id} {...rowHandlers[key]} />
-                      )}
+                      <FluidHeight>
+                        <LoadingTextScope>
+                          {e.kind === "private" ? (
+                            <PrivatePairProvider value={e.pair ?? INSTALLED_PRIVATE_PAIR}>
+                              <PrivateRow proposalId={e.id} {...rowHandlers[key]} />
+                            </PrivatePairProvider>
+                          ) : (
+                            <PublicRow proposalId={e.id} {...rowHandlers[key]} />
+                          )}
+                        </LoadingTextScope>
+                      </FluidHeight>
                     </Disclosure>
                   );
                 })}

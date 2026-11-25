@@ -27,6 +27,7 @@ import { useCanVote } from "../hooks/useCanVote";
 import { useSnapshotVotingPower } from "@/hooks/useSnapshotVotingPower";
 import { BallotEligibilityNotice } from "@/components/proposalVoting/ballotEligibility";
 import { VoteCard } from "../components/vote/voteCard";
+import { PendingSubmissionCard } from "../components/vote/pendingSubmissionCard";
 import { PreparedVoteCard } from "../components/vote/preparedVoteCard";
 import { SubmittedVoteCard } from "../components/vote/submittedVoteCard";
 import { useWalletModal } from "@/hooks/useWalletModal";
@@ -170,6 +171,8 @@ function ProposalDetailBody({
     prepareVote,
     sendPreparedVote,
     discardPreparedVote,
+    submissionRecovery,
+    recoverSubmission,
   } = useCrispServer(proposal?.e3Id);
   const personalVoteStatus = usePrivateVoteStatus(proposal?.e3Id, address);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
@@ -201,6 +204,14 @@ function ProposalDetailBody({
   const ballotPanel = useRef<HTMLDivElement>(null);
   const preparedPanel = useRef<HTMLDivElement>(null);
   const submittedPanel = useRef<HTMLDivElement>(null);
+  const recoveryPanel = useRef<HTMLDivElement>(null);
+  const lastRecovery = useRef(submissionRecovery);
+  const recoveryGeneration = useRef(0);
+  // A recovered mask must not remain in an old queue; start a fresh review after recovery.
+  if (lastRecovery.current && !submissionRecovery) recoveryGeneration.current += 1;
+  lastRecovery.current = submissionRecovery;
+  const recoverySnapshot = useRef(submissionRecovery);
+  if (submissionRecovery) recoverySnapshot.current = submissionRecovery;
   const snapshotScope = useRef({ proposalIdx, account: address });
   if (
     snapshotScope.current.proposalIdx !== proposalIdx ||
@@ -212,7 +223,7 @@ function ProposalDetailBody({
   snapshotScope.current = { proposalIdx, account: address };
   if (preparedBallot) lastPreparedBallot.current = preparedBallot;
   if (preparedReceipt) lastPreparedReceipt.current = preparedReceipt;
-  const ballotStep = preparedBallot ? "prepared" : preparedReceipt ? "submitted" : "ballot";
+  const ballotStep = submissionRecovery ? "recovery" : preparedBallot ? "prepared" : preparedReceipt ? "submitted" : "ballot";
   const [handoffMasks, setHandoffMasks] = useState<PreparedMaskReceipts | null>(null);
   const handoffScope = preparedMaskScope(proposal?.e3Id, preparedBallot?.voter ?? preparedReceipt?.voter ?? address);
   const handoffMaskReceipts = preparedMaskReceiptsFor(handoffMasks, handoffScope);
@@ -234,9 +245,9 @@ function ProposalDetailBody({
     previousBallotStep.current = ballotStep;
     if (previous !== ballotStep && ballotStep === "ballot") setHandoffMasks(null);
     if (previous === ballotStep || !votingOpen) return;
-    const outgoing = previous === "prepared" ? preparedPanel : previous === "submitted" ? submittedPanel : ballotPanel;
+    const outgoing = previous === "recovery" ? recoveryPanel : previous === "prepared" ? preparedPanel : previous === "submitted" ? submittedPanel : ballotPanel;
     const incoming =
-      ballotStep === "prepared" ? preparedPanel : ballotStep === "submitted" ? submittedPanel : ballotPanel;
+      ballotStep === "recovery" ? recoveryPanel : ballotStep === "prepared" ? preparedPanel : ballotStep === "submitted" ? submittedPanel : ballotPanel;
     const timer = window.setTimeout(() => {
       const focused = document.activeElement;
       if (focused !== document.body && !outgoing.current?.contains(focused) && !focused?.closest?.(".morph-dialog"))
@@ -249,6 +260,10 @@ function ProposalDetailBody({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       let changed = false;
+      if (ballotStep !== "recovery" && recoverySnapshot.current) {
+        recoverySnapshot.current = null;
+        changed = true;
+      }
       if (ballotStep !== "prepared" && lastPreparedBallot.current) {
         lastPreparedBallot.current = null;
         changed = true;
@@ -358,6 +373,7 @@ function ProposalDetailBody({
           header={
             !embedded && (
               <ProposalHeader
+                metadataPending={proposalFetchStatus.metadataState === "loading"}
                 proposal={proposal}
                 isCommitteeReady={isCommitteeReady}
                 totalVotingPower={totalVotingPower}
@@ -373,7 +389,7 @@ function ProposalDetailBody({
           actions={sppActions}
           voting={
             <>
-              {votingOpen && (
+              {(votingOpen || submissionRecovery) && (
                 <FluidHeight layoutKey={ballotStep}>
                   <div className="motion-tab-panels">
                     <MotionPanel active={ballotStep === "ballot"} direction="left">
@@ -384,7 +400,7 @@ function ProposalDetailBody({
                         className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
                       >
                         <VoteCard
-                          key={`${proposalIdx}-${address}`}
+                          key={`${proposalIdx}-${address}-${recoveryGeneration.current}`}
                           votingPower={
                             <div>
                               <UncountedFoldNotice address={PUB_ENABLE_LOCKING ? address : undefined} delegatesTo={delegatesTo}>
@@ -415,9 +431,9 @@ function ProposalDetailBody({
                           voteEndDate={Number(proposal.parameters.endDate)}
                           isCommitteeReady={isCommitteeReady}
                           options={options}
-                          disabled={!ballotOpen}
+                          disabled={!ballotOpen || !!submissionRecovery}
                           voteDisabled={canVote !== true}
-                          canMask={ballotOpen && !!address}
+                          canMask={ballotOpen && !!address && !submissionRecovery}
                           isLoading={isLoading}
                           onClickVote={onVote}
                           onClickMask={onMask}
@@ -437,6 +453,15 @@ function ProposalDetailBody({
                           proofProgress={proofProgress}
                           txHash={txHash}
                         />
+                      </div>
+                    </MotionPanel>
+                    <MotionPanel active={ballotStep === "recovery"} direction="right">
+                      <div ref={recoveryPanel} tabIndex={-1} aria-label="Check submission"
+                        className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4">
+                        {recoverySnapshot.current && <PendingSubmissionCard
+                          recovery={submissionRecovery ?? recoverySnapshot.current}
+                          onRecover={recoverSubmission}
+                        />}
                       </div>
                     </MotionPanel>
                     <MotionPanel active={ballotStep === "prepared"} direction="right">
