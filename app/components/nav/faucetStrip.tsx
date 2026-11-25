@@ -1,5 +1,7 @@
 import { Button, Spinner } from "@aragon/ods";
 import { PUB_CHAIN, PUB_ENABLE_FAUCET, PUB_TOKEN_SYMBOL } from "@/constants";
+import { useAccount } from "wagmi";
+import { useWalletModal } from "@/hooks/useWalletModal";
 import { useAlerts } from "@/context/Alerts";
 import { useFaucet } from "@/hooks/useFaucet";
 
@@ -15,12 +17,18 @@ export function FaucetStrip() {
 }
 
 function FaucetStripBody() {
+  const { address, isConnecting, isReconnecting } = useAccount();
+  const wallet = useWalletModal();
   const { addAlert } = useAlerts();
   const { claim, canClaim, blockedReason, isConfirming } = useFaucet();
 
   // The faucet tops up per token; blockedReason mirrors its own revert conditions
   // so a repeat click explains itself instead of burning a reverting transaction.
   const claimTestTokens = () => {
+    if (!address) {
+      wallet.open();
+      return;
+    }
     if (!canClaim) {
       addAlert(blockedReason ?? "Cannot claim from the faucet right now");
       return;
@@ -35,7 +43,7 @@ function FaucetStripBody() {
           <span className="faucet-strip-network">{PUB_CHAIN.name} testnet</span>
           Test {PUB_TOKEN_SYMBOL} and fee tokens are free.
         </p>
-        <Button size="sm" className="btn-mint" onClick={claimTestTokens} disabled={isConfirming} title={blockedReason}>
+        <Button size="sm" className="btn-mint" onClick={claimTestTokens} disabled={isConfirming || isConnecting || isReconnecting || wallet.isOpen} title={blockedReason}>
           {isConfirming ? <Spinner size="sm" /> : "Get test tokens"}
         </Button>
       </div>

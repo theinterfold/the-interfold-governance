@@ -12,14 +12,13 @@
   stroke-width: 20px;
 }
 .interactive :global(.fold-allocation-legend > div) {
+  margin: -6px calc(-1 * var(--ui-space-related));
+  padding: 6px var(--ui-space-related);
   border-radius: var(--ui-radius);
-  transition:
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+  transition: background-color 160ms ease;
 }
 .interactive :global(.fold-allocation-legend > div[data-highlighted="true"]) {
   background: color-mix(in srgb, var(--allocation-color) 12%, transparent);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--allocation-color) 12%, transparent);
 }
 .legendTarget {
   display: inline-flex;

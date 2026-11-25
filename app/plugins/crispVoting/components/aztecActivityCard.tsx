@@ -1,4 +1,4 @@
-import { BallotActivity } from "@/components/proposalVoting/ballotActivity";
+import { VotingDetailSection } from "@/components/proposalVoting/votingDetailSection";
 import { PUB_AZTEC_EXPLORER_URL } from "@/constants";
 import { useQuery } from "@tanstack/react-query";
 import { useCrispProgram } from "../hooks/useCrispProgram";
@@ -25,12 +25,9 @@ export function AztecActivityCard({ e3Id }: { e3Id: bigint }) {
   const committed = entries?.length ?? 0;
 
   return (
-    <BallotActivity
-      title={
-        <>
-          Encrypted ballot activity <span className="proposal-detail-count">{committed}</span>
-        </>
-      }
+    <VotingDetailSection
+      title="Encrypted ballot activity"
+      summary={entries !== undefined ? <span className="proposal-detail-count">{committed}</span> : undefined}
     >
       <div className="proposal-activity-body">
         <p className="text-xs text-neutral-500">
@@ -70,6 +67,6 @@ export function AztecActivityCard({ e3Id }: { e3Id: bigint }) {
           ))}
         </div>
       </div>
-    </BallotActivity>
+    </VotingDetailSection>
   );
 }

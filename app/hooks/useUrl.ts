@@ -6,7 +6,10 @@ export function useUrl() {
   const [url, setUrl] = useState(typeof window != "undefined" ? window.location.href : "");
 
   useEffect(() => {
-    const urlChanged = () => setUrl(window.location.href);
+    const pathname = window.location.pathname;
+    const urlChanged = () => {
+      if (window.location.pathname === pathname) setUrl(window.location.href);
+    };
     urlChanged();
     router.events.on("hashChangeComplete", urlChanged);
     router.events.on("routeChangeComplete", urlChanged);

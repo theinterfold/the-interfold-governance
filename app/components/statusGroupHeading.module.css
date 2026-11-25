@@ -1,0 +1,7 @@
+.header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 24px; min-height:44px; box-sizing:border-box; padding:10px 32px; border-bottom:1px solid var(--rule); border-radius:var(--ui-radius-inner) var(--ui-radius-inner) 0 0; background:var(--surface-muted); }
+.identity { display:flex; align-items:center; gap:8px; }
+.label { display:inline-flex; align-items:center; gap:8px; margin:0; font:var(--ui-label-font); line-height:22px; color:var(--if-brand-green); }
+.label > span { color:var(--muted); font:var(--ui-label-font); }
+.label > svg { flex-shrink:0; }
+.header > p { margin:0; color:var(--muted); font:var(--ui-label-font); }
+@media(max-width:600px) { .header { padding-inline:20px; } }

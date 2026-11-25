@@ -30,8 +30,11 @@ export type AztecBallotRequest = {
   committeePublicKey: Uint8Array;
   /** Signs EIP-712 typed data with the wallet; the caller puts the wallet on the voting chain and prompts the voter. */
   sign: (kind: SignKind, typedData: Parameters<TypedDataSigner>[0]) => Promise<Hex>;
-  /** `label` is the short text of the vote button; `detail` is the text under it (default: the label). */
-  onProgress: (step: VotingStep, label: string, detail?: string) => void;
+  /**
+   * The vote card shows `message`. During `generating_proof` it adds that the step takes minutes and the page must stay
+   * open, so those messages leave it out.
+   */
+  onProgress: (step: VotingStep, message: string) => void;
 };
 
 const server = () => PUB_CRISP_SERVER_URL.replace(/\/$/, "");
@@ -73,8 +76,7 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
     onEnrolling: (missing) =>
       onProgress(
         "generating_proof",
-        "Enrolling on Aztec…",
-        `Enrolling ${missing.length} slot${missing.length === 1 ? "" : "s"} on Aztec. The CRISP server sends the Ethereum transaction and nothing is charged to you; this can take several minutes. Keep this tab open.`
+        `Enrolling ${missing.length} slot${missing.length === 1 ? "" : "s"} on Aztec. The CRISP server sends the Ethereum transaction and nothing is charged to you.`
       ),
   });
 
@@ -91,21 +93,13 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
     storage,
     signer: async (typedData) => {
       const signature = await request.sign("staging-key", typedData);
-      onProgress(
-        "broadcasting",
-        "Binding staging key…",
-        "Binding your staging key on Aztec. This takes about a minute; keep this tab open."
-      );
+      onProgress("broadcasting", "Binding your staging key on Aztec. This takes about a minute; keep this tab open.");
       return signature;
     },
   });
 
   // 3. The ballot.
-  onProgress(
-    "generating_proof",
-    `Encrypting ${noun}…`,
-    `Encrypting and proving the ${noun}. This takes a few minutes; keep this tab open.`
-  );
+  onProgress("generating_proof", `Encrypting and proving the ${noun}.`);
   const ciphertexts = sdk.ciphertextStore(storage);
   const head = await sdk.resolveSlotHead({ client: votes, e3Id, slot, cache: ciphertexts, serverUrl: server() });
   // The staging passes this wallet has used in the round: the server takes each one once, `staging_max_requests` in all.
@@ -134,15 +128,10 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
       onStagingWait: () =>
         onProgress(
           "broadcasting",
-          "Waiting for the server…",
           "Waiting for the CRISP server to see your staging key on Aztec. Keep this tab open."
         ),
       onProgress: ({ stage, index, total }) =>
-        onProgress(
-          "generating_proof",
-          `Proving ${noun} (${index + 1} of ${total})…`,
-          `Proving the ${noun}: ${stage} (${index + 1} of ${total})`
-        ),
+        onProgress("generating_proof", `Proving the ${noun}: ${stage} (${index + 1} of ${total}).`),
     });
   } finally {
     await sdk.destroyVotesStagingPassProver();
@@ -151,7 +140,6 @@ export async function castAztecBallot(request: AztecBallotRequest): Promise<stri
 
   onProgress(
     "broadcasting",
-    "Sending to Aztec…",
     `Sending the ${noun} to Aztec. Proving the transaction takes about a minute; keep this tab open.`
   );
   const sent = await votes.cast(cast);

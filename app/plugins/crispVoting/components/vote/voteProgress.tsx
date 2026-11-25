@@ -1,11 +1,15 @@
 import React from "react";
 import { PUB_CHAIN } from "@/constants";
 import type { VotingStep } from "../../utils/types";
+import type { ProofProgressState } from "../../utils/proofProgress";
+import { ProofStages } from "./proofStages";
 
 type VotingStepIndicatorProps = {
   step: VotingStep;
   message: string;
   lastActiveStep?: VotingStep | null;
+  /** Shown under the message while the proof is being generated. */
+  proofProgress?: ProofProgressState | null;
   txHash?: string | null;
 };
 
@@ -29,7 +33,13 @@ const steps: { key: VotingStep; label: string; icon: string }[] = [
 
 type StepStatus = "complete" | "active" | "error" | "pending";
 
-const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message, lastActiveStep, txHash }) => {
+const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({
+  step,
+  message,
+  lastActiveStep,
+  proofProgress,
+  txHash,
+}) => {
   const stepOrder = steps.map((s) => s.key);
   // `confirming` is the server deciding who sends a staged ballot: still the broadcast step.
   const indexOfStep = (s: VotingStep) => stepOrder.indexOf(s === "confirming" ? "broadcasting" : s);
@@ -164,6 +174,8 @@ const VotingStepIndicator: React.FC<VotingStepIndicatorProps> = ({ step, message
             </a>
           )}
         </div>
+
+        {step === "generating_proof" && proofProgress && <ProofStages progress={proofProgress} />}
       </div>
 
       <style>{`

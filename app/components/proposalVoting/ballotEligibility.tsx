@@ -1,3 +1,4 @@
+import { VOTING_POWER_URL } from "@/constants";
 import { useWalletModal } from "@/hooks/useWalletModal";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import Link from "next/link";
@@ -42,7 +43,7 @@ export function BallotEligibilityNotice({
     <div className="ballot-eligibility" role="status">
       <strong>{title}</strong>
       {description && <p>{description}</p>}
-      {canVote === false && votingPower === 0n && <Link href="/plugins/lock/#/">View voting power →</Link>}
+      {canVote === false && votingPower === 0n && <Link href={VOTING_POWER_URL}>View voting power →</Link>}
     </div>
   );
 }

@@ -1,6 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { getAddress, zeroAddress } from "viem";
-import { bondedDelegateTarget, bondedWeight, splitVotingPower } from "@/utils/bondedDelegation";
+import { bondedDelegateTarget, bondedOwnerView, bondedWeight, splitVotingPower } from "@/utils/bondedDelegation";
+
+describe("bonded owner controls", () => {
+  const wallet = getAddress("0x2222222222222222222222222222222222222222");
+  test("keeps an active delegation and pending request manageable even with no power", () => {
+    for (const ownWeight of [0n, undefined]) {
+      expect(bondedOwnerView({ ownWeight, delegate: wallet })).toBe("manage");
+      expect(bondedOwnerView({ ownWeight, pendingDelegate: wallet })).toBe("manage");
+      expect(bondedOwnerView({ ownWeight })).toBe("hidden");
+    }
+  });
+  test("shows the normal controls when voting power is available", () => {
+    expect(bondedOwnerView({ ownWeight: 1n })).toBe("delegate");
+    expect(bondedOwnerView({ ownWeight: 1n, delegate: wallet })).toBe("delegate");
+  });
+});
 
 /**
  * The weight must match `BondedVotes._currentBondedWeight`. A higher figure shows an owner and its

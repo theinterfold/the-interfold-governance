@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
+import { SuccessBanner } from "@/components/alert/successBanner";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { MotionPanel } from "@/components/motion/MotionPanel";
@@ -175,7 +176,7 @@ export function LockForm(props: Props) {
     setOwnerInput("");
     setOwnerTouched(false);
     props.onValueChange("");
-    setCompleted("Your lock is created. Activate its voting power in Your delegation.");
+    setCompleted("Your lock is created. Activate its voting power to vote with it.");
   };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -410,7 +411,9 @@ export function LockForm(props: Props) {
                   <p className="power-field-error">{phase === "activating" ? props.activationError : props.error}</p>
                 </Disclosure>
                 <Disclosure open={!!completed}>
-                  <p className="power-lock-success">{completed}</p>
+                  <div className="power-lock-success">
+                    <SuccessBanner title="FOLD locked"><p>{completed}</p></SuccessBanner>
+                  </div>
                 </Disclosure>
               </div>
               <PowerAction

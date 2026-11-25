@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import { useWalletModal } from "@/hooks/useWalletModal";
@@ -13,14 +14,13 @@ import { BondedDelegationCards } from "@/components/cards/BondedDelegationCards"
 import { useBondedDelegation } from "@/hooks/useBondedDelegation";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { ADDRESS_ZERO } from "@/utils/evm";
-import { compactNumber, exactNumber } from "@/utils/numbers";
+import { compactNumber, displayNumber } from "@/utils/numbers";
 import { VotingPowerInfo } from "../components/votingPowerInfo";
 import { AccountOverview } from "../components/accountOverview";
 import accountStyles from "../components/accountPanels.module.css";
 import { PowerInfo } from "../components/powerInfo";
 import { YourLocks } from "../components/yourLocks";
 import { foldAllocation } from "../utils/foldAllocation";
-import { delegatedLockTokens } from "../utils/delegatedLockPower";
 import { PowerAction } from "../components/powerAction";
 import { LockForm } from "../components/lockForm";
 import { WithdrawalDialog, type WithdrawalAction } from "../components/withdrawalDialog";
@@ -34,16 +34,10 @@ import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoti
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 
 export default function Locker() {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const accountHeading = (
     <PanelHeader id="account-heading" title="Your account" description="Your voting power and FOLD balance." />
-  );
-  const delegationHeading = (
-    <PanelHeader
-      id="power-delegation-heading"
-      title="Your delegation"
-      description={`Delegate your locked ${PUB_TOKEN_SYMBOL} to yourself to vote with it.`}
-    />
   );
   const escrow = useVeEscrow();
   const locks = useVeLocks(address, escrow);
@@ -74,7 +68,6 @@ export default function Locker() {
   const {
     balance,
     lockable,
-    lockedByVesting,
     unvested,
     createLock,
     isLocking,
@@ -92,6 +85,8 @@ export default function Locker() {
   const [amountInput, setAmountInput] = useState("");
   const [lockOpen, setLockOpen] = useState(false);
   const lockTrigger = useRef<HTMLElement | null>(null);
+  const lockAction = useRef<HTMLButtonElement>(null);
+  const handledLockRequest = useRef(false);
   const decimals = useTokenDecimals();
   const { open: openWallet } = useWalletModal();
   const withdrawalTrigger = useRef<HTMLElement | null>(null);
@@ -110,6 +105,20 @@ export default function Locker() {
     previousAccount.current = address;
   }, [address, isConnected]);
   const busy = isLocking || delegation.isConfirming || pendingTokenId !== undefined || withdrawalSubmitting;
+  const lockRequested = router.query.action === "lock";
+  useEffect(() => {
+    if (!lockRequested) {
+      handledLockRequest.current = false;
+      return;
+    }
+    if (handledLockRequest.current || !isConnected || !address || busy) return;
+    handledLockRequest.current = true;
+    lockTrigger.current = lockAction.current;
+    setLockOpen(true);
+    const query = { ...router.query };
+    delete query.action;
+    void router.replace({ pathname: router.pathname, query, hash: "/" }, undefined, { shallow: true, scroll: false });
+  }, [lockRequested, isConnected, address, busy, router]);
   const openWithdrawal = (action: WithdrawalAction, trigger: HTMLElement) => {
     withdrawalTrigger.current = trigger;
     setWithdrawalAttempted(false);
@@ -163,8 +172,6 @@ export default function Locker() {
     queuedExits: locksKnown ? locks.queuedExits : undefined,
   });
   const committedByMe = locks.ownedLocks.reduce((acc, lock) => acc + lock.amount, 0n);
-  const delegatedTokens = delegatedLockTokens(delegation.delegatesTo, locksKnown ? locks.ownedLocks : undefined);
-  const needsActivation = notActivated && locksKnown && committedByMe > 0n;
 
   const compact = (value?: bigint) =>
     value === undefined || decimals === undefined ? "-" : compactNumber(formatUnits(value, decimals));
@@ -213,7 +220,7 @@ export default function Locker() {
             <>
               <div>
                 {accountHeading}
-                <AccountOverview allocation={allocation} heading={null}>
+                <AccountOverview allocation={allocation} heading={null} balanceText={allocation.status === "ready" ? compact(allocation.total) : undefined}>
                   <div className="power-total-summary">
                     <dl className="power-metric-total" aria-label="Your voting power">
                       <dt>
@@ -246,11 +253,38 @@ export default function Locker() {
                 headingPlacement="outside"
                 locks={locks}
                 delegationLabel={delegationLabel}
+                votingStatus={locksKnown && committedByMe > 0n && (!delegatedToSelf || delegation.readError || delegation.error) ? <>
+                  <div className={accountStyles.lockVotingCopy}>
+                    {delegation.readError ? <p className="power-feedback" role="alert">
+                      Voting status could not be loaded. <button type="button" className="ui-text-action" onClick={() => void delegation.retryRead()}>Try again</button>
+                    </p> : <>
+                      <span className={accountStyles.delegationState} data-active={delegatedToSelf}>
+                        {delegatedToSelf ? null
+                          : !delegationKnown ? "Loading voting status…"
+                          : notActivated ? "Activate your locks to vote with them."
+                          : <>Votes through <AddressText bold={false} label={delegateName} withAddress={true}>{delegation.delegatesTo}</AddressText></>}
+                        <PowerInfo label="About voting with your locks" compact={true}>
+                          <p>Activate your locks once to vote with them yourself. New locks then use the same voting wallet automatically.</p>
+                          <p>Only active locks count. Locks in cooldown or ready to withdraw do not. Changes apply to proposals created afterwards.</p>
+                          <p>You keep ownership of your FOLD and control withdrawals.</p>
+                        </PowerInfo>
+                      </span>
+                      {delegationKnown && !notActivated && !delegatedToSelf && <p className={accountStyles.delegationNote}>This wallet votes with your locks. Take back the voting power to vote yourself.</p>}
+                    </>}
+                    {delegation.error && <p className="power-feedback" role="alert">{delegation.error}</p>}
+                  </div>
+                  {!delegation.readError && delegationKnown && !delegatedToSelf && <PowerAction
+                    size="compact" affordance="next" isLoading={delegation.isConfirming}
+                    disabled={busy || !escrow.adapter} onClick={() => void delegation.delegateToSelf()}>
+                    {notActivated ? "Activate voting power" : "Vote with my locks"}
+                  </PowerAction>}
+                </> : undefined}
                 busy={busy}
                 compact={compact}
                 openWithdrawal={openWithdrawal}
                 createAction={
                   <PowerAction
+                    ref={lockAction}
                     intent="create"
                     size="compact"
                     affordance="lock"
@@ -270,96 +304,9 @@ export default function Locker() {
         </div>
       </section>
       {isConnected && address && (
-        <section className="power-block power-delegation-block" aria-labelledby="power-delegation-heading">
-          {delegationHeading}
-          <ScrollFadeIn amount="some" className="power-card">
-            <div className="power-delegation-summary">
-              <div className="power-delegation-overview">
-                <dl className="power-delegated-total">
-                  <dt>
-                    Delegated tokens
-                    <PowerInfo label="About delegated tokens" compact={true}>
-                      <p>FOLD in your active locks that have a voting delegate. All your locks share one delegate.</p>
-                      <p>
-                        Locks in cooldown or ready to withdraw are excluded. You keep ownership and control withdrawals.
-                      </p>
-                    </PowerInfo>
-                  </dt>
-                  <dd>
-                    {compact(delegatedTokens)} <span>{PUB_TOKEN_SYMBOL}</span>
-                  </dd>
-                </dl>
-              </div>
-              <div className="power-delegation-content">
-                {delegation.readError && (
-                  <div className="power-help" role="alert">
-                    <p>Voting delegate could not be loaded.</p>
-                    <button type="button" className="ui-text-action" onClick={() => void delegation.retryRead()}>
-                      Try again
-                    </button>
-                  </div>
-                )}
-                <dl className="power-delegation-identity">
-                  <dt>Votes with your locks</dt>
-                  <dd className="power-current-delegate-name">
-                    {delegatedToSelf ? (
-                      "You"
-                    ) : delegationKnown && !notActivated ? (
-                      <AddressText bold={false} label={delegateName} withAddress={true}>
-                        {delegation.delegatesTo}
-                      </AddressText>
-                    ) : notActivated ? (
-                      "Nobody"
-                    ) : (
-                      delegationLabel
-                    )}
-                  </dd>
-                  {delegationKnown && (
-                    <dd className="power-current-delegate-note">
-                      {delegatedToSelf ? (
-                        "You vote with your locked FOLD."
-                      ) : notActivated ? (
-                        needsActivation ? (
-                          `${fmt(committedByMe)} is locked without voting power. Delegate it to yourself to vote.`
-                        ) : (
-                          "Your locks vote for you after you delegate to yourself."
-                        )
-                      ) : (
-                        <>
-                          <AddressText bold={false} label={delegateName}>
-                            {delegation.delegatesTo}
-                          </AddressText>{" "}
-                          votes with your locked FOLD. Delegate to yourself to vote with it.
-                        </>
-                      )}
-                    </dd>
-                  )}
-                </dl>
-                {delegationKnown && !delegatedToSelf && (
-                  <div className="power-current-delegate-actions" role="group" aria-label="Vote with your locks">
-                    <PowerAction
-                      size="compact"
-                      affordance="next"
-                      isLoading={delegation.isConfirming}
-                      disabled={busy || !escrow.adapter}
-                      onClick={() => void delegation.delegateToSelf()}
-                    >
-                      Delegate to myself
-                    </PowerAction>
-                  </div>
-                )}
-                {delegation.error && (
-                  <div className="power-help" role="alert">
-                    <p>{delegation.error}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </ScrollFadeIn>
+        <section className="power-block power-delegation-block" aria-label="Voting delegation">
+          <BondedDelegationCards address={address} bonded={bonded} />
         </section>
-      )}
-      {isConnected && address && (
-        <BondedDelegationCards address={address} bonded={bonded} blockClassName="power-block power-delegation-block" />
       )}
       {isConnected && address && (
         <>
@@ -374,7 +321,7 @@ export default function Locker() {
             balanceValue={lockable}
             vestingNote={
               hasVestingFold
-                ? `You hold ${fmt(balance)}, but ${fmt(lockedByVesting)} has not vested yet and cannot be locked. Vesting ${PUB_TOKEN_SYMBOL} already counts toward your voting power without being locked. Locking is only how you add power from ${PUB_TOKEN_SYMBOL} that has vested.`
+                ? `You hold ${fmt(balance)}, but ${fmt(unvested)} has not vested yet and cannot be locked. Vesting ${PUB_TOKEN_SYMBOL} already counts toward your voting power without being locked. Locking is only how you add power from ${PUB_TOKEN_SYMBOL} that has vested.`
                 : undefined
             }
             minimum={fmt(escrow.minDeposit)}
@@ -404,7 +351,7 @@ export default function Locker() {
             action={withdrawalAction}
             amount={
               withdrawalAction && decimals !== undefined
-                ? exactNumber(formatUnits(withdrawalAction.amount, decimals))
+                ? displayNumber(formatUnits(withdrawalAction.amount, decimals))
                 : "-"
             }
             cooldownSeconds={escrow.cooldown}

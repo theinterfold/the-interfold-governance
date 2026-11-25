@@ -1,11 +1,12 @@
-import { PowerAction } from "@/plugins/velocker/components/powerAction";
-import { MaskRecipientField, type MaskTargetMode } from "./maskRecipientField";
+import { useRef } from "react";
+import { ActionIcon } from "@/components/input/actionIcon";
+import { MaskRecipientField, MaskRecipientAvailability, type MaskTargetMode } from "./maskRecipientField";
 import type { CreditsMode, EligibleVoter } from "../../utils/types";
 
 /** One mask in the list: its recipient mode and, for a chosen wallet, the address. */
 export type MaskEntry = { id: number; mode: MaskTargetMode; target: string };
 
-/** The masks to send on their own. Each has its own recipient, and the list has no limit. */
+/** Each mask stays visible with its own recipient selector and remove action. */
 export function MaskQueue({
   entries,
   onChange,
@@ -16,6 +17,8 @@ export function MaskQueue({
   pending,
   creditMode,
   e3Id,
+  review = false,
+  isInvalid,
 }: {
   entries: MaskEntry[];
   onChange: (entries: MaskEntry[]) => void;
@@ -26,21 +29,28 @@ export function MaskQueue({
   pending: boolean;
   creditMode?: CreditsMode;
   e3Id?: bigint;
+  review?: boolean;
+  isInvalid?: (entry: MaskEntry) => boolean;
 }) {
-  const update = (id: number, change: Partial<MaskEntry>) =>
-    onChange(entries.map((entry) => (entry.id === id ? { ...entry, ...change } : entry)));
+  const list = useRef<HTMLOListElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const update = (entryId: number, change: Partial<MaskEntry>) =>
+    onChange(entries.map((entry) => (entry.id === entryId ? { ...entry, ...change } : entry)));
 
   return (
     <div className="mask-queue">
-      <ol className="mask-queue-list" aria-label="Masks to send">
+      <MaskRecipientAvailability recipients={recipients} recipientError={recipientError} onRetry={onRetry} />
+      <span className="sr-only" role="status">{entries.length} {entries.length === 1 ? "mask" : "masks"} to send</span>
+      <ol ref={list} className="mask-queue-list" aria-label="Masks to send">
         {entries.map((entry, index) => (
           <li key={entry.id} className="mask-queue-entry">
             <MaskRecipientField
+              showAvailabilityStatus={false}
+              invalidMessage={entry.mode === "address" && !!recipients?.length && !recipientError && isInvalid?.(entry) ? entry.target ? "This wallet is not eligible. Choose another wallet." : "Choose a wallet for this mask." : undefined}
               label={entries.length > 1 ? `Mask ${index + 1} recipient` : "Mask recipient"}
               mode={entry.mode}
-              onModeChange={(mode) => update(entry.id, { mode })}
               target={entry.target}
-              onTargetChange={(target) => update(entry.id, { target })}
+              onChange={(selection) => update(entry.id, selection)}
               recipients={recipients}
               recipientError={recipientError}
               onRetry={onRetry}
@@ -51,19 +61,28 @@ export function MaskQueue({
             {entries.length > 1 && (
               <button
                 type="button"
-                className="vp-foot-note vp-mode-toggle mask-queue-remove"
+                className="ui-text-action mask-queue-remove"
+                aria-label={`Remove mask ${index + 1}`}
+                title={`Remove mask ${index + 1}`}
                 disabled={pending}
-                onClick={() => onChange(entries.filter((other) => other.id !== entry.id))}
+                onClick={() => {
+                  const rows = Array.from(list.current?.querySelectorAll<HTMLLIElement>(".mask-queue-entry") ?? []);
+                  const rowIndex = rows.findIndex(row => row.contains(document.activeElement));
+                  const next = rows[rowIndex + 1] ?? rows[rowIndex - 1];
+                  (next?.querySelector<HTMLButtonElement>(".ui-choice-trigger") ?? addButton.current)?.focus();
+                  onChange(entries.filter((other) => other.id !== entry.id));
+                }}
               >
-                Remove mask {index + 1}
+                <ActionIcon name="close" />
               </button>
             )}
           </li>
         ))}
       </ol>
-      <PowerAction size="compact" affordance="plus" disabled={pending} onClick={onAdd}>
-        Add another mask
-      </PowerAction>
+      {!review && <button ref={addButton} type="button" className="ui-text-action mask-queue-add" disabled={pending} onClick={onAdd}>
+        <ActionIcon name="plus" />
+        Add mask
+      </button>}
     </div>
   );
 }

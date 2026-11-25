@@ -62,6 +62,7 @@ describe("Read-only proposal action details", () => {
       />
     );
     expect(html).toContain("123456789123456789123456789");
+    expect(html).not.toContain("in wei");
     expect(html).not.toContain("<input");
   });
 });

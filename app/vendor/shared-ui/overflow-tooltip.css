@@ -1,0 +1,19 @@
+/* Full-name label tip: reveal in place, keeping the source type and baseline. */
+.ui-overflow-tooltip {
+ position:fixed;z-index:1800;box-sizing:border-box;
+ width:max-content;max-width:calc(100vw - 32px);overflow-y:auto;
+ padding:4px 6px;border:0;border-radius:4px;
+ background:var(--if-paper,#fff);color:var(--if-ink,#121718);
+ font:400 14px/1.45 var(--if-font-sans,Inter,system-ui,sans-serif);
+ white-space:normal;overflow-wrap:anywhere;text-align:left;
+ box-shadow:0 0 0 1px rgb(18 23 24 / .06),0 2px 6px rgb(18 23 24 / .08);
+ animation:ui-overflow-tooltip-enter 120ms ease-out;
+}
+.ui-overflow-tooltip[hidden]{display:none}
+.ui-overflow-tooltip-text{display:block}
+.ui-overflow-tooltip-hit{position:absolute;inset:0;cursor:inherit;border-radius:inherit}
+.ui-overflow-tooltip[data-state="closed"]{pointer-events:none;animation:ui-overflow-tooltip-exit 100ms ease-in forwards}
+.ui-summary-title[tabindex="0"]:focus-visible{outline:2px solid var(--if-brand-green,#3a5e3c);outline-offset:3px}
+@keyframes ui-overflow-tooltip-enter{from{opacity:0}to{opacity:1}}
+@keyframes ui-overflow-tooltip-exit{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.ui-overflow-tooltip,.ui-overflow-tooltip[data-state="closed"]{animation:none}}

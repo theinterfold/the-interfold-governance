@@ -5,8 +5,9 @@ import styles from "./signatureData.module.css";
 /** Opens the data a wallet will ask the voter to sign, from the ballot review. */
 export const SignatureDataEntry = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { network: string }
->(function SignatureDataEntry({ network, className = "", ...props }, ref) {
+  ButtonHTMLAttributes<HTMLButtonElement> & { network: string; compact?: boolean }
+>(function SignatureDataEntry({ network, compact = false, className = "", ...props }, ref) {
+  if (compact) return <button {...props} ref={ref} type="button" className={`${styles.quietEntry} ${className}`}><CodeBlock size={16} aria-hidden="true"/><span>View signature data</span></button>;
   return (
     <button {...props} ref={ref} type="button" className={`${styles.entry} ${className}`}>
       <CodeBlock size={18} weight="regular" aria-hidden="true" />

@@ -1,10 +1,11 @@
+import { BallotEditTransition } from "./BallotEditTransition";
 import { ActionButton } from "@/components/input/actionButton";
 import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from "react";
-import { BallotChoices, BallotPanel, BallotReview, ballotOptionColor } from "./ballot";
+import { BallotChoices, BallotPanel, BallotReview } from "./ballot";
 import { VotingStage, type IVotingStageProps } from "./votingStage/votingStage";
 import { PowerAction } from "@/plugins/velocker/components/powerAction";
 import type { ITransformedStage } from "@/utils/types";
-import { BallotSuccess } from "./ballotSuccess";
+import { BallotSuccess, VoteChangeAction } from "./ballotSuccess";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { MotionPanel } from "@/components/motion/MotionPanel";
 
@@ -12,6 +13,7 @@ interface IProposalVotingProps {
   stage: ITransformedStage;
   proposalTitle: string;
   votingPower?: ReactNode;
+  votingPowerNotice?: ReactNode;
   canVote: boolean;
   eligibilityNotice: ReactNode;
   submittedOption?: number;
@@ -25,6 +27,7 @@ export function ProposalVoting({
   stage,
   proposalTitle,
   votingPower,
+  votingPowerNotice,
   canVote,
   eligibilityNotice,
   submittedOption,
@@ -35,6 +38,8 @@ export function ProposalVoting({
 }: IProposalVotingProps) {
   const [option, setOption] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
+  const [currentOption, setCurrentOption] = useState<number | null>(null);
+  const [editRevision, setEditRevision] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
   const submittedFocus = useRef<HTMLSpanElement>(null);
@@ -43,6 +48,8 @@ export function ProposalVoting({
   const votingOpen = stage?.status?.toLowerCase() === "active";
   const votingPending = stage?.status?.toLowerCase() === "pending";
   const busy = !!cta?.isLoading;
+  const unchangedVote = editing && currentOption !== null && option === currentOption;
+  const voteActionDisabled = option === null || unchangedVote || busy || !!cta?.disabled;
   const selected = confirmed && option !== null ? option : submittedOption;
   const submitted = selected !== null && selected !== undefined && !editing;
   const ballotStep = submitted ? "submitted" : votingOpen ? (canVote ? "ballot" : "ineligible") : "closed";
@@ -84,38 +91,59 @@ export function ProposalVoting({
   if (!stage) return null;
 
   return (
+    <BallotEditTransition revision={editRevision}>
     <BallotPanel
-      title={submitted || (votingOpen && !canVote) ? "Voting" : votingOpen ? "Cast ballot" : "Voting results"}
+      title={
+        submitted
+          ? undefined
+          : votingOpen && !canVote
+            ? "Voting"
+            : votingOpen
+              ? editing
+                ? "Change your vote"
+                : "Cast your vote"
+              : "Voting results"
+      }
       submitted={submitted}
     >
       <div className="vp-body">
         <FluidHeight layoutKey={`${ballotStep}:${showPower}:${!!error}`}>
           <div className="flex flex-col gap-5">
-            {showPower && votingPower}
-            {(submitted || (votingOpen && canVote)) && <p className="vp-note">Your vote is public.</p>}
+            {!submitted && (showPower || (!busy && votingPowerNotice)) && (
+              <div>
+                {showPower && votingPower}
+                {!submitted && !busy && votingPowerNotice}
+              </div>
+            )}
+            {!submitted && votingOpen && canVote && <p className="vp-note">Your vote is public.</p>}
             <div className="motion-tab-panels">
               <MotionPanel active={ballotStep === "submitted"} direction="right">
                 <div className="flex flex-col gap-[14px]">
                   <span ref={submittedFocus} tabIndex={-1} className="sr-only">
                     Vote submitted successfully
                   </span>
-                  <BallotSuccess txHash={txHash} />
-                  {selected !== null && selected !== undefined && (
-                    <div className="vp-confirmed-choice">
-                      <span className="swatch" style={{ background: ballotOptionColor(selected) }} aria-hidden="true" />
-                      <strong>{options[selected]}</strong>
-                    </div>
-                  )}
-                  {votingOpen && canChangeVote && (
-                    <ActionButton
-                      onClick={() => {
-                        setOption(selected ?? null);
-                        setEditing(true);
-                      }}
-                    >
-                      Change vote
-                    </ActionButton>
-                  )}
+                  <BallotSuccess
+                    txHash={txHash}
+                    choice={selected !== null && selected !== undefined ? options[selected] : undefined}
+                    action={
+                      votingOpen && canChangeVote ? (
+                        <VoteChangeAction
+                          disabled={false}
+                          votingClosed={false}
+                          onChange={() => {
+                            setEditRevision(revision => revision + 1);
+                            setCurrentOption(selected ?? null);
+                            setOption(selected ?? null);
+                            setEditing(true);
+                          }}
+                        />
+                      ) : undefined
+                    }
+                  >
+                    {votingOpen && canChangeVote
+                      ? "You can change your vote until voting closes."
+                      : "Your vote is recorded on-chain."}
+                  </BallotSuccess>
                 </div>
               </MotionPanel>
               <MotionPanel active={ballotStep === "ineligible"} direction="left">
@@ -129,6 +157,7 @@ export function ProposalVoting({
                       presentation="framed"
                       maskUnavailable={true}
                       value={option}
+                      currentVote={editing ? currentOption : undefined}
                       onChange={(choice) => {
                         if (typeof choice === "number") setOption(choice);
                       }}
@@ -138,14 +167,15 @@ export function ProposalVoting({
                       <PowerAction
                         ref={reviewAction}
                         intent="vote"
-                        className="w-full"
-                        disabled={option === null || busy || !!cta?.disabled}
+                        className="ballot-primary-action"
+                        disabled={voteActionDisabled}
                         onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                          if (voteActionDisabled) return;
                           triggerRef.current = event.currentTarget;
                           setReviewOpen(true);
                         }}
                       >
-                        {busy ? "Submitting vote…" : option === null ? "Choose your vote" : "Review vote"}
+                        {busy ? "Submitting vote…" : option === null ? "Choose an option" : "Review vote"}
                       </PowerAction>
                     </div>
                   </div>
@@ -188,9 +218,9 @@ export function ProposalVoting({
         footer={
           <PowerAction
             intent="vote"
-            disabled={option === null || busy || !!cta?.disabled}
+            disabled={voteActionDisabled}
             onClick={() => {
-              if (option === null || busy || cta?.disabled) return;
+              if (voteActionDisabled || option === null) return;
               setReviewOpen(false);
               setEditing(true);
               cta?.onClick?.(option + 1);
@@ -207,5 +237,6 @@ export function ProposalVoting({
         </div>
       </BallotReview>
     </BallotPanel>
+    </BallotEditTransition>
   );
 }

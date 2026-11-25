@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useBlockNumber, useReadContract } from "wagmi";
-import { fromHex, getAbiItem } from "viem";
+import { getAbiItem } from "viem";
 import { PUB_CHAIN, PUB_DEPLOYMENT_BLOCK } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { publicClient } from "@/plugins/governance/utils/client";
+import { useMetadata } from "@/hooks/useMetadata";
+import { proposalDocument } from "@/utils/proposalMetadataState";
+import type { ProposalMetadata } from "@/utils/types";
+import { decodeMetadataSource, sppMetadataKey } from "../utils/proposalMetadataSource";
 import { StagedProposalProcessorAbi } from "../artifacts/StagedProposalProcessor";
 import { SPP_PROPOSAL_WITHOUT_ID, SppProposalState } from "../utils/types";
 import { useSppAddress } from "./useSppAddress";
@@ -25,8 +30,6 @@ export const SppProposalCreatedEvent = getAbiItem({
  */
 export function useSppProposal(kind: SppKind, proposalId: bigint) {
   const address = useSppAddress(kind);
-  const [metadataUri, setMetadataUri] = useState<string>();
-  const [creator, setCreator] = useState<string>();
 
   const {
     data: proposalData,
@@ -89,6 +92,7 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     if (exists) {
       await refetchStages();
       if (stage0Body) await refetchBodyProposal();
+      if (!metadataSource) await refetchMetadataSource();
     }
   };
 
@@ -118,38 +122,41 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     if (vetoStageReached) refetchTally();
   }, [blockNumber, exists, settled, vetoStageReached]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Metadata URI + creator come from the SPP's ProposalCreated event
-  useEffect(() => {
-    if (!exists || !publicClient || metadataUri) return;
-
-    void (async () => {
-      // The SPP's `ProposalCreated` has the same seven parameters as every other Aragon plugin
-      // here, so it shares the route; only the address differs.
+  // Metadata lookup is bounded too: a missing event must not leave details loading forever.
+  const {
+    data: metadataSource,
+    error: metadataSourceError,
+    refetch: refetchMetadataSource,
+  } = useQuery({
+    queryKey: sppMetadataKey(PUB_CHAIN.id, address, proposalId),
+    enabled: exists,
+    retry: 2,
+    staleTime: Infinity,
+    queryFn: async () => {
       const match = (await fetchProposals({ plugin: address, fromBlock: PUB_DEPLOYMENT_BLOCK, proposalId }))?.[0];
-      if (match) {
-        setMetadataUri(fromHex(match.metadata, "string"));
-        setCreator(match.creator);
-        return;
-      }
+      const indexed = decodeMetadataSource(match);
+      if (indexed) return indexed;
+      if (!publicClient) throw new Error("Proposal RPC is unavailable");
+      const logs = await publicClient.getLogs({
+        address,
+        event: SppProposalCreatedEvent,
+        args: { proposalId },
+        fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
+      });
+      if (!logs.length) throw new Error("Proposal metadata event was not found");
+      const source = decodeMetadataSource(logs[0].args as { metadata?: Hex; creator?: string });
+      if (!source) throw new Error("Proposal metadata source is missing");
+      return source;
+    },
+  });
 
-      try {
-        const logs = await publicClient.getLogs({
-          address,
-          event: SppProposalCreatedEvent,
-          args: { proposalId },
-          fromBlock: BigInt(PUB_DEPLOYMENT_BLOCK),
-        });
-
-        if (!logs?.length) return;
-
-        const args = (logs[0] as unknown as { args: { metadata: Hex; creator: string } }).args;
-        setMetadataUri(fromHex(args.metadata, "string"));
-        setCreator(args.creator);
-      } catch (err) {
-        console.error("Could not fetch the SPP proposal creation event", err);
-      }
-    })();
-  }, [proposalId, exists, metadataUri, address]);
+  // Fetch the document alongside the stage and body reads. The ballot hooks subscribe
+  // to the same IPFS query once the on-chain sub-proposal ID is available.
+  const { data: metadata } = useMetadata<ProposalMetadata>(metadataSource?.metadataUri, {
+    enabled: !!metadataSource?.metadataUri && !missing,
+    retry: 2,
+  });
+  const document = useMemo(() => proposalDocument(metadata), [metadata]);
 
   return {
     address,
@@ -163,8 +170,11 @@ export function useSppProposal(kind: SppKind, proposalId: bigint) {
     subProposalFailed,
     missing,
     vetoTally,
-    metadataUri,
-    creator,
+    metadataUri: metadataSource?.metadataUri,
+    document,
+    creator: metadataSource?.creator,
+    metadataError: metadataSourceError,
+    retryMetadata: refetchMetadataSource,
     isLoading: proposalLoading,
     error: readError,
     retry,

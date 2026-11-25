@@ -69,7 +69,6 @@ export function PublicVoteResultCard({
         percentage: percentages[index],
         amount: `${amount(value)} ${PUB_TOKEN_SYMBOL}`,
       }))}
-      total={`${amount(total)} ${PUB_TOKEN_SYMBOL}`}
       status={status}
       quorumNotMet={quorumNotMet}
       isEmpty={total === 0n}

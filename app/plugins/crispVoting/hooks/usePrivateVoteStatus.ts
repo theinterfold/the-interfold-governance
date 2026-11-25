@@ -18,3 +18,12 @@ export function usePrivateVoteStatus(roundId: bigint | undefined, voter: string 
     serverStatus
   );
 }
+
+/** A public transaction reference, scoped exactly like the participation evidence. */
+export function usePrivateVoteTransaction(roundId: bigint | undefined, voter: string | undefined) {
+  const { body } = usePrivatePair();
+  return useSyncExternalStore(voteEvidence.subscribe, () =>
+    voter && roundId !== undefined
+      ? voteEvidence.transaction({ chainId: PUB_CHAIN.id, plugin: body, roundId, voter })
+      : undefined, () => undefined);
+}
