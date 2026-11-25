@@ -476,10 +476,34 @@ export const VoteCard = ({
     setShowFeedback(false);
   };
 
+  // After a vote, open the mask view directly. The vote stays as it is.
+  const sendMasksAfterVote = () => {
+    setEditRevision(revision => revision + 1);
+    setSubmissionType("mask");
+    setEditingVote(true);
+    setShowFeedback(false);
+  };
+
   const votingClosed = voteEndDate <= Math.round(Date.now() / 1000);
   const isDisabled = disabled || busy || votingClosed;
   const notStarted = voteStartDate > Math.round(Date.now() / 1000);
   const started = voteStartDate < Math.round(Date.now() / 1000);
+
+  /** The actions under a confirmed vote: change it, or send masks without changing it. */
+  const confirmedVoteActions = (canChange: boolean) => {
+    const canSendMasks = canMask && !isDisabled;
+    if (!canChange && !canSendMasks) return undefined;
+    return (
+      <>
+        {canChange && <VoteChangeAction disabled={false} votingClosed={false} onChange={editSubmission} />}
+        {canSendMasks && (
+          <button type="button" className="vp-success-change" onClick={sendMasksAfterVote}>
+            Send masks
+          </button>
+        )}
+      </>
+    );
+  };
 
   const setMaskTool = (checked: boolean) => {
     // Preserve the shared draft when toggling the tool or switching between Ballot and Mask.
@@ -762,7 +786,7 @@ export const VoteCard = ({
             <BallotSuccess
               title={previousVoteStatus === "confirmed" ? "Vote confirmed" : "Vote submitted"}
               txHash={previousVoteTxHash}
-              action={<VoteChangeAction disabled={voteDisabled || isDisabled} votingClosed={votingClosed} onChange={editSubmission} />}
+              action={confirmedVoteActions(!voteDisabled && !isDisabled)}
             >
               {previousVoteStatus === "confirmed"
                 ? "You’ve already voted on this proposal. Your choice remains private."
@@ -791,9 +815,7 @@ export const VoteCard = ({
               detail={progressMessage || (submittedMode === "mask" ? "Encrypting mask…" : "Encrypting your ballot…")}
               preparing={sendWithAnotherWallet && (activeVote || showVoteSummary)}
               maskAction={showMaskSummary ? <PowerAction size="compact" onClick={() => setShowFeedback(false)}>Send another mask</PowerAction> : undefined}
-              voteAction={showVoteSummary && !busy && !voteDisabled && !isDisabled && !votingClosed ? (
-                <VoteChangeAction disabled={false} votingClosed={false} onChange={editSubmission} />
-              ) : undefined}
+              voteAction={showVoteSummary ? confirmedVoteActions(!voteDisabled && !isDisabled) : undefined}
             />
           )}
 
