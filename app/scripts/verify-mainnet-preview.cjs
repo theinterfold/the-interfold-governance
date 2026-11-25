@@ -1,4 +1,5 @@
-// Run with Node 22+ and Playwright installed: node scripts/verify-mainnet-preview.cjs <mainnet-preview-url>
+// Node 22+, bun install, then bunx playwright install chromium (or CHROME_CHANNEL=chrome).
+// Run: node scripts/verify-mainnet-preview.cjs <mainnet-preview-url>
 // Checks the published build in a browser without a wallet or a transaction.
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');

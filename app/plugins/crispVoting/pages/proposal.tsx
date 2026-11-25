@@ -173,6 +173,7 @@ function ProposalDetailBody({
     discardPreparedVote,
     submissionRecovery,
     recoverSubmission,
+    discardSubmission,
   } = useCrispServer(proposal?.e3Id);
   const personalVoteStatus = usePrivateVoteStatus(proposal?.e3Id, address);
   const { canVote, message: cannotVoteMessage, isTimingOnly: voteBlockIsTimingOnly } = useCanVote(proposalIdx);
@@ -461,6 +462,7 @@ function ProposalDetailBody({
                         {recoverySnapshot.current && <PendingSubmissionCard
                           recovery={submissionRecovery ?? recoverySnapshot.current}
                           onRecover={recoverSubmission}
+                          onDiscard={discardSubmission}
                         />}
                       </div>
                     </MotionPanel>

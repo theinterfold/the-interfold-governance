@@ -18,6 +18,7 @@ import { crispSdk } from "../utils/crispSdk";
 import { getRandomVoterToMask } from "../utils/voters";
 import { equalAddresses } from "@/utils/evm";
 import { describeFailure } from "../utils/describeFailure";
+import { decodeTxError } from "@/utils/tx-errors";
 import { snapshotReadBlock } from "../utils/snapshotReadBlock";
 import {
   CensusMode,
@@ -43,6 +44,7 @@ import {
 import { sendPreparedBallot } from "../utils/sendPreparedBallot";
 import {
   broadcastSubmission,
+  canDiscardRejectedRetry,
   pendingSubmissions,
   readSubmission,
   submissionJobId,
@@ -211,8 +213,15 @@ interface CrispServerState {
   sendPreparedVote: () => Promise<BallotSubmissionResult>;
   discardPreparedVote: () => void;
   /** An unfinished request replaces the ballot form until its exact submission is resolved. */
-  submissionRecovery: { kind: "vote" | "mask"; state: SubmissionRecoveryState; busy: boolean; message?: string } | null;
+  submissionRecovery: {
+    kind: "vote" | "mask";
+    state: SubmissionRecoveryState;
+    busy: boolean;
+    message?: string;
+    canDiscard: boolean;
+  } | null;
   recoverSubmission: () => Promise<void>;
+  discardSubmission: () => void;
 }
 
 interface PostVoteOptions {
@@ -308,7 +317,7 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
       try {
         return pendingSubmissions.get(submissionScope);
       } catch {
-        return "The saved submission cannot be read. Allow site storage and check again before voting.";
+        return "The saved submission cannot be read. Check again, or clear its saved data to return to the ballot.";
       }
     },
     () => undefined
@@ -491,16 +500,32 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     if (pendingSubmissions.get(scope)?.transactionHash) return unconfirmed();
     if (!canPublishOnChain)
       throw new Error(onChainBlockedReason ?? "The round is still being checked. Try again shortly.");
-    await putWalletOnVotingChain();
-    if (!isCurrent()) return { success: false, error: "" };
-    setStepMessage("Confirm this ballot's transaction in your wallet.");
-    const hash = await publishVoteOnChain(step.payload as Hex, {
-      account: scope.voter as Address,
-      onSubmitted: (transactionHash) => {
-        const saved = pendingSubmissions.markSent(scope, submission, transactionHash);
-        if (activeSubmission.current?.jobId === submission.jobId && saved) activeSubmission.current = saved;
-      },
-    });
+    let hash: Hex;
+    try {
+      await putWalletOnVotingChain();
+      if (!isCurrent()) return { success: false, error: "" };
+      setStepMessage("Confirm this ballot's transaction in your wallet.");
+      hash = await publishVoteOnChain(step.payload as Hex, {
+        account: scope.voter as Address,
+        onSubmitted: (transactionHash) => {
+          const saved = pendingSubmissions.markSent(scope, submission, transactionHash);
+          if (activeSubmission.current?.jobId === submission.jobId && saved) activeSubmission.current = saved;
+        },
+      });
+    } catch (cause) {
+      // The worker has chosen the wallet path. Declining this prompt sends nothing; a hash
+      // recorded before a later RPC error still prevents discarding a broadcast transaction.
+      if (decodeTxError(cause).isUserRejection && pendingSubmissions.discard(scope, submission)) {
+        if (isCurrent()) {
+          setVotingStep("idle");
+          setLastActiveStep(null);
+          setStepMessage("");
+          setError("");
+        }
+        return { success: false, error: "" };
+      }
+      throw cause;
+    }
     voteEvidence.record(scope, "confirmed", submission.kind === "mask", hash);
     pendingSubmissions.remove(scope, submission);
     if (!isCurrent()) return { success: false, error: "" };
@@ -532,8 +557,18 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
         const answer = await broadcastSubmission(PUB_CRISP_SERVER_URL, submission.request);
         if (!isCurrent()) return;
         if (answer.kind === "rejected") {
-          // This rejection may be a rate limit on a replay of an accepted request. Keep the
-          // original job until a read resolves it; a replay's rejection is not a rejection of it.
+          if (
+            canDiscardRejectedRetry(submission, view, answer) &&
+            pendingSubmissions.discard(submissionScope, submission)
+          ) {
+            setVotingStep("idle");
+            setLastActiveStep(null);
+            setStepMessage("");
+            setError("");
+            addAlert("Submission refused", { type: "error", description: answer.reason });
+            return;
+          }
+          // A rate limit or an inconclusive status read cannot resolve the original job.
           setRecoveryMessage(answer.reason);
           setRecoveryState("unavailable");
           return;
@@ -557,6 +592,24 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
     } finally {
       recoveryRunning.current = false;
       if (active.current) setRecoveryBusy(false);
+    }
+  };
+
+  const discardSubmission = () => {
+    if (!submissionScope || recoveryRunning.current || isLoading || activeSubmission.current) return;
+    try {
+      const discarded =
+        typeof storedSubmission === "string"
+          ? pendingSubmissions.clearUnreadable(submissionScope)
+          : recovering && pendingSubmissions.discard(submissionScope, recovering);
+      if (!discarded) return;
+      setRecoveryMessage(undefined);
+      setError("");
+      setVotingStep("idle");
+      setLastActiveStep(null);
+      setStepMessage("");
+    } catch {
+      setRecoveryMessage("Could not clear the saved submission. Allow site storage and try again.");
     }
   };
 
@@ -1104,16 +1157,19 @@ export function useCrispServer(e3Id?: bigint): CrispServerState {
           state: recoveryState,
           busy: recoveryBusy,
           message: recoveryMessage,
+          canDiscard: !recovering.transactionHash,
         }
       : typeof storedSubmission === "string"
         ? {
             kind: "vote",
-            state: "unavailable",
+            state: "unreadable",
             busy: recoveryBusy,
-            message: storedSubmission,
+            message: recoveryMessage ?? storedSubmission,
+            canDiscard: true,
           }
         : null,
     recoverSubmission,
+    discardSubmission,
     preparedBallot: pending.ballot,
     preparedReceipt,
     changePreparedVote: () => setPreparedReceipt(null),

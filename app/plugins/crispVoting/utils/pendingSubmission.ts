@@ -17,7 +17,14 @@ export type PendingSubmission = {
   request: SubmissionRequest;
   transactionHash?: Hex;
 };
-export type SubmissionRecoveryState = "checking" | "pending" | "unavailable" | "missing" | "ready" | "failed";
+export type SubmissionRecoveryState =
+  | "checking"
+  | "pending"
+  | "unavailable"
+  | "missing"
+  | "ready"
+  | "failed"
+  | "unreadable";
 
 /** Mirrors CRISP's input_identity/job_id, independent of the Noir proof bytes or relay choice.
  * Source: theinterfold/CRISP, server/src/server/data_availability.rs.
@@ -99,6 +106,14 @@ export function createPendingSubmissionStore(storage: () => SubmissionStorage | 
     records.set(key, value);
     return value;
   };
+  const clear = (scope: VoteScope) => {
+    const target = storage();
+    if (!target) throw new Error("Allow site storage before clearing the saved submission.");
+    // An explicit discard must persist. If removal fails, keep the record and show the error.
+    target.removeItem(storageKey(scope));
+    records.set(storageKey(scope), undefined);
+    notify();
+  };
   return {
     get,
     subscribe(listener: () => void) {
@@ -141,6 +156,22 @@ export function createPendingSubmissionStore(storage: () => SubmissionStorage | 
       records.set(storageKey(scope), undefined);
       notify();
     },
+    discard(scope: VoteScope, submission: PendingSubmission) {
+      const current = get(scope);
+      if (current?.jobId !== submission.jobId || current.transactionHash) return false;
+      clear(scope);
+      return true;
+    },
+    clearUnreadable(scope: VoteScope) {
+      try {
+        get(scope);
+        // A stale error screen must not clear a newer, readable submission.
+        return false;
+      } catch {
+        clear(scope);
+        return true;
+      }
+    },
   };
 }
 
@@ -150,7 +181,7 @@ export const pendingSubmissions = createPendingSubmissionStore(() =>
 
 export type BroadcastAnswer =
   | { kind: "accepted"; view: VoteResponse }
-  | { kind: "rejected"; reason: string }
+  | { kind: "rejected"; reason: string; status: number }
   | { kind: "unknown" };
 
 /** A transport error, 5xx or malformed success cannot establish that nothing was accepted. */
@@ -172,8 +203,8 @@ export async function broadcastSubmission(
     if (!response.ok) {
       // Only explicit client rejections are definitive. A timeout/proxy/server failure may have
       // happened AFTER the durable job was written. An identical retry never redraws its weight.
-      if ([400, 401, 403, 404, 413, 422, 429].includes(response.status)) {
-        return { kind: "rejected", reason: await readServerRejection(response) };
+      if ([400, 401, 403, 404, 409, 413, 422, 429].includes(response.status)) {
+        return { kind: "rejected", reason: await readServerRejection(response), status: response.status };
       }
       return { kind: "unknown" };
     }
@@ -190,7 +221,24 @@ export async function broadcastSubmission(
   }
 }
 
-/** A missing job can still be in admission. It is never permission to make a different ballot. */
+/** Only a conclusive read AND a non-rate-limit refusal release an automatic retry.
+ * A failed read, transient server failure or known transaction keeps its recovery material.
+ */
+export function canDiscardRejectedRetry(
+  submission: PendingSubmission,
+  view: VoteResponse | null | undefined,
+  answer: BroadcastAnswer
+): boolean {
+  return (
+    !submission.transactionHash &&
+    !view?.tx_hash &&
+    (view === null || view?.status === "failed_broadcast") &&
+    answer.kind === "rejected" &&
+    answer.status !== 429
+  );
+}
+
+/** A missing job alone can still be in admission; only a definitive retry refusal resolves it. */
 export async function readSubmission(
   baseUrl: string,
   jobId: string,

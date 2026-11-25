@@ -12,6 +12,7 @@
     "deploy-dao": "bun ./scripts/deploy.ts",
     "prepare": "husky",
     "test": "bun test",
+    "test:submission-recovery": "node scripts/verify-submission-recovery.cjs",
     "design:sync": "node scripts/sync-design.cjs",
     "design:check": "node scripts/sync-design.cjs --check",
     "motion:build": "node scripts/build-govern-motion.mjs"
@@ -70,17 +71,18 @@
     "@typescript-eslint/eslint-plugin": "latest",
     "autoprefixer": "^10.4.19",
     "dotenv": "^16.4.5",
+    "esbuild": "0.21.5",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.5.28",
     "eslint-config-prettier": "^9.1.0",
     "husky": "^9.0.11",
     "lint-staged": "^15.2.2",
+    "playwright": "1.56.1",
     "postcss": "^8.4.38",
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.5.13",
     "tailwindcss": "^3.4.10",
-    "typescript": "^5.4.3",
-    "esbuild": "0.21.5"
+    "typescript": "^5.4.3"
   },
   "prettier": {
     "printWidth": 120,
