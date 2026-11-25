@@ -815,7 +815,8 @@ export const VoteCard = ({
               detail={progressMessage || (submittedMode === "mask" ? "Encrypting mask…" : "Encrypting your ballot…")}
               preparing={sendWithAnotherWallet && (activeVote || showVoteSummary)}
               maskAction={showMaskSummary ? <PowerAction size="compact" onClick={() => setShowFeedback(false)}>Send another mask</PowerAction> : undefined}
-              voteAction={showVoteSummary ? confirmedVoteActions(!voteDisabled && !isDisabled) : undefined}
+              // The summary says the vote can still change whenever it has an action, so it gets none otherwise.
+              voteAction={showVoteSummary && !voteDisabled && !isDisabled ? confirmedVoteActions(true) : undefined}
             />
           )}
 
