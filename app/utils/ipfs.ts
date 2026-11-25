@@ -4,7 +4,8 @@ import { CID } from "multiformats/cid";
 import * as raw from "multiformats/codecs/raw";
 import { sha256 } from "multiformats/hashes/sha2";
 
-const IPFS_FETCH_TIMEOUT = 5000; // 1 second
+/** How long the gateways together may take to answer a read. */
+const IPFS_FETCH_TIMEOUT = 15_000;
 const UPLOAD_FILE_NAME = `${PUB_APP_NAME.toLowerCase().trim().replaceAll(" ", "-")}.json`;
 
 export function fetchIpfsAsJson(ipfsUri: string) {
@@ -58,25 +59,37 @@ async function fetchRawIpfs(ipfsUri: string): Promise<Response> {
     if (!ipfsUri) throw new Error("Invalid IPFS URI");
   }
 
-  const uriPrefixes = PUB_IPFS_ENDPOINTS.split(",").filter((uri) => !!uri.trim());
+  const uriPrefixes = PUB_IPFS_ENDPOINTS.split(",")
+    .map((uri) => uri.trim())
+    .filter(Boolean);
   if (!uriPrefixes.length) throw new Error("No available IPFS endpoints to fetch from");
 
-  const cid = resolvePath(ipfsUri);
+  return fetchFromFirstGateway(uriPrefixes, resolvePath(ipfsUri));
+}
 
-  for (const uriPrefix of uriPrefixes) {
-    const controller = new AbortController();
-    const abortId = setTimeout(() => controller.abort(), IPFS_FETCH_TIMEOUT);
-    const response = await fetch(`${uriPrefix}/${cid}`, {
-      method: "GET",
-      signal: controller.signal,
-    });
-    clearTimeout(abortId);
-    if (!response.ok) continue;
-
+/**
+ * Ask every gateway at once and keep the first good answer. A gateway that is down or blocked on
+ * the voter's network then costs no time, and a slow one cannot use up the time of a fast one.
+ */
+export async function fetchFromFirstGateway(uriPrefixes: string[], cid: string): Promise<Response> {
+  const controllers = uriPrefixes.map(() => new AbortController());
+  const timer = setTimeout(() => controllers.forEach((controller) => controller.abort()), IPFS_FETCH_TIMEOUT);
+  try {
+    const { response, index } = await Promise.any(
+      uriPrefixes.map(async (uriPrefix, index) => {
+        const response = await fetch(`${uriPrefix}/${cid}`, { method: "GET", signal: controllers[index].signal });
+        if (!response.ok) throw new Error(`${uriPrefix} answered ${response.status}`);
+        return { response, index };
+      })
+    );
+    controllers.forEach((controller, other) => other !== index && controller.abort());
     return response; // .json(), .text(), .blob(), etc.
+  } catch {
+    throw new Error("Could not connect to any of the IPFS endpoints");
+  } finally {
+    // The answer's body is read after this returns, so the time limit ends here.
+    clearTimeout(timer);
   }
-
-  throw new Error("Could not connect to any of the IPFS endpoints");
 }
 
 function resolvePath(uri: string) {
