@@ -1,7 +1,7 @@
 import { AddressText } from "@/components/text/address";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
-import { exactNumber } from "@/utils/numbers";
+import { compactNumber, displayNumber } from "@/utils/numbers";
 import { formatUnits } from "viem";
 import type { VotingPowerBreakdown } from "../hooks/useVotingPowerBreakdown";
 import { PowerInfo } from "./powerInfo";
@@ -12,13 +12,14 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
   const amount = (value?: bigint) =>
     !breakdown.available || value === undefined || decimals === undefined
       ? "-"
-      : exactNumber(formatUnits(value, decimals));
+      : compactNumber(formatUnits(value, decimals));
+  const fullAmount = (value?: bigint) => decimals !== undefined && value !== undefined ? `${displayNumber(formatUnits(value, decimals))} ${PUB_TOKEN_SYMBOL}` : undefined;
   return (
     <PowerInfo label="Voting power breakdown" compact={true} contentClassName={styles.breakdown}>
       <dl className="power-info-values" aria-label="Voting power sources">
         <div>
           <dt>Active locks delegated to you</dt>
-          <dd>
+          <dd title={fullAmount(breakdown.lockedAndDelegated)}>
             {amount(breakdown.lockedAndDelegated)} {PUB_TOKEN_SYMBOL}
           </dd>
         </div>
@@ -36,13 +37,13 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
           <>
             <div>
               <dt>Bonded</dt>
-              <dd>
+              <dd title={fullAmount(breakdown.bonded)}>
                 {amount(breakdown.bonded)} {PUB_TOKEN_SYMBOL}
               </dd>
             </div>
             <div>
               <dt>Vesting</dt>
-              <dd>
+              <dd title={fullAmount(breakdown.vesting)}>
                 {amount(breakdown.vesting)} {PUB_TOKEN_SYMBOL}
               </dd>
             </div>
@@ -51,7 +52,7 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
         {!!breakdown.represented && (
           <div>
             <dt>Represented owners</dt>
-            <dd>
+            <dd title={fullAmount(breakdown.represented)}>
               {amount(breakdown.represented)} {PUB_TOKEN_SYMBOL}
             </dd>
           </div>
@@ -59,8 +60,8 @@ export function VotingPowerInfo({ breakdown, totalVotes }: { breakdown: VotingPo
         {totalVotes !== undefined && (
           <div className={styles.total}>
             <dt>Your voting power</dt>
-            <dd>
-              {decimals === undefined ? "-" : exactNumber(formatUnits(totalVotes, decimals))} {PUB_TOKEN_SYMBOL}
+            <dd title={fullAmount(totalVotes)}>
+              {decimals === undefined ? "-" : compactNumber(formatUnits(totalVotes, decimals))} {PUB_TOKEN_SYMBOL}
             </dd>
           </div>
         )}

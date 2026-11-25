@@ -9,6 +9,7 @@ import type { ProposalPresentation } from "@/plugins/governance/utils/proposalPr
 
 interface ProposalHeaderProps {
   proposal: Proposal;
+  metadataPending?: boolean;
   totalVotingPower?: bigint;
   /** The E3 round failed on-chain — the proposal was never decided. */
   e3Failed?: boolean;
@@ -20,6 +21,7 @@ interface ProposalHeaderProps {
 
 const ProposalHeader: React.FC<ProposalHeaderProps> = ({
   proposal,
+  metadataPending,
   totalVotingPower,
   e3Failed,
   isCommitteeReady,
@@ -55,6 +57,7 @@ const ProposalHeader: React.FC<ProposalHeaderProps> = ({
   return (
     <ProposalReadingHeader
       title={proposal.title}
+      metadataPending={metadataPending}
       summary={proposal.summary}
       creator={proposal.creator}
       status={presentation?.label ?? proposalStatus}

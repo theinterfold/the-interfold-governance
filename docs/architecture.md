@@ -146,13 +146,14 @@ fees, wrong semantics). So each voting mode gets its own SPP: `private = [CRISP 
 
 ## Wiring: the Admin bootstrap
 
-All wiring actions (set stage configs, grant `CREATE_PROPOSAL`, point bodies at the Executor,
-revoke the TokenVoting bypass) must be executed **by the DAO** — the deployer has no direct power
-after `createDao`. Rather than route a governance vote, the deploy installs the **Admin** plugin,
-which grants the deployer direct execute-on-DAO power. `make wire-spp` has the Admin plugin
-execute the whole wiring in one transaction, and its **final action revokes the Admin plugin's own
-`EXECUTE` on the DAO**, disarming the bootstrap. (Admin's own uninstall can only revoke that same
-permission, so this is the equivalent disarm; the plugin remains listed but powerless.)
+All wiring actions (set stage configs, make the CRISP proposer condition the private SPP's creation
+rule, grant `CREATE_PROPOSAL`, point bodies at the Executor, revoke the TokenVoting bypass) must be
+executed **by the DAO** — the deployer has no direct power after `createDao`. Rather than route a
+governance vote, the deploy installs the **Admin** plugin, which grants the deployer direct
+execute-on-DAO power. `make wire-spp` has the Admin plugin execute the whole wiring in one
+transaction, and its **final action revokes the Admin plugin's own `EXECUTE` on the DAO**,
+disarming the bootstrap. (Admin's own uninstall can only revoke that same permission, so this is
+the equivalent disarm; the plugin remains listed but powerless.)
 
 Two separate permissions govern the bootstrap, and only the first decides whether it is dangerous:
 

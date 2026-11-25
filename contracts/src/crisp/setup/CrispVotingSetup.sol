@@ -12,10 +12,13 @@ import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20
 
 import {CrispVoting} from "../CrispVoting.sol";
 import {ICrispVoting} from "../ICrispVoting.sol";
+import {CrispProposerCondition} from "../condition/CrispProposerCondition.sol";
 
 /// @title CrispVotingSetup
 /// @notice Manages the installation and unintallation of the CRISP plugin on a DAO.
-/// @dev Release 1, Build 1.
+/// @dev Release 1. Build 1 returned no helpers; every later build returns the proposal-creation
+///      condition as `helpers[0]` (see `prepareInstallation`). The build number itself is assigned
+///      by the plugin repo when this setup is published.
 ///
 ///      Deliberately LEANER than the canonical TokenVotingSetup pattern it descends from: there
 ///      is no fresh-token deployment and no GovernanceWrappedERC20 wrap path. The plugin only
@@ -92,7 +95,9 @@ contract CrispVotingSetup is PluginSetup {
         params.token = token;
 
         // 1) Upgradeable plugin variant
-        plugin = ProxyLib.deployUUPSProxy(implementation(), abi.encodeCall(CrispVoting.initialize, params));
+        plugin = ProxyLib.deployUUPSProxy(
+            implementation(), abi.encodeCall(CrispVoting.initialize, (params, !grantExecuteOnDao))
+        );
 
         // Request permissions. Base set: DAO -> SET_TARGET_CONFIG + MANAGER + SET_METADATA on
         // the plugin (so governance can point the plugin at the delegatecall Executor, tune
@@ -164,9 +169,24 @@ contract CrispVotingSetup is PluginSetup {
         }
 
         preparedSetupData.permissions = permissions;
+
+        // The proposal-creation rule an SPP can use for this body: `CrispProposerCondition`, which
+        // applies the plugin's own proposer rule (`isProposerEligible`: past votes against
+        // `minProposerVotingPower`). It sits at `helpers[0]`, where the Aragon app reads the
+        // creation rule of a staged body from TokenVotingSetup. It is returned in BOTH shapes and
+        // granted in NEITHER: this setup's permissions are unchanged. A standalone plugin enforces
+        // the rule itself, and an SPP body is called by the SPP, which `_resolvePayer` trusts to
+        // have enforced it, so wiring this condition as the SPP's rule is the only thing that
+        // restricts who may create a CRISP proposal by voting power in a staged process.
+        preparedSetupData.helpers = new address[](1);
+        preparedSetupData.helpers[0] = address(new CrispProposerCondition(plugin));
     }
 
     /// @inheritdoc IPluginSetup
+    /// @dev The condition is not referenced by any permission, so there is nothing of it to revoke.
+    ///      The helper list is deliberately not inspected, as in `TokenVotingSetup`: the
+    ///      `PluginSetupProcessor` already rejects a payload whose `currentHelpers` differ from
+    ///      the ones recorded when the plugin was installed.
     function prepareUninstallation(address _dao, SetupPayload calldata _payload)
         external
         view

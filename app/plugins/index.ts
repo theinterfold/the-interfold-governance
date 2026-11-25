@@ -1,6 +1,7 @@
 import {
   PUB_CRISP_VOTING_PLUGIN_ADDRESS,
   PUB_ENABLE_LOCKING,
+  VOTING_POWER_PLUGIN_ID,
   PUB_TOKEN_ADDRESS,
   PUB_VE_LOCKER_ADDRESS,
 } from "@/constants";
@@ -28,23 +29,11 @@ export const plugins: PluginItem[] = [
   },
   // With a voting escrow configured, locking and self-delegation share one page (the adapter).
   // Without one (testnet), the token page activates wallet FOLD.
-  ...(PUB_ENABLE_LOCKING
-    ? [
-        {
-          id: "lock",
-          folderName: "velocker",
-          title: "Voting power",
-          icon: IconType.APP_MEMBERS,
-          pluginAddress: PUB_VE_LOCKER_ADDRESS,
-        },
-      ]
-    : [
-        {
-          id: "members",
-          folderName: "members",
-          title: "Voting power",
-          icon: IconType.APP_MEMBERS,
-          pluginAddress: PUB_TOKEN_ADDRESS,
-        },
-      ]),
+  {
+    id: VOTING_POWER_PLUGIN_ID,
+    folderName: PUB_ENABLE_LOCKING ? "velocker" : "members",
+    title: "Voting power",
+    icon: IconType.APP_MEMBERS,
+    pluginAddress: PUB_ENABLE_LOCKING ? PUB_VE_LOCKER_ADDRESS : PUB_TOKEN_ADDRESS,
+  },
 ];

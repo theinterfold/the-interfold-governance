@@ -1,3 +1,4 @@
+import { SuccessBanner } from "@/components/alert/successBanner";
 import { AlertCard, Button } from "@aragon/ods";
 import { formatUnits } from "viem";
 import { useClaimRefund } from "../../hooks/useClaimRefund";
@@ -52,11 +53,9 @@ export const RefundCard = ({ proposalId, e3Id }: { proposalId: bigint; e3Id: big
   if (isClaimed) {
     return (
       <div className="flex w-full flex-col gap-y-3 rounded-xl border border-neutral-100 bg-neutral-0 p-6 shadow-neutral-sm">
-        <AlertCard
-          variant="success"
-          message="This round's fee was refunded"
-          description="The E3 fee has been credited back to the proposal's fee payer, who can withdraw it from the proposal fee credit."
-        />
+        <SuccessBanner title="This round's fee was refunded" announce>
+          <p>The E3 fee has been credited back to the proposal's fee payer, who can withdraw it from the proposal fee credit.</p>
+        </SuccessBanner>
         {payer && (
           <p className="text-sm text-neutral-500">
             Refunded to {isSelfPayer ? "you" : <AddressText bold={false}>{payer}</AddressText>}.

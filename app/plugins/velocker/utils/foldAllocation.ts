@@ -14,25 +14,19 @@ export type FoldAllocation =
   | { status: "unavailable" }
   | { status: "ready"; total: bigint; parts: { kind: AllocationKind; amount: bigint }[] };
 
-export type FoldHoldingKind = "wallet" | "locked" | "bonded" | "vesting";
+export type FoldHoldingKind = "wallet" | "locked" | "bonded";
 
-/** Group lock states into one asset category without changing the ownership total. */
+/** Group locks and non-transferable vesting into Locked FOLD without changing the ownership total. */
 export function foldHoldingParts(
-  parts: { kind: AllocationKind; amount: bigint }[],
-  { includeVestingInLocked = false }: { includeVestingInLocked?: boolean } = {}
+  parts: { kind: AllocationKind; amount: bigint }[]
 ) {
-  const amounts: Record<FoldHoldingKind, bigint> = { wallet: 0n, locked: 0n, bonded: 0n, vesting: 0n };
+  const amounts: Record<FoldHoldingKind, bigint> = { wallet: 0n, locked: 0n, bonded: 0n };
   for (const { kind, amount } of parts) {
     const category =
-      kind === "vesting" && includeVestingInLocked
-        ? "locked"
-        : kind === "wallet" || kind === "bonded" || kind === "vesting"
-          ? kind
-          : "locked";
+      kind === "wallet" || kind === "bonded" ? kind : "locked";
     amounts[category] += amount;
   }
   return (Object.entries(amounts) as [FoldHoldingKind, bigint][])
-    .filter(([kind]) => !includeVestingInLocked || kind !== "vesting")
     .map(([kind, amount]) => ({ kind, amount }));
 }
 

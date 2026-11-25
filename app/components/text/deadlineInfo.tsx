@@ -24,10 +24,15 @@ export function utcTimestamp(atMs: number): { date: string; clock: string } {
 }
 
 /** Relative labels share one exact, accessible timestamp in UTC. */
-export function DeadlineInfo({ label, atMs, children }: { label: string; atMs: number; children: ReactNode }) {
+export function DeadlineInfo({ label, atMs, description, children }: {
+  label: string;
+  atMs: number;
+  description?: string;
+  children: ReactNode;
+}) {
   const { date, clock } = utcTimestamp(atMs);
   return (
-    <PowerInfo compact={true} contentClassName={styles.tooltip} label={`${label} ${date}, ${clock}`} trigger={children}>
+    <PowerInfo compact={true} contentClassName={`${styles.tooltip}${description ? ` ${styles.withDescription}` : ""}`} label={`${label} ${date}, ${clock}`} trigger={children}>
       <dl>
         <dt>{label}</dt>
         <dd>
@@ -37,6 +42,7 @@ export function DeadlineInfo({ label, atMs, children }: { label: string; atMs: n
           </time>
         </dd>
       </dl>
+      {description && <p className={styles.description}>{description}</p>}
     </PowerInfo>
   );
 }

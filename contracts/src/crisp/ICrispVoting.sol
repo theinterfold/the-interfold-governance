@@ -178,6 +178,13 @@ interface ICrispVoting {
     /// @return The minimum voting power needed to propose a vote.
     function minProposerVotingPower() external view returns (uint256);
 
+    /// @notice Whether `_who` holds at least `minProposerVotingPower` of voting power at the
+    ///         snapshot a new proposal would use (the token's previous timepoint). This is the
+    ///         exact rule a direct proposal creator must clear, and the one the SPP's creation
+    ///         condition applies in a staged process.
+    /// @param _who The account to check.
+    function isProposerEligible(address _who) external view returns (bool);
+
     /// @notice Returns the minimum voting power needed to be an eligible voter.
     /// @return The minimum voting power needed to be an eligible voter.
     function minVoterVotingPower() external view returns (uint256);

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { WarningCircle } from "@phosphor-icons/react";
 import { formatUnits, isAddress, type Address } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 import {
@@ -13,10 +15,11 @@ import { AddressText } from "@/components/text/address";
 import { SelfDelegateLink } from "@/components/text/selfDelegate";
 import { useTokenDecimals } from "@/hooks/useTokenDecimals";
 import { ADDRESS_ZERO, equalAddresses } from "@/utils/evm";
-import { exactNumber } from "@/utils/numbers";
+import { displayNumber } from "@/utils/numbers";
 import { foldLockAbi } from "../artifacts/foldLock";
 import { votingEscrowAbi } from "../artifacts/votingEscrow";
-import { PowerWarning } from "./powerWarning";
+import { BallotDisclosure } from "@/components/proposalVoting/ballotDisclosure";
+import styles from "./uncountedFoldNotice.module.css";
 
 /**
  * Names the FOLD of an account that gives it no voting power under the voting escrow, and what
@@ -30,7 +33,16 @@ import { PowerWarning } from "./powerWarning";
  *
  * @param delegatesTo The adapter's delegate for `address`, from `useTokenVotes`.
  */
-export function UncountedFoldNotice({ address, delegatesTo }: { address?: Address; delegatesTo?: Address }) {
+export function UncountedFoldNotice({
+  address,
+  delegatesTo,
+  children,
+}: {
+  address?: Address;
+  delegatesTo?: Address;
+  /** Embed the same resolved warning in the ballot's calculation help. */
+  children?: (warning: ReactNode | null) => ReactNode;
+}) {
   const decimals = useTokenDecimals();
   const { data } = useReadContracts({
     contracts: [
@@ -70,23 +82,23 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
     locked === undefined ||
     decimals === undefined
   ) {
-    return null;
+    return children ? children(null) : null;
   }
 
   const noDelegate = equalAddresses(delegatesTo, ADDRESS_ZERO);
   const undelegated = noDelegate ? locked : 0n;
   const delegatedElsewhere = locked > 0n && !noDelegate && !equalAddresses(delegatesTo, address);
   const bondedAway = !!bondedDelegate && !equalAddresses(bondedDelegate, ADDRESS_ZERO);
-  if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere && !bondedAway) return null;
+  if (unlocked === 0n && undelegated === 0n && !delegatedElsewhere && !bondedAway) return children ? children(null) : null;
 
-  const fmt = (v: bigint) => `${exactNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
+  const fmt = (v: bigint) => `${displayNumber(formatUnits(v, decimals))} ${PUB_TOKEN_SYMBOL}`;
   const link = "underline underline-offset-2";
-  return (
-    <PowerWarning title={`Some of your ${PUB_TOKEN_SYMBOL} does not count`}>
+  const details = (
+    <>
       {unlocked > 0n && (
         <span className="block">
           {fmt(unlocked)} in your wallet is not locked.{" "}
-          <Link href="/plugins/lock/#/" className={link}>
+          <Link href="/plugins/lock/?action=lock#/" className={link}>
             Lock it
           </Link>{" "}
           to vote with it.
@@ -100,7 +112,7 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
       )}
       {delegatedElsewhere && (
         <span className="block">
-          {exactNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
+          {displayNumber(formatUnits(locked, decimals))} locked {PUB_TOKEN_SYMBOL} votes through{" "}
           <AddressText bold={false}>{delegatesTo}</AddressText>. <SelfDelegateLink label="Delegate to yourself" /> to
           vote with it.
         </span>
@@ -115,7 +127,31 @@ export function UncountedFoldNotice({ address, delegatesTo }: { address?: Addres
           to vote with it yourself.
         </span>
       )}
-      <span className="block">A change counts only for proposals created after it.</span>
-    </PowerWarning>
+      <span className={`block ${styles.footnote}`}>
+        A change counts only for proposals created after it.
+      </span>
+    </>
+  );
+
+  if (children) return children(
+    <section className={styles.help} aria-label={`Some ${PUB_TOKEN_SYMBOL} does not count`}>
+      <h4>Some {PUB_TOKEN_SYMBOL} does not count</h4>
+      <div className={styles.helpDetails}>{details}</div>
+    </section>
+  );
+
+  return (
+    <BallotDisclosure
+      className={`power-warning ${styles.notice}`}
+      title={(chevron) => (
+        <span className={styles.summary}>
+          <WarningCircle size={18} weight="regular" aria-hidden="true" focusable="false" />
+          <span>Some {PUB_TOKEN_SYMBOL} does not count</span>
+          {chevron}
+        </span>
+      )}
+    >
+      <div className={styles.details}>{details}</div>
+    </BallotDisclosure>
   );
 }

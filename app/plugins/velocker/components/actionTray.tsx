@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type RefObject } from "react";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { DialogContent } from "@aragon/ods";
 import { Title } from "@radix-ui/react-dialog";
 import { MorphDialog } from "@/components/motion/MorphDialog";
@@ -36,6 +36,7 @@ export function ActionTray({
   overlayClassName,
   children,
 }: Props) {
+  const closeButton = useRef<HTMLButtonElement>(null);
   return (
     <MorphDialog
       triggerRef={triggerRef}
@@ -53,6 +54,13 @@ export function ActionTray({
         if (pending) event.preventDefault();
       }}
       onOpenAutoFocus={(event) => {
+        if (window.matchMedia("(max-width: 767px), (pointer: coarse)").matches) {
+          // Opening a mobile dialog should not also open its on-screen keyboard.
+          event.preventDefault();
+          const close = closeButton.current;
+          (close && !close.disabled ? close : close?.closest<HTMLElement>('[role="dialog"]'))?.focus({ preventScroll: true });
+          return;
+        }
         if (initialFocusRef?.current) {
           event.preventDefault();
           initialFocusRef.current.focus({ preventScroll: true });
@@ -90,7 +98,7 @@ export function ActionTray({
           <span>{backLabel}</span>
         </button>
         <TrayTitle title={title} />
-        <button type="button" className="power-tray-icon" aria-label="Close" disabled={pending} onClick={onClose}>
+        <button ref={closeButton} type="button" className="power-tray-icon" aria-label="Close" disabled={pending} onClick={onClose}>
           <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
             <path d="m6 6 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>

@@ -1,4 +1,7 @@
-import type { ComponentType, CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ComponentType, CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
+
+/** Run after the server-rendered header and menu trigger, before application scripts. */
+export declare const HEADER_ENTRANCE_BOOTSTRAP: string;
 
 export interface SiteFooterLinkGroup {
   title: string;
@@ -35,8 +38,14 @@ export declare function useMobileMenuBehavior(open: boolean, onOpenChange?: (ope
 
 export interface SiteHeaderChromeProps extends HTMLAttributes<HTMLElement> {
   variant?: "desktop" | "mobile" | "responsive";
-  brand: ReactNode;
-  symbol: ReactNode;
+  /** Shared composition; the optional local study URL can compare the same layouts in both apps. */
+  layout?: "current" | "lockup" | "compact" | "divided";
+  /** Identity artwork and motion are owned here; apps only supply routing and events. */
+  governance?: boolean;
+  homeHref?: string;
+  HomeLink?: ElementType<AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }>;
+  brandLinkProps?: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children" | "className" | "href">;
+  symbolLinkProps?: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children" | "className" | "href">;
   navigation?: ReactNode;
   navigationLabel?: string;
   extendedBrand?: boolean;
@@ -52,4 +61,16 @@ export declare function HeaderWordmark(
 ): React.JSX.Element;
 export declare function InterfoldSymbol(props: {
   className?: string;
+  animated?: boolean;
+  lockup?: boolean;
 }): React.JSX.Element;
+export interface SiteHeaderMenuButtonProps {
+  /** Application control that stays beside the menu toggle in both menu states. */
+  action?: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  variant?: "mobile" | "responsive";
+  className?: string;
+  id?: string;
+}
+export declare function SiteHeaderMenuButton(props: SiteHeaderMenuButtonProps): React.JSX.Element;

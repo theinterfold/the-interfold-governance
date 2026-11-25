@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Address } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 import { PUB_CHAIN, PUB_VE_LOCKER_ADDRESS } from "@/constants";
@@ -20,9 +20,15 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
   const client = usePublicClient();
   const [pendingTokenId, setPendingTokenId] = useState<bigint | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+  const session = useRef({ address });
+  if (session.current.address !== address) session.current = { address };
 
   useEffect(() => {
     setError(undefined);
+    const current = session.current;
+    return () => {
+      if (session.current === current) session.current = { address: current.address };
+    };
   }, [address]);
 
   const done = () => {
@@ -57,10 +63,12 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
   });
 
   const beginWithdrawal = async (tokenId: bigint) => {
+    const started = session.current;
     setError(undefined);
     setPendingTokenId(tokenId);
     try {
       if (!client) throw new Error("No RPC client available");
+      if (!address) throw new Error("Connect your wallet to start a withdrawal.");
       if (!lockNft) throw new Error("Lock NFT not resolved yet");
 
       const approved = (await client.readContract({
@@ -70,8 +78,10 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
         args: [tokenId],
       })) as Address;
 
+      if (session.current !== started) return;
       if (approved.toLowerCase() !== PUB_VE_LOCKER_ADDRESS.toLowerCase()) {
         const approveTx = await approveWrite({
+          account: address,
           chainId: PUB_CHAIN.id,
           abi: lockNftAbi,
           address: lockNft,
@@ -79,9 +89,11 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
           args: [PUB_VE_LOCKER_ADDRESS, tokenId],
         });
         await awaitSuccessfulReceipt(client, approveTx, "The lock NFT approval");
+        if (session.current !== started) return;
       }
 
       const beginTx = await beginWrite({
+        account: address,
         chainId: PUB_CHAIN.id,
         abi: votingEscrowAbi,
         address: PUB_VE_LOCKER_ADDRESS,
@@ -90,7 +102,8 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
       });
       await awaitSuccessfulReceipt(client, beginTx, "The withdrawal request");
     } catch (err) {
-      setError(describeFailure(err, "The withdrawal could not be started"));
+      if (session.current === started) setError(describeFailure(err, "The withdrawal could not be started"));
+    } finally {
       setPendingTokenId(undefined);
     }
   };
@@ -100,7 +113,9 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
     setPendingTokenId(tokenId);
     try {
       if (!client) throw new Error("No RPC client available");
+      if (!address) throw new Error("Connect your wallet to withdraw.");
       const tx = await withdrawWrite({
+        account: address,
         chainId: PUB_CHAIN.id,
         abi: votingEscrowAbi,
         address: PUB_VE_LOCKER_ADDRESS,
@@ -119,7 +134,9 @@ export function useVeWithdraw(lockNft: Address | undefined, onChanged?: () => vo
     setPendingTokenId(tokenId);
     try {
       if (!client) throw new Error("No RPC client available");
+      if (!address) throw new Error("Connect your wallet to cancel the withdrawal.");
       const tx = await cancelWrite({
+        account: address,
         chainId: PUB_CHAIN.id,
         abi: votingEscrowAbi,
         address: PUB_VE_LOCKER_ADDRESS,

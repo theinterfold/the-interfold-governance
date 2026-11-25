@@ -1,5 +1,5 @@
 import type { IVote } from "@/utils/types";
-import { BallotActivity } from "./ballotActivity";
+import { VotingDetailSection } from "./votingDetailSection";
 import { WalletListRow } from "@/components/walletListRow";
 import { EnsMember } from "@/components/text/ensMember";
 import { ListTokenAmount } from "@/components/text/listValue";
@@ -11,20 +11,45 @@ import { ActionButton } from "@/components/input/actionButton";
 
 const PAGE_SIZE = 6;
 
-export function PublicVotes({ votes }: { votes: (IVote & { votingPower?: string })[] }) {
+export function PublicVotes({
+  votes,
+  isLoading = false,
+  isError = false,
+  hasLoaded = true,
+  onRetry,
+}: {
+  votes: (IVote & { votingPower?: string })[];
+  isLoading?: boolean;
+  isError?: boolean;
+  hasLoaded?: boolean;
+  onRetry?: () => void;
+}) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const labels = { yes: "Yes", approve: "Approve", no: "No", abstain: "Abstain" };
   const states = { yes: "accepted", approve: "accepted", no: "rejected", abstain: "pending" };
   return (
-    <BallotActivity
-      title={
-        <>
-          Public votes <span className="proposal-detail-count">{votes.length}</span>
-        </>
-      }
-    >
+    <VotingDetailSection title="Public votes" summary={hasLoaded ? <span className="proposal-detail-count">{votes.length}</span> : undefined}>
       <div className="proposal-activity-body">
-        {!votes.length && <p className="ui-label">No votes cast.</p>}
+        {isLoading && (
+          <p className="ui-label" role="status">
+            {hasLoaded ? "Updating public votes…" : "Loading public votes…"}
+          </p>
+        )}
+        {isError && (
+          <div className="power-help" role="alert">
+            <p>
+              {hasLoaded
+                ? "Could not refresh public votes. Showing the last loaded votes."
+                : "Could not load public votes right now."}
+            </p>
+            {onRetry && (
+              <button type="button" className="ui-text-action" onClick={onRetry}>
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+        {hasLoaded && !isLoading && !isError && !votes.length && <p className="ui-label">No votes cast.</p>}
         <div className="delegate-picker-list" role="list" aria-label="Public votes">
           {votes.slice(0, visibleCount).map((vote, index) => (
             <div
@@ -61,6 +86,6 @@ export function PublicVotes({ votes }: { votes: (IVote & { votingPower?: string 
           </div>
         )}
       </div>
-    </BallotActivity>
+    </VotingDetailSection>
   );
 }

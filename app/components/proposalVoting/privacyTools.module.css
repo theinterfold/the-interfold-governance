@@ -10,6 +10,10 @@
 .tools {
   position: relative;
   container-type: inline-size;
+  --privacy-action-size: 18px;
+  --privacy-toggle-size: 36px;
+  --privacy-toggle-gap: 4px;
+  --privacy-head-inset: 16px;
   width: 100%;
   min-width: 0;
   border: 1px solid transparent;
@@ -35,35 +39,66 @@
   fill: none;
   stroke: var(--rule);
   stroke-width: 1px;
-  stroke-dasharray: 12px 12px;
+  stroke-dasharray: 4px 4px;
+  stroke-linecap: round;
 }
 .head {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  min-height: 52px;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: start;
+  height: 53px;
+  min-height: 53px;
+  border-bottom: 1px solid transparent;
+  border-radius: inherit;
+  transition:
+    border-color var(--interfold-ui-duration) var(--interfold-ui-ease),
+    border-radius var(--interfold-ui-duration) var(--interfold-ui-ease);
 }
 .tools[data-open="true"] .head {
-  border-bottom: 1px solid var(--rule);
+  border-bottom-color: var(--rule);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+/* Paint to the dashed outline, without changing the control's layout or hit area. */
+.head::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  bottom: -2px;
+  border-radius: inherit;
+  background: var(--surface-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--interfold-ui-duration) var(--interfold-ui-ease),
+    bottom var(--interfold-ui-duration) var(--interfold-ui-ease);
+}
+.tools[data-open="true"] .head::before {
+  bottom: 0;
+}
+.head:has(.toggle:hover)::before {
+  opacity: 1;
 }
 /* The whole bar opens and closes the tools, except the toggles laid over it. */
 .toggle {
+  position: relative;
   display: grid;
   grid-column: 1;
   grid-row: 1;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) var(--privacy-toggle-size);
+  grid-template-rows: var(--privacy-toggle-size);
   align-items: center;
   width: 100%;
-  min-height: 52px;
-  padding: 8px 8px 8px 16px;
+  height: 100%;
+  min-height: 0;
+  padding: 8px 8px 8px var(--privacy-head-inset);
   border: 0;
   background: transparent;
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-}
-.toggle:hover {
-  background: var(--surface-hover);
 }
 .toggle:focus-visible {
   outline: 2px solid var(--ink);
@@ -71,16 +106,19 @@
 }
 .title {
   min-width: 0;
+  white-space: nowrap;
   color: var(--ink);
   font: 600 14px/1.4 var(--font-sans);
-  white-space: nowrap;
+}
+.tools[data-open="false"] .title {
+  max-width: calc(100% - var(--privacy-toggle-count) * (var(--privacy-toggle-size) + var(--privacy-toggle-gap)) - 4px);
 }
 .chevron {
   display: grid;
   grid-column: 2;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: var(--privacy-toggle-size);
+  height: var(--privacy-toggle-size);
   color: var(--ink);
 }
 .toggles {
@@ -89,18 +127,24 @@
   grid-column: 1;
   grid-row: 1;
   justify-self: end;
+  align-self: center;
   align-items: center;
-  gap: 4px;
-  margin-right: 52px;
+  gap: var(--privacy-toggle-gap);
+  margin-right: calc(var(--privacy-toggle-size) + 16px);
   pointer-events: none;
 }
 .tools[data-open="true"] .toggles {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
 }
 /* While copies fly, the real icons wait hidden in both places. */
-.tools[data-icon-flight="true"] .toggles,
+.tools[data-icon-flight="true"] .iconToggle > svg,
 .tools[data-icon-flight="true"] [data-flight-place="open"] {
-  opacity: 0;
+  visibility: hidden;
+}
+/* The shared flight owns this disclosure's height, including interrupted reversals. */
+.tools[data-icon-flight="true"] > :global(.motion-disclosure) {
+  transition: none;
 }
 .tools [data-flight-place="open"] {
   display: inline-flex;
@@ -111,8 +155,8 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: var(--privacy-toggle-size);
+  height: var(--privacy-toggle-size);
   border: 1px solid var(--rule);
   border-radius: var(--ui-radius);
   background: var(--paper);
@@ -124,7 +168,8 @@
     border-color var(--interfold-ui-duration) var(--interfold-ui-ease),
     box-shadow var(--interfold-ui-duration) var(--interfold-ui-ease);
 }
-.tools[data-icon-flight="true"] .iconToggle {
+.tools[data-icon-flight="true"] .iconToggle,
+.tools[data-open="true"] .iconToggle {
   pointer-events: none;
 }
 .iconToggle > svg {
@@ -133,18 +178,20 @@
   pointer-events: none;
 }
 .iconToggle:not([aria-disabled="true"]):hover {
-  border-color: var(--ink);
-  background: var(--surface-selected);
-  box-shadow: inset 0 0 0 1px var(--ink);
-  color: var(--ink);
+  border-color: var(--rule-strong);
+  background: var(--surface-hover);
 }
-/* An active tool has the outline of a selected vote card and keeps its green symbol. */
+/* Selected tools share the ballot choices' grey surface and keep their green symbol. */
 .iconToggle[data-active="true"] {
+  background: var(--surface-selected);
   border-color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
   color: var(--if-brand-green);
 }
 .iconToggle[data-active="true"]:not([aria-disabled="true"]):hover {
+  background: var(--surface-selected);
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
   color: var(--if-brand-green);
 }
 .iconToggle[aria-disabled="true"] {
@@ -158,8 +205,47 @@
 .rows {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  padding: 4px 12px 12px;
+  gap: 0;
+  padding: 4px 12px 8px;
 }
+/* Approved option 02: separated groups, settings use the full inner width. */
+.rows :global(.ballot-optional-group[data-layout="compact"]) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.rows :global(.ballot-optional-group + .ballot-optional-group) {
+  border-top: 1px solid var(--rule-strong);
+}
+.rows :global(.ballot-optional-card[data-layout="compact"]) {
+  min-height: 56px;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  gap: 10px;
+  padding: 12px;
+}
+.rows :global(.ballot-optional-symbol),
+.rows :global(.ballot-optional-symbol svg) {
+  width: 20px;
+  height: 20px;
+}
+.rows :global(.ballot-optional-check) { width: 18px; height: 18px; }
+.rows :global(.ballot-optional-card strong) { font-size: 14px; font-weight: 600; }
+/* Keep an unavailable title readable above its reason; dim only its control and symbol. */
+.rows :global(.ballot-optional-card[data-disabled="true"]) {
+  opacity: 1;
+  color: var(--muted);
+}
+.rows :global(.ballot-optional-card[data-disabled="true"] .ballot-optional-symbol),
+.rows :global(.ballot-optional-card[data-disabled="true"] .ballot-optional-check) {
+  opacity: 0.5;
+}
+.rows :global(.ballot-optional-info) { top: 17px; right: 37px; }
+.rows :global(.ballot-optional-card[data-help="true"] strong) { padding-right: 24px; }
+.rows :global(.ballot-optional-group[data-layout="compact"] .ballot-optional-details),
+.rows > :global(.ballot-optional-details) {
+  padding: 0 12px 18px;
+}
+.rows :global(.ballot-optional-details > :first-child) { border-top: 0; padding-top: 0; }
 .tooltip:global(.power-info-popover) {
   width: min(250px, calc(100vw - 32px));
 }
@@ -173,20 +259,12 @@
   border: 0;
   font: 400 13px/1.5 var(--font-sans);
 }
-/* The collapsed bar keeps one line: narrow boxes shrink the controls slightly. */
+/* Reserve space for the collapsed controls at each existing narrow breakpoint. */
 @container (max-width: 315px) {
-  .tools[data-open="false"] .toggle {
-    grid-template-columns: minmax(0, 1fr) 32px;
-    padding-left: 12px;
-  }
-  .toggles {
-    gap: 2px;
-    margin-right: 44px;
-  }
-  .iconToggle,
-  .chevron {
-    width: 32px;
-    height: 32px;
+  .head {
+    --privacy-toggle-size: 32px;
+    --privacy-toggle-gap: 2px;
+    --privacy-head-inset: 12px;
   }
   .iconToggle > svg {
     width: 16px;
@@ -194,23 +272,41 @@
   }
 }
 @container (max-width: 285px) {
-  .title {
-    font-size: 13px;
+  .title { font-size: 13px; }
+}
+@container (max-width: 255px) {
+  .head {
+    --privacy-toggle-size: 28px;
+    --privacy-head-inset: 10px;
   }
 }
-/* A 320px viewport leaves about 236px: smaller controls keep the title, icons and chevron on one line. */
-@container (max-width: 255px) {
-  .tools[data-open="false"] .toggle {
-    grid-template-columns: minmax(0, 1fr) 28px;
-    padding-left: 10px;
+/* At the smallest widths, keep every icon without squeezing the title. */
+@container (max-width: 235px) {
+  .tools[data-open="false"] .head {
+    height: 85px;
+  }
+  .tools[data-open="false"] .title {
+    max-width: none;
   }
   .toggles {
-    margin-right: 40px;
+    justify-self: start;
+    align-self: end;
+    margin: 0 0 10px var(--privacy-head-inset);
   }
-  .iconToggle,
-  .chevron {
-    width: 28px;
-    height: 28px;
+}
+
+/* Four tools use the existing second-row layout earlier, keeping the title legible. */
+@container (max-width: 340px) {
+  .tools[data-many-tools="true"][data-open="false"] .head {
+    height: 85px;
+  }
+  .tools[data-many-tools="true"][data-open="false"] .title {
+    max-width: none;
+  }
+  .tools[data-many-tools="true"] .toggles {
+    justify-self: start;
+    align-self: end;
+    margin: 0 0 10px var(--privacy-head-inset);
   }
 }
 
@@ -313,45 +409,32 @@
   white-space: nowrap;
 }
 .powerPercent {
-  color: var(--ink);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.powerPercent[data-active="false"] {
   color: var(--muted);
   font-weight: 400;
+  white-space: nowrap;
 }
 .calculation:global(.power-info-popover) {
   width: min(360px, calc(100vw - 32px));
 }
 .calculationTerms {
   display: grid;
-  gap: 8px;
+  gap: var(--ui-space-related);
   margin: 0;
+  min-width: 0;
 }
 .calculationTerms > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  align-items: baseline;
-  gap: var(--ui-space-controls);
+  min-width: 0;
 }
 .calculationTerms.calculationTerms > div + div {
   margin-top: 0;
 }
-.calculationTerms > div > dt {
-  margin: 0;
-  color: var(--muted);
-  font-weight: 400;
-}
 .calculationTerms > div > dd {
   margin: 0;
-  color: var(--ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums lining-nums;
-  text-align: right;
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
-/* Each number keeps its unit: lines break only between the terms. */
+/* Keep exact values legible; a long term can wrap without widening the popover. */
 .formula {
   display: flex;
   flex-wrap: wrap;
@@ -360,7 +443,9 @@
   font-variant-numeric: tabular-nums lining-nums;
 }
 .formula > span {
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 560px) {
   .reviewContent {
@@ -415,7 +500,50 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .iconToggle {
+  .iconToggle,
+  .head,
+  .head::before {
     transition: none;
   }
 }
+
+.steps[data-compact] { display: flex; flex-wrap: wrap; gap: 8px 20px; border: 0; margin-bottom: 10px; }
+.steps[data-compact] li { padding: 0; border: 0; column-gap: 6px; }
+.steps[data-compact] .stepNumber { font: 500 12px/1.6 var(--font-mono); }
+
+.review[data-density="compact"] { gap:0; }
+/* All compact facts and the sequence share a 56px row and one bottom rule. */
+.reviewRow[data-density="compact"] { box-sizing:border-box; grid-template-columns:32px minmax(0,1fr); gap:8px; min-height:56px; padding:8px 0; border-bottom:1px solid var(--rule); font-size:13px; }
+.reviewRow[data-density="compact"] .reviewBubble { width:32px; height:32px; }
+.reviewRow[data-density="compact"] .reviewContent { gap:12px; }
+.reviewRow[data-density="compact"] .reviewContent > strong { font-size:14px; }
+.order { box-sizing:border-box; display:grid; gap:12px; padding:0; }
+.orderLabel { color:var(--muted); font:var(--ui-label-font); }
+.orderFrame { position:relative; display:grid; grid-template-columns:minmax(0,1fr); border:1px solid var(--rule); border-radius:var(--ui-radius); background:var(--paper); }
+.orderSteps { grid-column:1; display:grid; grid-template-rows:subgrid; margin:0; padding:0; list-style:none; min-width:0; }
+.orderSteps > li { position:relative; min-width:0; background:var(--paper); }
+.orderSteps > li:first-child { border-start-start-radius:var(--ui-radius); border-start-end-radius:var(--ui-radius); }
+.orderSteps > li:last-child { border-end-start-radius:var(--ui-radius); border-end-end-radius:var(--ui-radius); }
+.order[data-step-moving] .orderSteps > li:first-child { z-index:1; }
+.orderSteps > li + li { border-top:1px solid var(--rule); }
+.orderItem { display:grid; grid-template-columns:24px minmax(0,1fr); align-items:center; align-content:center; column-gap:12px; min-height:80px; padding:16px 20px; box-sizing:border-box; font:500 14px/1.5 var(--font-sans); color:var(--ink); }
+.orderItemIcon { display:flex; align-items:center; justify-content:center; }
+.orderItemIcon > svg { width:18px; height:18px; }
+.orderConnector { position:relative; grid-column:1; grid-row:1; justify-self:end; align-self:end; margin-right:12px; transform:translateY(50%); z-index:2; display:flex; align-items:center; gap:4px; background:var(--paper); padding-inline:4px; }
+/* Both tracks follow the taller action, so reversal never moves the divider or its control. */
+.orderFrame[data-swappable] { grid-auto-rows:1fr; }
+.orderFrame[data-swappable] .orderSteps > li + li { border-top:0; box-shadow:inset 0 1px var(--rule); }
+/* Symmetric clearance centres the entire title/detail group in each equal-height track. */
+.orderFrame[data-swappable] .orderItem { height:100%; min-height:84px; padding-block:16px; }
+.reviewRows:empty { display:none; }
+@media(max-width:560px) {
+ .reviewRow[data-density="compact"] { min-height:80px; }
+ .reviewRow[data-density="compact"] .reviewContent { gap:2px; }
+}
+
+.orderItemContent { display:grid; gap:4px; min-width:0; }
+.orderDetail { color:var(--muted); font:400 13px/1.5 var(--font-sans); min-width:0; }
+.orderItem:has(.orderDetail) { align-items:start; }
+.orderItem:has(.orderDetail) .orderItemIcon { min-height:21px; }
+.orderSteps > li[data-future] .orderItem { min-height:64px; }
+.orderSteps > li[data-future] .orderItemContent > span { color:var(--muted); }

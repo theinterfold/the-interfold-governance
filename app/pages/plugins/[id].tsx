@@ -1,14 +1,21 @@
 import React, { useEffect, useState, type FC } from "react";
-import { useRouter } from "next/router";
-import { PleaseWaitSpinner } from "@/components/please-wait";
-import { resolveQueryParam } from "@/utils/query";
+import { ProposalsIntro } from "@/plugins/governance/components/proposalsIntro";
+import { useUrl } from "@/hooks/useUrl";
 import { NotFound } from "@/components/not-found";
 import { plugins } from "@/plugins";
-import { MainSection } from "@/components/layout/main-section";
 
-const PluginLoader: FC = () => {
-  const { query } = useRouter();
-  const pluginId = resolveQueryParam(query.id);
+function PendingPlugin({ pluginId }: { pluginId?: string }) {
+  const { hash } = useUrl();
+  const list = pluginId === "proposals" && (!hash || hash === "#/");
+  return <>
+    {(!pluginId || list) && <div className={pluginId ? "proposals-page" : "proposals-page plugin-initial-list"}>
+      <ProposalsIntro showPageTitle={false} />
+    </div>}
+    <span className="sr-only" role="status">Loading page…</span>
+  </>;
+}
+
+const PluginLoader: FC<{ pluginId?: string }> = ({ pluginId }) => {
   const [loaded, setLoaded] = useState<{ id: string; PageComponent: FC | null }>();
 
   useEffect(() => {
@@ -36,21 +43,10 @@ const PluginLoader: FC = () => {
     };
   }, [pluginId]);
 
-  if (!loaded?.PageComponent || loaded.id !== pluginId) {
-    if (!pluginId || loaded?.id !== pluginId) {
-      return (
-        <MainSection>
-          <div className="flex h-24 w-full items-center justify-center">
-            <PleaseWaitSpinner />
-          </div>
-        </MainSection>
-      );
-    }
-    return <NotFound />;
-  }
-
-  const PageComponent = loaded.PageComponent;
-  return <PageComponent />;
+  const pending = !pluginId || loaded?.id !== pluginId;
+  const PageComponent = loaded?.PageComponent;
+  if (pending) return <PendingPlugin pluginId={pluginId} />;
+  return PageComponent ? <PageComponent /> : <NotFound />;
 };
 
 export default PluginLoader;

@@ -2,6 +2,16 @@
 
 Decisões de interação e registos de validação desde 22 de setembro de 2026. As secções datadas documentam a evolução da implementação; as regras atuais estão em DESIGN.md e no guia de consistência.
 
+## Transição entre páginas
+
+Ao seguir uma ligação interna ou usar o histórico, o conteúdo sobe 18 px e desaparece em 220 ms. A página seguinte entra de 18 px abaixo em 280 ms. A navbar fica no lugar. A passagem entre a lista e o detalhe de uma proposta conserva o movimento dos elementos partilhados. Com movimento reduzido, a mudança é imediata. Filtros, diálogos e dados que chegam à mesma página conservam o seu comportamento. Ver o [contrato de navegação partilhado](../../app/vendor/site-header/README.md#page-navigation).
+
+## Entrada de títulos assíncronos
+
+O esqueleto do título sai para cima enquanto o texto entra de baixo, com a altura medida a acompanhar títulos de várias linhas. Usar `LoadingText`, composto por `FadingLoading` e `FluidHeight`, na lista e no cabeçalho de leitura. A opacidade cruza de forma linear durante os 600 ms da transição; só o movimento usa a curva rápida da interface, para o texto não aparecer quase todo nos primeiros frames. Não apresentar “Proposal” como título provisório enquanto os metadados ainda carregam. Se o texto chegou antes dos dados do contrato, a troca de superfície conserva a sua posição. A altura das linhas da lista acompanha a chegada de dados para evitar deslocar de repente os títulos seguintes. Uma falha definitiva continua a mostrar o fallback e as ações da proposta; a navegação não espera pelos metadados. A preferência por movimento reduzido torna a troca imediata.
+
+A entrada do texto não depende de o esqueleto continuar montado. `LoadingTextScope` conserva o instante de início por campo na mesma proposta: uma resposta rápida também entra gradualmente e uma troca do componente de dados retoma o ponto da animação em curso, incluindo a saída do esqueleto. Ao navegar para uma proposta já carregada, a transição de página é suficiente; não repetir a entrada do texto quando essa transição termina. Confirmar tanto o primeiro carregamento como o refresh com cache; observar apenas a posição ou o estado final não valida a transição de opacidade.
+
 ## O que corrigimos já
 
 O peso da Inter tinha sido aumentado, mas o espaçamento dos números continuava com os valores anteriores: −1,2 px no total e no campo de quantidade; −0,6 px no breakdown. O total e o breakdown também usavam algarismos tabulares, embora não fossem colunas de uma tabela.
@@ -237,7 +247,11 @@ Os popovers de wallet e locks partilham um único espaço de hover, com atraso b
 
 Validação na página local: registo de abertura do seletor com 52 amostras e fecho com 35, ambos sem inversões de largura; inspeção visual pausada a 40/120 ms na troca de passo, com opacidades de cabeçalho e corpo coincidentes; fecho a 160 ms sem o título comprido dentro do botão; Lock FOLD com título visível em todas as 18 amostras de uma abertura normal e sem inversões; abertura/fecho a partir de Start withdrawal no preview com a origem preservada. Instrumentação temporária removida.
 
-### Navegação das propostas — vídeo de 29 de setembro, 15:59
+### Navegação entre a lista e a proposta
+
+Abrir a página de leitura e voltar à lista usa a transição de página partilhada do site. Cada página move-se e desvanece à sua própria escala. No regresso, a lista recupera os filtros, a posição e o foco da proposta de origem. Com movimento reduzido, a troca é imediata.
+
+### Estudo anterior de navegação das propostas — vídeo de 29 de setembro, 15:59
 
 Foram extraídos e inspecionados os 272 frames nativos do vídeo de 6,733 s,
 preservando os timestamps. Na abertura, os frames 88–98 (1,533–1,717 s)
@@ -261,7 +275,7 @@ com detalhes expandidos, navegação por teclado e o formato de 390 px.
 O foco regressou ao título de origem e os nomes temporários desapareceram
 no fim. Os controlos de pausa foram removidos do código final.
 
-### Regresso à lista e estabilidade — 29 de setembro
+### Estudo anterior do regresso à lista — 29 de setembro
 
 O regresso tem agora uma sequência própria de 360 ms, com a curva de fecho
 do `MorphDialog`. O documento e o boletim recolhem primeiro; a informação

@@ -5,6 +5,7 @@ import { TokenVotingAbi } from "../artifacts/TokenVoting.sol";
 import { PUB_DEPLOYMENT_BLOCK, PUB_TOKEN_VOTING_PLUGIN_ADDRESS } from "@/constants";
 import { fetchProposals } from "@/utils/crispIndexer";
 import { useMetadata } from "@/hooks/useMetadata";
+import { proposalDocument, proposalMetadataState } from "@/utils/proposalMetadataState";
 import { publicClient } from "../utils/client";
 import { useProposalBoundaryClock } from "@/plugins/governance/utils/useProposalBoundaryClock";
 
@@ -80,9 +81,11 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
     if (autoRefresh) proposalRefetch();
   }, [blockNumber, autoRefresh, proposalRefetch]);
 
+  const usesSppMetadata = override !== undefined;
+
   // Fetch the creation event once we have on-chain data (for creator + metadata uri)
   useEffect(() => {
-    if (override?.metadataUri) return;
+    if (usesSppMetadata) return;
     if (!proposalData || !publicClient || creationEvent) return;
 
     void (async () => {
@@ -124,27 +127,35 @@ export function useProposal(proposalId: bigint, autoRefresh = false, override?: 
         console.error("Could not fetch the proposal creation event", err);
       }
     })();
-  }, [proposalId, !!proposalData, creationEvent, override?.metadataUri]);
+  }, [proposalId, !!proposalData, creationEvent, usesSppMetadata]);
 
-  // JSON metadata
+  const documentUri = usesSppMetadata ? override.metadataUri : metadataUri;
   const {
     data: metadata,
-    isLoading: metadataLoading,
+    isSuccess: metadataSuccess,
     error: metadataError,
-  } = useMetadata<ProposalMetadata>(override?.metadataUri ?? metadataUri);
+    refetch: retryMetadata,
+  } = useMetadata<ProposalMetadata>(documentUri, {
+    retry: 2,
+    enabled: !!documentUri,
+  });
+  const metadataState = proposalMetadataState(metadata, { isSuccess: metadataSuccess, error: metadataError });
 
   const proposal = arrangeProposalData(proposalData, creationEvent, metadata, override?.creator);
 
   return {
     proposal,
+    retry: proposalRefetch,
+    retryMetadata,
     status: {
       proposalReady: proposalFetchStatus === "idle",
       proposalLoading: proposalFetchStatus === "fetching",
       proposalError,
       proposalReadAtMs,
-      metadataReady: !metadataError && !metadataLoading && !!metadata,
-      metadataLoading,
-      metadataError: metadataError !== undefined,
+      metadataState,
+      metadataReady: metadataState === "ready",
+      metadataLoading: metadataState === "loading",
+      metadataError: metadataState === "unavailable" || metadataState === "untitled",
     },
   };
 }
@@ -181,9 +192,6 @@ function arrangeProposalData(
     tally: proposalData.tally,
     allowFailureMap: proposalData.allowFailureMap,
     creator: creatorOverride ?? creationEvent?.creator ?? "",
-    title: metadata?.title ?? "",
-    summary: metadata?.summary ?? "",
-    description: metadata?.description ?? "",
-    resources: metadata?.resources ?? [],
+    ...proposalDocument(metadata),
   };
 }

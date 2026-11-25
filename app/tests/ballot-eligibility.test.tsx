@@ -55,7 +55,7 @@ const privateProps: VoteCardProps = {
   votingStep: "idle",
   lastActiveStep: null,
   stepMessage: "",
-  stepLabel: "",
+  proofProgress: null,
   isCommitteeReady: true,
   txHash: null,
   eligibilityNotice: notice,
@@ -70,9 +70,19 @@ describe("Ballot eligibility rendering", () => {
     expect(html).not.toContain("Submit encrypted ballot");
     expect(html).not.toContain("Select an option");
     expect(html).toContain("Review mask");
-    // The wallet cannot vote, so masking is the action it came for: the switch starts on Mask.
-    expect(html).toMatch(/<input[^>]*checked="" value="mask"/);
-    expect(html).not.toMatch(/<input[^>]*checked="" value="vote"/);
+    // Every wallet starts on Vote, where its snapshot eligibility is explained.
+    expect(html).toMatch(/<input[^>]*checked="" value="vote"/);
+    expect(html).toContain("You can still help protect voter privacy using Masks only above.");
+    expect(html).not.toMatch(/<input[^>]*checked="" value="mask"/);
+  });
+
+  test("the busy ballot shows the proof stage reported by the SDK", () => {
+    const html = renderToStaticMarkup(
+      <VoteCard {...privateProps} isLoading votingStep="generating_proof"
+        proofProgress={{isMask: false, presetName: "SECURE_THRESHOLD_8192", stageStartedAt: [Date.now()]}}
+      />
+    );
+    expect(html).toContain("Proof 1 of 5");
   });
 
   test("an unresolved secret ballot shows neither voting nor masking controls", () => {
@@ -141,8 +151,10 @@ describe("Ballot eligibility rendering", () => {
   });
 
   test("a vote sent from another wallet shows success and both roles, without reopening voting", () => {
+    const maskHash = `0x${"a".repeat(64)}`;
     const html = renderToStaticMarkup(
       <SubmittedVoteCard
+        maskReceipts={[maskHash]}
         onSwitchWallet={async () => {}}
         receipt={{
           voter: "0x1111111111111111111111111111111111111111",
@@ -156,7 +168,7 @@ describe("Ballot eligibility rendering", () => {
         }}
       />
     );
-    expect(html).toContain("Vote submitted successfully");
+    expect(html).toContain("Vote submitted");
     expect(html).toContain("Vote counts for");
     expect(html).toContain("Your vote counts for the wallet that signed it.");
     expect(html).toContain("0x1111...1111");
@@ -165,7 +177,10 @@ describe("Ballot eligibility rendering", () => {
     expect(html).toContain("Change vote");
     expect(html).not.toContain('role="radiogroup"');
     expect(html).not.toContain("No voting power");
+    expect(html.match(/>Mask submitted</g)).toHaveLength(1);
+    expect(html).toContain(maskHash);
   });
+
 
   test("reconnecting the signing wallet keeps success visible until Change vote is chosen", () => {
     const html = renderToStaticMarkup(
@@ -179,7 +194,7 @@ describe("Ballot eligibility rendering", () => {
         }}
       />
     );
-    expect(html).toContain("Vote submitted successfully");
+    expect(html).toContain("Vote submitted");
     expect(html).toContain("Change vote");
     expect(html).not.toContain('role="radiogroup"');
   });
@@ -193,7 +208,7 @@ describe("Ballot eligibility rendering", () => {
         onChangeVote={() => {}}
       />
     );
-    expect(html).toContain("Vote submitted successfully");
+    expect(html).toContain("Vote submitted");
     expect(html).not.toContain("Change vote");
   });
 });

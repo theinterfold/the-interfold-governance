@@ -4,6 +4,7 @@ import { formatHexString } from "@/utils/evm";
 import { AccordionContainer, AccordionItem, Button, Icon, IconType } from "@aragon/ods";
 import { CallFunctionSignatureField, CallParamField } from "./callParamField";
 import { ActionDetailField } from "./actionDetailField";
+import { RowIdentifier } from "@/components/text/listValue";
 import { AddressText } from "@/components/text/address";
 import { EncodedView } from "./encodedView";
 import type { RawAction } from "@/utils/types";
@@ -14,8 +15,8 @@ import { formatEther } from "viem";
 import { AccordionContent } from "@/components/motion/AccordionContent";
 
 const DEFAULT_DESCRIPTION =
-  "When the proposal passes the community vote, the following actions will be executable by the DAO.";
-const DEFAULT_EMPTY_LIST_DESCRIPTION = "The proposal has no actions defined, it will behave as a signaling poll.";
+  "The DAO can execute these transactions once all approval stages are complete.";
+const DEFAULT_EMPTY_LIST_DESCRIPTION = "This proposal records the community’s preference. It includes no transactions for the DAO to execute.";
 
 interface IProposalActionsProps {
   compact?: boolean;
@@ -36,11 +37,11 @@ export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
   }
 
   return (
-    <div className={`proposal-actions ${compact ? "composer-action-list" : "proposal-actions-card"}`}>
+    <div className={`proposal-actions ${compact ? "composer-action-list" : "proposal-actions-card"}`} data-empty={!actions?.length || undefined}>
       {/* Header */}
       {!compact && (
         <div className="proposal-actions-heading">
-          <h3>Actions</h3>
+          <h3>{actions?.length ? "Proposed changes" : "Community poll"}</h3>
           <p>{message}</p>
         </div>
       )}
@@ -52,6 +53,7 @@ export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
             <ActionItem
               key={index}
               index={index}
+              numbered={actions.length > 1}
               rawAction={action}
               onRemove={onRemove ? () => onRemove?.(index) : undefined}
             />
@@ -62,27 +64,28 @@ export const ProposalActions: React.FC<IProposalActionsProps> = (props) => {
   );
 };
 
-const ActionItem = ({ index, rawAction, onRemove }: { index: number; rawAction: RawAction; onRemove?: () => any }) => {
+const ActionItem = ({ index, numbered, rawAction, onRemove }: { index: number; numbered: boolean; rawAction: RawAction; onRemove?: () => any }) => {
   const action = useAction(rawAction);
   const title = `Action ${index + 1}`;
   const coinName = PUB_CHAIN.nativeCurrency.symbol;
   const isEthTransfer = !action.data || action.data === "0x";
   const functionName = isEthTransfer
-    ? `Transfer ${coinName}`
-    : decodeCamelCase(action.functionName ?? "(function call)");
+    ? `Transfer ${formatEther(rawAction.value ?? 0n)} ${coinName}`
+    : action.functionName ? decodeCamelCase(action.functionName) : "Contract call";
   const functionAbi = action.functionAbi ?? null;
 
   return (
-    <AccordionItem className="proposal-action-item" value={title}>
+    <AccordionItem className="proposal-action-item" value={title} data-numbered={numbered || undefined}>
       <AccordionHeader className="proposal-action-trigger">
-        <span className="proposal-action-number">
-          {index + 1}
-          <span className="sr-only">. Action</span>
-        </span>
+        {numbered && (
+          <RowIdentifier>
+            <span className="sr-only">Operation </span>{String(index + 1).padStart(2, "0")}
+          </RowIdentifier>
+        )}
         <span className="proposal-action-summary">
           <strong>{functionName}</strong>
           <span className="proposal-action-destination">
-            {formatHexString(rawAction.to)}
+            {isEthTransfer ? "To " : "Contract "}{formatHexString(rawAction.to)}
             {!isEthTransfer && (
               <span className="proposal-action-verification">
                 <Icon icon={functionAbi ? IconType.CHECKMARK : IconType.WARNING} />

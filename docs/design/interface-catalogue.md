@@ -17,7 +17,7 @@ are assessed against the running app, not assumed to match that older inventory.
 | [Base product family](https://brand.base.org/sub-brands) | One visual system across product areas | Shared roles and actions for Voting power and Proposals |
 | [Aave Pro guide](https://aave.com/blog/aave-pro-user-guide), Deposit screenshot | Restrained headings, aligned facts, actions separated from data | Equal overview columns and a dedicated lock-management area |
 | [Coinbase account redesign](https://www.coinbase.com/en-gb/blog/building-economic-freedom-one-pixel-at-a-time), My Assets | Consolidated account facts | Total, liquid balance and sources belong to one overview |
-| Interfold website `titleBlock.ts`, `packages/site-header` | Brand type, responsive scale, common control sizes | PageIntro uses the brand outline weight; header and `SiteFooter` come from the main website's shared source. Footer structure and styles stay global; links, copyright and newsletter visibility are application content. Only background colour varies aesthetically. Standard actions follow 46/52px heights and 6px corners |
+| Interfold website `titleBlock.ts`, `packages/site-header` | Brand type, responsive scale, common control sizes | PageIntro uses the brand outline weight. The main website supplies the header and `SiteFooter`. Both sites share the footer structure, typography and copyright. Each site chooses its links, newsletter visibility and background colour. Standard actions follow 46/52px heights and 6px corners |
 
 The reference is composition and consistency. Brand colours, fonts and governance
 behaviour remain Interfold’s. The atlas is research, not an implementation specification.
@@ -28,7 +28,7 @@ behaviour remain Interfold’s. The atlas is research, not an implementation spe
 | --- | --- | --- | --- |
 | Page introduction | `PageIntro` | Gramercy regular; existing responsive website scale | Voting power, Proposals |
 | Panel title | `PanelHeader` | Inter 20 / 600 | Your account, Locks, Proposals |
-| Document title | `--ui-title-font` / `ui-card-title` | Inter 24 / 500 | Proposal titles |
+| Proposal title | `ProposalRow` / `ProposalReadingHeader` | Gramercy regular, 24px in the index and 32px on the reading page (local refinement under review) | Public and secret proposals |
 | Section introduction | `power-section-intro` / site type ladder | Gramercy 24–32 title, 16–18 copy | Your delegation, outside its white card |
 | Section title | `--ui-section-font` / `ui-section-title` | Inter 16 / 600 | Voting power, Voting power sources, Voting details, Actions |
 | Supporting text | `--ui-body-font` / `ui-body` | Inter 14 / 400 | Account explanations, source names, lock summary |

@@ -6,8 +6,8 @@ const visible = (element: HTMLElement) =>
   !element.closest('[aria-hidden="true"]') && element.getClientRects().length > 0;
 
 /** Carry shared content to its next position; only genuinely new content fades in. */
-export function useStepTransition(step: string, enabled: boolean) {
-  const ref = useRef<HTMLFormElement>(null);
+export function useStepTransition<T extends HTMLElement = HTMLFormElement>(step: string, enabled: boolean) {
+  const ref = useRef<T>(null);
   const before = useRef<Map<string, Position>>();
   const excluded = useRef<string[]>([]);
   const animations = useRef<Animation[]>([]);

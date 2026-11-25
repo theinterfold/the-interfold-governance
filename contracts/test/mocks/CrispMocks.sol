@@ -5,6 +5,9 @@ import {IInterfold} from "../../src/crisp/IInterfold.sol";
 import {ICRISP} from "../../src/crisp/ICRISP.sol";
 import {IStagedProposalProcessor} from "../../src/crisp/IStagedProposalProcessor.sol";
 import {E3} from "../../src/crisp/IE3.sol";
+import {RuledCondition} from "@aragon/osx-commons-contracts/src/permission/condition/extensions/RuledCondition.sol";
+
+import {ISppRuleCondition} from "../../script/WireSpp.s.sol";
 
 /// @notice Shared test doubles for the CRISP plugin suites.
 /// @dev Kept in one place so the Interfold / CRISP / SPP surfaces a test relies on are
@@ -98,6 +101,45 @@ contract MockVotesToken {
 
     function balanceOf(address) external pure returns (uint256) {
         return 0;
+    }
+}
+
+/// @dev IVotes- and ERC20-shaped token whose live voting power (`getVotes`), snapshot voting power
+///      (`getPastVotes`) and balance are settable independently, so the condition can be shown to
+///      read only the snapshot. Like OpenZeppelin's, `getPastVotes` reverts on a timepoint that is
+///      not in the past.
+contract MockVotesAndBalanceToken {
+    mapping(address => uint256) public liveVotes;
+    mapping(address => uint256) public pastVotes;
+    mapping(address => uint256) public balanceOf;
+
+    error FutureLookup(uint256 timepoint, uint256 clock);
+
+    /// @dev Voting power at the snapshot a new proposal would use.
+    function setVotes(address who, uint256 amount) external {
+        pastVotes[who] = amount;
+    }
+
+    /// @dev Voting power held right now, not yet in any snapshot (e.g. just borrowed).
+    function setLiveVotes(address who, uint256 amount) external {
+        liveVotes[who] = amount;
+    }
+
+    function setBalance(address who, uint256 amount) external {
+        balanceOf[who] = amount;
+    }
+
+    function getVotes(address who) external view returns (uint256) {
+        return liveVotes[who];
+    }
+
+    function getPastVotes(address who, uint256 timepoint) external view returns (uint256) {
+        if (timepoint >= block.number) revert FutureLookup(timepoint, block.number);
+        return pastVotes[who];
+    }
+
+    function getPastTotalSupply(uint256) external pure returns (uint256) {
+        return 1000 ether;
     }
 }
 
@@ -305,4 +347,14 @@ contract MockSpp {
         lastResultType = resultType;
         lastTryAdvance = tryAdvance;
     }
+}
+
+/// @dev The `updateRules` call that makes `bodyCondition` the SPP's only creation rule. The rule
+///      id (`RuledCondition.CONDITION_RULE_ID`, 202) and operation (`Op.EQ`, 1) are literals on
+///      purpose: the script's constants are asserted against an independent copy, so a change to
+///      either cannot pass unnoticed.
+function creationRuleCall(address bodyCondition) pure returns (bytes memory) {
+    RuledCondition.Rule[] memory rules = new RuledCondition.Rule[](1);
+    rules[0] = RuledCondition.Rule({id: 202, op: 1, value: uint240(uint160(bodyCondition)), permissionId: bytes32(0)});
+    return abi.encodeCall(ISppRuleCondition.updateRules, (rules));
 }

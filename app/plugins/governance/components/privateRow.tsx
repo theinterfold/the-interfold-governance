@@ -67,7 +67,14 @@ export function PrivateRow({ proposalId, onStatus, onSearchText, hidden }: Priva
   }
   if (spp.subProposalId === undefined) {
     return (
-      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        loading
+        title={spp.document.title}
+        summary={spp.document.summary}
+        hidden={hidden}
+      />
     );
   }
 
@@ -107,7 +114,7 @@ function PrivateRowBody({
   onSearchText?: (text: string) => void;
   hidden?: boolean;
 }) {
-  const { proposal, totalVotingPower, e3Failed, networkProgress, status } = useProposal(subProposalId, {
+  const { proposal, totalVotingPower, e3Failed, networkProgress, status, retry } = useProposal(subProposalId, {
     metadataUri,
     creator,
   });
@@ -116,7 +123,8 @@ function PrivateRowBody({
   // Only a proposal with no data yet is loading. A background refetch keeps the row as it is: the
   // loading row unmounts the open details, and the details read this proposal again when they
   // mount, which starts the next refetch.
-  const loading = !proposal || (!proposal.title && !status.metadataError);
+  const titleUnavailable = status.metadataError || (!metadataUri && !!spp.metadataError);
+  const loading = !proposal || (!proposal.title.trim() && !titleUnavailable);
   const nowMs = useProposalBoundaryClock(
     proposal ? Number(proposal.parameters.startDate) * 1000 : undefined,
     proposal ? Number(proposal.parameters.endDate) * 1000 : undefined
@@ -158,13 +166,20 @@ function PrivateRowBody({
     if (searchText !== undefined) onSearchText?.(searchText);
   }, [searchText, onSearchText]);
 
+  if (!proposal && status.proposalError) {
+    return <ProposalRow href={href} kindLabel="Secret ballot" title={`Proposal #${proposalId}`}
+      statusLabel="Unavailable" failureMessage="Could not load the voting data for this proposal."
+      onRetry={() => void retry()} hidden={hidden} />;
+  }
+
   if (loading && sppOverride && presentation) {
     return (
       <ProposalRow
         href={href}
         kindLabel="Secret ballot"
-        title={proposal?.title}
-        summary={proposal?.summary}
+        metadataPending={!spp.document.title}
+        title={spp.document.title}
+        summary={spp.document.summary}
         creator={proposal?.creator ?? creator}
         statusLabel={presentation.label}
         statusClass={presentation.className}
@@ -177,7 +192,14 @@ function PrivateRowBody({
 
   if (loading) {
     return (
-      <ProposalRow href={href} kindLabel="Secret ballot" loading loadingMessage="Loading proposal…" hidden={hidden} />
+      <ProposalRow
+        href={href}
+        kindLabel="Secret ballot"
+        loading
+        title={spp.document.title}
+        summary={spp.document.summary}
+        hidden={hidden}
+      />
     );
   }
 
@@ -201,7 +223,7 @@ function PrivateRowBody({
     <ProposalRow
       href={href}
       kindLabel="Secret ballot"
-      title={proposal.title}
+      title={titleUnavailable ? "Title unavailable" : proposal.title}
       summary={proposal.summary}
       creator={proposal.creator}
       statusLabel={view.label}

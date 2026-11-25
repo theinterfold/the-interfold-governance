@@ -6,10 +6,12 @@ import { FluidHeight } from "@/components/motion/FluidHeight";
 
 interface IBodySectionProps {
   body: string;
+  fullLength?: boolean;
 }
 
 export const BodySection: React.FC<IBodySectionProps> = (props) => {
   let { body } = props;
+  const { fullLength = false } = props;
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const contentId = useId();
@@ -27,22 +29,28 @@ export const BodySection: React.FC<IBodySectionProps> = (props) => {
 
   if (!body.trim() || body === "<p></p>") body = "No description was provided";
 
+  const content = (
+    <div className="detail-body flex flex-col gap-y-4">
+      <DocumentParser document={body} className={proseClasses} />
+    </div>
+  );
+
   return (
-    <section ref={cardRef} className="proposal-description" data-expanded={expanded} aria-label="Proposal description">
-      <div className="proposal-description-content" data-truncated={overflows && !expanded}>
-        <FluidHeight
-          id={contentId}
-          expanded={expanded}
-          collapsedHeight={420}
-          onOverflowChange={setOverflows}
-          onFocusCapture={() => setExpanded(true)}
-        >
-          <div className="detail-body flex flex-col gap-y-4">
-            <DocumentParser document={body} className={proseClasses} />
-          </div>
-        </FluidHeight>
+    <section ref={cardRef} className="proposal-description" data-expanded={fullLength || expanded} aria-label="Proposal description">
+      <div className="proposal-description-content" data-truncated={!fullLength && overflows && !expanded}>
+        {fullLength ? content : (
+          <FluidHeight
+            id={contentId}
+            expanded={expanded}
+            collapsedHeight={420}
+            onOverflowChange={setOverflows}
+            onFocusCapture={() => setExpanded(true)}
+          >
+            {content}
+          </FluidHeight>
+        )}
       </div>
-      {overflows && (
+      {!fullLength && overflows && (
         <button
           type="button"
           className="description-toggle"
