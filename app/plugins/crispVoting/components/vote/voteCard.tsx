@@ -179,6 +179,8 @@ export const VoteCard = ({
   const [maskReceipts, setMaskReceipts] = useState<(string | null)[]>([]);
   const [attemptMaskReceipts, setAttemptMaskReceipts] = useState<(string | null)[]>([]);
   const [editingVote, setEditingVote] = useState(false);
+  // The mask view was opened from a confirmed vote: once its masks are sent, the vote shows again.
+  const [masksAfterVote, setMasksAfterVote] = useState(false);
   const [editRevision, setEditRevision] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [weightAdjustmentEnabled, setAdjustWeight] = useState(false);
@@ -444,7 +446,13 @@ export const VoteCard = ({
           setMaskReceipts((previous) => [...previous, result.txHash]);
           setAttemptMaskReceipts((previous) => [...previous, result.txHash]);
           removeSentMask(entries[index].id);
-          if (index === entries.length - 1) setIncludeMask(false);
+          if (index === entries.length - 1) {
+            setIncludeMask(false);
+            if (masksAfterVote) {
+              setMasksAfterVote(false);
+              setEditingVote(false);
+            }
+          }
         },
       });
     } finally {
@@ -465,6 +473,7 @@ export const VoteCard = ({
     setEditRevision(revision => revision + 1);
     setSubmissionType("vote");
     setEditingVote(true);
+    setMasksAfterVote(false);
     setSelectedOption(voteReceipt?.option ?? null);
     const weight = voteReceipt?.weight;
     const settings = editBallotWeightSettings(weight);
@@ -476,10 +485,35 @@ export const VoteCard = ({
     setShowFeedback(false);
   };
 
+  // After a vote, open the mask view directly. The vote stays as it is.
+  const sendMasksAfterVote = () => {
+    setEditRevision(revision => revision + 1);
+    setSubmissionType("mask");
+    setEditingVote(true);
+    setMasksAfterVote(true);
+    setShowFeedback(false);
+  };
+
   const votingClosed = voteEndDate <= Math.round(Date.now() / 1000);
   const isDisabled = disabled || busy || votingClosed;
   const notStarted = voteStartDate > Math.round(Date.now() / 1000);
   const started = voteStartDate < Math.round(Date.now() / 1000);
+
+  /** The actions under a confirmed vote: change it, or send masks without changing it. */
+  const confirmedVoteActions = (canChange: boolean) => {
+    const canSendMasks = canMask && !isDisabled;
+    if (!canChange && !canSendMasks) return undefined;
+    return (
+      <>
+        {canChange && <VoteChangeAction disabled={false} votingClosed={false} onChange={editSubmission} />}
+        {canSendMasks && (
+          <button type="button" className="vp-success-change" onClick={sendMasksAfterVote}>
+            Send masks
+          </button>
+        )}
+      </>
+    );
+  };
 
   const setMaskTool = (checked: boolean) => {
     // Preserve the shared draft when toggling the tool or switching between Ballot and Mask.
@@ -762,7 +796,7 @@ export const VoteCard = ({
             <BallotSuccess
               title={previousVoteStatus === "confirmed" ? "Vote confirmed" : "Vote submitted"}
               txHash={previousVoteTxHash}
-              action={<VoteChangeAction disabled={voteDisabled || isDisabled} votingClosed={votingClosed} onChange={editSubmission} />}
+              action={confirmedVoteActions(!voteDisabled && !isDisabled)}
             >
               {previousVoteStatus === "confirmed"
                 ? "You’ve already voted on this proposal. Your choice remains private."
@@ -791,9 +825,8 @@ export const VoteCard = ({
               detail={progressMessage || (submittedMode === "mask" ? "Encrypting mask…" : "Encrypting your ballot…")}
               preparing={sendWithAnotherWallet && (activeVote || showVoteSummary)}
               maskAction={showMaskSummary ? <PowerAction size="compact" onClick={() => setShowFeedback(false)}>Send another mask</PowerAction> : undefined}
-              voteAction={showVoteSummary && !busy && !voteDisabled && !isDisabled && !votingClosed ? (
-                <VoteChangeAction disabled={false} votingClosed={false} onChange={editSubmission} />
-              ) : undefined}
+              // The summary says the vote can still change whenever it has an action, so it gets none otherwise.
+              voteAction={showVoteSummary && !voteDisabled && !isDisabled ? confirmedVoteActions(true) : undefined}
             />
           )}
 
