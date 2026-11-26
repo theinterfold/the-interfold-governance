@@ -176,6 +176,8 @@ export const VoteCard = ({
   const [maskReceipts, setMaskReceipts] = useState<(string | null)[]>([]);
   const [attemptMaskReceipts, setAttemptMaskReceipts] = useState<(string | null)[]>([]);
   const [editingVote, setEditingVote] = useState(false);
+  // The mask view was opened from a confirmed vote: once its masks are sent, the vote shows again.
+  const [masksAfterVote, setMasksAfterVote] = useState(false);
   const [editRevision, setEditRevision] = useState(0);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [weightAdjustmentEnabled, setAdjustWeight] = useState(false);
@@ -441,7 +443,13 @@ export const VoteCard = ({
           setMaskReceipts((previous) => [...previous, result.txHash]);
           setAttemptMaskReceipts((previous) => [...previous, result.txHash]);
           removeSentMask(entries[index].id);
-          if (index === entries.length - 1) setIncludeMask(false);
+          if (index === entries.length - 1) {
+            setIncludeMask(false);
+            if (masksAfterVote) {
+              setMasksAfterVote(false);
+              setEditingVote(false);
+            }
+          }
         },
       });
     } finally {
@@ -462,6 +470,7 @@ export const VoteCard = ({
     setEditRevision(revision => revision + 1);
     setSubmissionType("vote");
     setEditingVote(true);
+    setMasksAfterVote(false);
     setSelectedOption(voteReceipt?.option ?? null);
     const weight = voteReceipt?.weight;
     const settings = editBallotWeightSettings(weight);
@@ -478,6 +487,7 @@ export const VoteCard = ({
     setEditRevision(revision => revision + 1);
     setSubmissionType("mask");
     setEditingVote(true);
+    setMasksAfterVote(true);
     setShowFeedback(false);
   };
 
