@@ -341,22 +341,26 @@ contract CrispVotingViewsTest is Test {
     ///      `BfvProtocol`. A swapped pair would let one committee size request with another's id,
     ///      and `request` would revert `CryptoConfigChanged` for every proposal of that size.
     function test_requestAssertsTheCommitteeBoundConfigIdOfEverySize() public {
-        uint8[6] memory paramSets = [uint8(4), 4, 4, 3, 3, 3];
-        IInterfold.CommitteeSize[6] memory sizes = [
+        uint8[8] memory paramSets = [uint8(4), 4, 4, 4, 3, 3, 3, 3];
+        IInterfold.CommitteeSize[8] memory sizes = [
             IInterfold.CommitteeSize.Minimum,
             IInterfold.CommitteeSize.Micro,
             IInterfold.CommitteeSize.Small,
+            IInterfold.CommitteeSize.Large,
             IInterfold.CommitteeSize.Minimum,
             IInterfold.CommitteeSize.Micro,
-            IInterfold.CommitteeSize.Small
+            IInterfold.CommitteeSize.Small,
+            IInterfold.CommitteeSize.Large
         ];
-        bytes32[6] memory expected = [
+        bytes32[8] memory expected = [
             bytes32(0xd76c4f521394e6cbe1df28036cc5dd5590c6630a403525b5c2b052f9b91507f4),
             0x893989231b402942b005fecdbf9eae21b227d861085433293d0873547ea2816a,
             0x7fa922a08c5501592d02394205bb600219da3e168e0432f076465569116ccfe3,
+            0xf7cd0828ce1f727085f5553ae162547513928ca5dc58d3799a49fa1e4591ce77,
             0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a,
             0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b,
-            0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891
+            0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891,
+            0xf8ddf924e1ef60bf63d14a2bb39c7c259b4b054e75f6e2baf07bb268462d13ed
         ];
         for (uint256 i; i < expected.length; ++i) {
             plugin.updateE3Settings(sizes[i], paramSets[i], bytes(""));

@@ -19,8 +19,8 @@ cannot request an E3 after the v0.20 cutover. The complete sequence is in
 
 | What               | Value                                                                             |
 | ------------------ | --------------------------------------------------------------------------------- |
-| `CrispVoting` impl | `0x493BeeDbAEC6724c5CF4D0068d10D54cd2e4a55F` (CREATE2, salt `interfold-crisp-v1`) |
-| `CrispVotingSetup` | `0x6c4F06aB5EAA65A0Bdcfd674b23b9bb37E424f8C`                                      |
+| `CrispVoting` impl | `0x5a2C6560F9Fc908f78F39091cbcD793F797c7f3b` (CREATE2, salt `interfold-crisp-v1`) |
+| `CrispVotingSetup` | `0x5F6Cba5Cb75680B31066DD3932EbcB22fb5c4349`                                      |
 | Expected build     | 4 (`buildCount(1)` is 3 before, 4 after)                                          |
 
 The file has no fixed checksum: the generator writes the generation time into `createdAt`. Compare

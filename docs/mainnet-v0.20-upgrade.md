@@ -51,7 +51,7 @@ Read these values again on the day of the cutover. A value that differs changes 
 | Parameter set | index 3, secure-8192. `keccak256(paramSetRegistry(3))` is `0x4f4025982214c2149028270dccc0ad45c24c2441a3496cdf1a29f5d1e1b908c3`. Indices 0 to 2 keep their bytes |
 | Crypto config id (secure-8192, Small) | `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891` |
 | CRISP program | a new CRISP 0.29.0 OpenVM program, registered and bound. `0x1EA4…EE28` is retired |
-| CRISP plugin | build 4: implementation `0x493BeeDbAEC6724c5CF4D0068d10D54cd2e4a55F`, setup `0x6c4F06aB5EAA65A0Bdcfd674b23b9bb37E424f8C` |
+| CRISP plugin | build 4: implementation `0x5a2C6560F9Fc908f78F39091cbcD793F797c7f3b`, setup `0x5F6Cba5Cb75680B31066DD3932EbcB22fb5c4349` |
 | Private pair | a new body and SPP from build 4. Parameter set 3, Small committee, 71 FOLD voter minimum |
 | Nodes | Interfold v0.20.0 (storage schema 9). Each node resets its state before the first start |
 
@@ -357,6 +357,7 @@ cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute 
 | Minimum | 0 | 2 of 3 | `0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a` |
 | Micro | 1 | 5 of 9 | `0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b` |
 | Small (installed) | 2 | 14 of 19 | `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891` |
+| Large | 3 | none (see below) | `0xf8ddf924e1ef60bf63d14a2bb39c7c259b4b054e75f6e2baf07bb268462d13ed` |
 
 - Proposals that exist keep the settings of their creation: each one requested its E3 then.
 - `updateE3Settings` does not check the values. The install-time mainnet policy (Small, parameter
@@ -371,8 +372,14 @@ cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute 
   parameter set and the pricing, not the crypto config id.
 - A smaller committee needs fewer operators and gives less security: fewer nodes must collude to
   decrypt.
-- `Large` (45 nodes) is not in the body's `CommitteeSize` enum, and mainnet has no threshold for it.
-  It needs a new plugin build and a protocol change.
+- **Large (34 of 45).** Build 4 knows the Large id, so no new plugin build is needed. The Interfold
+  v0.20.0 contracts admit Large on mainnet once governance sets its threshold
+  (`setCommitteeThresholds(3, [34, 45])`) and the secure-8192/large verifier routes are installed.
+  The v0.20.0 mainnet tooling does neither: `MAINNET_BFV_CONFIGS` and
+  `mainnet-protocol.config.json` list Minimum, Micro and Small only, so step B3 routes and
+  thresholds those three. Mainnet Large therefore needs a protocol batch that adds both, before the
+  DAO switches the body to Large. It also needs at least 45 eligible bond owners, and each node at
+  least 28 GiB of memory for the secure-8192 Large key aggregation.
 
 ## If a step fails
 
