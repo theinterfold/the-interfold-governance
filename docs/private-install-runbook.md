@@ -415,9 +415,10 @@ Later scripts, for example `printUpdateStages()`, read these two values.
 
 ### Step 7: before the announcement
 
-- After the unpause batch, fork-simulate one full private proposal against the live coordinator:
-  create, vote, tally and execute. The USDS fee escrow and the refund path ran only against mocks
-  and testnet.
+- After the unpause batch, fork-simulate a private proposal against the live coordinator: create
+  it, check that the body got its sub-proposal and E3, and vote. A fork has no ciphernodes, so it
+  gives no tally. The tally and the execution come from the first real proposal. The USDS fee
+  escrow and the refund path ran only against mocks and testnet.
 - **Disarm** with `make disarm-admin ENV_FILE=.env.mainnet` (the deferred disarm of INV-29). Do this
   only when all items work. First, check the rotation state: only one address can hold
   `EXECUTE_PROPOSAL_PERMISSION` on the armed Admin plugin (INV-31).

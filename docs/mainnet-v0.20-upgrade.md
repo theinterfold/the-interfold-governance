@@ -330,8 +330,8 @@ cast call $IFOLD 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
 
 ## Phase C: after resume
 
-1. Fork-simulate one full private proposal against the live coordinator: create, vote, tally and
-   execute (private-install-runbook.md, Step 7).
+1. Fork-simulate a private proposal against the live coordinator: create and vote
+   (private-install-runbook.md, Step 7). A fork gives no tally.
 2. Set `CRISP_VOTING_PLUGIN_ADDRESS` and `SPP_PRIVATE_ADDRESS` in `.env.mainnet` to the new pair,
    and update `.env.mainnet.install` in a pull request.
 3. Run the first real private proposal on mainnet to its end: ballots, compute with the real OpenVM
@@ -365,6 +365,10 @@ cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute 
   exists, but its private stage gets no vote and cannot advance. This continues until a second
   update fixes the pair. Read the current compute provider params with `getE3Settings()` and pass
   them again unchanged.
+- Before the DAO votes on the change, rehearse it on a mainnet fork: impersonate the DAO, call
+  `updateE3Settings`, then create a private proposal on the SPP and check that the body has its
+  sub-proposal (`SubProposalCreated`). `getE3Quote` on Interfold is not enough: it checks the
+  parameter set and the pricing, not the crypto config id.
 - A smaller committee needs fewer operators and gives less security: fewer nodes must collude to
   decrypt.
 - `Large` (45 nodes) is not in the body's `CommitteeSize` enum, and mainnet has no threshold for it.

@@ -427,9 +427,9 @@ all history are untouched.
       `activeCryptoConfigId()` returns
       `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891`. `INTERFOLD_ADDRESS` set.
 - [ ] Mainnet OpenVM CRISP program deployed and registered (`e3Programs(program)` returns `true`).
-      It comes from the Interfold source of the `@crisp-e3` release that the CRISP server and the
-      app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server
-      requests E3s against**.
+      It comes from the CRISP repository (`packages/crisp-contracts`) at the `@crisp-e3` release
+      that the CRISP server and the app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match
+      the program the CRISP server requests E3s against**.
 - [ ] CRISP plugin build published from the current `CrispVoting` source, and `CRISP_BUILD` set.
       Build 4 is expected next, not reserved. Build 3 returns no proposal-creation condition, so
       the install cannot use it. Confirm the actual publication receipt before preparing.
