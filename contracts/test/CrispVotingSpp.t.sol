@@ -115,12 +115,12 @@ contract MockInterfold {
         uint256[] memory insecureModuli = new uint256[](2);
         insecureModuli[0] = 0xffffee001;
         insecureModuli[1] = 0xffffc4001;
-        paramSetRegistry[0] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
+        paramSetRegistry[4] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
     }
 
     /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping, which the plugin reads
     ///         (plaintext modulus) when building request params. Absent, every proposal path
-    ///         reverts. Set 0 is registered as the protocol's insecure-512 parameters.
+    ///         reverts. Set 4 (insecure-64) is registered with the insecure test parameters.
     mapping(uint8 => bytes) public paramSetRegistry;
 
     function feeToken() external view returns (address) {
@@ -245,7 +245,7 @@ contract CrispVotingSppTest is Test {
             token: address(votesToken),
             interfold: address(interfold),
             committeeSize: IInterfold.CommitteeSize(0),
-            paramSet: 0,
+            paramSet: 4,
             crispProgramAddress: address(crispProgram),
             computeProviderParams: bytes(""),
             votingSettings: ICrispVoting.VotingSettings({

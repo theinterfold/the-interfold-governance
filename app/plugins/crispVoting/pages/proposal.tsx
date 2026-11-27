@@ -9,7 +9,7 @@ import { PUB_ENABLE_LOCKING } from "@/constants";
 import {
   INSTALLED_PRIVATE_PAIR,
   PrivatePairProvider,
-  RETIRED_PRIVATE_PAIR,
+  RETIRED_PRIVATE_PAIRS,
   usePrivatePair,
 } from "../hooks/usePrivatePair";
 import ProposalHeader from "../components/proposal/header";
@@ -64,21 +64,27 @@ export default function ProposalDetail({
   index: sppProposalId,
   embedded = false,
   readingOnly = false,
+  retiredIndex = -1,
 }: {
   index: bigint;
   embedded?: boolean;
   readingOnly?: boolean;
+  /** Which retired pair this render searches: -1 is the installed pair, then 0, 1, ... in env order. */
+  retiredIndex?: number;
 }) {
   const pair = usePrivatePair();
   const spp = useSppProposal("private", sppProposalId);
 
   if (spp.missing) {
-    // A replacement install moves new proposals to a new pair, but the retired pair's proposals
-    // keep their route. Look for the id there before reporting it as missing.
-    if (pair === INSTALLED_PRIVATE_PAIR && RETIRED_PRIVATE_PAIR) {
+    // A replacement install moves new proposals to a new pair, but a retired pair's proposals
+    // keep their route. Look for the id on each retired pair, in order, before reporting it as
+    // missing. Only a search that started at the installed pair continues: a row that the list
+    // already placed on one pair must not wander onto another.
+    const next = retiredIndex + 1;
+    if ((retiredIndex >= 0 || pair === INSTALLED_PRIVATE_PAIR) && next < RETIRED_PRIVATE_PAIRS.length) {
       return (
-        <PrivatePairProvider value={RETIRED_PRIVATE_PAIR}>
-          <ProposalDetail index={sppProposalId} embedded={embedded} readingOnly={readingOnly} />
+        <PrivatePairProvider value={RETIRED_PRIVATE_PAIRS[next]}>
+          <ProposalDetail index={sppProposalId} embedded={embedded} readingOnly={readingOnly} retiredIndex={next} />
         </PrivatePairProvider>
       );
     }

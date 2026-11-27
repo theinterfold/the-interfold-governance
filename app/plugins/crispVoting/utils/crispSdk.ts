@@ -6,4 +6,7 @@ import { CrispSDK, SERVER_RPC } from "@crisp-e3/sdk";
 // third-party service that rate-limits per IP. The route serves only the contracts the server
 // indexes; the one SDK read the app makes (`getOnChainRoundData`) targets the CRISP program, which
 // it serves.
-export const crispSdk = new CrispSDK(PUB_CRISP_SERVER_URL, SERVER_RPC);
+//
+// `SERVER_RPC` needs a server URL and the SDK refuses to construct without one, which is the state of a build or test run
+// with no environment. Reads then fall back to the SDK's default endpoint, and nothing reads from a server that is not set.
+export const crispSdk = new CrispSDK(PUB_CRISP_SERVER_URL, PUB_CRISP_SERVER_URL ? SERVER_RPC : undefined);

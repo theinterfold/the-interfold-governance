@@ -6,24 +6,31 @@ assume knowledge of the work that produced the batch.
 
 The generated file is `contracts/safe-actions/12-publish-crisp-build.json`.
 
-**Status (read on chain at generation):** `buildCount(1)` is 3. The v0.19 batch (SHA-256
-`5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`, implementation
+**Status (read on chain at generation, 2026-11-27):** `buildCount(1)` is 3. The v0.19 batch
+(SHA-256 `5174a75449c7bb4fd6faa7cd8bdd180e9b4fba53de29ef284d39736e60abde55`, implementation
 `0x8153c6dce903b3A4a886399D310668FB8c97cEC6`, setup `0x68Bc9C53cc6997F8C2Dbe1645ad08b7026F9B27A`)
 was executed: build 3 is that setup. The file at the path above is now the **regenerated, unsigned**
-batch for the next build. Its setup returns the proposal-creation condition at `helpers[0]` (see
-[Creation condition in the setup helpers](#creation-condition-in-the-setup-helpers)).
+batch for the Interfold v0.20 build. Its `CrispVoting` sends the committee-bound crypto config id
+of Interfold v0.20 (`InterfoldCryptoConfig`), and its setup returns the proposal-creation condition
+at `helpers[0]` (see
+[Creation condition in the setup helpers](#creation-condition-in-the-setup-helpers)). Build 3
+cannot request an E3 after the v0.20 cutover. The complete sequence is in
+[mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md).
 
-| What                | Value                                                                             |
-| ------------------- | --------------------------------------------------------------------------------- |
-| SHA-256 of the file | `956d15e5935a13b76f5e8b36c5729e3f22400e900b7e0b2fa793516d34fa92ca`                |
-| `CrispVoting` impl  | `0xD20a3dC4B45247d21620bc870a1C296313e4f851` (CREATE2, salt `interfold-crisp-v1`) |
-| `CrispVotingSetup`  | `0x825491a1A09A12FCdb089ffa5AB27e7BC297D81C`                                      |
-| Expected build      | 4 (`buildCount(1)` is 3 before, 4 after)                                          |
+| What               | Value                                                                             |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `CrispVoting` impl | `0x5a2C6560F9Fc908f78F39091cbcD793F797c7f3b` (CREATE2, salt `interfold-crisp-v1`) |
+| `CrispVotingSetup` | `0x5F6Cba5Cb75680B31066DD3932EbcB22fb5c4349`                                      |
+| Expected build     | 4 (`buildCount(1)` is 3 before, 4 after)                                          |
+
+The file has no fixed checksum: the generator writes the generation time into `createdAt`. Compare
+the three `to` and `data` values, not the file hash.
 
 It is a changed payload: it has **not** been through the bytecode check, the standard-JSON
 reproduction or the Safe rehearsal that the build 3 file passed, and must have its own before it is
-signed. Reject any copy whose addresses differ from the table, unless you regenerated it yourself.
-The addresses depend on the compiler input, including the directory the build ran in.
+signed. Regenerate it from the merged `main` and compare the addresses with the table. Two
+generations from different directories of this branch gave the same addresses. If yours differ,
+find the cause before you sign. The addresses depend on the compiler input.
 
 ---
 
@@ -287,7 +294,7 @@ That record does not qualify a different creation payload or the 71 FOLD install
 3. **Set `CRISP_BUILD` to the actual published build** in `contracts/.env.mainnet`.
 
 4. **Install the new build into the DAO** with [`private-install-runbook.md`](./private-install-runbook.md).
-   The install needs `CRISP_PROGRAM_ADDRESS`, which must be the new CRISP program (see
+   The install needs `CRISP_PROGRAM_ADDRESS`, which must be the CRISP 0.29.0 program (see
    [Open items](#open-items-outside-this-batch)).
 
    Set the mainnet voter minimum to `71000000000000000000` (71 FOLD) before preparation.
@@ -310,53 +317,8 @@ Do not normalize remappings or disable metadata hashing for an already-checked b
 
 ## Open items outside this batch
 
-Both items belong to a different repository (`theinterfold/interfold`). Build 3 cannot request an E3
-until both are done. The source of truth for the sequence is the "v0.19 cutover on mainnet" section
-of `agent/flow-trace/07_UPGRADES.md` in that repository.
-
-### Interfold v0.19 cutover
-
-Mainnet `Interfold` (`0x28cF63B459e6218C69EA97ea7D90541cf648c715`) still uses the crypto
-configuration from before v0.19:
-
-```bash
-cast call 0x28cF63B459e6218C69EA97ea7D90541cf648c715 \
-  'activeCryptoConfigId()(bytes32)' --rpc-url "$RPC_URL"
-# -> 0xd9c86e581f8291ffb5b63595600e8d096ed30b16e2e0a6634a76c22b1f58fb4e  (before v0.19)
-```
-
-Build 3 sends the id of secure parameter set 2 with `interfold-bfv-v5`,
-`0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa`. Until the cutover, each
-build 3 request reverts. Requests are paused (`requestsPaused()` is `true`), so no request fails
-today.
-
-The cutover goes through the `Interfold` ProxyAdmin (`0xB3985D7fF844FA0F5E0aaC5feb5DD8BE15e88580`,
-owner `0x652a31c669f9AB37f6040f279139a75D04F2679e`). In the Interfold repository, generate the batch
-with:
-
-```bash
-pnpm --dir packages/interfold-contracts upgrade:v19 -- --network mainnet \
-  --openvm-identity <identity.json>
-```
-
-`<identity.json>` holds the `appExeCommit`, `appVmCommit` and `halo2RuntimeCodeHash` of the
-release. The batch upgrades `Interfold`, registers parameter set 2 and installs the new verifiers. It
-also registers and binds the new CRISP program, retires the earlier programs and keeps requests
-paused. Do not use `upgrade:secure-crisp`. That command reads the RISC Zero program and cannot
-prepare this cutover.
-
-### New CRISP program
-
-Interfold registers `0x53FCdb21E73A461CfE6c64B19855204384B91BA3` as the CRISP program. It is a
-RISC Zero program, and the v0.19 cutover retires it. Deploy the OpenVM CRISP program before you
-generate the cutover batch. In `examples/CRISP` of the Interfold repository, run
-`pnpm deploy:contracts` with these settings:
-
-- `CRISP_INITIAL_OWNER` is the DAO, `0x652a31c669f9AB37f6040f279139a75D04F2679e`.
-- `INPUT_AVAILABILITY_SIGNER` is the key of the mainnet CRISP server.
-- `DEFER_PROTOCOL_WIRING=true` and `ALLOW_MAINNET_DEFERRED_WIRING=true`. The DAO batch does the
-  wiring.
-- The `OPENVM_*` settings of the release. Mainnet refuses every mock verifier.
-
-The deploy records the program in `examples/CRISP/packages/crisp-contracts/deployed_contracts.json`
-under `mainnet`. The cutover batch registers the address recorded there.
+The new build cannot request an E3 until the Interfold v0.20 cutover executes and the CRISP 0.29.0
+program is deployed and registered. Both steps belong to other repositories. Their order and
+commands are in [mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md): step A1 deploys the
+program, and step B3 runs the cutover. The v0.19 cutover that this section described before is
+complete: the live coordinator runs protocol 8 with parameter set 2.
