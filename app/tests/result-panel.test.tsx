@@ -39,13 +39,14 @@ describe("Shared public and secret results", () => {
     const lowTurnout = render({ status: ProposalStatus.REJECTED, quorum: { ...quorum, reached: false } });
     expect(lowTurnout).toContain("Quorum not met");
     expect(lowTurnout).not.toContain("Vote rejected");
-    expect(lowTurnout).toContain("Quorum not reached. Participation was below the required minimum.");
+    expect(lowTurnout).not.toContain("Participation was below the required minimum.");
     expect(lowTurnout).not.toContain("won with");
   });
 
   test("a rejected vote with unavailable quorum does not invent a support failure", () => {
     const html = render({ status: ProposalStatus.REJECTED, quorum: null });
-    expect(html).toContain("The vote did not meet the approval requirements.");
+    expect(html).toContain("Vote rejected");
+    expect(html).not.toContain("Quorum not met");
     expect(html).not.toContain("The required support was not reached.");
   });
 
@@ -97,7 +98,8 @@ describe("Shared public and secret results", () => {
   test("a resolved rejection with an explicit zero raw tally says no votes were cast", () => {
     const html = render({ status: ProposalStatus.REJECTED, isEmpty: true });
     expect(html).toContain("No votes cast");
-    expect(html).toContain("No votes were cast. This proposal did not pass.");
+    expect(html.match(/No votes cast/g)).toHaveLength(1);
+    expect(html).not.toContain("No votes were cast. This proposal did not pass.");
     expect(html).not.toContain("Vote rejected");
   });
 
@@ -118,7 +120,7 @@ describe("Shared public and secret results", () => {
 
   test("public and private result notices use the same result frame", () => {
     const notice = renderToStaticMarkup(
-      <ResultNotice state="Voting closed" title="Confirming result">
+      <ResultNotice title="Confirming result">
         <p>Totals are not available yet.</p>
       </ResultNotice>
     );
@@ -127,7 +129,21 @@ describe("Shared public and secret results", () => {
     expect(notice).toContain('class="vp-body');
     expect(panel).toContain('class="vp-label-change"');
     expect(panel).toContain('class="vp-body');
-    expect(notice).toContain("Result");
+    for (const html of [notice, panel]) {
+      expect(html).toMatch(/<h3[^>]*>[\s\S]*?class="badge [^"]*"[\s\S]*?>Confirming result<\/span>[\s\S]*?<\/h3>/);
+      expect(html.match(/Confirming result/g)).toHaveLength(1);
+      expect(html).not.toContain("Voting closed");
+      expect(html).not.toContain(">Result<");
+    }
+  });
+
+  test("outcome styling follows the confirmed result, never just the largest share", () => {
+    expect(render()).toContain('data-result-tone="passed"');
+    expect(render({ status: ProposalStatus.REJECTED })).toContain('data-result-tone="rejected"');
+    expect(render({ status: ProposalStatus.REJECTED, quorum: { ...quorum, reached: false } })).toContain('data-result-tone="warning"');
+    expect(render({ status: ProposalStatus.REJECTED, isEmpty: true })).toContain('data-result-tone="warning"');
+    expect(render({ status: undefined })).toContain('data-result-tone="pending"');
+    expect(renderToStaticMarkup(<ResultNotice title="Round failed" tone="failed">Unavailable tally.</ResultNotice>)).toContain('data-result-tone="failed"');
   });
 
   test("a submitted result cannot repeat its transaction or its network-progress confirmation", () => {

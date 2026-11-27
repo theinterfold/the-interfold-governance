@@ -408,7 +408,7 @@ function ProposalDetailBody({
                       >
                         <VoteCard
                           key={`${proposalIdx}-${address}-${recoveryGeneration.current}`}
-                          votingPower={
+                          votingPower={address &&
                             <div>
                               <UncountedFoldNotice address={PUB_ENABLE_LOCKING ? address : undefined} delegatesTo={delegatesTo}>
                                 {(warning) => <VotingPower

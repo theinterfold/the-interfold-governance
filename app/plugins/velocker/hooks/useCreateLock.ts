@@ -33,7 +33,7 @@ export function useCreateLock(onLocked?: () => void) {
     setError(undefined);
   }, [address]);
 
-  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+  const { data: balanceData, isLoading: balanceLoading, isError: balanceError, refetch: refetchBalance } = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_TOKEN_ADDRESS,
     abi: erc20Abi,
@@ -48,6 +48,7 @@ export function useCreateLock(onLocked?: () => void) {
   const {
     data: transferableData,
     isError: transferableFailed,
+    isLoading: transferableLoading,
     refetch: refetchTransferable,
   } = useReadContract({
     chainId: PUB_CHAIN.id,
@@ -81,11 +82,7 @@ export function useCreateLock(onLocked?: () => void) {
 
   // The three reads move together: a lock, a claim, or a bond release changes all of them, and
   // refreshing only the raw balance would leave the form's cap stale.
-  const refetchAll = () => {
-    void refetchBalance();
-    void refetchTransferable();
-    void refetchLocked();
-  };
+  const refetchAll = () => Promise.all([refetchBalance(), refetchTransferable(), refetchLocked()]);
 
   const { writeContractAsync: approveWrite } = useTransactionManager({
     onSuccessMessage: "FOLD approved",
@@ -192,5 +189,7 @@ export function useCreateLock(onLocked?: () => void) {
     isLocking,
     error,
     refetchBalance: refetchAll,
+    balanceLoading: balanceLoading || transferableLoading,
+    balanceError,
   };
 }

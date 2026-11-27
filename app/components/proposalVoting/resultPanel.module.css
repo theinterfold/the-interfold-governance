@@ -1,10 +1,10 @@
 .panel[data-vote-mode] :global(.vp-head) {
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--ui-space-tight);
 }
-.panel[data-vote-mode] :global(.vp-head h3),
-.panel[data-vote-mode] :global(.vp-head .vp-meta) {
+.panel[data-vote-mode] :global(.vp-head h3) {
+  margin: 0;
   color: var(--muted);
   font: var(--ui-label-font);
   text-transform: none;
@@ -12,17 +12,6 @@
 }
 .panel[data-vote-mode] .body {
   gap: var(--ui-space-section);
-}
-.summary {
-  display: grid;
-  gap: var(--ui-space-related);
-}
-.outcome {
-  margin: 0;
-  color: var(--ink);
-  font: 600 28px/1.18 var(--font-sans);
-  letter-spacing: -0.025em;
-  text-wrap: balance;
 }
 .description {
   display: grid;
@@ -37,4 +26,26 @@
 }
 .tally {
   min-width: 0;
+}
+
+/* The containing panel or section gap owns the space after the tally. */
+.rows > :global(.tally-row:last-child) {
+  padding-bottom: 0;
+}
+
+.status[data-result-tone="passed"] {
+  background: var(--mint-shade);
+  color: var(--if-brand-green);
+}
+.status[data-result-tone="warning"] {
+  background: var(--warning-surface);
+  color: var(--warning-ink);
+}
+.status svg {
+  flex: none;
+}
+
+.rows :global(.tally-row[data-leading="true"]) :global(:is(.key, .pct)) {
+  color: var(--ink);
+  font-weight: 700;
 }

@@ -8,6 +8,9 @@ import { splitVotingPower, type VotingPowerSplit } from "@/utils/bondedDelegatio
 export type VotingPowerBreakdown = VotingPowerSplit & {
   /** True when the breakdown applies (BondedVotes is the voting-power source). */
   available: boolean;
+  isLoading?: boolean;
+  isError?: boolean;
+  retry?: () => Promise<unknown>;
   /** The address that votes with the account's own bonded and vesting FOLD, if any. */
   delegate?: Address;
   /**
@@ -37,7 +40,7 @@ export function useVotingPowerBreakdown(
 ): VotingPowerBreakdown {
   const available = isAddress(PUB_BONDED_VOTES_ADDRESS);
 
-  const { data: checkpointsAddress } = useReadContract({
+  const checkpoints = useReadContract({
     chainId: PUB_CHAIN.id,
     address: PUB_BONDED_VOTES_ADDRESS,
     abi: bondedVotesAbi,
@@ -45,7 +48,8 @@ export function useVotingPowerBreakdown(
     query: { enabled: available },
   });
 
-  const { data: bondedFold } = useReadContract({
+  const checkpointsAddress = checkpoints.data;
+  const bondedRead = useReadContract({
     chainId: PUB_CHAIN.id,
     address: checkpointsAddress,
     abi: bondedCheckpointsAbi,
@@ -54,7 +58,16 @@ export function useVotingPowerBreakdown(
     query: { enabled: available && !!address && !!checkpointsAddress },
   });
 
-  if (!available) return { available };
+  const bondedFold = bondedRead.data;
+  const readState = {
+    isLoading: available && !!address && (checkpoints.isLoading || bondedRead.isLoading),
+    isError: available && (checkpoints.isError || bondedRead.isError),
+    retry: async () => {
+      await checkpoints.refetch();
+      if (address && checkpointsAddress) await bondedRead.refetch();
+    },
+  };
+  if (!available) return { available, ...readState };
 
   return {
     ...splitVotingPower({
@@ -65,6 +78,7 @@ export function useVotingPowerBreakdown(
       delegatedAway: !!bonded.delegate,
     }),
     available,
+    ...readState,
     delegate: bonded.delegate,
     ownBonded: bondedFold,
   };

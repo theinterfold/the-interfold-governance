@@ -1,9 +1,9 @@
 {
-  "sourceSha256": "fb40bdb2d2cca565b80e64964c649d6250168062115277ba3f8a1f5442635ef9",
+  "sourceSha256": "4ebbf6b934cc3e1b6d23abf3977e1420de069853efc6d78c9d512c295e4f894b",
   "files": {
     "index.js": "b3e7f0ad2743a865ba634ac04b9b53566027c7b58eadf57c90c5970523a63835",
     "motion.js": "43582eb3a870b42388d476cb587d07d9e58d371c32cc4e49a52308ea2d000a9b",
-    "styles.css": "6856327026feb2d19b796874c9d77d8ca76a08d5e011d79ee51d21a6ddbee4d9",
+    "styles.css": "b88651a884dde4d09627ffa6fc45a0837a37b3033f2d53f1946644a3d49740df",
     "index.d.ts": "6485cae9f3a87e725b6fad535bd2eb963371eb8b5ad4a11ca18f62ed589b24c0",
     "motion.d.ts": "192215509469f8b3022873d6cd0a07cbd877c13cbae079d1c170be2bcbc9c86a",
     "pageNavigation.js": "7a8aff7db31d0d1d1be8e048a89febe0f1aeeec7b21057f50480cefabd61edde",

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
-import { useWalletModal } from "@/hooks/useWalletModal";
+import { WalletConnectionPrompt } from "@/components/walletConnectionPrompt";
 import { PageIntro } from "@/components/pageIntro";
-import { ScrollFadeIn } from "@/vendor/site-header/motion";
 import { PanelHeader } from "@/components/panelHeader";
 import { AddressText } from "@/components/text/address";
 import { useTokenVotes } from "@/hooks/useTokenVotes";
@@ -37,11 +36,11 @@ export default function Locker() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const accountHeading = (
-    <PanelHeader id="account-heading" title="Your account" description="Your voting power and FOLD balance." />
+    <PanelHeader id="account-heading" title="Your account" />
   );
   const escrow = useVeEscrow();
   const locks = useVeLocks(address, escrow);
-  const { votingPower, refetch: refetchVotes } = useTokenVotes(address);
+  const { votingPower, isLoading: votesLoading, isError: votesError, refetch: refetchVotes } = useTokenVotes(address);
   const onChanged = () => {
     setWithdrawalAction(undefined);
     // Give the RPC a beat to index the new state before refetching.
@@ -73,6 +72,8 @@ export default function Locker() {
     isLocking,
     error: lockError,
     refetchBalance,
+    balanceLoading,
+    balanceError,
   } = useCreateLock(onChanged);
   const {
     beginWithdrawal,
@@ -88,7 +89,6 @@ export default function Locker() {
   const lockAction = useRef<HTMLButtonElement>(null);
   const handledLockRequest = useRef(false);
   const decimals = useTokenDecimals();
-  const { open: openWallet } = useWalletModal();
   const withdrawalTrigger = useRef<HTMLElement | null>(null);
   const [withdrawalAction, setWithdrawalAction] = useState<WithdrawalAction>();
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
@@ -171,6 +171,16 @@ export default function Locker() {
     ownedLocks: locksKnown ? locks.ownedLocks : undefined,
     queuedExits: locksKnown ? locks.queuedExits : undefined,
   });
+  const balanceReadFailed = !!(balanceError || locks.error || breakdown.isError || delegation.readError);
+  const allocationLoading = !balanceReadFailed && !!(balanceLoading || locks.isLoading || breakdown.isLoading || !delegationKnown);
+  const retryBalance = () => {
+    void refetchBalance();
+    locks.refetch();
+    void breakdown.retry?.();
+    void delegation.retryRead();
+    bonded.retryOwners();
+  };
+  const emptyAccount = allocation.status === "ready" && allocation.total === 0n && votingPower === 0n;
   const committedByMe = locks.ownedLocks.reduce((acc, lock) => acc + lock.amount, 0n);
 
   const compact = (value?: bigint) =>
@@ -195,6 +205,11 @@ export default function Locker() {
         title="Voting power"
         glyph="voting"
         titleId="power-page-title"
+        actions={!(isConnected && address) ? (
+          <WalletConnectionPrompt align="center">
+            View your {PUB_TOKEN_SYMBOL} balance, locks and delegations.
+          </WalletConnectionPrompt>
+        ) : undefined}
         description={
           <>
             Lock {PUB_TOKEN_SYMBOL} and delegate it to yourself to vote.
@@ -203,24 +218,12 @@ export default function Locker() {
           </>
         }
       />
+      {isConnected && address && (
       <section className="power-block power-overview" aria-label="Your voting power">
         <div className={accountStyles.panels}>
-          {!(isConnected && address) && (
-            <div>
-              {accountHeading}
-              <ScrollFadeIn amount="some" className="power-card" aria-labelledby="account-heading">
-                <div className="power-connect">
-                  <p className="ui-body">Your balances and locks will appear here.</p>
-                  <PowerAction onClick={() => openWallet()}>Connect wallet</PowerAction>
-                </div>
-              </ScrollFadeIn>
-            </div>
-          )}
-          {isConnected && address && (
-            <>
               <div>
                 {accountHeading}
-                <AccountOverview allocation={allocation} heading={null} balanceText={allocation.status === "ready" ? compact(allocation.total) : undefined}>
+                <AccountOverview allocation={allocation} heading={null} balanceText={allocation.status === "ready" ? compact(allocation.total) : undefined} balanceLoading={allocationLoading} onRetryBalance={retryBalance}>
                   <div className="power-total-summary">
                     <dl className="power-metric-total" aria-label="Your voting power">
                       <dt>
@@ -232,7 +235,9 @@ export default function Locker() {
                         <span>FOLD</span>
                       </dd>
                     </dl>
-                    {eligibilityKnown &&
+                    {votesError && <p className="power-feedback" role="alert">Voting power is unavailable. <button type="button" className="ui-text-action" onClick={() => void refetchVotes()}>Try again</button></p>}
+                    {!votesError && votesLoading && votingPower === undefined && <p className="power-help" role="status">Loading voting power…</p>}
+                    {eligibilityKnown && !emptyAccount &&
                       !canPropose &&
                       minProposalPower !== undefined &&
                       votingPower !== undefined &&
@@ -249,9 +254,10 @@ export default function Locker() {
                 </AccountOverview>
               </div>
               <YourLocks
-                description="Create locks, track their status and manage withdrawals."
                 headingPlacement="outside"
                 locks={locks}
+                onRetry={locks.refetch}
+                emptyDescription={emptyAccount ? "Receive FOLD at your connected wallet, then create a lock to start voting." : undefined}
                 delegationLabel={delegationLabel}
                 votingStatus={locksKnown && committedByMe > 0n && (!delegatedToSelf || delegation.readError || delegation.error) ? <>
                   <div className={accountStyles.lockVotingCopy}>
@@ -299,10 +305,9 @@ export default function Locker() {
                   </PowerAction>
                 }
               />
-            </>
-          )}
         </div>
       </section>
+      )}
       {isConnected && address && (
         <section className="power-block power-delegation-block" aria-label="Voting delegation">
           <BondedDelegationCards address={address} bonded={bonded} />

@@ -29,7 +29,3 @@
   color: var(--muted);
   font: var(--ui-label-font);
 }
-.status > .connect {
-  width: 100%;
-  max-width: none;
-}

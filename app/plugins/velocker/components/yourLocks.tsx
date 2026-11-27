@@ -15,6 +15,8 @@ import styles from "./accountPanels.module.css";
 
 type Props = {
   locks: Pick<ReturnType<typeof useVeLocks>, "ownedLocks" | "queuedExits" | "isLoading" | "error">;
+  onRetry?: () => void;
+  emptyDescription?: string;
   delegationLabel: ReactNode;
   showDelegation?: boolean;
   showActiveStatus?: boolean;
@@ -33,6 +35,8 @@ type Props = {
 export function YourLocks({
   locks,
   delegationLabel,
+  onRetry,
+  emptyDescription = "No locks yet.",
   showDelegation = true,
   showActiveStatus = true,
   showWithdrawalsSummary = true,
@@ -57,7 +61,7 @@ export function YourLocks({
     </div>
   ) : locks.error ? (
     <p className="power-feedback" role="alert">
-      {locks.error}
+      {locks.error}. {onRetry && <button type="button" className="ui-text-action" onClick={onRetry}>Try again</button>}
     </p>
   ) : undefined;
   const heading = (
@@ -83,7 +87,7 @@ export function YourLocks({
       {!tableLayout && !embedded && headingPlacement === "inside" && heading}
       {feedback}
       {available && votingStatus && <div className={styles.lockVotingStatus}>{votingStatus}</div>}
-      {available && lockCount === 0 && <p className={styles.empty}>No locks yet.</p>}
+      {available && lockCount === 0 && <p className={styles.empty}>{emptyDescription}</p>}
       {available && locks.ownedLocks.length > 0 && (
         <>
           <div className="power-position-list power-lock-position-list" role="table" aria-label="Your FOLD locks" data-show-status={showStatus}>
@@ -227,7 +231,7 @@ export function YourLocks({
     {section !== "withdrawals" && showLockCard && card}
     {section !== "active" && withdrawalsCard}
   </>;
-  if (tableLayout && !embedded) return <RecordTable kind="locks" heading={heading}>
+  if (tableLayout && !embedded) return <RecordTable kind="locks" heading={heading} showColumns={available && (locks.ownedLocks.length > 0 || locks.queuedExits.length > 0)}>
     {section !== "withdrawals" && showLockCard && card}
     {section !== "active" && withdrawalsCard}
   </RecordTable>;

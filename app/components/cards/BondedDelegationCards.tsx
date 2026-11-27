@@ -72,6 +72,7 @@ export function BondedDelegationCards({
 
   if (!bonded.supported) return null;
 
+  const emptyRepresentation = groupRepresentation && section === "all" && bonded.ownersState === "success" && bonded.requestsState === "success" && !bonded.owners.length && !bonded.requests.length;
   const ownerView = bondedOwnerView(bonded);
   const showOwner = ownerView !== "hidden" && (section === "all" || section === "owner");
   const showDelegate = section !== "owner" && (groupRepresentation || bonded.owners.length > 0 || bonded.requests.length > 0);
@@ -135,7 +136,7 @@ export function BondedDelegationCards({
       {showOwner && (
         <div className="power-delegation-block">
           {outside && ownerHeading}
-          <OwnerPanel {...(animateOwnerEntrance ? { as: "section" as const, amount: "some" as const } : {})} className="power-card" aria-labelledby={headingPlacement === "none" ? undefined : "bonded-owner-heading"} aria-label={headingPlacement === "none" ? "Bonded and vesting delegation" : undefined}>
+          <OwnerPanel {...(animateOwnerEntrance ? { as: "section" as const, amount: "some" as const } : {})} className="power-card bonded-owner-card" aria-labelledby={headingPlacement === "none" ? undefined : "bonded-owner-heading"} aria-label={headingPlacement === "none" ? "Bonded and vesting delegation" : undefined}>
             {!outside && headingPlacement !== "none" && ownerHeading}
             {ownerView === "delegate" && <PowerDisclosure
               className={panelStyles.inlineDelegation}
@@ -245,8 +246,9 @@ export function BondedDelegationCards({
 
       {showDelegate && (
         <section className="power-delegation-block" aria-labelledby={groupRepresentation ? "delegations-heading" : undefined}>
-          <RecordTable kind="delegations" enabled={recordLayout} heading={groupRepresentation ? <PanelHeader animate={!recordLayout} id="delegations-heading" title="Delegations" description="Wallets you represent and requests awaiting your acceptance." action={representationCapacity} /> : undefined}>
-          {section !== "requests" && (bonded.owners.length > 0 || groupRepresentation) && <>
+          <RecordTable kind="delegations" enabled={recordLayout} showColumns={bonded.owners.length > 0 || bonded.requests.length > 0} heading={groupRepresentation ? <PanelHeader animate={!recordLayout} id="delegations-heading" title="Delegations" description="Wallets you represent and requests awaiting your acceptance." action={emptyRepresentation ? undefined : representationCapacity} /> : undefined}>
+          {emptyRepresentation && <div data-record-group className="power-card"><p className={styles.emptyGroup}>No delegations yet. Requests from other wallets will appear here for you to accept.</p></div>}
+          {!emptyRepresentation && section !== "requests" && (bonded.owners.length > 0 || groupRepresentation) && <>
           {!groupRepresentation && outside && delegateHeading}
           <GroupPanel {...(GroupPanel === ScrollFadeIn ? {as:"section" as const, amount:"some" as const} : {})} data-record-group className={`power-card ${groupRepresentation ? styles.groupCard : headingPlacement !== "inside" && bonded.owners.length === 1 ? styles.rowsOnly : ""}`} aria-labelledby={recordLayout || headingPlacement === "none" ? undefined : "bonded-represented-heading"} aria-label={recordLayout || headingPlacement === "none" ? "Wallets you represent" : undefined}>
             {groupRepresentation && !recordLayout && <StatusGroupHeading id="bonded-represented-heading" title="Accepted" tone="positive" icon={<Check size={20} aria-hidden="true"/>} count={bonded.owners.length} description="Included in your voting power" trailing={bonded.owners.length > 1 ? <div className={styles.headingTotal}>{representedSummary}</div> : undefined} />}
@@ -283,7 +285,7 @@ export function BondedDelegationCards({
             )}
           </GroupPanel>
           </>}
-            {section !== "represented" && (bonded.requests.length > 0 || groupRepresentation) && (
+            {!emptyRepresentation && section !== "represented" && (bonded.requests.length > 0 || groupRepresentation) && (
               <div data-record-following className={groupRepresentation ? styles.groupRequests : section !== "requests" && bonded.owners.length > 0 ? styles.requests : undefined}>
                 {!groupRepresentation && <PanelHeader id="bonded-requests-heading" title="Delegation requests" count={bonded.requests.length}
                   action={representationCapacity}

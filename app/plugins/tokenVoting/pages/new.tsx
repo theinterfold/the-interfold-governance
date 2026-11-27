@@ -4,7 +4,6 @@ import { useAccount } from "wagmi";
 import { Else, ElseIf, If, Then } from "@/components/if";
 import { MissingContentView } from "@/components/MissingContentView";
 import { AddressText } from "@/components/text/address";
-import { useWalletModal } from "@/hooks/useWalletModal";
 import { PUB_TOKEN_SYMBOL } from "@/constants";
 import { useCreateProposal } from "../hooks/useCreateProposal";
 import { useCanCreateProposal, type CanCreateProposal } from "../hooks/useCanCreateProposal";
@@ -49,7 +48,6 @@ export const TokenCreationEligibility = ({
   state: CanCreateProposal;
   children: ReactNode;
 }) => {
-  const { open } = useWalletModal();
   const { canCreate, needsDelegation, bondedDelegate, hasNoTokens, isLoading, minProposerVotingPower, votes } = state;
   const threshold =
     minProposerVotingPower === undefined ? undefined : `${formatEther(minProposerVotingPower)} ${PUB_TOKEN_SYMBOL}`;
@@ -58,10 +56,7 @@ export const TokenCreationEligibility = ({
   return (
     <If true={!selfAddress || !isConnected}>
       <Then>
-        {/* Not connected */}
-        <MissingContentView callToAction="Connect wallet" onClick={() => open()}>
-          Please connect your wallet to continue.
-        </MissingContentView>
+        {null}
       </Then>
       <ElseIf true={isLoading}>
         {/* Still reading the on-chain gate — do not accuse anyone before we know. */}

@@ -3,7 +3,6 @@ import { useAccount } from "wagmi";
 import { ActionButton } from "@/components/input/actionButton";
 import { BendingChevron } from "@/vendor/site-header";
 import { Disclosure } from "@/components/motion/Disclosure";
-import { useWalletModal } from "@/hooks/useWalletModal";
 import { useFeeCredits } from "../hooks/useFeeCredits";
 import { feeDepositAmount } from "../utils/feeDepositAmount";
 
@@ -34,7 +33,6 @@ export const FeeCreditCard = ({
     isWithdrawing,
   } = useFeeCredits(durationSeconds);
   const { address, isConnected, isConnecting, isReconnecting } = useAccount();
-  const { open: openWallet, isOpen: walletOpen } = useWalletModal();
   const connected = isConnected && !!address;
   const connecting = isConnecting || isReconnecting;
   const [open, setOpen] = useState(false);
@@ -70,20 +68,18 @@ export const FeeCreditCard = ({
         <span>Estimated fee</span>
         <span>{amount(feeReadFailed ? undefined : quote)}</span>
       </div>
-      <p className="composer-help" role={feeReadFailed ? "alert" : undefined}>
+      {connected && <p className="composer-help" role={feeReadFailed ? "alert" : undefined}>
         {connecting
           ? "Connecting your wallet…"
-          : !connected
-            ? "Connect your wallet to see and manage your fee credit."
-            : feeReadFailed
-              ? "Fee credit is unavailable. Try again to refresh it."
+          : feeReadFailed
+              ? "Fee credit is unavailable."
               : covered
                 ? "Covered by your fee credit."
                 : loaded
                   ? "A credit deposit is needed before creation."
                   : "Loading your fee credit…"}
-      </p>
-      {balanceShortfall && (
+      </p>}
+      {connected && balanceShortfall && (
         <p className="composer-help text-critical-600" role="alert">
           {balanceShortfall} Top up your wallet to cover the fee.
         </p>
@@ -93,19 +89,7 @@ export const FeeCreditCard = ({
           Try again
         </button>
       )}
-      <Disclosure open={!connected}>
-        <ActionButton
-          type="button"
-          className="composer-credit-connect mt-4"
-          affordance="wallet"
-          disabled={busy || connecting || walletOpen}
-          isLoading={connecting}
-          onClick={() => void openWallet()}
-        >
-          {connecting ? "Connecting wallet…" : "Connect wallet"}
-        </ActionButton>
-      </Disclosure>
-      <div className="composer-credit-management">
+      {connected && <div className="composer-credit-management">
         <button
           type="button"
           className="composer-credit-toggle"
@@ -206,7 +190,7 @@ export const FeeCreditCard = ({
             )}
           </div>
         </Disclosure>
-      </div>
+      </div>}
     </section>
   );
 };

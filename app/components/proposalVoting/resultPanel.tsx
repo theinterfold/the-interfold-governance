@@ -1,7 +1,9 @@
 import { type CSSProperties, type ReactNode } from "react";
+import { Check, Clock, Info, Pulse, WarningCircle, XCircle } from "@phosphor-icons/react";
 import { ProposalStatus } from "@aragon/ods";
 import { FluidHeight } from "@/components/motion/FluidHeight";
 import { BallotPanel, ballotOptionColor } from "./ballot";
+import { StatusBadge } from "@/components/text/statusBadge";
 import { PowerInfo } from "@/plugins/velocker/components/powerInfo";
 import styles from "./resultPanel.module.css";
 
@@ -31,7 +33,7 @@ export function resultPercentages(values: bigint[]): number[] {
 /** The same rows also show public live tallies, without declaring a winner early. */
 export function ResultRows({ rows, winnerIndex }: { rows: ResultRow[]; winnerIndex?: number }) {
   return (
-    <div className="tally-rows" role="list" aria-label="Vote share">
+    <div className={`tally-rows ${styles.rows}`} role="list" aria-label="Vote share">
       {rows.map((row) => (
         <div
           key={row.index}
@@ -67,30 +69,40 @@ export function ResultRows({ rows, winnerIndex }: { rows: ResultRow[]; winnerInd
   );
 }
 
+type ResultTone = "passed" | "rejected" | "warning" | "failed" | "pending" | "active" | "neutral";
+const resultIcons = { passed: Check, rejected: XCircle, warning: WarningCircle, failed: WarningCircle, pending: Clock, active: Pulse, neutral: Info };
+
 /** One hierarchy for pending, failed and tallied results, in both voting methods. */
 export function ResultFrame({
-  state = "Voting closed",
+  tone = "pending",
   title,
   description,
   children,
 }: {
-  state?: ReactNode;
+  tone?: ResultTone;
   title: string;
   description?: ReactNode;
   children?: ReactNode;
 }) {
+  const Glyph = resultIcons[tone];
   return (
-    <BallotPanel className={styles.panel} title="Result" info={<span className="vp-meta">{state}</span>}>
+    <BallotPanel
+      className={styles.panel}
+      heading={
+        <h3 aria-live="polite">
+          <StatusBadge
+            className={`${tone} ${styles.status}`}
+            data-result-tone={tone}
+            icon={<Glyph size={14} weight="bold" aria-hidden="true" focusable="false" />}
+          >
+            <span key={title} className="vp-label-change">{title}</span>
+          </StatusBadge>
+        </h3>
+      }
+    >
       <FluidHeight layoutKey={title}>
         <div className={`vp-body ${styles.body}`}>
-          <div className={styles.summary} aria-live="polite">
-            <h4 className={styles.outcome}>
-              <span key={title} className="vp-label-change">
-                {title}
-              </span>
-            </h4>
-            {description && <div className={styles.description}>{description}</div>}
-          </div>
+          {description && <div className={styles.description}>{description}</div>}
           {children}
         </div>
       </FluidHeight>
@@ -98,8 +110,8 @@ export function ResultFrame({
   );
 }
 
-export function ResultNotice({ state, title, children }: { state: ReactNode; title: string; children: ReactNode }) {
-  return <ResultFrame state={state} title={title} description={children} />;
+export function ResultNotice({ tone, title, children }: { tone?: ResultTone; title: string; children: ReactNode }) {
+  return <ResultFrame tone={tone} title={title} description={children} />;
 }
 
 /** A result is the voting body's outcome, not a claim that the SPP has executed the proposal. */
@@ -141,20 +153,12 @@ export function ResultPanel({
         : status === ProposalStatus.REJECTED
           ? "Vote rejected"
           : "Vote passed";
-  const explanation = !resolved
-    ? "The final voting outcome is not confirmed yet."
-    : noVotes
-      ? "No votes were cast. This proposal did not pass."
-      : lowQuorum
-        ? "Quorum not reached. Participation was below the required minimum."
-        : status === ProposalStatus.REJECTED
-          ? quorum
-            ? "The required support was not reached."
-            : "The vote did not meet the approval requirements."
-          : undefined;
 
   return (
-    <ResultFrame title={outcome} description={explanation && <p>{explanation}</p>}>
+    <ResultFrame
+      title={outcome}
+      tone={!resolved ? "pending" : noVotes || lowQuorum ? "warning" : passed ? "passed" : "rejected"}
+    >
       <div className={styles.tally}>
         <ResultRows rows={rows} winnerIndex={leading?.index} />
       </div>
