@@ -170,6 +170,12 @@ The publication changes no installed plugin. It can run any time before step B4.
      pnpm upgrade:v19:simulate -- --crisp-dir /tmp/crisp-sim
    ```
 
+   The simulation does not pause requests, and `prepare` stops with "Pause E3 requests before the
+   cutover" while mainnet is open. Point `FORK_URL` at a local `anvil --fork-url "$RPC_URL"` on
+   which you first ran step 2 below (the Safe pause through the Admin plugin). A rehearsal on
+   2026-11-27 confirmed both: the stop on an open fork, and a successful pause through the Admin
+   plugin.
+
    It releases ended committees, prepares and executes the cutover batch as the protocol owner,
    refreshes the operators, writes and executes the resume batch, and validates each stage. Read
    the plan that it prints: protocol 10 and generation 2, parameter set 3, the two upgraded
@@ -357,7 +363,7 @@ cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute 
 | Minimum | 0 | 2 of 3 | `0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a` |
 | Micro | 1 | 5 of 9 | `0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b` |
 | Small (installed) | 2 | 14 of 19 | `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891` |
-| Large | 3 | none (see below) | `0xf8ddf924e1ef60bf63d14a2bb39c7c259b4b054e75f6e2baf07bb268462d13ed` |
+| Large | 3 | 34 of 45, after the Interfold cutover adds it | `0xf8ddf924e1ef60bf63d14a2bb39c7c259b4b054e75f6e2baf07bb268462d13ed` |
 
 - Proposals that exist keep the settings of their creation: each one requested its E3 then.
 - `updateE3Settings` does not check the values. The install-time mainnet policy (Small, parameter
@@ -372,14 +378,13 @@ cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute 
   parameter set and the pricing, not the crypto config id.
 - A smaller committee needs fewer operators and gives less security: fewer nodes must collude to
   decrypt.
-- **Large (34 of 45).** Build 4 knows the Large id, so no new plugin build is needed. The Interfold
-  v0.20.0 contracts admit Large on mainnet once governance sets its threshold
-  (`setCommitteeThresholds(3, [34, 45])`) and the secure-8192/large verifier routes are installed.
-  The v0.20.0 mainnet tooling does neither: `MAINNET_BFV_CONFIGS` and
-  `mainnet-protocol.config.json` list Minimum, Micro and Small only, so step B3 routes and
-  thresholds those three. Mainnet Large therefore needs a protocol batch that adds both, before the
-  DAO switches the body to Large. It also needs at least 45 eligible bond owners, and each node at
-  least 28 GiB of memory for the secure-8192 Large key aggregation.
+- **Large (34 of 45).** The plugin installs with Small (19 nodes) and stays on it. The Interfold
+  cutover makes Large available on mainnet: its threshold (`setCommitteeThresholds(3, [34, 45])`)
+  and the secure-8192/large verifier routes. Build 4 knows the Large id, so the DAO can move the
+  body to Large later with one `updateE3Settings` action and no new plugin build. Before that
+  vote, check on chain that `committeeThresholds(3, 1)` on Interfold is 45, and that at least 45
+  eligible bond owners run nodes with at least 28 GiB of memory (the secure-8192 Large key
+  aggregation needs it).
 
 ## If a step fails
 
