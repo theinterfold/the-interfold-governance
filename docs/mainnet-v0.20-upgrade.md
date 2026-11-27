@@ -109,32 +109,64 @@ The cutover batch registers the program that `$CRISP/packages/crisp-contracts/de
 records under `mainnet`. Deploy it first, with deferred wiring: the DAO batch registers and binds
 it.
 
-1. Compile the OpenVM guest at the release and keep its identity (`appExeCommit`, `appVmCommit`
-   and `halo2RuntimeCodeHash`) in a file, for example `openvm-identity.json`. Step B3 checks the
-   chain against it.
-2. Deploy:
+Values read from the live v0.19 program `0x1EA4…EE28` on 2026-11-27, for comparison:
+
+| Setting | v0.19 value |
+|---|---|
+| `inputAvailabilitySigner()` (the mainnet CRISP server key) | `0x34655732dB9BBfA627021D18d786EfF7Bde211F7` |
+| `owner()` | the DAO, `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
+| `imageId()` | `0x126eb3ea8c2d24cbf8e89f7e41dd2f0be5050be7a28276f0bcd4cb0546acdf52` |
+| OpenVM Halo2 verifier | `0x75cECF62f1ADe2C7b95d5a93460f450c6885F904`, runtime code hash `0xc164e9a2f1317f2babaccd3b14efe13a172225dbee3ffff0f95d5afda7b6b99c` |
+| `availabilityFinalizationWindow()` | 10800 s |
+
+1. Compile the OpenVM guest of the release with the Interfold v0.20.0 CLI. It writes the receipt
+   identity that the deploy reads, `.interfold/caches/openvm/prover.json`:
+
+   ```bash
+   cd "$CRISP"
+   interfold program compile
+   jq '.app_commit, .verifier_sha256' .interfold/caches/openvm/prover.json
+   ```
+
+2. Deploy. Use the same server key as v0.19 unless the server key changes with this cutover:
 
    ```bash
    cd "$CRISP/packages/crisp-contracts"
+   RPC_URL=<mainnet RPC> PRIVATE_KEY=<deployer key> ETHERSCAN_API_KEY=<key> \
    CRISP_INITIAL_OWNER=0x652a31c669f9AB37f6040f279139a75D04F2679e \
-   INPUT_AVAILABILITY_SIGNER=<address of the mainnet CRISP server key> \
+   INPUT_AVAILABILITY_SIGNER=0x34655732dB9BBfA627021D18d786EfF7Bde211F7 \
    DEFER_PROTOCOL_WIRING=true ALLOW_MAINNET_DEFERRED_WIRING=true \
-   PRIVATE_KEY=<deployer key> \
    pnpm deploy:contracts --network mainnet
    ```
 
-   Mainnet refuses every mock verifier and mock data availability. The OpenVM settings come from
-   the guest that step 1 compiled, unless `OPENVM_*` settings name an existing verifier.
-3. Commit the new `mainnet` records of `deployed_contracts.json` in a CRISP pull request.
-4. Check the program. Expect the DAO as owner, no Interfold yet, and the image ID of the compiled
-   guest:
+   Mainnet refuses every mock verifier and mock data availability. The deploy reads the OpenVM
+   identity from `prover.json` and deploys the Halo2 verifier and the receipt verifier for it. A dry
+   run on a mainnet fork on 2026-11-27 (with a stub Halo2 verifier) deployed the program and all its
+   verifiers.
+3. Write the identity file that step B3 checks against the chain:
+
+   ```bash
+   H=$(jq -r '.mainnet.OpenVmHalo2Verifier.address' deployed_contracts.json)
+   jq -n --arg exe "$(jq -r '.app_commit.app_exe_commit' "$CRISP/.interfold/caches/openvm/prover.json")" \
+     --arg vm "$(jq -r '.app_commit.app_vm_commit' "$CRISP/.interfold/caches/openvm/prover.json")" \
+     --arg h2 "$(cast keccak "$(cast code $H --rpc-url "$RPC_URL")")" \
+     '{appExeCommit: $exe, appVmCommit: $vm, halo2RuntimeCodeHash: $h2}' > openvm-identity.json
+   ```
+
+4. Commit the new `mainnet` records of `deployed_contracts.json` in a CRISP pull request.
+5. Check the program. Expect the DAO as owner, no Interfold yet, the server key as signer, and the
+   image ID of the compiled guest:
 
    ```bash
    P=<new CRISP program>
    cast call $P 'owner()(address)' --rpc-url "$RPC_URL"
    cast call $P 'interfold()(address)' --rpc-url "$RPC_URL"   # expect 0x000…000
+   cast call $P 'inputAvailabilitySigner()(address)' --rpc-url "$RPC_URL"
    cast call $P 'imageId()(bytes32)' --rpc-url "$RPC_URL"
    ```
+
+6. Build the CRISP server image for this release: merging CRISP `main` publishes a dated
+   `crisp-server` image (`<YYYYMMDD>-<sha8>`). The server needs it in step B5.
 
 ### A2. Publish CRISP plugin build 4 (this repository)
 
