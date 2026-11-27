@@ -40,23 +40,27 @@ Nothing in the Solidity. `CrispVoting` talks to its E3 program through `earliest
 
 ## Current testnet deployment
 
-Sepolia (11155111), Interfold `0xb35EE9ed8BE5967daabBA8c2e817C52D0b57ac26`, Aztec testnet (rollup version 679261766).
+Sepolia (11155111), Interfold v0.20.0 `0x5611c8aa517FE57D05229Ff94eA37E88b1b8FDDB`, Aztec testnet (rollup version
+679261766). Requests use parameter set 4 (`insecure-64`) and the minimum committee.
 
 | Contract | Address |
 | --- | --- |
-| `CRISPAztecVotesProgram` (Sepolia, block 12202493) | `0xC6F8e289a1316B9ecAFaDaB98d211dcb66D66c86` |
-| `CrispAztecVotes` (Aztec, block 63163) | `0x2b394523778956defd3c1de36721424e775689ee56b849234efaeeb88ba690e0` |
-| DAO | `0xCd070cB917b06fA2A3A6Df785320Cf68D959d503` |
-| CRISP plugin (private body) | `0x41D537D70F626fA1b3a4aF2B7BdD5BcC1556EE5a` |
-| TokenVoting plugin (public body) | `0x95453f560497A9Abc2ec063f024E401F822F73F7` |
-| SPP, private process | `0x2eEd223B136cD75f2bAFFac5130dD4f7BDE92ed0` |
-| SPP, public process | `0x1d1eb5Abd26590EA20790886f9e65511D7CaCe37` |
+| `CRISPAztecVotesProgram` (Sepolia, block 12220048) | `0xb42772d7b79901d7269202d9b5F366E4dC0F7275` |
+| `CrispAztecVotes` (Aztec, block 71607) | `0x28fe29ac3e8a082e115c81a77e0593a990c33403890f868d6750b1a54e8aa620` |
+| BondedVotes (voting token) | `0x9e32510C3249Bb0EfBC363929ED7278406a6e8B4` |
+| DAO | `0x2ddc10290453AA5F77C2aBa8438Cf0373bEdd5D9` |
+| CRISP plugin (private body) | `0xd909313Cec8CA36A71d31cDcbBC9c347afb40AD9` |
+| TokenVoting plugin (public body) | `0x498bbaf963a888E9CE981A406ce15CD1b4537e1E` |
+| SPP, private process | `0x5ca84D70b728564624591251C21E52CC1b6559fc` |
+| SPP, public process | `0xcB07a1682015541A5Ba1b0148732d7da6E3eF2EC` |
+| `VotingFaucet` | `0x2D91A520b40D5799EA7Ea2A9849034CB1AE99BC7` |
 
-Plugin deployment block 12202503. The CRISP server for this program is served at
+Plugin deployment block 12220059. The CRISP server for this program is served at
 `https://private-crisp.theinterfold.com/aztec-gov` (infra `playbooks/crisp-aztec-gov.yml`). On Sepolia, `forge script` needs
 `--with-gas-price 2000000 --priority-gas-price 1000000 --gas-estimate-multiplier 500`: 900 pushes the `CrispVoting` deployment
 past the block gas limit.
 
-## Testing SDK: testnet only
+## CRISP SDK
 
-The app uses `@crisp-e3/sdk@0.29.0-insecure.0` and `@crisp-e3/aztec@0.29.0-insecure.0`, the CRISP testing release. In that release `insecure-64` is real and `secure-8192` is a stub, and the app uses it on every path. This branch must not deploy to mainnet until the app uses a production release of both packages.
+The app uses `@crisp-e3/sdk@0.29.0` and `@crisp-e3/aztec@0.29.0`, the production CRISP release built against Interfold
+v0.20.0. It holds the real `insecure-64` and `secure-8192` bundles and selects one from the round's parameter set.

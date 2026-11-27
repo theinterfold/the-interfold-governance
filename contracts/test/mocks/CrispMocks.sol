@@ -179,13 +179,13 @@ contract MockInterfold {
         uint256[] memory insecureModuli = new uint256[](2);
         insecureModuli[0] = 0xffffee001;
         insecureModuli[1] = 0xffffc4001;
-        paramSetRegistry[0] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
+        paramSetRegistry[4] = abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3"));
 
         uint256[] memory secureModuli = new uint256[](3);
         secureModuli[0] = 0x0800000000db4001;
         secureModuli[1] = 0x0800000000d54001;
         secureModuli[2] = 0x0800000000cbc001;
-        paramSetRegistry[2] =
+        paramSetRegistry[3] =
             abi.encode(ICRISP.BfvParameters(8192, 17000000, secureModuli, "17723039943798878305460955570711717478400"));
     }
 
@@ -198,9 +198,9 @@ contract MockInterfold {
     }
 
     /// @notice Mirrors the coordinator's public `paramSetRegistry` mapping. The plugin decodes the
-    ///         BFV parameters registered for its parameter set (plaintext modulus `t`) and hashes
-    ///         the bytes into the crypto config id it asserts. Sets 0 and 2 start out as the
-    ///         protocol's `BFV_PARAMS.insecure512` and `BFV_PARAMS.secure8192`.
+    ///         BFV parameters registered for its parameter set (plaintext modulus `t`). Sets 4
+    ///         (insecure-64) and 3 (secure-8192) start out with insecure and secure test
+    ///         parameters.
     mapping(uint8 => bytes) public paramSetRegistry;
 
     function setParamSet(uint8 paramSet, bytes calldata encodedParams) external {

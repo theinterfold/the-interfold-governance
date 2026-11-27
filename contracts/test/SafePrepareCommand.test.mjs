@@ -24,7 +24,7 @@ test("mainnet templates produce the required CRISP policy", () => {
       .split("\n");
 
     assert.equal(BigInt(values[0]), 71n * 10n ** 18n, template);
-    assert.equal(values[1], "2", template);
+    assert.equal(values[1], "3", template);
     assert.equal(values[2], "2", template);
     assert.ok(BigInt(values[3]) >= 432000n, template);
     assert.ok(BigInt(values[4]) >= BigInt(values[3]), template);

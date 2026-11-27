@@ -16,6 +16,7 @@ import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {ICRISP} from "../src/crisp/ICRISP.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
+import {InterfoldCryptoConfig} from "../src/crisp/InterfoldCryptoConfig.sol";
 import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesToken} from "./mocks/CrispMocks.sol";
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
 import {Utils} from "../script/Utils.sol";
@@ -97,7 +98,7 @@ contract CrispVotingViewsTest is Test {
             token: token,
             interfold: address(interfold),
             committeeSize: IInterfold.CommitteeSize(0),
-            paramSet: 0,
+            paramSet: 4,
             crispProgramAddress: address(crispProgram),
             computeProviderParams: bytes(""),
             votingSettings: ICrispVoting.VotingSettings({
@@ -279,49 +280,49 @@ contract CrispVotingViewsTest is Test {
         assertEq(plugin.quoteProposalFee(0, 0), 3 ether, "the quote does not underflow at clock 0");
     }
 
-    /// @notice A request asserts the coordinator's crypto config id for the parameter set it
-    ///         requests, for both sets the protocol supports.
+    /// @notice A request asserts the coordinator's crypto config id for the parameter set and
+    ///         committee size it requests, for both sets the protocol supports.
     /// @dev `request` compares `expectedCryptoConfigId` with
-    ///      `ActiveCryptoConfig.configIdForParamSet(paramSet)`. The coordinator's
+    ///      `ActiveCryptoConfig.configIdForRequest(paramSet, committeeSize)`. The coordinator's
     ///      `activeCryptoConfigId()` returns the secure id on every chain, so a plugin that asserted
     ///      it on the insecure set had every Sepolia request revert `CryptoConfigChanged`. The
-    ///      encodings are the protocol's `BFV_PARAMS`, and the expected ids are its
-    ///      `INSECURE_CONFIG_ID` and `SECURE_CONFIG_ID` for circuit version `interfold-bfv-v5`.
+    ///      expected ids are Interfold v0.20.0's `SS_INSECURE_64_MINIMUM_CONFIG_ID` and
+    ///      `SS_SECURE_8192_MINIMUM_CONFIG_ID`.
     function test_requestAssertsTheCryptoConfigOfItsParameterSet() public {
         uint256[] memory insecureModuli = new uint256[](2);
         insecureModuli[0] = 0xffffee001;
         insecureModuli[1] = 0xffffc4001;
-        interfold.setParamSet(0, abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3")));
+        interfold.setParamSet(4, abi.encode(ICRISP.BfvParameters(512, 100, insecureModuli, "3")));
 
         uint256[] memory secureModuli = new uint256[](3);
         secureModuli[0] = 0x0800000000db4001;
         secureModuli[1] = 0x0800000000d54001;
         secureModuli[2] = 0x0800000000cbc001;
         interfold.setParamSet(
-            2,
+            3,
             abi.encode(ICRISP.BfvParameters(8192, 17000000, secureModuli, "17723039943798878305460955570711717478400"))
         );
 
         _create();
-        assertEq(interfold.lastParamSet(), 0);
+        assertEq(interfold.lastParamSet(), 4);
         assertEq(
             interfold.lastExpectedCryptoConfigId(),
-            0x7d3f52af7ad13baa9f34ce2426e980907ffeb86b4b374308e6c590d5d43f9e41,
-            "insecure-512 config id"
+            0xd76c4f521394e6cbe1df28036cc5dd5590c6630a403525b5c2b052f9b91507f4,
+            "insecure-64 minimum config id"
         );
 
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 2, bytes(""));
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 3, bytes(""));
         spp.setCreator(SPP_PROPOSAL_ID + 1, creator);
         _depositAs(creator, 100 ether);
         vm.prank(sppAddr);
         uint256 secureProposalId = plugin.createProposal(
             abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
-        assertEq(interfold.lastParamSet(), 2);
+        assertEq(interfold.lastParamSet(), 3);
         assertEq(
             interfold.lastExpectedCryptoConfigId(),
-            0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa,
-            "secure-8192 config id"
+            0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a,
+            "secure-8192 minimum config id"
         );
 
         // The plaintext modulus comes from the registered parameters of the configured set, so
@@ -332,6 +333,51 @@ contract CrispVotingViewsTest is Test {
             SUPPLY / 17_000_000 + 1,
             "CRISP records the divisor the floor was raised to"
         );
+    }
+
+    /// @notice Each committee size of both parameter sets asserts its own committee-bound id, and a
+    ///         parameter set that v0.20 does not admit fails before it reaches the coordinator.
+    /// @dev The expected ids are the `SS_*_CONFIG_ID` values of the Interfold v0.20.0
+    ///      `BfvProtocol`. A swapped pair would let one committee size request with another's id,
+    ///      and `request` would revert `CryptoConfigChanged` for every proposal of that size.
+    function test_requestAssertsTheCommitteeBoundConfigIdOfEverySize() public {
+        uint8[6] memory paramSets = [uint8(4), 4, 4, 3, 3, 3];
+        IInterfold.CommitteeSize[6] memory sizes = [
+            IInterfold.CommitteeSize.Minimum,
+            IInterfold.CommitteeSize.Micro,
+            IInterfold.CommitteeSize.Small,
+            IInterfold.CommitteeSize.Minimum,
+            IInterfold.CommitteeSize.Micro,
+            IInterfold.CommitteeSize.Small
+        ];
+        bytes32[6] memory expected = [
+            bytes32(0xd76c4f521394e6cbe1df28036cc5dd5590c6630a403525b5c2b052f9b91507f4),
+            0x893989231b402942b005fecdbf9eae21b227d861085433293d0873547ea2816a,
+            0x7fa922a08c5501592d02394205bb600219da3e168e0432f076465569116ccfe3,
+            0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a,
+            0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b,
+            0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891
+        ];
+        for (uint256 i; i < expected.length; ++i) {
+            plugin.updateE3Settings(sizes[i], paramSets[i], bytes(""));
+            spp.setCreator(SPP_PROPOSAL_ID + 1 + i, creator);
+            _depositAs(creator, 100 ether);
+            vm.prank(sppAddr);
+            plugin.createProposal(
+                abi.encode(sppAddr, SPP_PROPOSAL_ID + 1 + i, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
+            );
+            assertEq(interfold.lastExpectedCryptoConfigId(), expected[i], "committee-bound config id");
+        }
+
+        // Index 0 held a v0.19 tuple; v0.20 admits no request on it.
+        interfold.setParamSet(0, interfold.paramSetRegistry(4));
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 0, bytes(""));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InterfoldCryptoConfig.UnsupportedCryptoConfig.selector, uint8(0), IInterfold.CommitteeSize.Minimum
+            )
+        );
+        plugin.quoteProposalFee(0, 0);
     }
 
     function test_createSchedulesAFullVotingWindowAfterDkgAndBeforeAvailability() public {
@@ -617,16 +663,16 @@ contract CrispVotingViewsTest is Test {
         // pinned at creation, the same stance the quorum takes (INV-33).
         _create();
         assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize(0)));
-        assertEq(interfold.lastParamSet(), 0);
+        assertEq(interfold.lastParamSet(), 4);
         assertEq(interfold.lastComputeProviderParams(), bytes(""));
 
         vm.expectEmit(true, true, true, true, address(plugin));
-        emit E3SettingsUpdated(IInterfold.CommitteeSize.Small, 2, hex"beef");
-        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 2, hex"beef");
+        emit E3SettingsUpdated(IInterfold.CommitteeSize.Small, 3, hex"beef");
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Small, 3, hex"beef");
 
         (IInterfold.CommitteeSize cs, uint8 ps, bytes memory cpp) = plugin.getE3Settings();
         assertEq(uint8(cs), uint8(IInterfold.CommitteeSize.Small));
-        assertEq(ps, 2);
+        assertEq(ps, 3);
         assertEq(cpp, hex"beef");
 
         // The NEXT proposal's E3 request carries the updated parameters. A fresh SPP sub-proposal
@@ -638,7 +684,7 @@ contract CrispVotingViewsTest is Test {
             abi.encode(sppAddr, SPP_PROPOSAL_ID + 1, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
         );
         assertEq(uint8(interfold.lastCommitteeSize()), uint8(IInterfold.CommitteeSize.Small));
-        assertEq(interfold.lastParamSet(), 2);
+        assertEq(interfold.lastParamSet(), 3);
         assertEq(interfold.lastComputeProviderParams(), hex"beef");
     }
 

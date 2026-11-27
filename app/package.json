@@ -31,10 +31,10 @@
     "@aztec-labs/foundation": "6.0.0",
     "@aztec-labs/kv-store": "6.0.0",
     "@aztec-labs/stdlib": "6.0.0",
-    "@crisp-e3/aztec": "0.29.0-insecure.0",
-    "@crisp-e3/sdk": "0.29.0-insecure.0",
+    "@crisp-e3/aztec": "0.29.0",
+    "@crisp-e3/sdk": "0.29.0",
     "@hookform/resolvers": "^3.9.0",
-    "@interfold/sdk": "0.20.0-dev.3",
+    "@interfold/sdk": "0.20.0",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-native-async-storage/async-storage": "^1.24.0",
@@ -90,8 +90,8 @@
     "typescript": "^5.4.3"
   },
   "overrides": {
-    "@interfold/contracts": "0.20.0-dev.3",
-    "@interfold/wasm": "0.20.0-dev.3",
+    "@interfold/contracts": "0.20.0",
+    "@interfold/wasm": "0.20.0",
     "@peculiar/asn1-schema": "2.11.1"
   },
   "prettier": {
