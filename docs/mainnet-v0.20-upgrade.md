@@ -171,10 +171,12 @@ The publication changes no installed plugin. It can run any time before step B4.
    ```
 
    The simulation does not pause requests, and `prepare` stops with "Pause E3 requests before the
-   cutover" while mainnet is open. Point `FORK_URL` at a local `anvil --fork-url "$RPC_URL"` on
-   which you first ran step 2 below (the Safe pause through the Admin plugin). A rehearsal on
-   2026-11-27 confirmed both: the stop on an open fork, and a successful pause through the Admin
-   plugin.
+   cutover" while mainnet is open. Point `FORK_URL` at a local `anvil --fork-url <archive RPC>` on
+   which you first ran step 2 below (the Safe pause through the Admin plugin). On 2026-11-27 this
+   confirmed the stop on an open fork and the pause through the Admin plugin, but the run on top of
+   `publicnode` did not get past `prepare` in about an hour and was stopped. Use a fast archive RPC
+   with full log history (a paid endpoint) for both `anvil --fork-url` and `LOG_RPC_URL`, and
+   expect the operator log scan to take most of the time.
 
    It releases ended committees, prepares and executes the cutover batch as the protocol owner,
    refreshes the operators, writes and executes the resume batch, and validates each stage. Read
