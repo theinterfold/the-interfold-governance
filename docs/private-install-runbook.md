@@ -351,11 +351,10 @@ Also make sure of these items:
 Do this step before the unpause batch (step B7 of
 [mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md)).
 
-**CRISP server.** Update the mainnet CRISP server. Its settings live in AWS SSM under
-`/interfold/mainnet/crisp-server/env/`.
+**CRISP server.** Update the mainnet CRISP server with these settings:
 
 1. Use a `crisp-server` image built from CRISP 0.29.0 whose `deployed_contracts.json` records the
-   new program. Set `versions.crisp_server` in `ansible/inventories/mainnet/group_vars/all.yml`.
+   new program.
 2. Set `E3_PROGRAM_ADDRESS` to the new program.
 3. Set `E3_PARAM_SET=3` and `E3_COMMITTEE_SIZE=2`. In Interfold v0.20, set 3 is secure-8192. A
    CRISP server before 0.29.0 accepts only `E3_PARAM_SET` 0 or 2, so it cannot serve v0.20.
@@ -365,14 +364,9 @@ Do this step before the unpause batch (step B7 of
    `INDEX_CONTRACTS` and `INDEX_LOG_CONTRACTS`. Keep both old pairs in both lists. Then the server
    also serves the old proposals to the app. Without them, the app reads the old proposals from the
    RPC, which is slower.
-7. Write each value with `printf '%s' '<value>' | ./scripts/put-secret.sh mainnet crisp-server env/<NAME>`.
-8. If no round is open, move the server database aside. The server serves one program, and a new
+7. If no round is open, move the server database aside. The server serves one program, and a new
    database gives a complete index of the new contracts.
-9. Restart the server:
-
-   ```bash
-   ansible-playbook -i ansible/inventories/mainnet ansible/playbooks/restart.yml --limit crisp_server
-   ```
+8. Restart the server.
 
 **Program server.** Update the mainnet program server to the prover of the v0.20.0 release before
 the unpause. Its guest must give the image ID that the new program's receipt verifier accepts
