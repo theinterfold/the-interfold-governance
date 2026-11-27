@@ -109,18 +109,22 @@ The cutover batch registers the program that `$CRISP/packages/crisp-contracts/de
 records under `mainnet`. Deploy it first, with deferred wiring: the DAO batch registers and binds
 it.
 
-Values read from the live v0.19 program `0x1EA4…EE28` on 2026-11-27, for comparison:
+Values read from the live v0.19 program `0x1EA4…EE28` on 2026-11-27. The signer and the owner stay
+the same. The image ID and the OpenVM commitments change, because CRISP 0.29.0 has a new guest;
+take the new values from the compile in step 1, never from this table.
 
-| Setting | v0.19 value |
-|---|---|
-| `inputAvailabilitySigner()` (the mainnet CRISP server key) | `0x34655732dB9BBfA627021D18d786EfF7Bde211F7` |
-| `owner()` | the DAO, `0x652a31c669f9AB37f6040f279139a75D04F2679e` |
-| `imageId()` | `0x126eb3ea8c2d24cbf8e89f7e41dd2f0be5050be7a28276f0bcd4cb0546acdf52` |
-| OpenVM Halo2 verifier | `0x75cECF62f1ADe2C7b95d5a93460f450c6885F904`, runtime code hash `0xc164e9a2f1317f2babaccd3b14efe13a172225dbee3ffff0f95d5afda7b6b99c` |
-| `availabilityFinalizationWindow()` | 10800 s |
+| Setting | v0.19 value | v0.20 |
+|---|---|---|
+| `inputAvailabilitySigner()` (the mainnet CRISP server key) | `0x34655732dB9BBfA627021D18d786EfF7Bde211F7` | same, unless the server key rotates |
+| `owner()` | the DAO, `0x652a31c669f9AB37f6040f279139a75D04F2679e` | same |
+| `imageId()` | `0x126eb3ea8c2d24cbf8e89f7e41dd2f0be5050be7a28276f0bcd4cb0546acdf52` | changes |
+| OpenVM Halo2 verifier | `0x75cECF62f1ADe2C7b95d5a93460f450c6885F904` | a new one, from the compile |
+| Data availability | `AvailVectorXDataAvailabilityVerifier` `0x9B5088112Ae1D682782236486290120E27Eb32e3` | a new one, same Avail bridge and VectorX |
+| `availabilityFinalizationWindow()` | 10800 s | same |
 
-1. Compile the OpenVM guest of the release with the Interfold v0.20.0 CLI. It writes the receipt
-   identity that the deploy reads, `.interfold/caches/openvm/prover.json`:
+1. Compile the OpenVM guest with the Interfold v0.20.0 CLI, in the CRISP checkout at the 0.29.0
+   release (`main` after PR #25; the program server must run the same guest). It writes the
+   receipt identity that the deploy reads, `.interfold/caches/openvm/prover.json`:
 
    ```bash
    cd "$CRISP"
@@ -140,9 +144,12 @@ Values read from the live v0.19 program `0x1EA4…EE28` on 2026-11-27, for compa
    ```
 
    Mainnet refuses every mock verifier and mock data availability. The deploy reads the OpenVM
-   identity from `prover.json` and deploys the Halo2 verifier and the receipt verifier for it. A dry
-   run on a mainnet fork on 2026-11-27 (with a stub Halo2 verifier) deployed the program and all its
-   verifiers.
+   identity from `prover.json` and deploys the Halo2 verifier and the receipt verifier for it. It
+   also deploys a new `AvailVectorXDataAvailabilityVerifier` from the constants of
+   `@interfold/contracts` 0.20.0: bridge `0x054fd961708D8E2B9c10a63F6157c74458889F0a`, VectorX
+   `0x02993cdC11213985b9B13224f3aF289F03bf298d` and the 10800 s window. These equal the live v0.19
+   verifier's settings, and `upgrade:v19 prepare` checks them. A dry run on a mainnet fork on
+   2026-11-27 (with a stub Halo2 verifier) deployed the program and all its verifiers.
 3. Write the identity file that step B3 checks against the chain:
 
    ```bash
