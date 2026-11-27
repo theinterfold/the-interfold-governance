@@ -16,6 +16,7 @@ import {CrispVoting} from "../src/crisp/CrispVoting.sol";
 import {ICrispVoting} from "../src/crisp/ICrispVoting.sol";
 import {ICRISP} from "../src/crisp/ICRISP.sol";
 import {IInterfold} from "../src/crisp/IInterfold.sol";
+import {InterfoldCryptoConfig} from "../src/crisp/InterfoldCryptoConfig.sol";
 import {MockCrispProgram, MockFeeToken, MockInterfold, MockSpp, MockVotesToken} from "./mocks/CrispMocks.sol";
 import {SafeActionsScript} from "../script/SafeActions.s.sol";
 import {Utils} from "../script/Utils.sol";
@@ -332,6 +333,51 @@ contract CrispVotingViewsTest is Test {
             SUPPLY / 17_000_000 + 1,
             "CRISP records the divisor the floor was raised to"
         );
+    }
+
+    /// @notice Each committee size of both parameter sets asserts its own committee-bound id, and a
+    ///         parameter set that v0.20 does not admit fails before it reaches the coordinator.
+    /// @dev The expected ids are the `SS_*_CONFIG_ID` values of the Interfold v0.20.0
+    ///      `BfvProtocol`. A swapped pair would let one committee size request with another's id,
+    ///      and `request` would revert `CryptoConfigChanged` for every proposal of that size.
+    function test_requestAssertsTheCommitteeBoundConfigIdOfEverySize() public {
+        uint8[6] memory paramSets = [uint8(4), 4, 4, 3, 3, 3];
+        IInterfold.CommitteeSize[6] memory sizes = [
+            IInterfold.CommitteeSize.Minimum,
+            IInterfold.CommitteeSize.Micro,
+            IInterfold.CommitteeSize.Small,
+            IInterfold.CommitteeSize.Minimum,
+            IInterfold.CommitteeSize.Micro,
+            IInterfold.CommitteeSize.Small
+        ];
+        bytes32[6] memory expected = [
+            bytes32(0xd76c4f521394e6cbe1df28036cc5dd5590c6630a403525b5c2b052f9b91507f4),
+            0x893989231b402942b005fecdbf9eae21b227d861085433293d0873547ea2816a,
+            0x7fa922a08c5501592d02394205bb600219da3e168e0432f076465569116ccfe3,
+            0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a,
+            0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b,
+            0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891
+        ];
+        for (uint256 i; i < expected.length; ++i) {
+            plugin.updateE3Settings(sizes[i], paramSets[i], bytes(""));
+            spp.setCreator(SPP_PROPOSAL_ID + 1 + i, creator);
+            _depositAs(creator, 100 ether);
+            vm.prank(sppAddr);
+            plugin.createProposal(
+                abi.encode(sppAddr, SPP_PROPOSAL_ID + 1 + i, uint16(0)), _actions(), 0, 0, abi.encode(uint256(0))
+            );
+            assertEq(interfold.lastExpectedCryptoConfigId(), expected[i], "committee-bound config id");
+        }
+
+        // Index 0 held a v0.19 tuple; v0.20 admits no request on it.
+        interfold.setParamSet(0, interfold.paramSetRegistry(4));
+        plugin.updateE3Settings(IInterfold.CommitteeSize.Minimum, 0, bytes(""));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InterfoldCryptoConfig.UnsupportedCryptoConfig.selector, uint8(0), IInterfold.CommitteeSize.Minimum
+            )
+        );
+        plugin.quoteProposalFee(0, 0);
     }
 
     function test_createSchedulesAFullVotingWindowAfterDkgAndBeforeAvailability() public {

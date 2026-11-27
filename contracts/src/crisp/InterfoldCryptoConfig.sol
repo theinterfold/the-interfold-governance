@@ -33,6 +33,8 @@ library InterfoldCryptoConfig {
         0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891;
 
     /// @notice The crypto config id that a request for `paramSet` and `committeeSize` must assert.
+    /// @dev `CommitteeSize` has three members here (Minimum, Micro, Small), so a size that is not
+    ///      Minimum or Micro is Small.
     function configIdForRequest(uint8 paramSet, IInterfold.CommitteeSize committeeSize)
         internal
         pure
@@ -43,11 +45,12 @@ library InterfoldCryptoConfig {
                 return SS_INSECURE_64_MINIMUM_CONFIG_ID;
             }
             if (committeeSize == IInterfold.CommitteeSize.Micro) return SS_INSECURE_64_MICRO_CONFIG_ID;
-            if (committeeSize == IInterfold.CommitteeSize.Small) return SS_INSECURE_64_SMALL_CONFIG_ID;
-        } else if (paramSet == SECURE_PARAM_SET) {
+            return SS_INSECURE_64_SMALL_CONFIG_ID;
+        }
+        if (paramSet == SECURE_PARAM_SET) {
             if (committeeSize == IInterfold.CommitteeSize.Minimum) return SS_SECURE_8192_MINIMUM_CONFIG_ID;
             if (committeeSize == IInterfold.CommitteeSize.Micro) return SS_SECURE_8192_MICRO_CONFIG_ID;
-            if (committeeSize == IInterfold.CommitteeSize.Small) return SS_SECURE_8192_SMALL_CONFIG_ID;
+            return SS_SECURE_8192_SMALL_CONFIG_ID;
         }
         revert UnsupportedCryptoConfig(paramSet, committeeSize);
     }
