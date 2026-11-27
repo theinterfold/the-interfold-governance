@@ -66,7 +66,10 @@ Do not start step B1 until each item is true.
 
 - [ ] **Sepolia passed a full round with votes.** A governance proposal on the testnet DAO got
       ballots, a decrypted tally and an execution on Interfold v0.20.0. Until then, compute,
-      decryption and the tally have no evidence on v0.20.0.
+      decryption and the tally have no evidence on v0.20.0. This check is partial: the testnet DAO
+      votes on Aztec with insecure-64 and a mock compute verifier. Mainnet uses the L1 CRISP
+      program, secure-8192 and a real OpenVM prover, which no testnet runs. Only the first real
+      mainnet private proposal proves that path (Phase C).
 - [ ] **The node release is published.** The Interfold v0.20.0 binaries, the circuit archive and
       the DAppNode package are public. `pnpm -w store:circuits verify-release` passes in the v0.20.0
       checkout.
@@ -78,12 +81,13 @@ Do not start step B1 until each item is true.
       [NEEDS TECHNICAL INPUT: the owner and the hosts of the mainnet CRISP server and program
       server.]
 - [ ] **The operators know the date.** Each operator must stop its node, back up the data, and
-      reset the state with the v0.20.0 binary. More than 19 bond owners must be back before step
-      B6 can resume requests.
+      reset the state with the v0.20.0 binary. At least 19 eligible bond owners must run v0.20.0
+      before step B7 can resume requests.
 - [ ] **The deployer EOA has ETH.** Steps A1 and B3 deploy contracts from an operator key, not from
       the Safe.
 - [ ] **The rehearsals of step A3 passed** on a mainnet fork, with the exact files that the Safe
-      signs.
+      signs. They are mandatory: Sepolia was redeployed for v0.20.0, so no live network ran the
+      in-place cutover.
 
 Checkouts:
 
@@ -155,20 +159,32 @@ The publication changes no installed plugin. It can run any time before step B4.
 
 ### A3. Rehearse on a mainnet fork
 
-1. **Protocol cutover.** From `$INTERFOLD/packages/interfold-contracts`:
+1. **Protocol cutover.** The simulation temporarily overwrites the `mainnet` entry of the CRISP
+   checkout's `deployed_contracts.json`, which step A1 just recorded. Give it a throwaway copy:
 
    ```bash
+   git -C "$CRISP" worktree add --detach /tmp/crisp-sim HEAD
+   (cd /tmp/crisp-sim && pnpm install)
+   cd "$INTERFOLD/packages/interfold-contracts"
    FORK_URL="$RPC_URL" LOG_RPC_URL=<mainnet RPCs with log history> \
-     pnpm upgrade:v19:simulate -- --crisp-dir "$CRISP"
+     pnpm upgrade:v19:simulate -- --crisp-dir /tmp/crisp-sim
    ```
 
-   It pauses, drains, prepares and executes the cutover batch as the protocol owner, refreshes the
-   operators, writes and executes the resume batch, and validates each stage. It uses a stub Halo2
-   verifier, so it proves the wiring, not the proofs.
-2. **Plugin publication and install.** On an `anvil --fork-url "$RPC_URL"` fork, impersonate the
-   foundation Safe. Execute the files of step A2 and of private-install-runbook.md, Steps 1 to 4.
-   Then do the checks of its Step 5. Use the CRISP program of the protocol rehearsal, or a stand-in
-   address. Record the result in the "Rehearsal record" of
+   It releases ended committees, prepares and executes the cutover batch as the protocol owner,
+   refreshes the operators, writes and executes the resume batch, and validates each stage. Read
+   the plan that it prints: protocol 10 and generation 2, parameter set 3, the two upgraded
+   implementations and the retired program `0x1EA4…EE28`. It uses a stub Halo2 verifier, so it
+   proves the wiring, not the proofs.
+2. **The Safe path.** The simulation calls the contracts as the protocol owner directly, so it does
+   not test the Safe → Admin plugin → DAO path. On an `anvil --fork-url "$RPC_URL"` fork,
+   impersonate the foundation Safe and send the B1 data to the Admin plugin
+   `0xF21e25455988887EE797050080141eba67B33920`. Expect `requestsPaused()` to be `true`. Then import
+   the Aragon Safe Builder file of the cutover batch and the unpause file the same way, and expect
+   each to execute.
+3. **Plugin publication and install.** On the same kind of fork, impersonate the foundation Safe.
+   Execute the files of step A2 and of private-install-runbook.md, Steps 1 to 4. Then do the checks
+   of its Step 5. Use the CRISP program of the protocol rehearsal, or a stand-in address. Record
+   the result in the "Rehearsal record" of
    [private-install-runbook.md](./private-install-runbook.md).
 
 ---
@@ -211,8 +227,16 @@ whose committee is not released, anyone can call `releaseCommittee(e3Id)` on the
 cast send $R 'releaseCommittee(uint256)' <e3Id> --rpc-url "$RPC_URL" --private-key <any funded key>
 ```
 
-On 2026-11-27 one committee was not released. Find its E3 in the `CommitteeFinalized` logs of the
-registry.
+On 2026-11-27 one committee was not released: E3
+`18458939420885977824981152629962741023865184457287647280899939019117062782980` (round 4, stage
+5, Complete). An `eth_call` of `releaseCommittee` for it from an arbitrary address succeeded, so
+anyone can release it now:
+
+```bash
+cast send $R 'releaseCommittee(uint256)' \
+  18458939420885977824981152629962741023865184457287647280899939019117062782980 \
+  --rpc-url "$RPC_URL" --private-key <any funded key>
+```
 
 ### B3. Prepare and execute the cutover batch (Interfold repository)
 
@@ -310,8 +334,11 @@ cast call $I 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
    execute (private-install-runbook.md, Step 7).
 2. Set `CRISP_VOTING_PLUGIN_ADDRESS` and `SPP_PRIVATE_ADDRESS` in `.env.mainnet` to the new pair,
    and update `.env.mainnet.install` in a pull request.
-3. Announce the cutover. Keep the Admin bootstrap armed until a real private proposal completes.
-   Then disarm it (private-install-runbook.md, Step 7).
+3. Run the first real private proposal on mainnet to its end: ballots, compute with the real OpenVM
+   prover, threshold decryption, tally and execution. It is the only end-to-end proof of the
+   mainnet path (L1 CRISP program, secure-8192). It is the gate for the announcement.
+4. Keep the Admin bootstrap armed until that proposal completes. Then announce the cutover and
+   disarm the bootstrap (private-install-runbook.md, Step 7).
 
 ---
 
@@ -332,5 +359,9 @@ cast call $I 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
 
 - **Bond-owner identity gate** (`upgrade:identity`). The v0.20.0 nodes read eligibility with
   `eligibilityAt`, which the v0.19 BondingRegistry has. The gate is a separate governance decision.
+- **BondingRegistry upgrade.** The cutover batch upgrades Interfold and CiphernodeRegistry only. The
+  BondingRegistry, which holds every bond, keeps its v0.19 implementation. v0.20.0 adds two views
+  to it (`unresolvedCommitteesOf`, `committeeObligationAt`). No contract calls them, and the node
+  falls back to the `CommitteeObligationUpdated` events when a registry does not have them.
 - **Timing windows.** `upgrade:v19` does not change them, and `validate` compares them with
   `mainnet-protocol.config.json`. Both hold the same values today.
