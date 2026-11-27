@@ -69,7 +69,7 @@ contract CrispVotingQuorumTest is Test {
             token: address(votesToken),
             interfold: address(interfold),
             committeeSize: IInterfold.CommitteeSize(0),
-            paramSet: 0,
+            paramSet: 4,
             crispProgramAddress: address(crispProgram),
             computeProviderParams: bytes(""),
             votingSettings: ICrispVoting.VotingSettings({

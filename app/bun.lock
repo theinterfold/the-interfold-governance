@@ -10,10 +10,10 @@
         "@aztec-labs/foundation": "6.0.0",
         "@aztec-labs/kv-store": "6.0.0",
         "@aztec-labs/stdlib": "6.0.0",
-        "@crisp-e3/aztec": "0.29.0-insecure.0",
-        "@crisp-e3/sdk": "0.29.0-insecure.0",
+        "@crisp-e3/aztec": "0.29.0",
+        "@crisp-e3/sdk": "0.29.0",
         "@hookform/resolvers": "^3.9.0",
-        "@interfold/sdk": "0.20.0-dev.3",
+        "@interfold/sdk": "0.20.0",
         "@phosphor-icons/react": "^2.1.10",
         "@radix-ui/react-tooltip": "^1.2.8",
         "@react-native-async-storage/async-storage": "^1.24.0",
@@ -71,8 +71,8 @@
     "connectkit@1.9.1": "patches/connectkit-1.9.1-governance.patch",
   },
   "overrides": {
-    "@interfold/contracts": "0.20.0-dev.3",
-    "@interfold/wasm": "0.20.0-dev.3",
+    "@interfold/contracts": "0.20.0",
+    "@interfold/wasm": "0.20.0",
     "@peculiar/asn1-schema": "2.11.1",
   },
   "packages": {
@@ -330,11 +330,11 @@
 
     "@crate-crypto/node-eth-kzg-win32-x64-msvc": ["@crate-crypto/node-eth-kzg-win32-x64-msvc@0.10.0", "", { "os": "win32", "cpu": "x64" }, "sha512-mYieW1mBesbLFRB2j4LdodpCkwIxZ8ZHZzzwV+MXqapI61B2SbH+FyMYQ5lJYqQeMHCY0ojq5ScW1zZj1uNGjA=="],
 
-    "@crisp-e3/aztec": ["@crisp-e3/aztec@0.29.0-insecure.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.29.0-insecure.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-1Zm4Lx0Vrt6U3Nn2CcxvgdiKZ/b1gjDXe+EU6ZoQg1grPTZmuhRLwatAPmwxW2uphNUrZ1iVGSVeCKhvKbCKEg=="],
+    "@crisp-e3/aztec": ["@crisp-e3/aztec@0.29.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@aztec-labs/accounts": "6.0.0", "@aztec-labs/aztec.js": "6.0.0", "@aztec-labs/constants": "6.0.0", "@aztec-labs/foundation": "6.0.0", "@aztec-labs/noir-contracts.js": "6.0.0", "@aztec-labs/stdlib": "6.0.0", "@aztec-labs/wallets": "6.0.0", "@crisp-e3/sdk": "0.29.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "@zkpassport/aztec": "0.1.0-beta.0", "@zkpassport/utils": "0.40.0", "poseidon-lite": "^0.3.0", "viem": "2.38.6" } }, "sha512-eXr2LVSVbj/ZWT5LKSOg31lX7RTEqdW3DTvUyVpDOMbjyPu2bYzrZqXLsbYOv+GpFSKM0NXXo85M2WppbB/3ZA=="],
 
-    "@crisp-e3/sdk": ["@crisp-e3/sdk@0.29.0-insecure.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@crisp-e3/zk-inputs": "0.29.0-insecure.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-Gm3LjurGJLVq/hBEQ480FIu7zkZZ2kk4yUCloleu76FrE0ndc24DAYyCkUXUO69ZgkuVxsvlHfJlI+8ZzUUi7w=="],
+    "@crisp-e3/sdk": ["@crisp-e3/sdk@0.29.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@crisp-e3/zk-inputs": "0.29.0", "@noir-lang/noir_js": "1.0.0-rc.3", "@zk-kit/lean-imt": "^2.2.4", "poseidon-lite": "^0.3.0", "viem": "2.30.6" } }, "sha512-GyUtPgZU1Roi98P9Hc8ZyFFvcTTk/cG4f2lo4uvVcFPpg8XJ/Nhp+yJrMD8pLJrwnFlLLRfxoBO8xWNUIMiG6g=="],
 
-    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.29.0-insecure.0", "", {}, "sha512-HJGev37266D07KFFaOhfD78NSAtb/rYWau/mTuv0bAx+iQa4beyEoicDi7/QPs7giFR26pyblqPvSr462jpZ4Q=="],
+    "@crisp-e3/zk-inputs": ["@crisp-e3/zk-inputs@0.29.0", "", {}, "sha512-9Xtbhptm8fXzbuqsfHWsbMyy7n9ylDpuZlsRzLEFGGW/2Y9nytUCK0Ksvm6sA91NUXuL5Jwmz12Qm+lvtEkGqw=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
@@ -552,11 +552,11 @@
 
     "@inquirer/external-editor": ["@inquirer/external-editor@1.0.3", "", { "dependencies": { "chardet": "^2.1.1", "iconv-lite": "^0.7.0" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA=="],
 
-    "@interfold/contracts": ["@interfold/contracts@0.20.0-dev.3", "", { "dependencies": { "@chainlink/contracts": "1.5.0", "@openzeppelin/contracts": "5.3.0", "@openzeppelin/contracts-upgradeable": "5.0.2", "@predicate/contracts": "2.2.3", "@safe-global/api-kit": "^5.0.1", "@safe-global/protocol-kit": "^8.0.1", "@safe-global/types-kit": "^4.0.1", "@zk-kit/lazy-imt.sol": "2.0.0-beta.12", "js-yaml": "^4.1.1", "poseidon-solidity": "0.0.5" } }, "sha512-PlGOmmnVN/6QbX9YNuB6SB6bUqOwpsGedSbihkJDM9gCzyX/wDgsOp2l6Sn6omrTxGq6V2BF9DubHDPcEk/Ybg=="],
+    "@interfold/contracts": ["@interfold/contracts@0.20.0", "", { "dependencies": { "@chainlink/contracts": "1.5.0", "@openzeppelin/contracts": "5.3.0", "@openzeppelin/contracts-upgradeable": "5.0.2", "@predicate/contracts": "2.2.3", "@safe-global/api-kit": "^5.0.1", "@safe-global/protocol-kit": "^8.0.1", "@safe-global/types-kit": "^4.0.1", "@zk-kit/lazy-imt.sol": "2.0.0-beta.12", "js-yaml": "^4.1.1", "poseidon-solidity": "0.0.5" } }, "sha512-1HU74U1s19cPnvB1Z9ImqInO4RdhmvRpnWRhc5TXdsrTEYnvnR78DE/w0csLcIKipCTZrF6NsP4NLZ7dbpXCnA=="],
 
-    "@interfold/sdk": ["@interfold/sdk@0.20.0-dev.3", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@interfold/contracts": "^0.20.0-dev.3", "@interfold/wasm": "^0.20.0-dev.3", "@noir-lang/noir_js": "1.0.0-rc.3", "comlink": "^4.4.2", "viem": "2.30.6", "vite-plugin-top-level-await": "^1.5.0", "vite-plugin-wasm": "^3.4.1", "vitest": "^1.6.1", "web-worker": "^1.5.0" } }, "sha512-4IwgI7XMB/3bF1w9/RJ7A9x0AyyGFa/geZPXsgMQ7aUal1xfY05kEv0lh6245qPURE4aAQHZ3d6Boz6X+K9epg=="],
+    "@interfold/sdk": ["@interfold/sdk@0.20.0", "", { "dependencies": { "@aztec-foundation/bb.js": "6.0.0", "@interfold/contracts": "^0.20.0", "@interfold/wasm": "^0.20.0", "@noir-lang/noir_js": "1.0.0-rc.3", "comlink": "^4.4.2", "viem": "2.30.6", "vite-plugin-top-level-await": "^1.5.0", "vite-plugin-wasm": "^3.4.1", "vitest": "^1.6.1", "web-worker": "^1.5.0" } }, "sha512-5tUgloXmqW9/sQ6M6P5qN3bGXIIoNgjahcbCKLqRgIQax1AXRbTLco73ZSKFqw8uLXYBfBVBo5xPRS2mRsuqNA=="],
 
-    "@interfold/wasm": ["@interfold/wasm@0.20.0-dev.3", "", {}, "sha512-Zl4U9PbofgnZ2eVnk5mEPbjSemNW4EegW3AZNWG7tfqbKN9iGRey1dpO98CpVreIwToWgNRv+xNyclAQoVY3Pg=="],
+    "@interfold/wasm": ["@interfold/wasm@0.20.0", "", {}, "sha512-a7DeCHj2SuFiFCP714ConhTVtn4zKG5QzpibxK1WYCi4pUms/0iWPR/duwe1FbI/1U6sEIRiInFdst1XSdSGiA=="],
 
     "@isaacs/cliui": ["@isaacs/cliui@8.0.2", "", { "dependencies": { "string-width": "^5.1.2", "string-width-cjs": "npm:string-width@^4.2.0", "strip-ansi": "^7.0.1", "strip-ansi-cjs": "npm:strip-ansi@^6.0.1", "wrap-ansi": "^8.1.0", "wrap-ansi-cjs": "npm:wrap-ansi@^7.0.0" } }, "sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA=="],
 

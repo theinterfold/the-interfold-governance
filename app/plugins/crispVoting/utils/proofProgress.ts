@@ -19,19 +19,14 @@ export type ProofProgressState = {
  */
 export const proofStageLabel = (stage: ProofStage, isMask: boolean): string => {
   switch (stage) {
-    // ct0 = pk0·u + e0 + k0·k1, every term bounded: the half of the ciphertext that holds the plaintext.
-    case "encryption_ct0":
+    // One circuit proves the whole ciphertext against the committee key: every term bounded,
+    // the plaintext in the first half, and one randomness shared by both halves.
+    case "encryption":
       return `Proving ${isMask ? "the mask" : "your ballot"} is correctly encrypted`;
-    // ct1 = pk1·u + e1: no plaintext, and nothing here compares `u` with the first half.
-    case "encryption_ct1":
-      return "Proving the second part of the encryption is well formed";
     case "ballot":
       return isMask
         ? "Proving the mask adds zero to the slot it covers"
         : "Proving you signed this ballot and it is within your voting power";
-    // Verifies both halves and asserts their randomness commitments are equal.
-    case "encryption":
-      return "Proving both parts come from the same encryption";
     // Verifies the ballot and encryption proofs cover one ciphertext; outputs the key commitment.
     case "fold":
       return "Combining everything into one proof, checked on chain against the committee key";
@@ -39,16 +34,14 @@ export const proofStageLabel = (stage: ProofStage, isMask: boolean): string => {
 };
 
 /**
- * Relative proving time of each stage, measured per parameter set with bun, single-threaded
- * (secure: one mask; insecure: a vote and a mask averaged). Only the ratios matter: the estimate
- * scales them by how fast this device ran the stages it has already finished. The split differs by
- * preset, because the last two stages verify proofs rather than BFV ciphertexts and barely change
- * with the degree. A preset gaining circuits in `./circuits` needs its own measurement here before
- * it gets an estimate. `insecure-64`, the testnet preset, has none yet.
+ * Relative proving time of each stage per parameter set, measured with bun, single-threaded. Only
+ * the ratios matter: the estimate scales them by how fast this device ran the stages it has
+ * already finished. The split differs by preset, because the last stage verifies proofs rather
+ * than BFV ciphertexts and barely changes with the degree. A preset gets an estimate only once its
+ * stages are measured here. The `@crisp-e3/sdk` 0.29 circuits (one encryption circuit instead of
+ * three) have no measurement yet, so no preset has one.
  */
-const STAGE_WEIGHTS: Partial<Record<ThresholdBfvParamsPresetName, Record<ProofStage, number>>> = {
-  SECURE_THRESHOLD_8192: { encryption_ct0: 66, encryption_ct1: 49, ballot: 115, encryption: 132, fold: 119 },
-};
+const STAGE_WEIGHTS: Partial<Record<ThresholdBfvParamsPresetName, Record<ProofStage, number>>> = {};
 
 /**
  * Milliseconds left on the proof, or `undefined` when there is nothing to scale: before a stage

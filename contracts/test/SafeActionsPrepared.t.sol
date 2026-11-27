@@ -313,7 +313,7 @@ contract SafeActionsPreparedTest is Test {
 
     function _installData(uint256 minimum) internal pure returns (bytes memory) {
         ICrispVoting.PluginInitParams memory params;
-        params.paramSet = 2;
+        params.paramSet = 3;
         params.committeeSize = IInterfold.CommitteeSize.Small;
         params.votingSettings.minDuration = 5 days;
         params.votingSettings.minVoterVotingPower = minimum;

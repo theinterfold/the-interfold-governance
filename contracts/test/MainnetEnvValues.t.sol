@@ -8,7 +8,7 @@ import {IInterfold} from "../src/crisp/IInterfold.sol";
 /// @notice Checks the mainnet policy and its chain-specific rejection paths.
 /// @dev SafePrepareCommand.test.mjs checks the values loaded from the deployment templates.
 contract MainnetEnvValuesTest is Test {
-    uint8 internal constant ENV_PARAM_SET = 2; // secure-8192
+    uint8 internal constant ENV_PARAM_SET = 3; // secure-8192
     IInterfold.CommitteeSize internal constant ENV_COMMITTEE_SIZE = IInterfold.CommitteeSize.Small; // ordinal 2
     uint64 internal constant ENV_MINIMUM_DURATION = 432_000; // 5 days
     uint64 internal constant ENV_SPP_PRIVATE_VOTE_DURATION = 432_000; // 5 days
@@ -31,7 +31,7 @@ contract MainnetEnvValuesTest is Test {
     }
 
     function test_envParamSetIsTheSecureSet() public pure {
-        assertEq(ENV_PARAM_SET, 2, "mainnet must deploy secure-8192, not insecure-512");
+        assertEq(ENV_PARAM_SET, 3, "mainnet must deploy secure-8192, not insecure-64");
     }
 
     /// @dev The ordinal is what crosses the ABI as `uint8`, so pin the number, not the name.
@@ -54,8 +54,8 @@ contract MainnetEnvValuesTest is Test {
     /// @dev The values this env file carried before. Reinjecting them must still be refused.
     function test_theSupersededTestnetValuesAreStillRefused() public {
         Utils.CrispEnvVariables memory stale = _config();
-        stale.paramSet = 0;
-        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetRequiresSecureParams.selector, uint8(0)));
+        stale.paramSet = 4;
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetRequiresSecureParams.selector, uint8(4)));
         this.exposedValidate(1, stale);
 
         stale = _config();
@@ -69,7 +69,7 @@ contract MainnetEnvValuesTest is Test {
     /// @dev Sepolia and local legitimately run the insecure preset; the gate must stay chain-scoped.
     function test_theGateDoesNotConstrainSepoliaOrLocal() public pure {
         Utils.CrispEnvVariables memory testnet = _config();
-        testnet.paramSet = 0;
+        testnet.paramSet = 4;
         testnet.committeeSize = IInterfold.CommitteeSize.Minimum;
         testnet.votingSettings.minDuration = 3600;
         testnet.votingSettings.minVoterVotingPower = 1;

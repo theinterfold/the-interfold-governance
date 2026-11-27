@@ -82,7 +82,7 @@ describe("Ballot eligibility rendering", () => {
         proofProgress={{isMask: false, presetName: "SECURE_THRESHOLD_8192", stageStartedAt: [Date.now()]}}
       />
     );
-    expect(html).toContain("Proof 1 of 5");
+    expect(html).toContain("Proof 1 of 3");
   });
 
   test("an unresolved secret ballot shows neither voting nor masking controls", () => {
