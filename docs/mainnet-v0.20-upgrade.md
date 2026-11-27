@@ -77,9 +77,8 @@ Do not start step B1 until each item is true.
       (`InterfoldCryptoConfig`), the mainnet env template, the build 4 publication batch and the
       app on `@crisp-e3/sdk` 0.29.0 and `@interfold/sdk` 0.20.0.
 - [ ] **The services are ready.** A CRISP server image built from CRISP 0.29.0, and a program
-      server that proves the CRISP 0.29.0 guest (private-install-runbook.md, Step 6).
-      [NEEDS TECHNICAL INPUT: the owner and the hosts of the mainnet CRISP server and program
-      server.]
+      server that proves the CRISP 0.29.0 guest. Update both in step B5
+      (private-install-runbook.md, Step 6).
 - [ ] **The operators know the date.** Each operator must stop its node, back up the data, and
       reset the state with the v0.20.0 binary. At least 19 eligible bond owners must run v0.20.0
       before step B7 can resume requests.

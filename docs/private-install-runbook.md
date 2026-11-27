@@ -351,9 +351,8 @@ Also make sure of these items:
 Do this step before the unpause batch (step B7 of
 [mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md)).
 
-**CRISP server.** The settings live in AWS SSM under `/interfold/mainnet/crisp-server/env/`. The
-infrastructure repository does not record the live mainnet host or the image tag. Get both from the
-operator.
+**CRISP server.** Update the mainnet CRISP server. Its settings live in AWS SSM under
+`/interfold/mainnet/crisp-server/env/`.
 
 1. Use a `crisp-server` image built from CRISP 0.29.0 whose `deployed_contracts.json` records the
    new program. Set `versions.crisp_server` in `ansible/inventories/mainnet/group_vars/all.yml`.
@@ -375,11 +374,9 @@ operator.
    ansible-playbook -i ansible/inventories/mainnet ansible/playbooks/restart.yml --limit crisp_server
    ```
 
-**Program server.** The program server must prove the OpenVM compute of the new program: its guest
-must give the image ID that the new program's receipt verifier accepts (`imageId()`). Update it to
-the prover of the v0.20.0 release before the unpause. Without a prover that matches, no private
-proposal can get a tally. [NEEDS TECHNICAL INPUT: the live mainnet program-server host and how it
-is deployed. The infrastructure repository does not record it.]
+**Program server.** Update the mainnet program server to the prover of the v0.20.0 release before
+the unpause. Its guest must give the image ID that the new program's receipt verifier accepts
+(`imageId()`). Without a prover that matches, no private proposal can get a tally.
 
 **App.** In the production deployment (`governance.theinterfold.com`), set these values:
 
