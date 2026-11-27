@@ -98,7 +98,7 @@ library Utils {
     ///      allows both there. Only mainnet is constrained.
     function validateDeploymentPolicy(uint256 chainId, CrispEnvVariables memory config) internal pure {
         if (chainId != 1) return;
-        if (config.paramSet != 2) revert MainnetRequiresSecureParams(config.paramSet);
+        if (config.paramSet != 3) revert MainnetRequiresSecureParams(config.paramSet);
         if (config.committeeSize != IInterfold.CommitteeSize.Small) {
             revert MainnetRequiresSmallCommittee(config.committeeSize);
         }

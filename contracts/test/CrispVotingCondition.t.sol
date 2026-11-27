@@ -129,7 +129,7 @@ contract CrispVotingConditionTest is Test {
             token: address(0), // overwritten by the setup
             interfold: address(interfold),
             committeeSize: IInterfold.CommitteeSize(0),
-            paramSet: 0,
+            paramSet: 4,
             crispProgramAddress: address(crispProgram),
             computeProviderParams: bytes(""),
             votingSettings: ICrispVoting.VotingSettings({

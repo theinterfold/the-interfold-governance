@@ -51,7 +51,7 @@ contract MainnetDeploymentPolicyTest is Test {
         config.crispProgramAddress = address(0xCAFE);
         config.targetConfig = IPlugin.TargetConfig({target: address(0), operation: IPlugin.Operation.Call});
         config.committeeSize = IInterfold.CommitteeSize.Small;
-        config.paramSet = 2;
+        config.paramSet = 3;
         config.votingSettings = ICrispVoting.VotingSettings({
             minProposerVotingPower: 1,
             minVoterVotingPower: 71 ether,
@@ -101,9 +101,9 @@ contract MainnetDeploymentPolicyTest is Test {
 
     function test_mainnetRejectsTheInsecureParamSet() public {
         Utils.CrispEnvVariables memory config = _validMainnetConfig();
-        config.paramSet = 0;
+        config.paramSet = 4;
 
-        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetRequiresSecureParams.selector, uint8(0)));
+        vm.expectRevert(abi.encodeWithSelector(Utils.MainnetRequiresSecureParams.selector, uint8(4)));
         harness.check(MAINNET, config);
     }
 
@@ -155,7 +155,7 @@ contract MainnetDeploymentPolicyTest is Test {
     ///      very testnet the secure-parameter work is validated on.
     function test_sepoliaAcceptsTheInsecurePresetAndAMinimumCommittee() public view {
         Utils.CrispEnvVariables memory config = _validMainnetConfig();
-        config.paramSet = 0;
+        config.paramSet = 4;
         config.committeeSize = IInterfold.CommitteeSize.Minimum;
         config.votingSettings.minDuration = 0;
         config.votingSettings.minVoterVotingPower = 1;
