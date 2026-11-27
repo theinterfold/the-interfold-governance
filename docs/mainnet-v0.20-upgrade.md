@@ -197,17 +197,17 @@ The Safe calls the Admin plugin, which makes the DAO call `Interfold.setRequests
 Build the call:
 
 ```bash
-I=0x28cF63B459e6218C69EA97ea7D90541cf648c715
+IFOLD=0x28cF63B459e6218C69EA97ea7D90541cf648c715   # the coordinator; the other runbooks use I for other values
 PAUSE=$(cast calldata 'setRequestsPaused(bool)' true)
 cast calldata 'executeProposal(bytes,(address,uint256,bytes)[],uint256)' \
-  0x "[($I,0,$PAUSE)]" 0
+  0x "[($IFOLD,0,$PAUSE)]" 0
 ```
 
 In the Safe Transaction Builder, send this data to the Admin plugin
 `0xF21e25455988887EE797050080141eba67B33920` with value 0. Then check:
 
 ```bash
-cast call $I 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect true
+cast call $IFOLD 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect true
 ```
 
 ### B2. Drain the protocol
@@ -216,7 +216,7 @@ The cutover needs no active E3 and no unreleased committee.
 
 ```bash
 R=0xC927A5B2d8F68697bC28C0670df05178c93df2d7
-cast call $I 'activeE3Count()(uint256)' --rpc-url "$RPC_URL"           # need 0
+cast call $IFOLD 'activeE3Count()(uint256)' --rpc-url "$RPC_URL"           # need 0
 cast call $R 'unreleasedCommitteeCount()(uint256)' --rpc-url "$RPC_URL" # need 0
 ```
 
@@ -272,9 +272,9 @@ After execution:
 ```bash
 pnpm upgrade:v19:validate -- --network mainnet
 pnpm upgrade:v19:validate -- --network mainnet --write-records
-cast call $I 'activeCryptoConfigId()(bytes32)' --rpc-url "$RPC_URL"
+cast call $IFOLD 'activeCryptoConfigId()(bytes32)' --rpc-url "$RPC_URL"
 # expect 0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891
-cast keccak "$(cast call $I 'paramSetRegistry(uint8)(bytes)' 3 --rpc-url "$RPC_URL")"
+cast keccak "$(cast call $IFOLD 'paramSetRegistry(uint8)(bytes)' 3 --rpc-url "$RPC_URL")"
 # expect 0x4f4025982214c2149028270dccc0ad45c24c2441a3496cdf1a29f5d1e1b908c3
 ```
 
@@ -323,7 +323,7 @@ The command validates the cutover again, checks that the refreshed owner capacit
 committee (19), and writes the unpause batch. The foundation Safe executes it. Then check:
 
 ```bash
-cast call $I 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
+cast call $IFOLD 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
 ```
 
 ---
@@ -342,16 +342,51 @@ cast call $I 'requestsPaused()(bool)' --rpc-url "$RPC_URL"   # expect false
 
 ---
 
+## Changing the committee size later
+
+The DAO holds `MANAGER_PERMISSION` on the new body. A DAO proposal with one action changes the E3
+settings of new private proposals, without a new plugin build:
+
+```bash
+cast calldata 'updateE3Settings(uint8,uint8,bytes)' <committee size> 3 <compute provider params>
+# target: the new body (CRISP_VOTING_PLUGIN_ADDRESS), value 0
+```
+
+| Committee size | Ordinal | Mainnet threshold | Crypto config id (parameter set 3) |
+|---|---|---|---|
+| Minimum | 0 | 2 of 3 | `0x0acc89be9b1f39b0c1ee06493af3bad6f5685bf60e0f1cec7a733e95caaab87a` |
+| Micro | 1 | 5 of 9 | `0xebe75e3c1ada2079e5a06e5853d710b67ac296959c6b67f7d82b44312574dd0b` |
+| Small (installed) | 2 | 14 of 19 | `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891` |
+
+- Proposals that exist keep the settings of their creation: each one requested its E3 then.
+- `updateE3Settings` does not check the values. The install-time mainnet policy (Small, parameter
+  set 3) does not apply to it. With a pair that Interfold does not support, the body's
+  `createProposal` reverts at `Interfold.request`. The SPP catches that revert: the SPP proposal
+  exists, but its private stage gets no vote and cannot advance. This continues until a second
+  update fixes the pair. Read the current compute provider params with `getE3Settings()` and pass
+  them again unchanged.
+- A smaller committee needs fewer operators and gives less security: fewer nodes must collude to
+  decrypt.
+- `Large` (45 nodes) is not in the body's `CommitteeSize` enum, and mainnet has no threshold for it.
+  It needs a new plugin build and a protocol change.
+
 ## If a step fails
 
 - **Before B3 executes:** nothing has changed except the paused requests and the published build.
   A published build changes no installed plugin. To go back, unpause with
   `setRequestsPaused(false)` through the Admin plugin.
-- **After B3 executes:** the parameter-set registrations stay; registration is append-only. Rollback
-  is a governance batch that points the proxies back to the v0.19 implementations and restores the
-  release policy, with the protocol paused and drained. Nodes then need the backups that they made
-  in step B6. See "Releases, protocol cutovers, and rollback" (`docs/architecture/upgrades.md`) in
-  the Interfold repository before you try it.
+- **After B3 executes:** there is no rollback to v0.19. The Interfold release policy is
+  forward-only: required counters never decrease, and a fix ships as a later release under a
+  higher protocol version ("Releases, protocol cutovers, and rollback",
+  `docs/architecture/upgrades.md` in the Interfold repository). These B3 changes cannot be undone:
+  - parameter set 3 stays registered (registration is append-only);
+  - the release policy stays at protocol 10, so v0.19 nodes cannot rejoin;
+  - the v0.19 program `0x1EA4…EE28` stays retired, and the BFV verifier routes stay the v0.20
+    routes. Pointing the proxies back to v0.19 alone would not let v0.19 private proposals request
+    an E3 again.
+
+  Keep requests paused, find the cause, and fix it forward. Each node keeps the backup that it made
+  in step B6 for a controlled reset, not to return to v0.19.
 - **B4 reverts:** the batch is atomic, so the DAO does not change. Fix the cause, generate the file
   again, and sign again.
 

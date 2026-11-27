@@ -422,9 +422,10 @@ all history are untouched.
 - [ ] `MINIMUM_VOTER_VOTING_POWER` is at least `71000000000000000000` (71 FOLD).
       The deployment scripts check the mainnet environment, encoded prepare data and prepared plugin.
       Governance can change this global setting later. Proposal creators cannot override it.
-- [ ] Mainnet Interfold E3 coordinator on v0.19: the Interfold repo's `upgrade:v19` batch executed
-      and validated, so `activeCryptoConfigId()` returns
-      `0xa174862efd4487031d423ca96516807775ade0191c714e513aab93d0cc289baa`. `INTERFOLD_ADDRESS` set.
+- [ ] Mainnet Interfold E3 coordinator on v0.20: the Interfold v0.20.0 `upgrade:v19` batch executed
+      and validated ([mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md), step B3), so
+      `activeCryptoConfigId()` returns
+      `0x41d2f2a41bfb17dfb292332d8283b3a9238f9fa8fdc4eecf87de4d777f95c891`. `INTERFOLD_ADDRESS` set.
 - [ ] Mainnet OpenVM CRISP program deployed and registered (`e3Programs(program)` returns `true`).
       It comes from the Interfold source of the `@crisp-e3` release that the CRISP server and the
       app use. `CRISP_PROGRAM_ADDRESS` set, and **confirmed to match the program the CRISP server
@@ -433,7 +434,7 @@ all history are untouched.
       Build 4 is expected next, not reserved. Build 3 returns no proposal-creation condition, so
       the install cannot use it. Confirm the actual publication receipt before preparing.
 - [ ] Ciphernode set live with 19 release-ready operators. `COMMITTEE_SIZE=2` (Small, 14 of 19)
-      and `PARAM_SET=2` (secure-8192): the mainnet policy rejects other values.
+      and `PARAM_SET=3` (secure-8192 in Interfold v0.20): the mainnet policy rejects other values.
 - [ ] `COMPUTE_PROVIDER_PARAMS` names the OpenVM compute provider.
 - [ ] CRISP server configured for mainnet. Quorum and the app read each round's recorded
       `votingPowerDivisorOf(e3Id)` from the CRISP program, so there is no scaling factor to keep
