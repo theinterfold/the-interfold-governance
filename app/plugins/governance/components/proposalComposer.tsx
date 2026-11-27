@@ -1,6 +1,8 @@
 import { useProposalBack } from "@/components/proposal/proposalNavigation";
 import { AccessibleRichText } from "@/components/input/accessibleRichText";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useAccount } from "wagmi";
+import { WalletConnectionPrompt } from "@/components/walletConnectionPrompt";
 import { PageIntro } from "@/components/pageIntro";
 import { MainSection } from "@/components/layout/main-section";
 import { ActionButton } from "@/components/input/actionButton";
@@ -79,6 +81,8 @@ export function ProposalComposer(props: Props) {
     schedule,
     eligibilityNotice,
   } = props;
+  const { isConnected, address } = useAccount();
+  const connected = isConnected && !!address;
   const back = useProposalBack();
   const id = useId();
   const [resourcesOpen, setResourcesOpen] = useState(false);
@@ -354,9 +358,6 @@ export function ProposalComposer(props: Props) {
         </div>
         <div className="composer-layout">
           <div className="composer-editor-context min-w-0">
-            <Disclosure open={!canSubmit} className="composer-eligibility-notice">
-              <div className="composer-writing">{eligibilityNotice}</div>
-            </Disclosure>
             {editor}
           </div>
           <aside className="composer-sidebar" aria-label="Voting and submission" data-proposal-part="create-sidebar">
@@ -429,8 +430,14 @@ export function ProposalComposer(props: Props) {
                 </section>
                 {fee}
                 <section className="composer-submit">
-                  <h2 className="ui-section-title">Voting power</h2>
+                  <h2 className="ui-section-title">Submission</h2>
+                  {!connected ? <WalletConnectionPrompt>
+                    Connecting keeps your draft.
+                  </WalletConnectionPrompt> : <>
                   <ProposalCreationRequirement {...creationRequirement} />
+                  <Disclosure open={!canSubmit} className="composer-eligibility-notice">
+                    {eligibilityNotice}
+                  </Disclosure>
                   <ActionButton
                     isLoading={isCreating}
                     disabled={!canSubmit || submitDisabled}
@@ -439,6 +446,7 @@ export function ProposalComposer(props: Props) {
                   >
                     Submit proposal
                   </ActionButton>
+                  </>}
                   {errors.length > 0 && (
                     <p className="ui-field-error" role="alert">
                       Complete the highlighted fields to continue.

@@ -357,7 +357,7 @@ function ProposalDetailBody({
                   stage={proposalStage[0]}
                   proposalTitle={proposal.title}
                   votingPowerNotice={!PUB_ENABLE_LOCKING && delegationNotice}
-                  votingPower={
+                  votingPower={address &&
                     <UncountedFoldNotice address={PUB_ENABLE_LOCKING ? address : undefined} delegatesTo={delegatesTo}>
                       {(warning) => <VotingPower
                         votingPlugin={PUB_TOKEN_VOTING_PLUGIN_ADDRESS}

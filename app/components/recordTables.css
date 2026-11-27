@@ -78,7 +78,13 @@
 }
 [data-record-table] .power-position-summary { display:flex; flex-wrap:nowrap; align-items:center; gap:4px 8px; min-width:0; grid-column:1; grid-row:1; container:record-identity / inline-size; }
 [data-record-table] .power-position-id { flex:none; width:24px; }
-[data-record-table] .power-position-holding { min-width:0; flex:none; }
+[data-record-table] .power-position-holding { min-width:0; flex:0 1 auto; }
+[data-record-table] .power-position-delegate { min-width:0; }
+[data-record-table] .power-position-delegate .wallet-identity { min-width:0; max-width:100%; }
+[data-record-table] .power-position-delegate .wallet-identity-trigger { max-width:100%; flex-wrap:wrap; overflow-wrap:anywhere; }
+@container record-identity (max-width:308px) {
+  [data-record-table] .power-position-delegate .wallet-identity-tag { display:none; }
+}
 [data-record-table] [data-record-group] .power-position-status { flex:none; justify-self:start; justify-content:flex-start; padding:0; flex-wrap:nowrap; }
 [data-record-table] [data-record-group] .power-position-action { grid-column:1 / -1 !important; grid-row:2 !important; align-self:center; justify-self:end; width:min(100%, var(--record-action-track-width)); }
 [data-record-table] [data-record-group] .power-position-action button { width:100%; min-height:44px; }
@@ -184,4 +190,54 @@
   [data-responsive-status][data-status="cooldown"] [data-status-part="short"] { display:inline-flex; }
   [data-responsive-status][data-status="cooldown"] [data-status-part="icon"] { display:none; }
   [data-record-position-icon] { display:none!important; }
+}
+
+.withdrawal-label-short { display: none; }
+@container account-records (max-width: 539px) {
+  [data-record-table=locks] [data-record-group] { --record-action-track-width: 100px; --action-column-width: 100px; }
+  [data-record-table] [data-record-group] .power-position-row {
+    grid-template-columns: minmax(0,1fr) var(--record-action-track-width) !important;
+    grid-template-rows: auto; gap: 12px !important;
+  }
+  [data-record-table] [data-record-group] .power-position-action { grid-column: 2 !important; grid-row: 1 !important; }
+  [data-record-table] .power-position-summary { gap: 8px; }
+  [data-record-table] .power-position-id { width: 18px; }
+  [data-record-table] .power-position-holding { flex: 1; }
+  [data-record-table] .power-position-status { margin-inline-start: auto; }
+  [data-record-table] .power-position-action button { min-width: 0; padding-inline: 8px; }
+  [data-record-table] .withdrawal-label-full { display: none; }
+  [data-record-table] .withdrawal-label-short { display: inline; }
+  [data-record-table=locks] [data-record-group]:nth-child(1 of [data-record-group]) .power-position-row:nth-child(1 of .power-position-row) { border-top: 0 !important; }
+}
+@container account-records (max-width: 551px) {
+  [data-record-table] .power-delegate-identity > :not([data-record-state]) { flex: 1; }
+  [data-record-table] .power-delegate-identity > [data-record-state] { margin-inline-start: auto; }
+  [data-record-table=delegations] [data-record-group]:nth-child(1 of [data-record-group]) .power-delegate-row:first-child { border-top: 0 !important; }
+}
+
+@container account-records (max-width: 539px) {
+  /* ID and amount share their first baseline. The fixed status cell is centered
+     against the entire identity block, matching the action beside it. */
+  [data-record-table] .power-position-summary {
+    display: grid; grid-template-columns: 18px minmax(0, 1fr) 40px;
+    align-items: baseline; gap: 8px;
+  }
+  [data-record-table] .power-position-summary > .power-position-id { grid-column: 1; grid-row: 1; width: auto; padding: 0; align-self: baseline; }
+  [data-record-table] .power-position-summary > .power-position-holding { grid-column: 2; grid-row: 1; padding: 0; }
+  [data-record-table] .power-position-amount { min-height: 28px; }
+  [data-record-table] [data-record-group] .power-position-status {
+    grid-column: 3; grid-row: 1; width: 40px; margin: 0; align-self: center; justify-self: center; justify-content: center;
+  }
+  [data-record-table=locks] [data-record-position-icon] { display: none !important; }
+  [data-record-table=locks] [data-responsive-status] { padding-inline: 6px; }
+  [data-record-table=locks] [data-responsive-status] :is([data-status-part="full"],[data-status-part="short"]) { display: none; }
+  [data-record-table=locks] [data-responsive-status] [data-status-part="icon"] { display: inline-flex; }
+  [data-record-table=locks] [data-responsive-status][data-status="cooldown"] [data-status-part="short"] { display: inline-flex; }
+  [data-record-table=locks] [data-responsive-status][data-status="cooldown"] [data-status-part="icon"] { display: none; }
+  [data-record-table] .power-position-head.sr-only { background: transparent; border: 0; }
+}
+
+@container account-records (max-width: 319px) {
+  [data-record-table=locks] [data-record-group] .power-position-row { padding-inline: 8px !important; column-gap: 8px !important; }
+  [data-record-table=locks] .power-position-summary { column-gap: 6px; }
 }

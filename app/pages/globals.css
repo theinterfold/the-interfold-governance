@@ -306,12 +306,12 @@ html {
 
     /* Layering */
     --hub-navbar-z-index: 10;
-    --ods-dialog-overlay-z-index: 20;
-    --ods-dialog-alert-overlay-z-index: 20;
-    --ods-dialog-content-z-index: 30;
-    --ods-dialog-alert-content-z-index: 30;
-    --ods-dropdown-container-content-z-index: 40;
-    --ods-text-area-rich-text-expanded-z-index: 50;
+    --ods-dialog-overlay-z-index: 100;
+    --ods-dialog-alert-overlay-z-index: 100;
+    --ods-dialog-content-z-index: 110;
+    --ods-dialog-alert-content-z-index: 110;
+    --ods-dropdown-container-content-z-index: 120;
+    --ods-text-area-rich-text-expanded-z-index: 130;
   }
 }
 
@@ -608,7 +608,7 @@ label div p.leading-tight {
 }
 
 /* Homepage reference: MobileVersion h1 / Desktop Frame12 and titleBlock.ts. */
-.governance-page-intro { padding: 64px 24px; text-align: center; color: var(--ink); }
+.governance-page-intro { padding: clamp(28px, calc(28px + (100vw - 768px) * .2), 112px) 0 clamp(24px, calc(24px + (100vw - 768px) * .18), 96px); text-align: center; color: var(--ink); }
 .page-intro-glyph { display: block; width: 36px; height: auto; margin: 0 auto 16px; overflow: visible; color: var(--site-header-ink); }
 .page-intro-glyph :is(path, rect) { vector-effect: non-scaling-stroke; }
 .page-intro-ballot-paper { transform-origin: 22px 24px; transform: var(--ballot-rest); animation: intro-ballot-in 700ms cubic-bezier(.4, 0, .2, 1) var(--ballot-delay) both; }
@@ -639,7 +639,6 @@ label div p.leading-tight {
 .governance-page-intro-actions { display: flex; flex-direction: column; align-items: center; gap: var(--ui-space-tight); max-width: 440px; margin: var(--ui-space-controls) auto 0; }
 .governance-page-intro-actions > p { color: var(--muted); }
 @media (min-width: 768px) {
-  .governance-page-intro { padding-block: 112px 96px; }
   .page-intro-glyph { width: 44px; margin-bottom: 20px; }
   .governance-page-intro h1 { font-size: var(--type-h1-md); line-height: var(--type-h1-leading); letter-spacing: var(--type-h1-tracking); }
   .governance-page-intro-copy { max-width: 440px; margin-top: 12px; font-size: var(--type-support-md); }
@@ -1804,7 +1803,8 @@ label div p.leading-tight {
 }
 
 /* Proposal creation uses the same reading surfaces, choice rows and actions as voting. */
-.composer-back { display: inline-flex; align-items: center; min-height: 32px; margin-bottom: var(--ui-space-controls); color: var(--muted); font: var(--ui-label-font); transition: color 160ms; }
+.page-content:has(> .proposal-composer) { padding-top: var(--ui-space-tight); }
+.composer-back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 0; color: var(--muted); font: var(--ui-label-font); transition: color 160ms; }
 .composer-back:hover { color: var(--ink); }
 .proposal-composer { container: composer / inline-size; }
 .composer-editor-context { container: composer-editor / inline-size; }
@@ -3211,8 +3211,8 @@ button.power-lock-summary--states { width: 100%; container: lock-summary / inlin
 @media (max-width: 767px) {
   .power-card {
     --power-card-inset: 20px;
-    --power-card-block-inset: 24px;
-    padding: 24px var(--power-card-inset);
+    --power-card-block-inset: 20px;
+    padding: var(--power-card-block-inset) var(--power-card-inset);
   }
   .power-metric-total dd {
     font-size: clamp(48px, 13vw, 64px);
@@ -3309,8 +3309,8 @@ label div p.leading-tight,
   gap: 18px;
   color: var(--ink);
 }
-.ui-success-banner { padding: 18px 16px; border-radius: var(--ui-radius); background: var(--brand-signal); color: var(--brand-dark); min-width: 0; }
-/* Receipts belong to the confirmation banner; wrap below the title at compact widths. */
+.ui-success-banner { container: success-banner / inline-size; padding: 18px 16px; border-radius: var(--ui-radius); background: var(--brand-signal); color: var(--brand-dark); min-width: 0; }
+/* Receipts stay beside the confirmation; narrow panels use an accessible icon link. */
 .ui-success-banner-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; }
 .ui-success-banner-action { margin-left: auto; font: 500 12px/1.5 var(--font-sans); }
 .ui-success-banner-action a { color: inherit; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
@@ -3365,13 +3365,6 @@ label div p.leading-tight,
 .tally-row .pct {
   font-family: var(--font-sans);
   text-align: left;
-}
-.tally-row[data-leading="true"] :is(.key, .pct) { color: var(--ink); font-weight: 600; }
-.tally-row[data-leading="true"] .bar {
-  height: 10px;
-  background: color-mix(in srgb, var(--tally-color) 14%, var(--paper));
-  outline: 2px solid var(--tally-color);
-  outline-offset: 3px;
 }
 
 .vote-panel[data-vote-submitted="true"] .vote-choice:disabled { opacity: 1; cursor: default; }
@@ -4914,4 +4907,43 @@ html[data-proposal-navigation="back"]::view-transition-new(root) {
 .governance-alerts > * { pointer-events: auto; }
 @media (max-width: 1279.98px) {
   .governance-alerts { top: calc(4rem + env(safe-area-inset-top, 0px)); }
+}
+
+/* Compact confirmations keep their approved green surface. */
+@container success-banner (max-width: 420px) {
+  .ui-success-banner-top:has(.ui-transaction-link) { flex-wrap: nowrap; gap: 8px; }
+  .ui-success-banner-action { flex: none; }
+  .ui-success-banner-heading { gap: 8px; }
+  .ui-success-banner-heading > strong { font-size: 18px; }
+  .ui-success-banner-icon { width: 24px; height: 24px; }
+  .ui-success-banner-action .ui-transaction-text { display: none; }
+  .ui-success-banner-action .ui-transaction-external { opacity: 1 !important; transform: none !important; }
+  .ui-success-banner-action .ui-transaction-link { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .power-page > .governance-page-intro .governance-page-intro-copy { display: none; }
+}
+@media (min-width: 851px) {
+  .power-card.bonded-owner-card { padding-block: 20px; }
+}
+@media (max-width: 767px) {
+  /* The outer panel already draws the first boundary. */
+  .proposal-list > .proposal-filter-row:nth-child(1 of [data-open="true"]) .proposal-item { border-top: 0; }
+  .proposals-page .proposal-item[data-expanded="false"] .right {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .proposals-page .proposal-item[data-expanded="false"] .body .meta { padding-inline-end: 44px; }
+  .proposals-page .proposal-item[data-expanded="false"] .right > .proposal-row-action {
+    position: absolute; top: 6px; right: calc(var(--proposal-gutter) - 10px);
+    width: 44px; min-width: 44px; max-width: 44px; min-height: 44px; padding: 0;
+    color: var(--ink); background: transparent; border-color: transparent !important; box-shadow: none;
+  }
+  .proposals-page .proposal-item[data-expanded="false"] .right > .proposal-row-action:hover { background: var(--surface-hover); }
+  .proposal-item[data-expanded="false"] .proposal-result[data-compact] .proposal-result-legend { gap: 4px 8px; font-size: 11px; }
+}
+
+.proposal-item[data-expanded="false"]:not([aria-busy="true"]) > .proposal-row { cursor: pointer; }
+@media (max-width: 767px) {
+  .proposals-page .proposal-item[data-expanded="false"] .right > .proposal-row-action .proposal-row-action-label { display: none; }
+  .proposals-page .proposal-item[data-expanded="false"] .right > .proposal-row-action .ui-action-content { gap: 0; }
 }

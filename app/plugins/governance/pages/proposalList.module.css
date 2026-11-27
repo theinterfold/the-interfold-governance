@@ -74,3 +74,10 @@
 }
 .headingActions { display: flex; align-items: flex-start; gap: var(--ui-space-related); }
 .headingActions > button { min-height: 44px; width: auto; }
+
+.sortButton { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--muted); }
+.sortButton:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+@media (min-width: 768px) and (max-width: 1023px) {
+  .panel[data-filters-open="false"] { padding-top: 0; }
+  .panel > :global(.proposal-list-caption) { padding-block: 4px; min-height: 52px; }
+}

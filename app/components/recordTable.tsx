@@ -5,9 +5,9 @@ export const RecordTableContext = createContext({ embedded: false, presentation:
 export const useRecordTable = () => useContext(RecordTableContext);
 
 /** Shared account records: one entrance and surface, with adaptive column guides. */
-export function RecordTable({ kind, heading, children, enabled = true, animate = true, className = "" }: {
+export function RecordTable({ kind, heading, children, enabled = true, animate = true, showColumns = true, className = "" }: {
   kind: "locks" | "delegations"; heading?: ReactNode; children: ReactNode;
-  enabled?: boolean; animate?: boolean; className?: string;
+  enabled?: boolean; animate?: boolean; showColumns?: boolean; className?: string;
 }) {
   if (!enabled) return <>{heading}{children}</>;
   const Frame = animate ? ScrollFadeIn : "div";
@@ -15,9 +15,9 @@ export function RecordTable({ kind, heading, children, enabled = true, animate =
     <Frame {...(animate ? {amount: "some" as const} : {})} data-record-table={kind} className={className}>
       {heading}
       <div data-record-collection={true}>
-        <div data-record-columns={kind} aria-hidden="true">
+        {showColumns && <div data-record-columns={kind} aria-hidden="true">
           {(kind === "locks" ? ["Lock", "Amount", "Status", "Action"] : ["Wallet", "Power", "Status", "Action"]).map(label => <span key={label}>{label}</span>)}
-        </div>
+        </div>}
         {children}
       </div>
     </Frame>

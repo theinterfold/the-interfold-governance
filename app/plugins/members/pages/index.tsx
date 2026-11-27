@@ -3,7 +3,8 @@ import { useAccount } from "wagmi";
 import { Button } from "@aragon/ods";
 import { formatUnits } from "viem";
 import { MainSection } from "@/components/layout/main-section";
-import { MissingContentView } from "@/components/MissingContentView";
+import { WalletConnectionPrompt } from "@/components/walletConnectionPrompt";
+import { PageIntro } from "@/components/pageIntro";
 import { AddressText } from "@/components/text/address";
 import { BondedDelegationCards } from "@/components/cards/BondedDelegationCards";
 import { useBondedDelegation } from "@/hooks/useBondedDelegation";
@@ -29,30 +30,21 @@ export default function Delegation() {
 
   return (
     <MainSection narrow={true}>
-      <div className="page-head w-full">
-        <div>
-          <h1 className="display-title">Voting power</h1>
-        </div>
-      </div>
+      <PageIntro title="Voting power" glyph="voting"
+        actions={!(isConnected && address) ? (
+          <WalletConnectionPrompt align="center">
+            {PUB_ENABLE_LOCKING
+              ? `View your ${PUB_TOKEN_SYMBOL} balance, locks and delegations.`
+              : `View your ${PUB_TOKEN_SYMBOL} balance and delegations.`}
+          </WalletConnectionPrompt>
+        ) : undefined}
+        description={
+        PUB_ENABLE_LOCKING
+          ? `Lock ${PUB_TOKEN_SYMBOL} and delegate it to yourself to vote. You keep ownership of your tokens and control withdrawals.`
+          : `Delegate your ${PUB_TOKEN_SYMBOL} to yourself to vote. You keep ownership of your tokens.`
+      } />
 
-      <p className="form-intro">
-        {PUB_ENABLE_LOCKING
-          ? `Voting power in the Interfold comes from ${PUB_TOKEN_SYMBOL} that is committed, not just held: ` +
-            `${PUB_TOKEN_SYMBOL} locked in the voting escrow, bonded as ciphernode collateral, or still under a ` +
-            `vesting lock. Delegate your locked ${PUB_TOKEN_SYMBOL} to yourself to activate it. ` +
-            `Bonded and vesting ${PUB_TOKEN_SYMBOL} count for their owner without delegation. ` +
-            `Delegating never moves your tokens.`
-          : `Voting power comes from ${PUB_TOKEN_SYMBOL} that you delegate to yourself. ` +
-            `Delegate once to vote with your own balance. ` +
-            `${bonded.supported ? `Bonded ${PUB_TOKEN_SYMBOL} counts for its owner without delegation. ` : ""}` +
-            `Delegating never moves your tokens.`}
-      </p>
-
-      {!isConnected || !address ? (
-        <MissingContentView>
-          Connect your wallet (top right) to view and manage your {PUB_TOKEN_SYMBOL} voting power.
-        </MissingContentView>
-      ) : (
+      {isConnected && address && (
         <div className="flex flex-col gap-y-6">
           <Card>
             <Row label={`${PUB_TOKEN_SYMBOL} balance`} value={fmt(balance)} />

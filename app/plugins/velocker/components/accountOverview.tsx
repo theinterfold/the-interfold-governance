@@ -14,12 +14,16 @@ export function AccountOverview({
   children,
   heading,
   balanceText,
+  balanceLoading = false,
+  onRetryBalance,
 }: {
   allocation: FoldAllocation;
   children: ReactNode;
   /** A study can compose the existing heading outside this card. */
   heading?: ReactNode;
   balanceText?: string;
+  balanceLoading?: boolean;
+  onRetryBalance?: () => void;
 }) {
   const mobile = useMediaQuery("(max-width: 600px)");
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -45,7 +49,6 @@ export function AccountOverview({
       <div className={styles.overview}>
         <div className={styles.votingSummary}>
           {children}
-          <p>Voting power available to this wallet, including power you represent.</p>
         </div>
         <div ref={allocationRef} className={styles.allocation} aria-label="Balance composition">
           {collapsible ? <h3 className={styles.disclosureHeading}>
@@ -55,7 +58,13 @@ export function AccountOverview({
             </button>
           </h3> : <h3>{PUB_TOKEN_SYMBOL} balance</h3>}
           <Disclosure id={breakdownId} open={!collapsible || showBreakdown}>
-            <FoldBalanceBreakdown allocation={allocation} grouped interactive />
+            {allocation.status !== "ready" ? (
+              <p className="power-help" role={balanceLoading ? "status" : "alert"}>
+                {balanceLoading ? "Loading your balance…" : <>Could not load your balance. {onRetryBalance && <button type="button" className="ui-text-action" onClick={onRetryBalance}>Try again</button>}</>}
+              </p>
+            ) : allocation.total === 0n ? (
+              <p className="power-help">No FOLD held by this wallet.</p>
+            ) : <FoldBalanceBreakdown allocation={allocation} grouped interactive />}
           </Disclosure>
         </div>
       </div>

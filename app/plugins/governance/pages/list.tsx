@@ -2,7 +2,7 @@ import { FluidHeight } from "@/components/motion/FluidHeight";
 import { LoadingTextScope } from "@/components/motion/LoadingTransition";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ActionButton } from "@/components/input/actionButton";
-import { SlidersHorizontal } from "@phosphor-icons/react";
+import { SlidersHorizontal, ArrowsDownUp } from "@phosphor-icons/react";
 import { PendingProposalRows } from "@/components/proposal/pendingProposalRows";
 import { Disclosure } from "@/components/motion/Disclosure";
 import { PanelHeader } from "@/components/panelHeader";
@@ -63,6 +63,7 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
   const [filtersPreference, setFiltersPreference] = useState<boolean>();
   const filtersOpen = filtersPreference ?? wide;
   const [showAll, setShowAll] = useState(false);
+  const [oldestFirst, setOldestFirst] = useState(false);
   const { isConnected } = useAccount();
   const privateCreate = useCanCreatePrivate();
   const publicCreate = useCanCreatePublic();
@@ -224,9 +225,10 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
   const matchCount = entries.filter(visible).length;
   // "All" excludes failed rounds, which the creation index cannot identify on its own.
   const countKnown = entries.length > 0 && entries.every(e => statuses[entryKey(e)] !== undefined);
+  const chronological = oldestFirst ? [...entries].reverse() : entries;
   const ordered = mobile && !hasFilters
-    ? [...entries.filter(e => statuses[entryKey(e)] === "active"), ...entries.filter(e => statuses[entryKey(e)] !== "active")]
-    : entries;
+    ? [...chronological.filter(e => statuses[entryKey(e)] === "active"), ...chronological.filter(e => statuses[entryKey(e)] !== "active")]
+    : chronological;
   const clearFilters = () => {
     setKindFilter("all");
     setStatusFilter("all");
@@ -269,10 +271,10 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
           </div>
         ) : (
           <PanelHeader id="proposal-list-heading" title="Governance activity" animate={false}
-            description="Open a proposal to vote or review its results." className={styles.heading}
+            className={styles.heading}
             action={!mobile && <div className={styles.headingActions}>{filterButton}{createAction}</div>} />
         )}
-        <div className={`ui-panel ${styles.panel}`}>
+        <div className={`ui-panel ${styles.panel}`} data-filters-open={filtersOpen}>
           {!hasList ? (
               <div className={styles.feedback}>
                 <MissingContentView>
@@ -345,7 +347,11 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
                       Clear filters
                     </button>
                   )}
-                  {!mobile && <span>Newest first</span>}
+                  {!mobile && <button type="button" className={styles.sortButton}
+                    aria-label={`${oldestFirst ? "Oldest" : "Newest"} first. Show ${oldestFirst ? "newest" : "oldest"} first`}
+                    onClick={() => setOldestFirst(value => !value)}>
+                    {oldestFirst ? "Oldest first" : "Newest first"}<ArrowsDownUp size={16} aria-hidden="true" />
+                  </button>}
                 </div>
               </div>
               }

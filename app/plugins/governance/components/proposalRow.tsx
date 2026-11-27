@@ -129,7 +129,15 @@ export function ProposalRow(props: ProposalRowProps) {
       aria-busy={props.loading || undefined}
     >
       {props.loading && <span role="status" className="sr-only">{props.loadingMessage ?? "Loading proposal…"}</span>}
-      <header className="proposal-row" data-proposal-part="surface">
+      <header className="proposal-row" data-proposal-part="surface"
+        onClick={(event) => {
+          // The existing disclosure button supplies the keyboard equivalent.
+          // Links, wallet controls and text selection retain their own behavior.
+          if (expanded || props.loading || window.getSelection()?.toString()) return;
+          if ((event.target as Element).closest("a,button,input,select,textarea,[role='button']")) return;
+          toggle();
+        }}>
+
         <div className="body">
           <div className="meta">
             {props.statusLabel && (
@@ -212,11 +220,12 @@ export function ProposalRow(props: ProposalRowProps) {
             size="compact"
             className="proposal-row-action"
             data-proposal-part="list-action"
+            aria-label={expanded ? "Close details" : votingOpen ? "Vote" : props.statusClass === "executed" ? "View results" : "View proposal"}
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={toggle}
           >
-            <span>
+            <span className="proposal-row-action-label">
               {expanded
                 ? "Close details"
                 : votingOpen

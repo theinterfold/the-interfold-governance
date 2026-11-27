@@ -4,7 +4,7 @@ import { MemberAvatar } from "@aragon/ods";
 import { CaretRight, Wallet } from "@phosphor-icons/react";
 import type { Address } from "viem";
 
-/** The header and the mobile menu share this wallet control. */
+/** One wallet control for the header, menu and contextual connection prompts. */
 export function WalletButton({
   address,
   avatar,
@@ -12,7 +12,7 @@ export function WalletButton({
   placement = "header",
   className = "",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { address?: Address; avatar?: string; label: string; placement?: "header" | "menu" | "mobile" }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { address?: Address; avatar?: string; label: string; placement?: "header" | "menu" | "mobile" | "content" }) {
   let visibleLabel = label;
   if (placement === "mobile") {
     if (address && label.startsWith("0x")) visibleLabel = `${address.slice(0, 4)}…${address.slice(-4)}`;

@@ -109,8 +109,8 @@ export const VoteResultCard = ({
   // exactly the case where the reader most needs to be told why.
   if (e3Failed) {
     return (
-      <ResultNotice state="Voting closed" title="Round failed">
-        <p className="vp-note">{describeE3Failure(e3FailureReason)} This proposal could not be tallied or executed.</p>
+      <ResultNotice tone="failed" title="Round failed">
+        <p className="vp-note">{describeE3Failure(e3FailureReason)}</p>
         {/* Recording the failure on-chain also makes the fee refund available. */}
         {e3FailurePending && (
           <p className="vp-note">
@@ -127,7 +127,7 @@ export const VoteResultCard = ({
     const votingOpen = !notStarted && voteEndMs !== undefined && Date.now() < voteEndMs;
     return (
       <ResultNotice
-        state={notStarted ? "Not started" : votingOpen ? "Voting open" : "Voting closed"}
+        tone={networkResultPublished ? "neutral" : votingOpen ? "active" : "pending"}
         title={
           networkResultPublished
             ? "Result published"
@@ -157,7 +157,7 @@ export const VoteResultCard = ({
 
   if (!results || results.length === 0) {
     return (
-      <ResultNotice state="Voting closed" title="Loading voting results">
+      <ResultNotice title="Loading voting results">
         <p className="vp-note">The voting totals are not available here yet.</p>
       </ResultNotice>
     );

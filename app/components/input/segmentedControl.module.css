@@ -147,3 +147,9 @@
     transition: none;
   }
 }
+
+.control:not([data-size="small"]) .text { white-space: nowrap; }
+.icon { flex-shrink: 0; }
+@media (max-width: 1023px) {
+  .control:not([data-size="small"]) .label { padding-inline: 10px; gap: 6px; }
+}

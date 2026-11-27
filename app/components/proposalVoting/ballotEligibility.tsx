@@ -1,6 +1,5 @@
 import { VOTING_POWER_URL } from "@/constants";
-import { useWalletModal } from "@/hooks/useWalletModal";
-import { PowerAction } from "@/plugins/velocker/components/powerAction";
+import { WalletConnectionPrompt } from "@/components/walletConnectionPrompt";
 import Link from "next/link";
 
 /** Shared empty state: an unavailable ballot should not look like a voting form. */
@@ -16,12 +15,7 @@ export function BallotEligibilityNotice({
   failed?: boolean;
 }) {
   if (!connected) {
-    return (
-      <div className="ballot-eligibility">
-        <p>Check your voting power for this proposal.</p>
-        <ConnectToVote />
-      </div>
-    );
+    return <WalletConnectionPrompt />;
   }
   if (canVote === true) return null;
   const title = failed
@@ -32,7 +26,7 @@ export function BallotEligibilityNotice({
         ? "No voting power for this proposal"
         : "Voting unavailable for this wallet";
   const description = failed
-    ? "Eligibility could not be loaded. Please try again shortly."
+    ? "Please try again shortly."
     : canVote === undefined
       ? undefined
       : votingPower === 0n
@@ -46,9 +40,4 @@ export function BallotEligibilityNotice({
       {canVote === false && votingPower === 0n && <Link href={VOTING_POWER_URL}>View voting power →</Link>}
     </div>
   );
-}
-
-function ConnectToVote() {
-  const { open } = useWalletModal();
-  return <PowerAction onClick={() => void open()}>Connect wallet</PowerAction>;
 }

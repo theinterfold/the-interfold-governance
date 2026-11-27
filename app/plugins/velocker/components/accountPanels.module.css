@@ -214,8 +214,14 @@
 .disclosureHeading button span:first-child { margin-inline-end: auto; }
 @media (max-width: 600px) {
   .votingSummary > p { padding-top: 8px; }
-  .overview { gap: 12px; }
-  .allocation { padding-top: 4px; }
+  .accountCard:global(.power-card) { --power-card-inset: 16px; --power-card-block-inset: 16px; }
+  .overview { gap: 8px; }
+  .allocation { padding-top: 0; }
   .allocation .disclosureHeading { margin-bottom: 0; }
+  /* Match the visible label-to-edge inset, not the larger touch-target inset.
+     The 44px trigger remains inside the card; expanded content keeps its padding. */
+  .allocation .disclosureHeading:has(button[aria-expanded="false"]) {
+    margin-bottom: calc((1lh - 44px) / 2);
+  }
   .allocation .disclosureHeading + [data-open="true"] :global(.fold-allocation) { margin-top: 12px; }
 }

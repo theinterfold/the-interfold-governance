@@ -1,4 +1,3 @@
-import { useWalletModal } from "@/hooks/useWalletModal";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { useAccount } from "wagmi";
@@ -82,7 +81,6 @@ export const CrispCreationEligibility = ({
   state: CanCreateProposal;
   children: ReactNode;
 }) => {
-  const { open } = useWalletModal();
   // The central hook, not the token-targeted one: with the velocker enabled, delegation lives
   // on the escrow's IVotes adapter — and `delegate()` on the BondedVotes voting token REVERTS.
   const { delegateToSelf, isConfirming: isDelegating } = useDelegate(() => setTimeout(() => state.refetch(), 1000 * 2));
@@ -90,10 +88,7 @@ export const CrispCreationEligibility = ({
   return (
     <If true={!selfAddress || !isConnected}>
       <Then>
-        {/* Not connected */}
-        <MissingContentView callToAction="Connect wallet" onClick={() => open()}>
-          Please connect your wallet to continue.
-        </MissingContentView>
+        {null}
       </Then>
       <ElseIf true={state.isLoading}>
         {/* Reading on-chain voting power */}

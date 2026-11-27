@@ -78,8 +78,10 @@ Its navbar and footer share `--page-ground-shade` to contrast with the page body
 The footer follows the published homepage's breakpoints: one column below 768px,
 four columns from 768px with brand, links and social links on the same top row.
 The brand and copyright start in column one; link groups occupy columns three
-and four. Wordmark size is 40/64px, with the original -8/-12px first-line hanging
-alignment and matching inset on its second line. Do not add a separate tablet
+and four. Wordmark size is 40/64px. Its -8/-12px hanging alignment stays on the outer
+lockup; the second line uses a 0.164em inset so the vertical stems of T and I
+share one axis. This comes from the Gramercy Regular outlines (345 and 181
+font units on a 1000-unit em), rather than unrelated pixel offsets. Do not add a separate tablet
 stack or reduce the desktop wordmark until 1024px. Omitting Updates removes only
 the newsletter slot, not the shared grid or its 412px desktop minimum height.
 Structure always comes from theinterfold.com. Aesthetic changes to header or
