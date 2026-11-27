@@ -65,10 +65,6 @@
   "patchedDependencies": {
     "connectkit@1.9.1": "patches/connectkit-1.9.1-governance.patch",
   },
-  "overrides": {
-    "@interfold/contracts": "0.20.0",
-    "@interfold/wasm": "0.20.0",
-  },
   "packages": {
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.10.1", "", {}, "sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw=="],
 
