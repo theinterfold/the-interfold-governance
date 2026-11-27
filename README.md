@@ -194,6 +194,9 @@ explained in [`docs/architecture.md`](docs/architecture.md); the env reference i
 [`contracts/README.md`](contracts/README.md); the post-deploy security checks are in
 [`SECURITY.md`](SECURITY.md).
 
+**→ Mainnet cutover to Interfold v0.20.0:** [`docs/mainnet-v0.20-upgrade.md`](docs/mainnet-v0.20-upgrade.md)
+gives the order of the protocol upgrade, the CRISP plugin publication and the DAO install.
+
 ## Testnet app on Vercel
 
 The testnet app is a second Vercel project. It builds the `testnet` branch and uses the Sepolia

@@ -410,9 +410,10 @@ cast call $TOKEN_VOTING_PLUGIN_ADDRESS "getVotingToken()(address)" --rpc-url $M
 Runs against the live DAO once the mainnet CRISP stack exists. The DAO, FOLD, public process and
 all history are untouched.
 
-> **The mainnet DAO already has a private process.** It was installed on 2026-09-18 from CRISP
-> build 2, and it cannot run on Interfold v0.19. To replace it, use
-> [private-install-runbook.md](./private-install-runbook.md). The foundation Safe installs the new
+> **The mainnet DAO already has a private process.** The v0.19 cutover installed it from CRISP
+> build 3, and it cannot run on Interfold v0.20. To replace it, use
+> [private-install-runbook.md](./private-install-runbook.md), in the order of
+> [mainnet-v0.20-upgrade.md](./mainnet-v0.20-upgrade.md). The foundation Safe installs the new
 > build (expected build 4) and removes the powers of the old pair in one transaction. The steps
 > below are for a first install from an EOA.
 
