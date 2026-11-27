@@ -85,7 +85,8 @@ NEXT_PUBLIC_SPP_PUBLIC_ADDRESS=           # PUBLIC process (wraps TokenVoting)
 NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS=  # PRIVATE body
 NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS=  # PUBLIC body
 
-# Optional: a private pair that a replacement install retired. Its proposals stay readable.
+# Optional: private pairs that replacement installs retired. Their proposals stay readable.
+# One address or a comma-separated list; pair i is (SPP[i], body[i]).
 NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS=
 NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS=
 
@@ -109,7 +110,7 @@ Field notes:
 - `NEXT_PUBLIC_TOKEN_ADDRESS` — FOLD, the ERC20Votes token both plugins read voting power from.
 - `NEXT_PUBLIC_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_SPP_PUBLIC_ADDRESS` — the two SPP processes proposals are created on and the list scans for `ProposalCreated` events.
 - `NEXT_PUBLIC_CRISP_VOTING_PLUGIN_ADDRESS` / `NEXT_PUBLIC_TOKEN_VOTING_PLUGIN_ADDRESS` — the stage-0 bodies, resolved (via `getBodyProposalId`) to render each proposal's voting UI. Either pair may be empty if only one process is deployed; the UI adapts.
-- `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: optional. The private pair that a replacement install retired. The list and the proposal page still show its proposals. Set both or neither, as checksummed addresses.
+- `NEXT_PUBLIC_RETIRED_SPP_PRIVATE_ADDRESS` / `NEXT_PUBLIC_RETIRED_CRISP_VOTING_PLUGIN_ADDRESS`: optional. The private pairs that replacement installs retired. The list and the proposal page still show their proposals. Each variable is one address or a comma-separated list. The two lists have the same length and the same order: pair `i` is `(SPP[i], body[i])`. Whitespace around an address is ignored. Set both or neither, as checksummed addresses. A list of different length, an invalid or wrongly checksummed address, an empty entry or a duplicate stops the app at startup. The proposal page looks for an id on the installed pair first, then on each retired pair in list order. The list scans every retired SPP.
 - `NEXT_PUBLIC_INTERFOLD_FEE_TOKEN_ADDRESS` / `NEXT_PUBLIC_CRISP_SERVER_URL` — only used by the private (CRISP) flow.
 - `NEXT_PUBLIC_PLUGIN_DEPLOYMENT_BLOCK` — set to the DAO/plugin deployment block to avoid scanning from genesis.
 - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` — the WalletConnect project ID for the deployment. ConnectKit uses it for QR and mobile wallet connections.

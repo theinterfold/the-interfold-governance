@@ -27,7 +27,7 @@ import { useCanCreateProposal as useCanCreatePrivate } from "@/plugins/crispVoti
 import {
   INSTALLED_PRIVATE_PAIR,
   PrivatePairProvider,
-  RETIRED_PRIVATE_PAIR,
+  RETIRED_PRIVATE_PAIRS,
 } from "@/plugins/crispVoting/hooks/usePrivatePair";
 import { useCanCreateProposal as useCanCreatePublic } from "@/plugins/tokenVoting/hooks/useCanCreateProposal";
 import { PrivateRow } from "../components/privateRow";
@@ -114,13 +114,14 @@ export default function Proposals({ routeVisible }: { routeVisible: boolean }) {
   const fetchProposals = useCallback(async () => {
     if (!blockNumber || !PUB_DEPLOYMENT_BLOCK) return;
 
-    // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals). A
+    // Proposals now live on the SPP instances (the bodies only hold stage-0 sub-proposals). Each
     // retired private pair stays a source: its proposals are history that the DAO still shows.
     const sources: Source[] = [];
     if (isAddress(PUB_SPP_PRIVATE_ADDRESS))
       sources.push({ key: "private", kind: "private", address: PUB_SPP_PRIVATE_ADDRESS, pair: INSTALLED_PRIVATE_PAIR });
-    if (RETIRED_PRIVATE_PAIR)
-      sources.push({ key: "retired", kind: "private", address: RETIRED_PRIVATE_PAIR.spp, pair: RETIRED_PRIVATE_PAIR });
+    RETIRED_PRIVATE_PAIRS.forEach((pair, index) =>
+      sources.push({ key: `retired-${index}`, kind: "private", address: pair.spp, pair })
+    );
     if (isAddress(PUB_SPP_PUBLIC_ADDRESS))
       sources.push({ key: "public", kind: "public", address: PUB_SPP_PUBLIC_ADDRESS });
 

@@ -1,6 +1,6 @@
 import { formatUnits, parseAbi } from "viem";
 import { useQuery } from "@tanstack/react-query";
-import { PUB_CHAIN, PUB_CRISP_PROGRAM_ADDRESS, PUB_TOKEN_SYMBOL, PUB_VOTING_POWER_SOURCE } from "@/constants";
+import { PUB_CHAIN, PUB_TOKEN_SYMBOL, PUB_VOTING_POWER_SOURCE } from "@/constants";
 import { publicClient } from "@/plugins/governance/utils/client";
 import { iVotesAbi } from "../artifacts/iVotes";
 import { generateMerkleTree, hashLeaf } from "@crisp-e3/sdk";
@@ -109,8 +109,12 @@ export function useEligibleVoters(
           crispSdk.getEligibleAddresses(id),
           crispSdk.getTokenHolderHashes(id).catch(() => [] as string[]),
           crispSdk.getRoundTokenDetails(id).catch(() => undefined),
-          PUB_CRISP_PROGRAM_ADDRESS
-            ? crispSdk.getOnChainRoundData(PUB_CRISP_PROGRAM_ADDRESS, id, PUB_CHAIN.id).catch(() => undefined)
+          // The round's own program holds its data. A round of a retired pair ran on an older program
+          // than the configured one, which knows nothing of it.
+          publicClient && body
+            ? resolveCrispProgram(publicClient, body, id)
+                .then((program) => crispSdk.getOnChainRoundData(program, id, PUB_CHAIN.id))
+                .catch(() => undefined)
             : undefined,
           // The PLUGIN decides which token carries voting power; env constants only mirror it and
           // can drift. Ask the contract, and fall back to the configured source if the read fails.
